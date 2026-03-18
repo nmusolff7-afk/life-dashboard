@@ -599,7 +599,16 @@
             </div>
           </div>
 
+          <div id="scan-preview" style="display:none;margin-bottom:0.75rem">
+            <img id="scan-preview-img" style="max-height:110px;border-radius:8px;border:1px solid var(--border);display:block">
+          </div>
+
           <div class="btn-row">
+            <button type="button" class="btn btn-ghost" id="scan-btn">
+              <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              <span id="scan-btn-text">Scan Meal</span>
+            </button>
+            <input type="file" id="scan-input" accept="image/*" capture="environment" style="display:none">
             <button type="button" class="btn btn-ghost" id="macros-btn">Get Macros</button>
             <button type="submit" class="btn btn-primary" id="log-btn" style="display:none">Log Meal</button>
           </div>
@@ -1490,13 +1499,18 @@ function deleteWorkout(id) {
 // ══════════════════════════════════════════════════════
 
 (function() {
-  const mealInput   = document.getElementById("meal-input");
-  const macrosBtn   = document.getElementById("macros-btn");
-  const logBtn      = document.getElementById("log-btn");
-  const logForm     = document.getElementById("log-form");
-  const macroFields = document.getElementById("macro-fields");
-  const aiNotes     = document.getElementById("ai-notes");
-  const hDesc       = document.getElementById("h-description");
+  const mealInput      = document.getElementById("meal-input");
+  const macrosBtn      = document.getElementById("macros-btn");
+  const scanBtn        = document.getElementById("scan-btn");
+  const scanBtnText    = document.getElementById("scan-btn-text");
+  const scanInput      = document.getElementById("scan-input");
+  const scanPreview    = document.getElementById("scan-preview");
+  const scanPreviewImg = document.getElementById("scan-preview-img");
+  const logBtn         = document.getElementById("log-btn");
+  const logForm        = document.getElementById("log-form");
+  const macroFields    = document.getElementById("macro-fields");
+  const aiNotes        = document.getElementById("ai-notes");
+  const hDesc          = document.getElementById("h-description");
   const pairs = [
     ["e-calories","h-calories"],["e-protein","h-protein"],
     ["e-carbs","h-carbs"],["e-fat","h-fat"],
@@ -1505,6 +1519,75 @@ function deleteWorkout(id) {
   pairs.forEach(([vis,hid]) => vis.addEventListener("input", () => hid.value = vis.value));
 
   let shortLabel = null;
+
+  // ── Resize image to max dimension before sending ──────
+  function resizeAndEncode(file, cb) {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX = 1200;
+      let w = img.width, h = img.height;
+      if (w > MAX || h > MAX) {
+        const r = Math.min(MAX / w, MAX / h);
+        w = Math.round(w * r); h = Math.round(h * r);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      const b64 = dataUrl.split(",")[1];
+      cb(b64, "image/jpeg");
+    };
+    img.src = url;
+  }
+
+  // ── Scan Meal (camera / file picker) ─────────────────
+  scanBtn.addEventListener("click", () => scanInput.click());
+
+  scanInput.addEventListener("change", () => {
+    const file = scanInput.files[0];
+    if (!file) return;
+    scanInput.value = ""; // reset so same file can re-trigger
+
+    // Show thumbnail preview
+    scanPreviewImg.src = URL.createObjectURL(file);
+    scanPreview.style.display = "";
+
+    scanBtn.disabled = true; scanBtnText.textContent = "Scanning…";
+    macroFields.classList.remove("visible");
+    logBtn.style.display = "none";
+
+    resizeAndEncode(file, (b64, mediaType) => {
+      fetch("/api/scan-meal", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({image_b64: b64, media_type: mediaType})
+      })
+      .then(r => r.json())
+      .then(data => {
+        scanBtn.disabled = false; scanBtnText.textContent = "Scan Meal";
+        if (data.error) {
+          aiNotes.textContent = "⚠ " + data.error; aiNotes.style.color = "var(--danger)";
+          macroFields.classList.add("visible"); return;
+        }
+        if (data.description) {
+          mealInput.value = data.description;
+          hDesc.value = data.description;
+          shortLabel = data.description;
+        }
+        pairs[0][0].value = data.calories;   pairs[0][1].value = data.calories;
+        pairs[1][0].value = data.protein_g;  pairs[1][1].value = data.protein_g;
+        pairs[2][0].value = data.carbs_g;    pairs[2][1].value = data.carbs_g;
+        pairs[3][0].value = data.fat_g;      pairs[3][1].value = data.fat_g;
+        aiNotes.style.color = "";
+        aiNotes.textContent = data.notes ? "AI note: " + data.notes : "";
+        macroFields.classList.add("visible");
+        logBtn.style.display = "";
+      })
+      .catch(() => { scanBtn.disabled = false; scanBtnText.textContent = "Scan Meal"; });
+    });
+  });
 
   macrosBtn.addEventListener("click", () => {
     const val = mealInput.value.trim();
@@ -1576,6 +1659,7 @@ function deleteWorkout(id) {
       pairs.forEach(([vis, hid]) => { vis.value = ""; hid.value = ""; });
       aiNotes.textContent = "";
       shortLabel = null;
+      scanPreview.style.display = "none"; scanPreviewImg.src = "";
       // Refresh deficit + dashboard
       try {
         const p = localStorage.getItem("profileData");

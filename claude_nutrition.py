@@ -48,6 +48,55 @@ def estimate_nutrition(meal_description: str) -> dict:
     }
 
 
+# ── Meal image scanning ───────────────────────────────
+
+SCAN_PROMPT = """You are a nutrition expert analyzing a photo of food.
+Identify what food or meal is shown and estimate its nutritional content.
+
+Respond ONLY with this exact JSON structure (no markdown, no explanation):
+{
+  "description": "<2-5 word meal name>",
+  "calories": <integer>,
+  "protein_g": <number with one decimal>,
+  "carbs_g": <number with one decimal>,
+  "fat_g": <number with one decimal>,
+  "notes": "<brief note about what you see and portion assumptions>"
+}
+
+Be realistic about portion sizes based on what is visible in the image."""
+
+
+def scan_meal_image(image_b64: str, media_type: str) -> dict:
+    response = _client().messages.create(
+        model="claude-opus-4-6",
+        max_tokens=256,
+        messages=[{
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": image_b64,
+                    }
+                },
+                {"type": "text", "text": SCAN_PROMPT},
+            ]
+        }],
+    )
+    text = next(b.text for b in response.content if b.type == "text")
+    data = _parse_json(text)
+    return {
+        "description": data.get("description", "Meal from photo"),
+        "calories":    int(data["calories"]),
+        "protein_g":   float(data["protein_g"]),
+        "carbs_g":     float(data["carbs_g"]),
+        "fat_g":       float(data["fat_g"]),
+        "notes":       data.get("notes", ""),
+    }
+
+
 # ── Workout burn estimation ────────────────────────────
 
 BURN_PROMPT = """You are a fitness expert. Given a workout description in plain English,

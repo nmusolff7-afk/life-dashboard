@@ -11,7 +11,7 @@ from db import (
     insert_workout, get_today_workouts, delete_workout, get_today_workout_burn,
     get_meal_history, get_workout_history, get_day_detail,
 )
-from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, shorten_label
+from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, shorten_label, scan_meal_image
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "life-dashboard-default-secret-v1")
@@ -180,6 +180,20 @@ def api_today_workouts():
     workouts = get_today_workouts(uid())
     burn = get_today_workout_burn(uid())
     return jsonify({"workouts": workouts, "burn": burn})
+
+
+@app.route("/api/scan-meal", methods=["POST"])
+@login_required
+def api_scan_meal():
+    data = request.get_json() or {}
+    image_b64  = data.get("image_b64", "")
+    media_type = data.get("media_type", "image/jpeg")
+    if not image_b64:
+        return jsonify({"error": "No image provided"}), 400
+    try:
+        return jsonify(scan_meal_image(image_b64, media_type))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/estimate", methods=["POST"])
