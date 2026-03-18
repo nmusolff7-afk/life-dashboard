@@ -138,6 +138,50 @@ def delete(meal_id):
     return redirect(url_for("index"))
 
 
+@app.route("/api/log-meal", methods=["POST"])
+@login_required
+def api_log_meal():
+    data = request.get_json() or {}
+    description = data.get("description", "").strip()
+    if not description:
+        return jsonify({"error": "No description"}), 400
+    try:
+        nutrition = {
+            "calories":  int(data.get("calories", 0)),
+            "protein_g": float(data.get("protein_g", 0)),
+            "carbs_g":   float(data.get("carbs_g", 0)),
+            "fat_g":     float(data.get("fat_g", 0)),
+        }
+        insert_meal(uid(), description=description, **nutrition)
+        return jsonify({"meals": get_today_meals(uid()), "totals": get_today_totals(uid())})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/delete-meal/<int:meal_id>", methods=["POST"])
+@login_required
+def api_delete_meal(meal_id):
+    delete_meal(meal_id, uid())
+    return jsonify({"meals": get_today_meals(uid()), "totals": get_today_totals(uid())})
+
+
+@app.route("/api/delete-workout/<int:workout_id>", methods=["POST"])
+@login_required
+def api_delete_workout(workout_id):
+    delete_workout(workout_id, uid())
+    workouts = get_today_workouts(uid())
+    burn = get_today_workout_burn(uid())
+    return jsonify({"workouts": workouts, "burn": burn})
+
+
+@app.route("/api/today-workouts")
+@login_required
+def api_today_workouts():
+    workouts = get_today_workouts(uid())
+    burn = get_today_workout_burn(uid())
+    return jsonify({"workouts": workouts, "burn": burn})
+
+
 @app.route("/api/estimate", methods=["POST"])
 @login_required
 def api_estimate():

@@ -451,6 +451,21 @@
     .dash-goal-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; }
     .dash-goal-weeks { font-size: 2rem; font-weight: 800; color: var(--green); line-height: 1; }
     .dash-goal-meta { text-align: right; font-size: 0.8rem; color: var(--muted); line-height: 1.5; }
+
+    /* ══ SAVE FLASH ══════════════════════════════ */
+    #save-flash {
+      position: fixed; inset: 0; z-index: 9999; pointer-events: none;
+      border: 3px solid var(--green);
+      box-shadow: 0 0 24px var(--green), inset 0 0 24px rgba(63,185,80,0.08);
+      opacity: 0; border-radius: 0;
+    }
+    @keyframes flash-glow {
+      0%   { opacity: 0; }
+      12%  { opacity: 1; }
+      80%  { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    #save-flash.flashing { animation: flash-glow 900ms ease forwards; }
   </style>
 </head>
 <body>
@@ -578,7 +593,7 @@
         </form>
       </div>
 
-      <div class="card">
+      <div class="card" id="meal-table-wrap">
         <div class="card-title">Today's meal entries</div>
         {% if meals %}
         <table class="meal-table">
@@ -593,9 +608,7 @@
               <td class="td-pro">{{ "%.0f"|format(meal.protein_g) }}g</td>
               <td class="td-carb">{{ "%.0f"|format(meal.carbs_g) }}g</td>
               <td class="td-fat">{{ "%.0f"|format(meal.fat_g) }}g</td>
-              <td><form method="post" action="/delete/{{ meal.id }}">
-                <button type="submit" class="btn btn-danger">✕</button>
-              </form></td>
+              <td><button type="button" class="btn btn-danger" onclick="deleteMeal({{ meal.id }})">✕</button></td>
             </tr>
             {% endfor %}
             <tr class="totals-row">
@@ -689,6 +702,7 @@
       <div class="card">
         <div class="section-label">Strength</div>
 
+        <div id="strength-status-wrap">
         {% if ns.strength_log %}
         <div class="strength-done">
           <div class="done-check">✅</div>
@@ -703,6 +717,7 @@
           <button class="btn btn-green" id="start-workout-btn" style="min-width:180px">Start Workout</button>
         </div>
         {% endif %}
+        </div>
       </div>
 
       <!-- Daily Steps -->
@@ -740,7 +755,7 @@
       </div>
 
       <!-- Today's Entries -->
-      <div class="card">
+      <div class="card" id="workout-list-wrap">
         <div class="card-title">Today's workout entries</div>
         {% if workouts %}
           {% for w in workouts %}
@@ -751,9 +766,7 @@
               <div class="w-meta">{{ w.logged_at[11:16] }}</div>
             </div>
             {% if w.calories_burned %}<div class="w-cal">~{{ w.calories_burned }} kcal</div>{% endif %}
-            <form method="post" action="/delete-workout/{{ w.id }}">
-              <button type="submit" class="btn btn-danger">✕</button>
-            </form>
+            <button type="button" class="btn btn-danger" onclick="deleteWorkout({{ w.id }})">✕</button>
           </div>
           {% endfor %}
         {% else %}
@@ -1094,6 +1107,9 @@
   <div id="cal-popup-content"></div>
 </div>
 
+<!-- Green perimeter glow on save -->
+<div id="save-flash"></div>
+
 <!-- ══════════════════════════════════════════════════════
      CHECKLIST OVERLAY (full-screen, above everything)
 ══════════════════════════════════════════════════════ -->
@@ -1145,14 +1161,14 @@ const USER_ID = {{ user_id }};
 // ══════════════════════════════════════════════════════
 
 // Server-rendered values (used to apply profile overrides client-side)
-const CAL_CONSUMED      = {{ totals.total_calories }};
-const PROTEIN_CONSUMED  = {{ "%.1f"|format(totals.total_protein) }};
-const CARBS_CONSUMED    = {{ "%.1f"|format(totals.total_carbs) }};
-const FAT_CONSUMED      = {{ "%.1f"|format(totals.total_fat) }};
+let CAL_CONSUMED      = {{ totals.total_calories }};
+let PROTEIN_CONSUMED  = {{ "%.1f"|format(totals.total_protein) }};
+let CARBS_CONSUMED    = {{ "%.1f"|format(totals.total_carbs) }};
+let FAT_CONSUMED      = {{ "%.1f"|format(totals.total_fat) }};
 const SERVER_RMR        = 1550;
 const SERVER_TDEE       = {{ tdee }};  // RMR + today's workout burns
-const WORKOUT_BURN_TODAY = SERVER_TDEE - SERVER_RMR;
-const TODAY_WORKOUT_DESCS = {{ workouts | map(attribute='description') | list | tojson }};
+let WORKOUT_BURN_TODAY = SERVER_TDEE - SERVER_RMR;
+let TODAY_WORKOUT_DESCS = {{ workouts | map(attribute='description') | list | tojson }};
 
 // ── TDEE Component Functions (defined early — used by IIFEs below) ──
 
@@ -1329,6 +1345,132 @@ const savedTab = sessionStorage.getItem("activeTab");
 if (savedTab) { sessionStorage.removeItem("activeTab"); activateTab(savedTab); }
 
 // ══════════════════════════════════════════════════════
+//  GLOBAL HELPERS — Flash, Render, Delete
+// ══════════════════════════════════════════════════════
+
+function flashGreen() {
+  const el = document.getElementById("save-flash");
+  if (!el) return;
+  el.classList.remove("flashing");
+  void el.offsetWidth; // reflow to restart animation
+  el.classList.add("flashing");
+  el.addEventListener("animationend", () => el.classList.remove("flashing"), { once: true });
+}
+
+function renderMealTable(meals, totals) {
+  const wrap = document.getElementById("meal-table-wrap");
+  if (!wrap) return;
+  let html = '<div class="card-title">Today\'s meal entries</div>';
+  if (meals && meals.length > 0) {
+    html += '<table class="meal-table"><thead><tr><th>Meal</th><th>Cal</th><th>Pro</th><th>Carb</th><th>Fat</th><th></th></tr></thead><tbody>';
+    meals.forEach(m => {
+      html += `<tr>
+        <td>${m.description}</td>
+        <td class="td-cal">${m.calories}</td>
+        <td class="td-pro">${Math.round(m.protein_g)}g</td>
+        <td class="td-carb">${Math.round(m.carbs_g)}g</td>
+        <td class="td-fat">${Math.round(m.fat_g)}g</td>
+        <td><button type="button" class="btn btn-danger" onclick="deleteMeal(${m.id})">✕</button></td>
+      </tr>`;
+    });
+    html += `<tr class="totals-row">
+      <td class="td-label">Totals</td>
+      <td class="td-cal">${totals.total_calories}</td>
+      <td class="td-pro">${Math.round(totals.total_protein)}g</td>
+      <td class="td-carb">${Math.round(totals.total_carbs)}g</td>
+      <td class="td-fat">${Math.round(totals.total_fat)}g</td>
+      <td></td>
+    </tr></tbody></table>`;
+  } else {
+    html += '<div class="empty"><div class="icon">🍽</div>No meals logged yet.</div>';
+  }
+  wrap.innerHTML = html;
+}
+
+function renderWorkoutList(workouts, burn) {
+  const wrap = document.getElementById("workout-list-wrap");
+  if (!wrap) return;
+  let html = '<div class="card-title">Today\'s workout entries</div>';
+  if (workouts && workouts.length > 0) {
+    workouts.forEach(w => {
+      const isRun = /run|mile|cardio/i.test(w.description);
+      const icon  = isRun ? '🏃' : '🏋️';
+      const time  = (w.logged_at || '').slice(11, 16);
+      html += `<div class="workout-item">
+        <div class="w-icon">${icon}</div>
+        <div class="w-body">
+          <div class="w-desc">${w.description}</div>
+          <div class="w-meta">${time}</div>
+        </div>
+        ${w.calories_burned ? `<div class="w-cal">~${w.calories_burned} kcal</div>` : ''}
+        <button type="button" class="btn btn-danger" onclick="deleteWorkout(${w.id})">✕</button>
+      </div>`;
+    });
+  } else {
+    html += '<div class="no-activity"><div class="icon">🏃</div>No activity logged today</div>';
+  }
+  wrap.innerHTML = html;
+}
+
+function renderStrengthStatus(workouts) {
+  const wrap = document.getElementById("strength-status-wrap");
+  if (!wrap) return;
+  const strengthLog = (workouts || []).find(w => w.description.startsWith('Strength workout'));
+  if (strengthLog) {
+    const kcalStr = strengthLog.calories_burned ? ` · ~${strengthLog.calories_burned} kcal` : '';
+    const time    = (strengthLog.logged_at || '').slice(11, 16);
+    const desc    = strengthLog.description.length > 120
+      ? strengthLog.description.slice(0, 120) + '…'
+      : strengthLog.description;
+    wrap.innerHTML = `<div class="strength-done">
+      <div class="done-check">✅</div>
+      <div class="done-body">
+        <div class="done-title">Workout logged today${kcalStr}</div>
+        <div class="done-meta">${time} · ${desc}</div>
+      </div>
+    </div>`;
+  }
+  // If no strength log, leave idle state as-is (start button still there)
+}
+
+function deleteMeal(id) {
+  fetch(`/api/delete-meal/${id}`, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) return;
+      CAL_CONSUMED     = data.totals.total_calories;
+      PROTEIN_CONSUMED = data.totals.total_protein;
+      CARBS_CONSUMED   = data.totals.total_carbs;
+      FAT_CONSUMED     = data.totals.total_fat;
+      renderMealTable(data.meals, data.totals);
+      try {
+        const p = localStorage.getItem("profileData");
+        if (p) applyProfileToMeals(JSON.parse(p));
+      } catch(e) {}
+      if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+      flashGreen();
+    });
+}
+
+function deleteWorkout(id) {
+  fetch(`/api/delete-workout/${id}`, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) return;
+      WORKOUT_BURN_TODAY = data.burn;
+      TODAY_WORKOUT_DESCS = (data.workouts || []).map(w => w.description);
+      renderWorkoutList(data.workouts, data.burn);
+      renderStrengthStatus(data.workouts);
+      try {
+        const p = localStorage.getItem("profileData");
+        if (p) applyProfileToMeals(JSON.parse(p));
+      } catch(e) {}
+      if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+      flashGreen();
+    });
+}
+
+// ══════════════════════════════════════════════════════
 //  MEALS — Get Macros
 // ══════════════════════════════════════════════════════
 
@@ -1385,7 +1527,50 @@ if (savedTab) { sessionStorage.removeItem("activeTab"); activateTab(savedTab); }
       .catch(() => { macrosBtn.disabled = false; macrosBtn.textContent = "Get Macros"; });
   });
 
-  logForm.addEventListener("submit", () => { logBtn.disabled = true; logBtn.textContent = "Saving…"; });
+  logForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const desc = hDesc.value || mealInput.value.trim();
+    if (!desc) return;
+    logBtn.disabled = true; logBtn.textContent = "Saving…";
+    fetch("/api/log-meal", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        description: desc,
+        calories:    parseInt(pairs[0][1].value) || 0,
+        protein_g:   parseFloat(pairs[1][1].value) || 0,
+        carbs_g:     parseFloat(pairs[2][1].value) || 0,
+        fat_g:       parseFloat(pairs[3][1].value) || 0,
+      })
+    })
+    .then(r => r.json())
+    .then(data => {
+      logBtn.disabled = false; logBtn.textContent = "Log Meal";
+      if (data.error) { aiNotes.textContent = "⚠ " + data.error; aiNotes.style.color = "var(--danger)"; return; }
+      // Update global consumed vars
+      CAL_CONSUMED     = data.totals.total_calories;
+      PROTEIN_CONSUMED = data.totals.total_protein;
+      CARBS_CONSUMED   = data.totals.total_carbs;
+      FAT_CONSUMED     = data.totals.total_fat;
+      // Re-render meal table
+      renderMealTable(data.meals, data.totals);
+      // Reset form
+      mealInput.value = "";
+      macroFields.classList.remove("visible");
+      logBtn.style.display = "none";
+      pairs.forEach(([vis, hid]) => { vis.value = ""; hid.value = ""; });
+      aiNotes.textContent = "";
+      shortLabel = null;
+      // Refresh deficit + dashboard
+      try {
+        const p = localStorage.getItem("profileData");
+        if (p) applyProfileToMeals(JSON.parse(p));
+      } catch(ex) {}
+      if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+      flashGreen();
+    })
+    .catch(() => { logBtn.disabled = false; logBtn.textContent = "Log Meal"; });
+  });
 })();
 
 // ══════════════════════════════════════════════════════
@@ -1440,7 +1625,22 @@ if (savedTab) { sessionStorage.removeItem("activeTab"); activateTab(savedTab); }
     logBtn.disabled = true; logBtn.textContent = "Saving…";
     fetch("/api/log-workout", { method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({description: desc, calories_burned: kcal}) })
-      .then(() => { sessionStorage.setItem("activeTab","workout"); window.location.href = "/"; })
+      .then(() => fetch("/api/today-workouts"))
+      .then(r => r.json())
+      .then(data => {
+        logBtn.disabled = false; logBtn.textContent = "Log Activity";
+        input.value = ""; burnVal.value = ""; panel.classList.remove("visible"); logBtn.style.display = "none";
+        WORKOUT_BURN_TODAY = data.burn;
+        TODAY_WORKOUT_DESCS = (data.workouts || []).map(w => w.description);
+        renderWorkoutList(data.workouts, data.burn);
+        renderStrengthStatus(data.workouts);
+        try {
+          const p = localStorage.getItem("profileData");
+          if (p) applyProfileToMeals(JSON.parse(p));
+        } catch(e) {}
+        if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+        flashGreen();
+      })
       .catch(() => { logBtn.disabled = false; logBtn.textContent = "Log Activity"; });
   });
 })();
@@ -1621,16 +1821,36 @@ if (savedTab) { sessionStorage.removeItem("activeTab"); activateTab(savedTab); }
         return fetch("/api/log-workout", { method:"POST", headers:{"Content-Type":"application/json"},
           body: JSON.stringify({description: desc, calories_burned: kcal}) });
       })
+      .then(() => fetch("/api/today-workouts"))
       .then(r => r.json())
-      .then(() => {
-        sessionStorage.setItem("activeTab", "workout");
-        window.location.href = "/";
+      .then(data => {
+        overlay.classList.remove("active");
+        WORKOUT_BURN_TODAY = data.burn;
+        TODAY_WORKOUT_DESCS = (data.workouts || []).map(w => w.description);
+        renderWorkoutList(data.workouts, data.burn);
+        renderStrengthStatus(data.workouts);
+        try {
+          const p = localStorage.getItem("profileData");
+          if (p) applyProfileToMeals(JSON.parse(p));
+        } catch(e) {}
+        if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+        flashGreen();
       })
       .catch(() => {
         // Save with 0 kcal on any error rather than losing the workout
         fetch("/api/log-workout", { method:"POST", headers:{"Content-Type":"application/json"},
           body: JSON.stringify({description: desc, calories_burned: 0}) })
-          .finally(() => { sessionStorage.setItem("activeTab","workout"); window.location.href="/"; });
+          .then(() => fetch("/api/today-workouts"))
+          .then(r => r.json())
+          .then(data => {
+            overlay.classList.remove("active");
+            WORKOUT_BURN_TODAY = data.burn;
+            TODAY_WORKOUT_DESCS = (data.workouts || []).map(w => w.description);
+            renderWorkoutList(data.workouts, data.burn);
+            renderStrengthStatus(data.workouts);
+            flashGreen();
+          })
+          .catch(() => { sessionStorage.setItem("activeTab","workout"); window.location.href="/"; });
       });
   });
 })();
@@ -1655,6 +1875,7 @@ if (savedTab) { sessionStorage.removeItem("activeTab"); activateTab(savedTab); }
     saveDayField(localToday(), { weight: val });
     label.textContent = "Saved";
     if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+    flashGreen();
   }
 
   input.addEventListener("change", save);
@@ -1707,6 +1928,7 @@ if (savedTab) { sessionStorage.removeItem("activeTab"); activateTab(savedTab); }
     applySteps(steps);
     confirm.classList.add("show");
     setTimeout(() => confirm.classList.remove("show"), 2000);
+    flashGreen();
   });
 })();
 
@@ -1899,6 +2121,7 @@ if (savedTab) { sessionStorage.removeItem("activeTab"); activateTab(savedTab); }
     localStorage.setItem("weeklyPlan", JSON.stringify(planState));
     const confirm = document.getElementById("plan-save-confirm");
     if (confirm) { confirm.classList.add("show"); setTimeout(() => confirm.classList.remove("show"), 2000); }
+    flashGreen();
   });
 
   // ── Init: load existing plan ──
@@ -2141,6 +2364,7 @@ try {
     applyProfileToMeals(profile);
     const confirm = document.getElementById("save-confirm");
     if (confirm) { confirm.classList.add("show"); setTimeout(() => confirm.classList.remove("show"), 2000); }
+    flashGreen();
   });
 
   try {
