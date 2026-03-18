@@ -611,9 +611,14 @@
           <div class="btn-row">
             <button type="button" class="btn btn-ghost" id="scan-btn">
               <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              <span id="scan-btn-text">Scan Meal</span>
+              <span id="scan-btn-text">Camera</span>
             </button>
-            <input type="file" id="scan-input" accept="image/*" style="display:none">
+            <button type="button" class="btn btn-ghost" id="gallery-btn">
+              <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              <span id="gallery-btn-text">Gallery</span>
+            </button>
+            <input type="file" id="scan-input"   accept="image/*" capture="environment" style="display:none">
+            <input type="file" id="gallery-input" accept="image/*" style="display:none">
             <button type="button" class="btn btn-ghost" id="macros-btn">Get Macros</button>
             <button type="submit" class="btn btn-primary" id="log-btn" style="display:none">Log Meal</button>
           </div>
@@ -1508,7 +1513,10 @@ function deleteWorkout(id) {
   const macrosBtn      = document.getElementById("macros-btn");
   const scanBtn        = document.getElementById("scan-btn");
   const scanBtnText    = document.getElementById("scan-btn-text");
+  const galleryBtn     = document.getElementById("gallery-btn");
+  const galleryBtnText = document.getElementById("gallery-btn-text");
   const scanInput      = document.getElementById("scan-input");
+  const galleryInput   = document.getElementById("gallery-input");
   const scanPreview    = document.getElementById("scan-preview");
   const scanPreviewImg = document.getElementById("scan-preview-img");
   const scanRemoveBtn  = document.getElementById("scan-remove-btn");
@@ -1550,45 +1558,38 @@ function deleteWorkout(id) {
 
   // ── Scan state helpers ────────────────────────────────
   function enterScanMode() {
-    // Hide text-entry buttons, lock textarea
-    scanBtn.style.display   = "none";
-    macrosBtn.style.display = "none";
-    mealInput.disabled      = true;
-    mealInput.style.opacity = "0.45";
+    scanBtn.style.display    = "none";
+    galleryBtn.style.display = "none";
+    macrosBtn.style.display  = "none";
+    mealInput.disabled       = true;
+    mealInput.style.opacity  = "0.45";
   }
 
   function exitScanMode() {
-    // Restore default state — clear everything
     scanPreview.style.display  = "none";
-    scanPreviewImg.src          = "";
-    mealInput.disabled          = false;
-    mealInput.style.opacity     = "";
-    mealInput.value             = "";
-    hDesc.value                 = "";
-    shortLabel                  = null;
-    scanBtn.style.display       = "";
-    macrosBtn.style.display     = "";
+    scanPreviewImg.src         = "";
+    mealInput.disabled         = false;
+    mealInput.style.opacity    = "";
+    mealInput.value            = "";
+    hDesc.value                = "";
+    shortLabel                 = null;
+    scanBtn.style.display      = "";
+    galleryBtn.style.display   = "";
+    macrosBtn.style.display    = "";
     macroFields.classList.remove("visible");
-    logBtn.style.display        = "none";
-    aiNotes.textContent         = "";
+    logBtn.style.display       = "none";
+    aiNotes.textContent        = "";
     pairs.forEach(([vis, hid]) => { vis.value = ""; hid.value = ""; });
-    scanInput.value             = "";
+    scanInput.value            = "";
+    galleryInput.value         = "";
   }
 
-  // ── Scan Meal (camera or camera roll) ─────────────────
-  scanBtn.addEventListener("click", () => scanInput.click());
-  scanRemoveBtn.addEventListener("click", exitScanMode);
-
-  scanInput.addEventListener("change", () => {
-    const file = scanInput.files[0];
+  // ── Shared scan handler ───────────────────────────────
+  function handleImageFile(file) {
     if (!file) return;
-    scanInput.value = "";
-
-    // Show thumbnail and lock UI immediately
     scanPreviewImg.src        = URL.createObjectURL(file);
     scanPreview.style.display = "";
     enterScanMode();
-    scanBtnText.textContent   = "Scanning…"; // shown briefly before hide, good for a11y
 
     resizeAndEncode(file, (b64, mediaType) => {
       fetch("/api/scan-meal", {
@@ -1598,9 +1599,7 @@ function deleteWorkout(id) {
       })
       .then(r => r.json())
       .then(data => {
-        scanBtnText.textContent = "Scan Meal";
         if (data.error) {
-          // On error, drop back out of scan mode so user can try again
           exitScanMode();
           aiNotes.textContent = "⚠ " + data.error; aiNotes.style.color = "var(--danger)";
           macroFields.classList.add("visible"); return;
@@ -1619,9 +1618,16 @@ function deleteWorkout(id) {
         macroFields.classList.add("visible");
         logBtn.style.display = "";
       })
-      .catch(() => { scanBtnText.textContent = "Scan Meal"; exitScanMode(); });
+      .catch(() => exitScanMode());
     });
-  });
+  }
+
+  // ── Wire up buttons ───────────────────────────────────
+  scanBtn.addEventListener("click",    () => scanInput.click());
+  galleryBtn.addEventListener("click", () => galleryInput.click());
+  scanRemoveBtn.addEventListener("click", exitScanMode);
+  scanInput.addEventListener("change",    () => { handleImageFile(scanInput.files[0]);   scanInput.value   = ""; });
+  galleryInput.addEventListener("change", () => { handleImageFile(galleryInput.files[0]); galleryInput.value = ""; });
 
   macrosBtn.addEventListener("click", () => {
     const val = mealInput.value.trim();
