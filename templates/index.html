@@ -3,14 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-  <title>Life Dashboard</title>
-  <meta name="theme-color" content="#1A1A2E" />
+  <title>Apex</title>
+  <meta name="theme-color" content="#0d1117" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Life Dashboard" />
+  <meta name="apple-mobile-web-app-title" content="Apex" />
   <link rel="manifest" href="/static/manifest.json" />
   <link rel="apple-touch-icon" href="/static/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
   <style>
@@ -45,10 +47,16 @@
     header { position: fixed; top: 0; left: 0; right: 0; z-index: 100;
       height: var(--header-h);
       background: var(--surface); border-bottom: 1px solid var(--border);
-      padding: 0 1.25rem; display: flex; align-items: center;
+      padding: 0 1.1rem; display: flex; align-items: center;
       justify-content: space-between; }
-    header h1 { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.01em; }
-    header .subtitle { font-size: 0.75rem; color: var(--muted); margin-top: 1px; }
+    .header-brand { display: flex; align-items: center; gap: 0.55rem; }
+    .header-logo { height: 34px; width: auto; display: block; }
+    header h1 { font-family: 'Bebas Neue', 'Rajdhani', sans-serif;
+      font-size: 1.65rem; font-weight: 400; letter-spacing: 0.12em;
+      line-height: 1; color: var(--text); }
+    header .subtitle { font-family: 'Rajdhani', sans-serif;
+      font-size: 0.72rem; font-weight: 500; color: var(--muted);
+      letter-spacing: 0.08em; text-transform: uppercase; margin-top: 1px; }
 
     #content { position: fixed; top: var(--header-h); bottom: var(--nav-h);
       left: 0; right: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
@@ -445,9 +453,12 @@
 <div id="app">
 
   <header>
-    <div>
-      <h1>Life Dashboard</h1>
-      <div class="subtitle" id="header-date"></div>
+    <div class="header-brand">
+      <img src="/static/apex-logo.png" alt="Apex" class="header-logo">
+      <div>
+        <h1>APEX</h1>
+        <div class="subtitle" id="header-date"></div>
+      </div>
     </div>
   </header>
 
@@ -998,8 +1009,9 @@
       <!-- Account -->
       <div class="card">
         <div class="card-title">Account</div>
-        <div style="font-size:0.88rem;color:var(--muted);margin-bottom:1rem">
-          Signed in as <strong style="color:var(--text)">{{ username }}</strong>
+        <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:1rem">
+          <img src="/static/apex-logo.png" alt="Apex" style="height:20px;width:auto;opacity:0.7">
+          <span style="font-size:0.88rem;color:var(--muted)">Signed in as <strong style="color:var(--text)">{{ username }}</strong></span>
         </div>
         <a href="/logout" class="btn btn-ghost btn-full" style="text-decoration:none;display:flex;align-items:center;justify-content:center;gap:0.5rem">
           <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0">
