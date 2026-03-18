@@ -455,17 +455,30 @@
     /* ══ SAVE FLASH ══════════════════════════════ */
     #save-flash {
       position: fixed; inset: 0; z-index: 9999; pointer-events: none;
+      opacity: 0;
+    }
+    @keyframes flash-green {
+      0%   { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    @keyframes flash-red {
+      0%   { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    #save-flash.flash-green {
       box-shadow:
         inset 0 0 40px  rgba(63,185,80,0.55),
         inset 0 0 90px  rgba(63,185,80,0.25),
         inset 0 0 160px rgba(63,185,80,0.10);
-      opacity: 0;
+      animation: flash-green 1.6s ease-out forwards;
     }
-    @keyframes flash-glow {
-      0%   { opacity: 1; }
-      100% { opacity: 0; }
+    #save-flash.flash-red {
+      box-shadow:
+        inset 0 0 40px  rgba(248,81,73,0.60),
+        inset 0 0 90px  rgba(248,81,73,0.28),
+        inset 0 0 160px rgba(248,81,73,0.10);
+      animation: flash-red 0.8s ease-out forwards;
     }
-    #save-flash.flashing { animation: flash-glow 1.6s ease-out forwards; }
   </style>
 </head>
 <body>
@@ -1348,14 +1361,16 @@ if (savedTab) { sessionStorage.removeItem("activeTab"); activateTab(savedTab); }
 //  GLOBAL HELPERS — Flash, Render, Delete
 // ══════════════════════════════════════════════════════
 
-function flashGreen() {
+function _flash(cls) {
   const el = document.getElementById("save-flash");
   if (!el) return;
-  el.classList.remove("flashing");
-  void el.offsetWidth; // reflow to restart animation
-  el.classList.add("flashing");
-  el.addEventListener("animationend", () => el.classList.remove("flashing"), { once: true });
+  el.classList.remove("flash-green", "flash-red");
+  void el.offsetWidth;
+  el.classList.add(cls);
+  el.addEventListener("animationend", () => el.classList.remove(cls), { once: true });
 }
+function flashGreen() { _flash("flash-green"); }
+function flashRed()   { _flash("flash-red");   }
 
 function renderMealTable(meals, totals) {
   const wrap = document.getElementById("meal-table-wrap");
@@ -1448,7 +1463,7 @@ function deleteMeal(id) {
         if (p) applyProfileToMeals(JSON.parse(p));
       } catch(e) {}
       if (typeof window._refreshDashboard === "function") window._refreshDashboard();
-      flashGreen();
+      flashRed();
     });
 }
 
@@ -1466,7 +1481,7 @@ function deleteWorkout(id) {
         if (p) applyProfileToMeals(JSON.parse(p));
       } catch(e) {}
       if (typeof window._refreshDashboard === "function") window._refreshDashboard();
-      flashGreen();
+      flashRed();
     });
 }
 
