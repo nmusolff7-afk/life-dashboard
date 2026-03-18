@@ -452,6 +452,49 @@
     .dash-goal-weeks { font-size: 2rem; font-weight: 800; color: var(--green); line-height: 1; }
     .dash-goal-meta { text-align: right; font-size: 0.8rem; color: var(--muted); line-height: 1.5; }
 
+    /* ══ MEAL OR DIVIDER ═════════════════════════ */
+    .meal-or-divider {
+      display: flex; align-items: center; gap: 0.75rem;
+      color: var(--muted); font-size: 0.8rem; margin-bottom: 0.65rem;
+    }
+    .meal-or-divider::before, .meal-or-divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+
+    /* ══ PHOTO SOURCE MODAL ═══════════════════════ */
+    #photo-source-modal {
+      position: fixed; inset: 0; z-index: 400;
+      display: none; align-items: center; justify-content: center; padding: 1.5rem;
+    }
+    #photo-source-modal.active { display: flex; }
+    #photo-source-backdrop {
+      position: absolute; inset: 0; background: rgba(0,0,0,0.68);
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    }
+    #photo-source-box {
+      position: relative; z-index: 1; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 18px;
+      padding: 1.5rem 1.25rem; width: 100%; max-width: 300px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    }
+    .photo-source-title {
+      font-weight: 700; font-size: 1rem; text-align: center;
+      margin-bottom: 1.1rem; color: var(--text);
+    }
+    .photo-source-opt {
+      width: 100%; display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.85rem 1rem; border-radius: 10px; border: 1.5px solid var(--border);
+      background: var(--surface2); color: var(--text); font-size: 0.95rem;
+      font-weight: 500; cursor: pointer; transition: border-color .15s;
+      margin-bottom: 0.5rem;
+    }
+    .photo-source-opt:hover { border-color: var(--accent2); }
+    .photo-source-opt svg { flex-shrink: 0; }
+    .photo-source-cancel {
+      width: 100%; padding: 0.6rem; border: none; background: none;
+      color: var(--muted); font-size: 0.88rem; cursor: pointer; margin-top: 0.25rem;
+    }
+
     /* ══ SAVE FLASH ══════════════════════════════ */
     #save-flash {
       position: fixed; inset: 0; z-index: 9999; pointer-events: none;
@@ -599,7 +642,23 @@
             </div>
           </div>
 
-          <div id="scan-preview" style="display:none;margin-bottom:0.75rem;position:relative;width:fit-content">
+          <!-- Primary CTA -->
+          <button type="button" class="btn btn-green btn-full" id="macros-btn"
+            style="font-size:1rem;padding:0.8rem 1rem;margin-bottom:0.65rem">Get Macros</button>
+
+          <!-- Or divider -->
+          <div class="meal-or-divider" id="meal-or-divider"><span>or</span></div>
+
+          <!-- Photo entry point -->
+          <div id="photo-scan-row">
+            <button type="button" class="btn btn-ghost btn-full" id="scan-btn">
+              <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              Log a meal with a photo
+            </button>
+          </div>
+
+          <!-- Photo preview (shown after image selected) -->
+          <div id="scan-preview" style="display:none;position:relative;width:fit-content;margin-top:0.75rem">
             <img id="scan-preview-img" style="max-height:110px;border-radius:8px;border:1px solid var(--border);display:block">
             <button type="button" id="scan-remove-btn"
               style="position:absolute;top:-9px;right:-9px;width:22px;height:22px;
@@ -608,20 +667,12 @@
                      align-items:center;justify-content:center;padding:0;flex-shrink:0">✕</button>
           </div>
 
-          <div class="btn-row">
-            <button type="button" class="btn btn-ghost" id="scan-btn">
-              <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              <span id="scan-btn-text">Camera</span>
-            </button>
-            <button type="button" class="btn btn-ghost" id="gallery-btn">
-              <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-              <span id="gallery-btn-text">Gallery</span>
-            </button>
-            <input type="file" id="scan-input"   accept="image/*" capture="environment" style="display:none">
-            <input type="file" id="gallery-input" accept="image/*" style="display:none">
-            <button type="button" class="btn btn-ghost" id="macros-btn">Get Macros</button>
-            <button type="submit" class="btn btn-primary" id="log-btn" style="display:none">Log Meal</button>
-          </div>
+          <!-- Log Meal (shown after macros populated) -->
+          <button type="submit" class="btn btn-primary btn-full" id="log-btn"
+            style="display:none;margin-top:0.65rem">Log Meal</button>
+
+          <input type="file" id="scan-input"   accept="image/*" capture="environment" style="display:none">
+          <input type="file" id="gallery-input" accept="image/*" style="display:none">
         </form>
       </div>
 
@@ -1142,6 +1193,23 @@
 <!-- Green perimeter glow on save -->
 <div id="save-flash"></div>
 
+<!-- Photo source picker modal -->
+<div id="photo-source-modal">
+  <div id="photo-source-backdrop"></div>
+  <div id="photo-source-box">
+    <div class="photo-source-title">Add a meal photo</div>
+    <button type="button" class="photo-source-opt" id="take-photo-btn">
+      <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      Take Photo
+    </button>
+    <button type="button" class="photo-source-opt" id="from-gallery-btn">
+      <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      Upload from Gallery
+    </button>
+    <button type="button" class="photo-source-cancel" id="photo-cancel-btn">Cancel</button>
+  </div>
+</div>
+
 <!-- ══════════════════════════════════════════════════════
      CHECKLIST OVERLAY (full-screen, above everything)
 ══════════════════════════════════════════════════════ -->
@@ -1512,14 +1580,14 @@ function deleteWorkout(id) {
   const mealInput      = document.getElementById("meal-input");
   const macrosBtn      = document.getElementById("macros-btn");
   const scanBtn        = document.getElementById("scan-btn");
-  const scanBtnText    = document.getElementById("scan-btn-text");
-  const galleryBtn     = document.getElementById("gallery-btn");
-  const galleryBtnText = document.getElementById("gallery-btn-text");
   const scanInput      = document.getElementById("scan-input");
   const galleryInput   = document.getElementById("gallery-input");
   const scanPreview    = document.getElementById("scan-preview");
   const scanPreviewImg = document.getElementById("scan-preview-img");
   const scanRemoveBtn  = document.getElementById("scan-remove-btn");
+  const mealOrDivider  = document.getElementById("meal-or-divider");
+  const photoScanRow   = document.getElementById("photo-scan-row");
+  const photoModal     = document.getElementById("photo-source-modal");
   const logBtn         = document.getElementById("log-btn");
   const logForm        = document.getElementById("log-form");
   const macroFields    = document.getElementById("macro-fields");
@@ -1558,30 +1626,30 @@ function deleteWorkout(id) {
 
   // ── Scan state helpers ────────────────────────────────
   function enterScanMode() {
-    scanBtn.style.display    = "none";
-    galleryBtn.style.display = "none";
-    macrosBtn.style.display  = "none";
-    mealInput.disabled       = true;
-    mealInput.style.opacity  = "0.45";
+    macrosBtn.style.display     = "none";
+    mealOrDivider.style.display = "none";
+    photoScanRow.style.display  = "none";
+    mealInput.disabled          = true;
+    mealInput.style.opacity     = "0.45";
   }
 
   function exitScanMode() {
-    scanPreview.style.display  = "none";
-    scanPreviewImg.src         = "";
-    mealInput.disabled         = false;
-    mealInput.style.opacity    = "";
-    mealInput.value            = "";
-    hDesc.value                = "";
-    shortLabel                 = null;
-    scanBtn.style.display      = "";
-    galleryBtn.style.display   = "";
-    macrosBtn.style.display    = "";
+    scanPreview.style.display   = "none";
+    scanPreviewImg.src          = "";
+    mealInput.disabled          = false;
+    mealInput.style.opacity     = "";
+    mealInput.value             = "";
+    hDesc.value                 = "";
+    shortLabel                  = null;
+    macrosBtn.style.display     = "";
+    mealOrDivider.style.display = "";
+    photoScanRow.style.display  = "";
     macroFields.classList.remove("visible");
-    logBtn.style.display       = "none";
-    aiNotes.textContent        = "";
+    logBtn.style.display        = "none";
+    aiNotes.textContent         = "";
     pairs.forEach(([vis, hid]) => { vis.value = ""; hid.value = ""; });
-    scanInput.value            = "";
-    galleryInput.value         = "";
+    scanInput.value             = "";
+    galleryInput.value          = "";
   }
 
   // ── Shared scan handler ───────────────────────────────
@@ -1622,11 +1690,22 @@ function deleteWorkout(id) {
     });
   }
 
-  // ── Wire up buttons ───────────────────────────────────
-  scanBtn.addEventListener("click",    () => scanInput.click());
-  galleryBtn.addEventListener("click", () => galleryInput.click());
+  // ── Photo source modal ────────────────────────────────
+  function openPhotoModal()  { photoModal.classList.add("active"); }
+  function closePhotoModal() { photoModal.classList.remove("active"); }
+
+  scanBtn.addEventListener("click", openPhotoModal);
+  document.getElementById("photo-source-backdrop").addEventListener("click", closePhotoModal);
+  document.getElementById("photo-cancel-btn").addEventListener("click", closePhotoModal);
+  document.getElementById("take-photo-btn").addEventListener("click", () => {
+    closePhotoModal(); scanInput.click();
+  });
+  document.getElementById("from-gallery-btn").addEventListener("click", () => {
+    closePhotoModal(); galleryInput.click();
+  });
+
   scanRemoveBtn.addEventListener("click", exitScanMode);
-  scanInput.addEventListener("change",    () => { handleImageFile(scanInput.files[0]);   scanInput.value   = ""; });
+  scanInput.addEventListener("change",    () => { handleImageFile(scanInput.files[0]);    scanInput.value    = ""; });
   galleryInput.addEventListener("change", () => { handleImageFile(galleryInput.files[0]); galleryInput.value = ""; });
 
   macrosBtn.addEventListener("click", () => {
