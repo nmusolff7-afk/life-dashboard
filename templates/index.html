@@ -657,6 +657,12 @@
             </button>
           </div>
 
+          <!-- AI scanning status -->
+          <div id="scan-status" style="display:none;margin-top:0.75rem;font-size:0.85rem;color:var(--accent2);display:none;align-items:center;gap:0.5rem">
+            <span style="animation:spin 1.2s linear infinite;display:inline-block;font-size:1rem">⚙️</span>
+            Analyzing photo with AI…
+          </div>
+
           <!-- Photo preview (shown after image selected) -->
           <div id="scan-preview" style="display:none;position:relative;width:fit-content;margin-top:0.75rem">
             <img id="scan-preview-img" style="max-height:110px;border-radius:8px;border:1px solid var(--border);display:block">
@@ -1636,6 +1642,7 @@ function deleteWorkout(id) {
   function exitScanMode() {
     scanPreview.style.display   = "none";
     scanPreviewImg.src          = "";
+    scanStatus.style.display    = "none";
     mealInput.disabled          = false;
     mealInput.style.opacity     = "";
     mealInput.value             = "";
@@ -1652,11 +1659,14 @@ function deleteWorkout(id) {
     galleryInput.value          = "";
   }
 
+  const scanStatus = document.getElementById("scan-status");
+
   // ── Shared scan handler ───────────────────────────────
   function handleImageFile(file) {
     if (!file) return;
     scanPreviewImg.src        = URL.createObjectURL(file);
     scanPreview.style.display = "";
+    scanStatus.style.display  = "flex";
     enterScanMode();
 
     resizeAndEncode(file, (b64, mediaType) => {
@@ -1667,6 +1677,7 @@ function deleteWorkout(id) {
       })
       .then(r => r.json())
       .then(data => {
+        scanStatus.style.display = "none";
         if (data.error) {
           exitScanMode();
           aiNotes.textContent = "⚠ " + data.error; aiNotes.style.color = "var(--danger)";
@@ -1686,7 +1697,7 @@ function deleteWorkout(id) {
         macroFields.classList.add("visible");
         logBtn.style.display = "";
       })
-      .catch(() => exitScanMode());
+      .catch(() => { scanStatus.style.display = "none"; exitScanMode(); });
     });
   }
 
