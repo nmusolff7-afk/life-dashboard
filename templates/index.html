@@ -3022,7 +3022,7 @@ try {
 
     const now = new Date();
 
-    for (let mi = 2; mi >= 0; mi--) {
+    for (let mi = 0; mi <= 2; mi++) {
       const monthDate   = new Date(now.getFullYear(), now.getMonth() - mi, 1);
       const year        = monthDate.getFullYear();
       const month       = monthDate.getMonth();
