@@ -63,6 +63,10 @@
 
     .tab-panel { display: none; padding: 1.25rem; padding-bottom: 2rem; }
     .tab-panel.active { display: block; }
+    .page-header { margin-bottom: 1.1rem; }
+    .page-header h2 { font-family: 'Rajdhani', sans-serif; font-size: 1.5rem;
+      font-weight: 700; letter-spacing: 0.04em; color: var(--text); line-height: 1; }
+    .page-header p { font-size: 0.78rem; color: var(--muted); margin-top: 0.2rem; }
 
     /* ── Bottom nav ── */
     nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
@@ -468,6 +472,10 @@
          HOME TAB
     ══════════════════════════════════ -->
     <div class="tab-panel active" id="tab-home">
+      <div class="page-header">
+        <h2>Today's Overview</h2>
+        <p>Your daily snapshot at a glance</p>
+      </div>
 
       <!-- Calorie Balance Ring -->
       <div class="card" id="dash-cal-card" style="cursor:pointer">
@@ -530,6 +538,10 @@
          MEALS TAB
     ══════════════════════════════════ -->
     <div class="tab-panel" id="tab-meals">
+      <div class="page-header">
+        <h2>Nutrition</h2>
+        <p>Log meals and track your macros</p>
+      </div>
 
       {% if error %}
       <div class="error-banner">⚠ {{ error }}</div>
@@ -655,6 +667,10 @@
     {% endfor %}
 
     <div class="tab-panel" id="tab-workout">
+      <div class="page-header">
+        <h2>Training</h2>
+        <p>Log workouts, steps, and body weight</p>
+      </div>
 
       <!-- Today's Weight -->
       <div class="card">
@@ -752,6 +768,10 @@
          HISTORY TAB
     ══════════════════════════════════ -->
     <div class="tab-panel" id="tab-history">
+      <div class="page-header">
+        <h2>History</h2>
+        <p>Your log for the past 90 days</p>
+      </div>
       <div id="hist-loading" class="empty" style="display:none"><div class="icon">⏳</div>Loading…</div>
       <div id="hist-error"   class="empty" style="display:none"><div class="icon">⚠️</div>Failed to load.</div>
       <div class="card" id="hist-list-card" style="display:none">
@@ -767,6 +787,10 @@
          CHARTS TAB
     ══════════════════════════════════ -->
     <div class="tab-panel" id="tab-charts">
+      <div class="page-header">
+        <h2>Charts</h2>
+        <p>Trends, progress, and activity</p>
+      </div>
 
       <div id="charts-loading" class="empty" style="display:none">
         <div class="icon">⏳</div>Loading…
@@ -829,6 +853,10 @@
          PROFILE TAB
     ══════════════════════════════════ -->
     <div class="tab-panel" id="tab-profile">
+      <div class="page-header">
+        <h2>Profile</h2>
+        <p>Your stats, goals, and workout plan</p>
+      </div>
 
       <!-- About You -->
       <div class="card">
