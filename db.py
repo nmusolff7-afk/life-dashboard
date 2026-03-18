@@ -1,8 +1,9 @@
+import os
 import sqlite3
 from datetime import date, datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 
-DB_PATH = "life_dashboard.db"
+DB_PATH = os.environ.get("DB_PATH", "life_dashboard.db")
 
 
 def get_conn():
