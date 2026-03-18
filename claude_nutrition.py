@@ -1,7 +1,9 @@
 import json
+import os
 import anthropic
 
-client = anthropic.Anthropic()
+def _client():
+    return anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
 # ── Nutrition estimation ───────────────────────────────
 
@@ -29,7 +31,7 @@ def _parse_json(text: str) -> dict:
 
 
 def estimate_nutrition(meal_description: str) -> dict:
-    response = client.messages.create(
+    response = _client().messages.create(
         model="claude-opus-4-6",
         max_tokens=256,
         system=NUTRITION_PROMPT,
@@ -59,7 +61,7 @@ Respond ONLY with this exact JSON structure (no markdown, no explanation):
 
 
 def estimate_burn(workout_description: str) -> dict:
-    response = client.messages.create(
+    response = _client().messages.create(
         model="claude-opus-4-6",
         max_tokens=128,
         system=BURN_PROMPT,
@@ -87,7 +89,7 @@ Examples:
 
 
 def shorten_label(description: str) -> str:
-    response = client.messages.create(
+    response = _client().messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=24,
         system=SHORTEN_PROMPT,
@@ -121,7 +123,7 @@ _DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Su
 
 
 def parse_workout_plan(text: str) -> dict:
-    response = client.messages.create(
+    response = _client().messages.create(
         model="claude-opus-4-6",
         max_tokens=1024,
         system=PLAN_PROMPT,
