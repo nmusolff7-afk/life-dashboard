@@ -770,21 +770,25 @@
 
     <div class="tab-panel" id="tab-workout">
       <div class="page-header">
-        <h2>Training</h2>
+        <h2>Fitness</h2>
         <p>Log workouts, steps, and body weight</p>
       </div>
 
       <!-- Today's Weight -->
       <div class="card">
         <div class="card-title">Today's Weight</div>
-        <div class="field" style="margin-bottom:0.4rem">
+        <div class="field" style="margin-bottom:0.6rem">
           <div class="input-suffix-wrap">
             <input type="number" id="scale-input" min="50" max="500" step="0.1"
               placeholder="e.g. 183.4" inputmode="decimal" autocomplete="off">
             <span class="input-suffix">lbs</span>
           </div>
         </div>
-        <div style="font-size:0.78rem;color:var(--muted)" id="scale-saved-label"></div>
+        <div class="btn-row">
+          <button type="button" class="btn btn-primary" id="weight-save-btn">Save Weight</button>
+          <span class="save-confirm" id="weight-save-confirm">✓ Saved</span>
+        </div>
+        <div style="font-size:0.78rem;color:var(--muted);margin-top:0.4rem" id="scale-saved-label"></div>
       </div>
 
       <!-- Strength / planned workout -->
@@ -1164,7 +1168,7 @@
       <svg viewBox="0 0 24 24"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>Meals
     </button>
     <button class="nav-btn" data-tab="workout">
-      <svg viewBox="0 0 24 24"><path d="M6 4v16M18 4v16M3 8h4M17 8h4M3 16h4M17 16h4"/></svg>Workout
+      <svg viewBox="0 0 24 24"><path d="M6 4v16M18 4v16M3 8h4M17 8h4M3 16h4M17 16h4"/></svg>Fitness
     </button>
     <button class="nav-btn" data-tab="charts">
       <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Charts
@@ -2083,8 +2087,10 @@ function deleteWorkout(id) {
 // ══════════════════════════════════════════════════════
 
 (function() {
-  const input = document.getElementById("scale-input");
-  const label = document.getElementById("scale-saved-label");
+  const input   = document.getElementById("scale-input");
+  const label   = document.getElementById("scale-saved-label");
+  const saveBtn = document.getElementById("weight-save-btn");
+  const confirm = document.getElementById("weight-save-confirm");
   if (!input) return;
 
   function load() {
@@ -2096,12 +2102,14 @@ function deleteWorkout(id) {
     const val = parseFloat(input.value);
     if (!val) { label.textContent = ""; return; }
     saveDayField(localToday(), { weight: val });
-    label.textContent = "Saved";
+    label.textContent = "Saved for today";
     if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+    confirm.classList.add("show");
+    setTimeout(() => confirm.classList.remove("show"), 2000);
     flashGreen();
   }
 
-  input.addEventListener("change", save);
+  saveBtn.addEventListener("click", save);
   load();
 })();
 
