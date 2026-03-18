@@ -599,8 +599,13 @@
             </div>
           </div>
 
-          <div id="scan-preview" style="display:none;margin-bottom:0.75rem">
+          <div id="scan-preview" style="display:none;margin-bottom:0.75rem;position:relative;width:fit-content">
             <img id="scan-preview-img" style="max-height:110px;border-radius:8px;border:1px solid var(--border);display:block">
+            <button type="button" id="scan-remove-btn"
+              style="position:absolute;top:-9px;right:-9px;width:22px;height:22px;
+                     border-radius:50%;background:var(--danger);color:#fff;border:none;
+                     cursor:pointer;font-size:0.8rem;line-height:1;display:flex;
+                     align-items:center;justify-content:center;padding:0;flex-shrink:0">✕</button>
           </div>
 
           <div class="btn-row">
@@ -608,7 +613,7 @@
               <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
               <span id="scan-btn-text">Scan Meal</span>
             </button>
-            <input type="file" id="scan-input" accept="image/*" capture="environment" style="display:none">
+            <input type="file" id="scan-input" accept="image/*" style="display:none">
             <button type="button" class="btn btn-ghost" id="macros-btn">Get Macros</button>
             <button type="submit" class="btn btn-primary" id="log-btn" style="display:none">Log Meal</button>
           </div>
@@ -1506,6 +1511,7 @@ function deleteWorkout(id) {
   const scanInput      = document.getElementById("scan-input");
   const scanPreview    = document.getElementById("scan-preview");
   const scanPreviewImg = document.getElementById("scan-preview-img");
+  const scanRemoveBtn  = document.getElementById("scan-remove-btn");
   const logBtn         = document.getElementById("log-btn");
   const logForm        = document.getElementById("log-form");
   const macroFields    = document.getElementById("macro-fields");
@@ -1542,21 +1548,47 @@ function deleteWorkout(id) {
     img.src = url;
   }
 
-  // ── Scan Meal (camera / file picker) ─────────────────
+  // ── Scan state helpers ────────────────────────────────
+  function enterScanMode() {
+    // Hide text-entry buttons, lock textarea
+    scanBtn.style.display   = "none";
+    macrosBtn.style.display = "none";
+    mealInput.disabled      = true;
+    mealInput.style.opacity = "0.45";
+  }
+
+  function exitScanMode() {
+    // Restore default state — clear everything
+    scanPreview.style.display  = "none";
+    scanPreviewImg.src          = "";
+    mealInput.disabled          = false;
+    mealInput.style.opacity     = "";
+    mealInput.value             = "";
+    hDesc.value                 = "";
+    shortLabel                  = null;
+    scanBtn.style.display       = "";
+    macrosBtn.style.display     = "";
+    macroFields.classList.remove("visible");
+    logBtn.style.display        = "none";
+    aiNotes.textContent         = "";
+    pairs.forEach(([vis, hid]) => { vis.value = ""; hid.value = ""; });
+    scanInput.value             = "";
+  }
+
+  // ── Scan Meal (camera or camera roll) ─────────────────
   scanBtn.addEventListener("click", () => scanInput.click());
+  scanRemoveBtn.addEventListener("click", exitScanMode);
 
   scanInput.addEventListener("change", () => {
     const file = scanInput.files[0];
     if (!file) return;
-    scanInput.value = ""; // reset so same file can re-trigger
+    scanInput.value = "";
 
-    // Show thumbnail preview
-    scanPreviewImg.src = URL.createObjectURL(file);
+    // Show thumbnail and lock UI immediately
+    scanPreviewImg.src        = URL.createObjectURL(file);
     scanPreview.style.display = "";
-
-    scanBtn.disabled = true; scanBtnText.textContent = "Scanning…";
-    macroFields.classList.remove("visible");
-    logBtn.style.display = "none";
+    enterScanMode();
+    scanBtnText.textContent   = "Scanning…"; // shown briefly before hide, good for a11y
 
     resizeAndEncode(file, (b64, mediaType) => {
       fetch("/api/scan-meal", {
@@ -1566,15 +1598,17 @@ function deleteWorkout(id) {
       })
       .then(r => r.json())
       .then(data => {
-        scanBtn.disabled = false; scanBtnText.textContent = "Scan Meal";
+        scanBtnText.textContent = "Scan Meal";
         if (data.error) {
+          // On error, drop back out of scan mode so user can try again
+          exitScanMode();
           aiNotes.textContent = "⚠ " + data.error; aiNotes.style.color = "var(--danger)";
           macroFields.classList.add("visible"); return;
         }
         if (data.description) {
           mealInput.value = data.description;
-          hDesc.value = data.description;
-          shortLabel = data.description;
+          hDesc.value     = data.description;
+          shortLabel      = data.description;
         }
         pairs[0][0].value = data.calories;   pairs[0][1].value = data.calories;
         pairs[1][0].value = data.protein_g;  pairs[1][1].value = data.protein_g;
@@ -1585,7 +1619,7 @@ function deleteWorkout(id) {
         macroFields.classList.add("visible");
         logBtn.style.display = "";
       })
-      .catch(() => { scanBtn.disabled = false; scanBtnText.textContent = "Scan Meal"; });
+      .catch(() => { scanBtnText.textContent = "Scan Meal"; exitScanMode(); });
     });
   });
 
@@ -1652,14 +1686,8 @@ function deleteWorkout(id) {
       FAT_CONSUMED     = data.totals.total_fat;
       // Re-render meal table
       renderMealTable(data.meals, data.totals);
-      // Reset form
-      mealInput.value = "";
-      macroFields.classList.remove("visible");
-      logBtn.style.display = "none";
-      pairs.forEach(([vis, hid]) => { vis.value = ""; hid.value = ""; });
-      aiNotes.textContent = "";
-      shortLabel = null;
-      scanPreview.style.display = "none"; scanPreviewImg.src = "";
+      // Reset form (covers both typed and scanned meals)
+      exitScanMode();
       // Refresh deficit + dashboard
       try {
         const p = localStorage.getItem("profileData");
