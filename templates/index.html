@@ -33,28 +33,33 @@
       --green:    #3fb950;
       --amber:    #e3b341;
       --nav-h:    64px;
+      --header-h: 60px;
     }
 
     html, body { height: 100%; background: var(--bg); color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       font-size: 15px; overscroll-behavior: none; }
 
-    #app { display: flex; flex-direction: column; height: 100dvh; }
+    #app { height: 100dvh; }
 
-    header { background: var(--surface); border-bottom: 1px solid var(--border);
-      padding: 0.85rem 1.25rem; display: flex; align-items: center;
-      justify-content: space-between; flex-shrink: 0; }
+    header { position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      height: var(--header-h);
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 1.25rem; display: flex; align-items: center;
+      justify-content: space-between; }
     header h1 { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.01em; }
     header .subtitle { font-size: 0.75rem; color: var(--muted); margin-top: 1px; }
 
-    #content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    #content { position: fixed; top: var(--header-h); bottom: var(--nav-h);
+      left: 0; right: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
-    .tab-panel { display: none; padding: 1.25rem; padding-bottom: calc(1.5rem + var(--nav-h)); }
+    .tab-panel { display: none; padding: 1.25rem; padding-bottom: 2rem; }
     .tab-panel.active { display: block; }
 
     /* ── Bottom nav ── */
-    nav { height: var(--nav-h); background: var(--surface); border-top: 1px solid var(--border);
-      display: flex; flex-shrink: 0; }
+    nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+      height: var(--nav-h); background: var(--surface); border-top: 1px solid var(--border);
+      display: flex; }
     .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center;
       justify-content: center; gap: 2px; background: none; border: none;
       color: var(--muted); font-size: 0.6rem; font-weight: 500; cursor: pointer;
