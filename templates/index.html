@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Life Dashboard — Meals</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f8f9fa;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    header h1 { font-size: 1.25rem; font-weight: 600; }
+    header span { opacity: 0.5; font-size: 0.85rem; }
+
+    main {
+      max-width: 800px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    /* ── Log form ── */
+    .log-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    }
+    .log-card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; }
+
+    .input-row {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .input-row input[type="text"] {
+      flex: 1;
+      padding: 0.65rem 0.9rem;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .input-row input[type="text"]:focus { border-color: #5c6bc0; }
+
+    .btn-log {
+      padding: 0.65rem 1.2rem;
+      background: #5c6bc0;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background .15s;
+      white-space: nowrap;
+    }
+    .btn-log:hover { background: #3f51b5; }
+    .btn-log:disabled { background: #9fa8da; cursor: not-allowed; }
+
+    .log-hint {
+      margin-top: 0.5rem;
+      font-size: 0.8rem;
+      color: #888;
+    }
+
+    /* ── Preview ── */
+    #preview {
+      margin-top: 0.75rem;
+      padding: 0.75rem 1rem;
+      background: #f0f4ff;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      display: none;
+    }
+    #preview.visible { display: block; }
+    #preview.loading { color: #888; font-style: italic; }
+    #preview .macro-row { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 0.3rem; }
+    #preview .macro-row span { font-weight: 600; }
+    #preview .notes { color: #666; margin-top: 0.3rem; font-style: italic; }
+    #preview .error { color: #c62828; }
+
+    /* ── Totals ── */
+    .totals-card {
+      background: #1a1a2e;
+      color: #fff;
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+    .totals-card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; opacity: .7; }
+
+    .totals-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+    .total-item { text-align: center; }
+    .total-item .value {
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .total-item .label {
+      font-size: 0.75rem;
+      opacity: .55;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-top: 0.3rem;
+    }
+    .total-item.calories .value { color: #ffcc80; }
+    .total-item.protein  .value { color: #80cbc4; }
+    .total-item.carbs    .value { color: #9fa8da; }
+    .total-item.fat      .value { color: #f48fb1; }
+
+    /* ── Meal list ── */
+    .meals-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    }
+    .meals-card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; }
+
+    .meal-list { display: flex; flex-direction: column; gap: 0.6rem; }
+
+    .meal-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 0.9rem;
+      border: 1px solid #f0f0f0;
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+    .meal-item .desc { flex: 1; color: #333; }
+    .meal-item .macros {
+      display: flex;
+      gap: 0.8rem;
+      font-size: 0.8rem;
+      color: #666;
+      flex-shrink: 0;
+    }
+    .meal-item .macros .cal { font-weight: 700; color: #1a1a2e; }
+    .meal-item .macros .p  { color: #00897b; font-weight: 600; }
+    .meal-item .macros .c  { color: #5c6bc0; font-weight: 600; }
+    .meal-item .macros .f  { color: #e91e63; font-weight: 600; }
+    .meal-item .time { font-size: 0.75rem; color: #bbb; flex-shrink: 0; }
+
+    .btn-delete {
+      background: none;
+      border: none;
+      color: #ccc;
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 0 0.2rem;
+      transition: color .15s;
+      flex-shrink: 0;
+    }
+    .btn-delete:hover { color: #e53935; }
+
+    .empty {
+      text-align: center;
+      color: #bbb;
+      font-size: 0.9rem;
+      padding: 1.5rem 0;
+    }
+
+    @media (max-width: 520px) {
+      .totals-grid { grid-template-columns: repeat(2, 1fr); }
+      .meal-item .macros { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Life Dashboard</h1>
+  <span>/ Meals</span>
+</header>
+
+<main>
+
+  <!-- Log form -->
+  <div class="log-card">
+    <h2>Log a meal</h2>
+    <form method="post" action="/log" id="log-form">
+      <div class="input-row">
+        <input
+          type="text"
+          name="description"
+          id="meal-input"
+          placeholder="e.g. two scrambled eggs with toast and orange juice"
+          autocomplete="off"
+          required
+        />
+        <button type="button" class="btn-log" id="macros-btn">Get Macros</button>
+        <button type="submit" class="btn-log" id="log-btn">Log</button>
+      </div>
+      <p class="log-hint">Describe what you ate in plain English — Claude estimates the macros.</p>
+      {% if error %}<p style="color:#c62828;font-size:0.85rem;margin-top:0.5rem">⚠ {{ error }}</p>{% endif %}
+    </form>
+    <div id="preview"></div>
+  </div>
+
+  <!-- Today's totals -->
+  <div class="totals-card">
+    <h2>Today's totals</h2>
+    <div class="totals-grid">
+      <div class="total-item calories">
+        <div class="value">{{ totals.total_calories }}</div>
+        <div class="label">Calories</div>
+      </div>
+      <div class="total-item protein">
+        <div class="value">{{ "%.0f"|format(totals.total_protein) }}g</div>
+        <div class="label">Protein</div>
+      </div>
+      <div class="total-item carbs">
+        <div class="value">{{ "%.0f"|format(totals.total_carbs) }}g</div>
+        <div class="label">Carbs</div>
+      </div>
+      <div class="total-item fat">
+        <div class="value">{{ "%.0f"|format(totals.total_fat) }}g</div>
+        <div class="label">Fat</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Meal list -->
+  <div class="meals-card">
+    <h2>Today's meal entries ({{ totals.meal_count }})</h2>
+    <div class="meal-list">
+      {% if meals %}
+        {% for meal in meals %}
+        <div class="meal-item">
+          <span class="desc">{{ meal.description }}</span>
+          <span class="macros">
+            <span class="cal">{{ meal.calories }} kcal</span>
+            <span class="p">P {{ "%.0f"|format(meal.protein_g) }}g</span>
+            <span class="c">C {{ "%.0f"|format(meal.carbs_g) }}g</span>
+            <span class="f">F {{ "%.0f"|format(meal.fat_g) }}g</span>
+          </span>
+          <span class="time">{{ meal.logged_at[11:16] }}</span>
+          <form method="post" action="/delete/{{ meal.id }}" style="display:inline">
+            <button type="submit" class="btn-delete" title="Delete">✕</button>
+          </form>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p class="empty">No meals logged yet. Add your first one above.</p>
+      {% endif %}
+    </div>
+  </div>
+
+</main>
+
+<script>
+  const input = document.getElementById("meal-input");
+  const preview = document.getElementById("preview");
+  const form = document.getElementById("log-form");
+  const logBtn = document.getElementById("log-btn");
+  const macrosBtn = document.getElementById("macros-btn");
+
+  macrosBtn.addEventListener("click", () => {
+    const val = input.value.trim();
+    if (!val) return;
+
+    macrosBtn.disabled = true;
+    macrosBtn.textContent = "Estimating…";
+    preview.className = "visible loading";
+    preview.textContent = "Estimating…";
+
+    fetch("/api/estimate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description: val }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        macrosBtn.disabled = false;
+        macrosBtn.textContent = "Get Macros";
+        if (data.error) {
+          preview.className = "visible";
+          preview.innerHTML = `<span class="error">⚠ ${data.error}</span>`;
+          return;
+        }
+        preview.className = "visible";
+        preview.innerHTML = `
+          <strong>Estimated:</strong>
+          <div class="macro-row">
+            <span>${data.calories} kcal</span>
+            <span>P <span>${data.protein_g}g</span></span>
+            <span>C <span>${data.carbs_g}g</span></span>
+            <span>F <span>${data.fat_g}g</span></span>
+          </div>
+          ${data.notes ? `<div class="notes">${data.notes}</div>` : ""}
+        `;
+      })
+      .catch(() => {
+        macrosBtn.disabled = false;
+        macrosBtn.textContent = "Get Macros";
+        preview.className = "";
+        preview.innerHTML = "";
+      });
+  });
+
+  form.addEventListener("submit", () => {
+    logBtn.disabled = true;
+    logBtn.textContent = "Logging…";
+  });
+</script>
+
+</body>
+</html>
