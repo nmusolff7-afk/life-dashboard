@@ -990,6 +990,20 @@
         <span class="save-confirm" id="save-confirm">✓ Saved</span>
       </div>
 
+      <!-- Account -->
+      <div class="card">
+        <div class="card-title">Account</div>
+        <div style="font-size:0.88rem;color:var(--muted);margin-bottom:1rem">
+          Signed in as <strong style="color:var(--text)">{{ username }}</strong>
+        </div>
+        <a href="/logout" class="btn btn-ghost btn-full" style="text-decoration:none;display:flex;align-items:center;justify-content:center;gap:0.5rem">
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Sign Out
+        </a>
+      </div>
+
     </div><!-- /tab-profile -->
 
   </div><!-- /content -->
@@ -1057,6 +1071,30 @@
 
 
 <script>
+// ── User context (injected by server) ──────────────────
+const USER_ID = {{ user_id }};
+
+// Namespace all localStorage keys by user so multiple accounts on
+// the same device never see each other's data.
+(function() {
+  const pfx = "u" + USER_ID + ":";
+  const _ls  = window.localStorage;
+  window.localStorage = {
+    getItem:    k    => _ls.getItem(pfx + k),
+    setItem:    (k, v) => _ls.setItem(pfx + k, v),
+    removeItem: k    => _ls.removeItem(pfx + k),
+    clear:      ()   => Object.keys(_ls).filter(k => k.startsWith(pfx))
+                               .forEach(k => _ls.removeItem(k)),
+    key: i => {
+      const keys = Object.keys(_ls).filter(k => k.startsWith(pfx));
+      return i < keys.length ? keys[i].slice(pfx.length) : null;
+    },
+    get length() {
+      return Object.keys(_ls).filter(k => k.startsWith(pfx)).length;
+    },
+  };
+})();
+
 // ══════════════════════════════════════════════════════
 //  CONSTANTS & STATE
 // ══════════════════════════════════════════════════════
