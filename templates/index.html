@@ -1564,6 +1564,24 @@ document.querySelectorAll(".nav-btn").forEach(btn => {
 const savedTab = sessionStorage.getItem("activeTab");
 if (savedTab) { sessionStorage.removeItem("activeTab"); activateTab(savedTab); }
 
+// ── Midnight rollover detection ──────────────────────────────────
+// Reload the page when the local calendar date changes so the server
+// returns fresh data for the new day. Also fires when the tab becomes
+// visible again (catches overnight suspension where setInterval paused).
+let _trackedDate = localToday();
+
+function _checkDateRollover() {
+  if (localToday() !== _trackedDate) {
+    window.location.reload();
+  }
+}
+
+setInterval(_checkDateRollover, 60000);
+
+document.addEventListener("visibilitychange", function() {
+  if (document.visibilityState === "visible") _checkDateRollover();
+});
+
 // ══════════════════════════════════════════════════════
 //  GLOBAL HELPERS — Flash, Render, Delete
 // ══════════════════════════════════════════════════════
@@ -1673,6 +1691,8 @@ function deleteMeal(id) {
         if (p) applyProfileToMeals(JSON.parse(p));
       } catch(e) {}
       if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+      if (typeof window._patchTodayInCharts === "function") window._patchTodayInCharts(data.totals, null);
+      if (typeof window._rebuildHistory === "function") window._rebuildHistory();
       flashRed();
     });
 }
@@ -1691,6 +1711,8 @@ function deleteWorkout(id) {
         if (p) applyProfileToMeals(JSON.parse(p));
       } catch(e) {}
       if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+      if (typeof window._patchTodayInCharts === "function") window._patchTodayInCharts(null, data.workouts);
+      if (typeof window._rebuildHistory === "function") window._rebuildHistory();
       flashRed();
     });
 }
@@ -1907,6 +1929,8 @@ function deleteWorkout(id) {
         if (p) applyProfileToMeals(JSON.parse(p));
       } catch(ex) {}
       if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+      if (typeof window._patchTodayInCharts === "function") window._patchTodayInCharts(data.totals, null);
+      if (typeof window._rebuildHistory === "function") window._rebuildHistory();
       flashGreen();
     })
     .catch(() => { logBtn.disabled = false; logBtn.textContent = "Log Meal"; });
@@ -1979,6 +2003,8 @@ function deleteWorkout(id) {
           if (p) applyProfileToMeals(JSON.parse(p));
         } catch(e) {}
         if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+        if (typeof window._patchTodayInCharts === "function") window._patchTodayInCharts(null, data.workouts);
+        if (typeof window._rebuildHistory === "function") window._rebuildHistory();
         flashGreen();
       })
       .catch(() => { logBtn.disabled = false; logBtn.textContent = "Log Activity"; });
@@ -2340,6 +2366,8 @@ function deleteWorkout(id) {
         window.renderStrengthStatus(data.workouts);
         try { const p = localStorage.getItem("profileData"); if (p) applyProfileToMeals(JSON.parse(p)); } catch(e) {}
         if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+        if (typeof window._patchTodayInCharts === "function") window._patchTodayInCharts(null, data.workouts);
+        if (typeof window._rebuildHistory === "function") window._rebuildHistory();
         flashGreen();
       })
       .catch(() => {
@@ -3573,6 +3601,34 @@ try {
   // Hook called by activateTab("charts")
   window._onChartsActivate = initCharts;
 
+  // Invalidate cached data so next activation re-fetches from server
+  window._invalidateCharts = function() {
+    fetched = false; fetching = false; histData = null;
+  };
+
+  // Patch today's server-side data in the local cache and rebuild calendar.
+  // mealTotals: {total_calories, total_protein, total_carbs, total_fat} or null to skip
+  // workoutList: array of {description, calories_burned} or null to skip
+  window._patchTodayInCharts = function(mealTotals, workoutList) {
+    if (!histData) return;
+    const today = todayStr();
+    if (mealTotals !== null) {
+      histData.meals[today] = {
+        calories: mealTotals.total_calories,
+        protein:  mealTotals.total_protein,
+        carbs:    mealTotals.total_carbs,
+        fat:      mealTotals.total_fat,
+      };
+    }
+    if (workoutList !== null) {
+      histData.workouts[today] = workoutList.map(function(w) {
+        return { description: w.description, calories_burned: w.calories_burned || 0 };
+      });
+    }
+    window._appHistory = histData;
+    buildActivityCalendar();
+  };
+
   // Init immediately if the charts tab is active on page load
   if (document.getElementById("tab-charts").classList.contains("active")) initCharts();
 })();
@@ -3800,6 +3856,11 @@ try {
   }
 
   window._onHistoryActivate = initHistory;
+
+  // Rebuild the list from cached server data (no re-fetch). Called after meal/workout writes.
+  window._rebuildHistory = function() {
+    if (window._appHistory) buildHistoryList(window._appHistory);
+  };
 
   if (document.getElementById("tab-history").classList.contains("active")) initHistory();
 })();
