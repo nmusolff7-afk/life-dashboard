@@ -2199,6 +2199,12 @@ function deleteWorkout(id) {
 
   renderIdleState();
 
+  // Wire up undo button if it was server-rendered on initial page load
+  const existingUndo = document.getElementById("undo-workout-btn");
+  if (existingUndo) {
+    existingUndo.addEventListener("click", () => window._openUndoWorkout && window._openUndoWorkout());
+  }
+
   // ── renderStrengthStatus override with Undo ───────────
 
   const _origRenderStrengthStatus = window.renderStrengthStatus;
