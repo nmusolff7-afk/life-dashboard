@@ -2146,9 +2146,8 @@ function deleteWorkout(id) {
 
   // ── Idle state: show plan preview ────────────────────
 
-  const idleEl = document.getElementById("strength-idle");
-
   function renderIdleState() {
+    const idleEl = document.getElementById("strength-idle");
     if (!idleEl) return;
     const todayExs = getTodayPlan();
     const dayName  = DAYS_OF_WEEK[new Date().getDay()];
