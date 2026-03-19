@@ -846,6 +846,25 @@
         <p>Log workouts, steps, and body weight</p>
       </div>
 
+      <!-- Log any activity -->
+      <div class="card">
+        <div class="section-label">Log Activity</div>
+        <div class="field">
+          <textarea id="activity-input" rows="2"
+            placeholder="Describe any activity — cardio, extra lifts, sport, etc.&#10;e.g. 4 mile run at 7:50/mile · 3 sets of pull-ups"></textarea>
+        </div>
+        <div id="activity-burn-panel" class="burn-panel">
+          <div id="activity-burn-notes" class="burn-ai-notes"></div>
+          <div class="field">
+            <label>Estimated burn (kcal)</label>
+            <input type="number" id="activity-burn-val" min="0" step="1">
+          </div>
+        </div>
+        <button type="button" class="btn btn-green btn-full" id="activity-burn-btn"
+          style="font-size:1rem;padding:0.8rem 1rem;margin-bottom:0.65rem">Get Burn Estimate</button>
+        <button type="button" class="btn btn-primary btn-full" id="activity-log-btn" style="display:none">Log Activity</button>
+      </div>
+
       <!-- Today's Weight -->
       <div class="card">
         <div class="card-title">Today's Weight</div>
@@ -901,26 +920,6 @@
           <span class="save-confirm" id="steps-save-confirm">✓ Saved</span>
         </div>
         <div style="font-size:0.78rem;color:var(--muted);margin-top:0.4rem" id="steps-neat-preview"></div>
-      </div>
-
-      <!-- Log any activity -->
-      <div class="card">
-        <div class="section-label">Log Activity</div>
-        <div class="field">
-          <textarea id="activity-input" rows="2"
-            placeholder="Describe any activity — cardio, extra lifts, sport, etc.&#10;e.g. 4 mile run at 7:50/mile · 3 sets of pull-ups"></textarea>
-        </div>
-        <div id="activity-burn-panel" class="burn-panel">
-          <div id="activity-burn-notes" class="burn-ai-notes"></div>
-          <div class="field">
-            <label>Estimated burn (kcal)</label>
-            <input type="number" id="activity-burn-val" min="0" step="1">
-          </div>
-        </div>
-        <div class="btn-row">
-          <button type="button" class="btn btn-ghost" id="activity-burn-btn">Get Burn Estimate</button>
-          <button type="button" class="btn btn-primary" id="activity-log-btn" style="display:none">Log Activity</button>
-        </div>
       </div>
 
       <!-- Today's Entries -->
