@@ -105,25 +105,28 @@ def get_user(user_id):
 
 # ── Meals ────────────────────────────────────────────────
 
-def insert_meal(user_id, description, calories, protein_g, carbs_g, fat_g):
+def insert_meal(user_id, description, calories, protein_g, carbs_g, fat_g, log_date=None):
+    ld = log_date or date.today().isoformat()
     with get_conn() as conn:
         conn.execute(
             "INSERT INTO meal_logs (user_id, logged_at, log_date, description, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (user_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), date.today().isoformat(), description, calories, protein_g, carbs_g, fat_g),
+            (user_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), ld, description, calories, protein_g, carbs_g, fat_g),
         )
         conn.commit()
 
 
-def get_today_meals(user_id):
+def get_today_meals(user_id, log_date=None):
+    ld = log_date or date.today().isoformat()
     with get_conn() as conn:
         rows = conn.execute(
             "SELECT * FROM meal_logs WHERE user_id = ? AND log_date = ? ORDER BY logged_at",
-            (user_id, date.today().isoformat()),
+            (user_id, ld),
         ).fetchall()
     return [dict(r) for r in rows]
 
 
-def get_today_totals(user_id):
+def get_today_totals(user_id, log_date=None):
+    ld = log_date or date.today().isoformat()
     with get_conn() as conn:
         row = conn.execute(
             """
@@ -135,7 +138,7 @@ def get_today_totals(user_id):
                 COALESCE(SUM(fat_g), 0) as total_fat
             FROM meal_logs WHERE user_id = ? AND log_date = ?
             """,
-            (user_id, date.today().isoformat()),
+            (user_id, ld),
         ).fetchone()
     return dict(row)
 
@@ -148,20 +151,22 @@ def delete_meal(meal_id, user_id):
 
 # ── Workouts ─────────────────────────────────────────────
 
-def insert_workout(user_id, description, calories_burned=0):
+def insert_workout(user_id, description, calories_burned=0, log_date=None):
+    ld = log_date or date.today().isoformat()
     with get_conn() as conn:
         conn.execute(
             "INSERT INTO workout_logs (user_id, logged_at, log_date, description, calories_burned) VALUES (?, ?, ?, ?, ?)",
-            (user_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), date.today().isoformat(), description, calories_burned),
+            (user_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), ld, description, calories_burned),
         )
         conn.commit()
 
 
-def get_today_workouts(user_id):
+def get_today_workouts(user_id, log_date=None):
+    ld = log_date or date.today().isoformat()
     with get_conn() as conn:
         rows = conn.execute(
             "SELECT * FROM workout_logs WHERE user_id = ? AND log_date = ? ORDER BY logged_at",
-            (user_id, date.today().isoformat()),
+            (user_id, ld),
         ).fetchall()
     return [dict(r) for r in rows]
 
@@ -172,11 +177,12 @@ def delete_workout(workout_id, user_id):
         conn.commit()
 
 
-def get_today_workout_burn(user_id):
+def get_today_workout_burn(user_id, log_date=None):
+    ld = log_date or date.today().isoformat()
     with get_conn() as conn:
         row = conn.execute(
             "SELECT COALESCE(SUM(calories_burned), 0) as total FROM workout_logs WHERE user_id = ? AND log_date = ?",
-            (user_id, date.today().isoformat()),
+            (user_id, ld),
         ).fetchone()
     return int(dict(row)["total"])
 

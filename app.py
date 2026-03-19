@@ -2,7 +2,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
-from datetime import timedelta
+from datetime import date, timedelta
 from functools import wraps
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 from db import (
@@ -36,17 +36,36 @@ def uid():
     return session["user_id"]
 
 
+def client_today():
+    """Return today's date string in the client's local timezone.
+
+    The client sets a ``client_date`` cookie (YYYY-MM-DD) on every page load
+    and refreshes it each minute.  When the cookie is present and valid we use
+    it so that inserts and queries are always anchored to the user's local
+    calendar day, not the server's UTC date.
+    """
+    d = request.cookies.get("client_date", "").strip()
+    if d:
+        try:
+            date.fromisoformat(d)   # validate format
+            return d
+        except ValueError:
+            pass
+    return date.today().isoformat()
+
+
 # ── Rendering helper ────────────────────────────────────
 
-def compute_tdee():
-    return RMR + get_today_workout_burn(uid())
+def compute_tdee(log_date=None):
+    return RMR + get_today_workout_burn(uid(), log_date)
 
 
 def render_index(**kwargs):
-    meals    = get_today_meals(uid())
-    totals   = get_today_totals(uid())
-    workouts = get_today_workouts(uid())
-    tdee     = compute_tdee()
+    cd       = client_today()
+    meals    = get_today_meals(uid(), cd)
+    totals   = get_today_totals(uid(), cd)
+    workouts = get_today_workouts(uid(), cd)
+    tdee     = compute_tdee(cd)
     return render_template("index.html",
         meals=meals, totals=totals, workouts=workouts, tdee=tdee,
         user_id=uid(), username=session.get("username", ""),
@@ -124,7 +143,7 @@ def log_meal():
             }
         else:
             nutrition = estimate_nutrition(description)
-        insert_meal(uid(), description=description, **nutrition)
+        insert_meal(uid(), description=description, log_date=client_today(), **nutrition)
     except Exception as e:
         return render_index(error=str(e))
 
@@ -152,8 +171,9 @@ def api_log_meal():
             "carbs_g":   float(data.get("carbs_g", 0)),
             "fat_g":     float(data.get("fat_g", 0)),
         }
-        insert_meal(uid(), description=description, **nutrition)
-        return jsonify({"meals": get_today_meals(uid()), "totals": get_today_totals(uid())})
+        cd = data.get("client_date") or client_today()
+        insert_meal(uid(), description=description, log_date=cd, **nutrition)
+        return jsonify({"meals": get_today_meals(uid(), cd), "totals": get_today_totals(uid(), cd)})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -161,24 +181,27 @@ def api_log_meal():
 @app.route("/api/delete-meal/<int:meal_id>", methods=["POST"])
 @login_required
 def api_delete_meal(meal_id):
+    cd = client_today()
     delete_meal(meal_id, uid())
-    return jsonify({"meals": get_today_meals(uid()), "totals": get_today_totals(uid())})
+    return jsonify({"meals": get_today_meals(uid(), cd), "totals": get_today_totals(uid(), cd)})
 
 
 @app.route("/api/delete-workout/<int:workout_id>", methods=["POST"])
 @login_required
 def api_delete_workout(workout_id):
+    cd = client_today()
     delete_workout(workout_id, uid())
-    workouts = get_today_workouts(uid())
-    burn = get_today_workout_burn(uid())
+    workouts = get_today_workouts(uid(), cd)
+    burn = get_today_workout_burn(uid(), cd)
     return jsonify({"workouts": workouts, "burn": burn})
 
 
 @app.route("/api/today-workouts")
 @login_required
 def api_today_workouts():
-    workouts = get_today_workouts(uid())
-    burn = get_today_workout_burn(uid())
+    cd = client_today()
+    workouts = get_today_workouts(uid(), cd)
+    burn = get_today_workout_burn(uid(), cd)
     return jsonify({"workouts": workouts, "burn": burn})
 
 
@@ -218,7 +241,7 @@ def log_workout():
     if not description:
         return redirect(url_for("index"))
     calories_burned = int(request.form.get("calories_burned", 0) or 0)
-    insert_workout(uid(), description, calories_burned)
+    insert_workout(uid(), description, calories_burned, log_date=client_today())
     return redirect(url_for("index") + "#tab-workout")
 
 
@@ -250,7 +273,8 @@ def api_log_workout():
     calories_burned = int(data.get("calories_burned", 0) or 0)
     if not description:
         return jsonify({"error": "No description"}), 400
-    insert_workout(uid(), description, calories_burned)
+    cd = data.get("client_date") or client_today()
+    insert_workout(uid(), description, calories_burned, log_date=cd)
     return jsonify({"ok": True})
 
 

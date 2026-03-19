@@ -1274,6 +1274,27 @@
         </a>
       </div>
 
+      <!-- Timezone -->
+      <div class="card">
+        <div class="card-title">Timezone</div>
+        <div style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem">
+          Controls which calendar day your meals and workouts are saved to.
+          <em>Automatic</em> uses your device's clock.
+        </div>
+        <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.65rem">
+          <label style="font-size:0.82rem;color:var(--muted);flex-shrink:0">Mode</label>
+          <div id="tz-mode-btns" style="display:flex;gap:0.4rem;flex:1">
+            <button type="button" id="tz-auto-btn" class="btn" style="flex:1;font-size:0.8rem">Automatic</button>
+            <button type="button" id="tz-manual-btn" class="btn" style="flex:1;font-size:0.8rem">Manual</button>
+          </div>
+        </div>
+        <div id="tz-detected" style="font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem"></div>
+        <div id="tz-manual-row" style="display:none;margin-bottom:0.5rem">
+          <select id="tz-select" class="input" style="width:100%;font-size:0.85rem"></select>
+        </div>
+        <div id="tz-current-date" style="font-size:0.78rem;color:var(--muted)"></div>
+      </div>
+
     </div><!-- /tab-profile -->
 
   </div><!-- /content -->
@@ -1467,13 +1488,33 @@ function calcTEF(cal, proteinG, carbG, fatG) {
   return Math.round((cal || 0) * 0.10);
 }
 
-// Use local date everywhere — toISOString() is UTC and rolls over at 6-7pm Mountain Time
+// Use local date everywhere — toISOString() is UTC and rolls over at 6-7pm Mountain Time.
+// Respects a manually chosen timezone stored in localStorage ("userTimezone").
 function localToday() {
+  const tz = localStorage.getItem("userTimezone");
+  if (tz) {
+    try {
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+      }).formatToParts(new Date());
+      return parts.find(p => p.type === "year").value  + "-" +
+             parts.find(p => p.type === "month").value + "-" +
+             parts.find(p => p.type === "day").value;
+    } catch(e) { /* fall through */ }
+  }
   const d = new Date();
   return d.getFullYear() + "-" +
     String(d.getMonth() + 1).padStart(2, "0") + "-" +
     String(d.getDate()).padStart(2, "0");
 }
+
+// Keep the server in sync with the client's local date so all inserts and
+// queries use the correct calendar day regardless of server timezone (UTC).
+function _syncDateCookie() {
+  document.cookie = "client_date=" + localToday() + "; path=/; max-age=120";
+}
+_syncDateCookie();
+setInterval(_syncDateCookie, 60000);
 function localCutoff(days) {
   const d = new Date(); d.setDate(d.getDate() - days);
   return d.getFullYear() + "-" +
@@ -1938,11 +1979,12 @@ function deleteWorkout(id) {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({
-        description: desc,
-        calories:    parseInt(pairs[0][1].value) || 0,
-        protein_g:   parseFloat(pairs[1][1].value) || 0,
-        carbs_g:     parseFloat(pairs[2][1].value) || 0,
-        fat_g:       parseFloat(pairs[3][1].value) || 0,
+        description:  desc,
+        calories:     parseInt(pairs[0][1].value) || 0,
+        protein_g:    parseFloat(pairs[1][1].value) || 0,
+        carbs_g:      parseFloat(pairs[2][1].value) || 0,
+        fat_g:        parseFloat(pairs[3][1].value) || 0,
+        client_date:  localToday(),
       })
     })
     .then(r => r.json())
@@ -2023,7 +2065,7 @@ function deleteWorkout(id) {
     if (!input.value.trim()) return;
     logBtn.disabled = true; logBtn.textContent = "Saving…";
     fetch("/api/log-workout", { method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({description: desc, calories_burned: kcal}) })
+      body: JSON.stringify({description: desc, calories_burned: kcal, client_date: localToday()}) })
       .then(() => fetch("/api/today-workouts"))
       .then(r => r.json())
       .then(data => {
@@ -2389,7 +2431,7 @@ function deleteWorkout(id) {
         const kcal = burnData.error ? 0 : (burnData.calories_burned || 0);
         statusTxt.textContent = `Saving workout… (~${kcal} kcal)`;
         return fetch("/api/log-workout", { method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({description: desc, calories_burned: kcal}) });
+          body: JSON.stringify({description: desc, calories_burned: kcal, client_date: localToday()}) });
       })
       .then(() => fetch("/api/today-workouts"))
       .then(r => r.json())
@@ -2407,7 +2449,7 @@ function deleteWorkout(id) {
       })
       .catch(() => {
         fetch("/api/log-workout", { method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({description: desc, calories_burned: 0}) })
+          body: JSON.stringify({description: desc, calories_burned: 0, client_date: localToday()}) })
           .then(() => fetch("/api/today-workouts"))
           .then(r => r.json())
           .then(data => {
@@ -3909,6 +3951,89 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/static/sw.js");
   });
 }
+
+// ══════════════════════════════════════════════════════
+//  TIMEZONE SETTINGS
+// ══════════════════════════════════════════════════════
+
+(function() {
+  const TIMEZONES = [
+    "Pacific/Honolulu","America/Anchorage","America/Los_Angeles","America/Denver",
+    "America/Chicago","America/New_York","America/Sao_Paulo","Europe/London",
+    "Europe/Paris","Europe/Berlin","Europe/Moscow","Asia/Dubai","Asia/Kolkata",
+    "Asia/Bangkok","Asia/Shanghai","Asia/Tokyo","Australia/Sydney","Pacific/Auckland",
+  ];
+  const LABELS = {
+    "Pacific/Honolulu":"Hawaii (UTC−10)","America/Anchorage":"Alaska (UTC−9)",
+    "America/Los_Angeles":"Pacific (UTC−8/−7)","America/Denver":"Mountain (UTC−7/−6)",
+    "America/Chicago":"Central (UTC−6/−5)","America/New_York":"Eastern (UTC−5/−4)",
+    "America/Sao_Paulo":"Brazil (UTC−3)","Europe/London":"London (UTC+0/+1)",
+    "Europe/Paris":"Paris (UTC+1/+2)","Europe/Berlin":"Berlin (UTC+1/+2)",
+    "Europe/Moscow":"Moscow (UTC+3)","Asia/Dubai":"Dubai (UTC+4)",
+    "Asia/Kolkata":"India (UTC+5:30)","Asia/Bangkok":"Bangkok (UTC+7)",
+    "Asia/Shanghai":"China (UTC+8)","Asia/Tokyo":"Tokyo (UTC+9)",
+    "Australia/Sydney":"Sydney (UTC+10/+11)","Pacific/Auckland":"Auckland (UTC+12/+13)",
+  };
+
+  const autoBtn     = document.getElementById("tz-auto-btn");
+  const manualBtn   = document.getElementById("tz-manual-btn");
+  const detectedEl  = document.getElementById("tz-detected");
+  const manualRow   = document.getElementById("tz-manual-row");
+  const tzSelect    = document.getElementById("tz-select");
+  const dateEl      = document.getElementById("tz-current-date");
+
+  const systemTz    = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const savedTz     = localStorage.getItem("userTimezone");
+  const isManual    = !!savedTz;
+
+  // Populate select
+  TIMEZONES.forEach(tz => {
+    const opt = document.createElement("option");
+    opt.value = tz; opt.textContent = LABELS[tz] || tz;
+    if (tz === (savedTz || systemTz)) opt.selected = true;
+    tzSelect.appendChild(opt);
+  });
+  // Add system tz if not in list
+  if (!TIMEZONES.includes(systemTz)) {
+    const opt = document.createElement("option");
+    opt.value = systemTz; opt.textContent = systemTz + " (system)";
+    if (!savedTz) opt.selected = true;
+    tzSelect.insertBefore(opt, tzSelect.firstChild);
+  }
+
+  function updateUI() {
+    const manual = !!localStorage.getItem("userTimezone");
+    autoBtn.style.background   = manual ? "" : "var(--accent)";
+    autoBtn.style.color        = manual ? "" : "#fff";
+    manualBtn.style.background = manual ? "var(--accent)" : "";
+    manualBtn.style.color      = manual ? "#fff" : "";
+    manualRow.style.display    = manual ? "" : "none";
+    detectedEl.textContent     = manual
+      ? "System clock: " + systemTz
+      : "Using device clock: " + systemTz;
+    dateEl.textContent = "Today is: " + localToday();
+    _syncDateCookie();
+  }
+
+  autoBtn.addEventListener("click", () => {
+    localStorage.removeItem("userTimezone");
+    updateUI();
+  });
+
+  manualBtn.addEventListener("click", () => {
+    localStorage.setItem("userTimezone", tzSelect.value);
+    updateUI();
+  });
+
+  tzSelect.addEventListener("change", () => {
+    if (localStorage.getItem("userTimezone")) {
+      localStorage.setItem("userTimezone", tzSelect.value);
+      updateUI();
+    }
+  });
+
+  updateUI();
+})();
 
 // ══════════════════════════════════════════════════════
 //  PULL TO REFRESH
