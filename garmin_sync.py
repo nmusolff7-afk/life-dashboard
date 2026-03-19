@@ -1,27 +1,24 @@
 """
-Garmin Connect sync module.
+Garmin Connect sync — token-only auth.
 
-Auth priority (highest to lowest):
-  1. In-memory client cache  (zero I/O, survives within one process)
-  2. GARMIN_TOKENS env var   (JSON string, set manually from local machine)
-  3. DB-persisted tokens     (saved after a successful login, survives deploys)
-  4. Full credential login   (hits Garmin's OAuth endpoint — rate-limited)
+Railway's server IP gets rate-limited by Garmin's OAuth endpoint when
+performing full credential logins. This module never does a server-side
+login. Instead it requires pre-generated OAuth tokens supplied via the
+GARMIN_TOKENS environment variable (a JSON blob produced by running the
+one-liner below on your LOCAL machine, which has a clean IP):
 
-To avoid Railway's IP being rate-limited, generate tokens locally:
-
-  pip install garminconnect
-  python - <<'EOF'
+  python -c "
   from garminconnect import Garmin
-  api = Garmin("your@email.com", "password")
+  import tempfile, os, json, sys
+  api = Garmin('your@email.com', 'yourpassword')
   api.login()
-  import tempfile, os, json
   d = tempfile.mkdtemp()
   api.garth.save(d)
-  files = {f: open(os.path.join(d,f)).read() for f in os.listdir(d)}
-  print(json.dumps(files))
-  EOF
+  print(json.dumps({f: open(os.path.join(d,f)).read() for f in os.listdir(d)}))
+  "
 
-Then set the printed JSON as GARMIN_TOKENS in Railway env vars.
+Paste the output as the GARMIN_TOKENS variable in Railway.
+Tokens last ~90 days; re-run the one-liner when they expire.
 """
 
 import os
@@ -32,42 +29,29 @@ import tempfile
 
 logger = logging.getLogger(__name__)
 
-SETTINGS_KEY = "garmin_oauth_tokens"
+DB_KEY = "garmin_oauth_tokens"
 
 _cached_client = None
 
 
-# ── Token persistence helpers ──────────────────────────────────────────────
-
-def _save_tokens(client):
-    """Save garth token files → JSON → DB."""
-    try:
-        from db import set_setting
-        tmpdir = tempfile.mkdtemp()
-        try:
-            client.garth.save(tmpdir)
-            files = {}
-            for fname in os.listdir(tmpdir):
-                fpath = os.path.join(tmpdir, fname)
-                if os.path.isfile(fpath):
-                    with open(fpath, "r") as f:
-                        files[fname] = f.read()
-            if files:
-                set_setting(SETTINGS_KEY, json.dumps(files))
-                logger.info("Garmin: tokens saved to DB (%d files)", len(files))
-        finally:
-            shutil.rmtree(tmpdir, ignore_errors=True)
-    except Exception as e:
-        logger.warning("Garmin: token save failed: %s", e)
+def _files_to_json(directory):
+    """Read token files from a directory into a JSON string."""
+    files = {}
+    for fname in os.listdir(directory):
+        fpath = os.path.join(directory, fname)
+        if os.path.isfile(fpath):
+            with open(fpath, "r") as f:
+                files[fname] = f.read()
+    return json.dumps(files) if files else None
 
 
-def _token_files_from_json(token_json):
-    """Write a JSON token blob to a temp dir; return dir path (caller must clean up)."""
-    if not token_json or not token_json.strip():
+def _json_to_tmpdir(token_json):
+    """Write a token JSON blob to a temp directory. Caller must delete it."""
+    if not token_json or not token_json.strip() or token_json.strip() == '""':
         return None
     try:
         files = json.loads(token_json)
-        if not files:
+        if not isinstance(files, dict) or not files:
             return None
         tmpdir = tempfile.mkdtemp()
         for fname, content in files.items():
@@ -75,100 +59,106 @@ def _token_files_from_json(token_json):
                 f.write(content)
         return tmpdir
     except Exception as e:
-        logger.warning("Garmin: failed to write token files: %s", e)
+        logger.warning("Garmin: could not parse token JSON: %s", e)
         return None
 
 
-def _try_resume(token_json, source_label):
-    """Try to build an authenticated Garmin client from a token JSON blob.
-    Returns the client on success, None on failure.
+def _build_client(token_json, label):
+    """Try to build an authenticated client from a token JSON blob.
+    Returns (client, token_json_possibly_refreshed) or raises on failure.
+    Does NOT do any SSO/credential login.
     """
-    global _cached_client
     from garminconnect import Garmin
 
-    tmpdir = _token_files_from_json(token_json)
+    tmpdir = _json_to_tmpdir(token_json)
     if not tmpdir:
-        return None
+        raise ValueError(f"{label}: token JSON is empty or invalid")
+
     try:
         client = Garmin()
         client.garth.resume(tmpdir)
-        # Light check — raises if tokens are completely invalid
-        _ = client.garth.oauth2_token
-        _cached_client = client
-        logger.info("Garmin: session restored from %s", source_label)
-        _save_tokens(client)   # persist / refresh stored copy
+
+        # If OAuth2 expired, refresh using OAuth1 (hits oauth endpoint, not SSO)
+        oauth2 = client.garth.oauth2_token
+        if oauth2 is None:
+            raise ValueError(f"{label}: no OAuth2 token in saved data")
+        if oauth2.expired:
+            logger.info("Garmin: OAuth2 expired, refreshing via OAuth1")
+            client.garth.get_oauth2_token(client.garth.oauth1_token)
+
+        # Save refreshed tokens back to DB
+        fresh_json = _files_to_json(tmpdir)
+        if fresh_json:
+            try:
+                from db import set_setting
+                set_setting(DB_KEY, fresh_json)
+            except Exception:
+                pass
+
+        logger.info("Garmin: authenticated via %s", label)
         return client
-    except Exception as e:
-        logger.info("Garmin: %s tokens failed (%s)", source_label, e)
-        return None
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
-# ── Public API ─────────────────────────────────────────────────────────────
-
 def get_client():
-    """Return an authenticated Garmin client using the cheapest available path."""
+    """Return an authenticated Garmin client. Never does a credential login."""
     global _cached_client
 
-    # 1. Memory cache
     if _cached_client is not None:
         return _cached_client
 
-    from garminconnect import Garmin
+    errors = []
 
-    email    = os.environ.get("GARMIN_EMAIL", "").strip()
-    password = os.environ.get("GARMIN_PASSWORD", "").strip()
-    if not email or not password:
-        raise RuntimeError("GARMIN_EMAIL and GARMIN_PASSWORD must be set.")
-
-    # 2. GARMIN_TOKENS env var (manually seeded tokens — bypasses Railway IP rate-limit)
+    # 1. GARMIN_TOKENS env var (recommended — generated on local machine)
     env_tokens = os.environ.get("GARMIN_TOKENS", "").strip()
     if env_tokens:
-        client = _try_resume(env_tokens, "GARMIN_TOKENS env var")
-        if client:
-            return client
+        try:
+            _cached_client = _build_client(env_tokens, "GARMIN_TOKENS env var")
+            return _cached_client
+        except Exception as e:
+            errors.append(f"GARMIN_TOKENS: {e}")
+            logger.warning("Garmin env token failed: %s", e)
 
-    # 3. DB-persisted tokens (saved from a previous successful login)
+    # 2. DB-persisted tokens (saved from a previous GARMIN_TOKENS load)
     try:
         from db import get_setting
-        db_tokens = get_setting(SETTINGS_KEY)
+        db_tokens = get_setting(DB_KEY)
     except Exception:
         db_tokens = None
 
     if db_tokens:
-        client = _try_resume(db_tokens, "DB-persisted tokens")
-        if client:
-            return client
+        try:
+            _cached_client = _build_client(db_tokens, "DB tokens")
+            return _cached_client
+        except Exception as e:
+            errors.append(f"DB tokens: {e}")
+            logger.warning("Garmin DB token failed: %s", e)
 
-    # 4. Full credential login (may be rate-limited if tried too often)
-    logger.info("Garmin: no valid saved tokens — performing full OAuth login")
-    client = Garmin(email, password)
-    client.login()
-    _save_tokens(client)
-    _cached_client = client
-    return client
+    raise RuntimeError(
+        "No valid Garmin tokens found. Set GARMIN_TOKENS in Railway environment "
+        "variables. Generate tokens on your local machine — see instructions in "
+        "the Garmin Connect card in the Profile tab."
+    )
 
 
-def _invalidate():
+def invalidate():
     global _cached_client
     _cached_client = None
 
 
 def fetch_day(date_str):
-    """Fetch Garmin data for a local date string (YYYY-MM-DD).
-    Retries once if auth fails mid-session (expired tokens).
-    """
+    """Fetch Garmin data for a local date (YYYY-MM-DD)."""
     try:
         return _fetch(date_str)
     except Exception as e:
-        msg = str(e)
-        if any(code in msg for code in ("401", "403", "REAUTH")):
-            logger.info("Garmin: auth error, clearing cache and retrying")
-            _invalidate()
+        # If token expired mid-session, clear cache once and retry
+        if any(c in str(e) for c in ("401", "403", "expired")):
+            logger.info("Garmin: mid-session auth error, clearing cache")
+            invalidate()
+            from db import set_setting
             try:
-                from db import set_setting
-                set_setting(SETTINGS_KEY, "")
+                set_setting(DB_KEY, "")
             except Exception:
                 pass
             return _fetch(date_str)
@@ -187,18 +177,18 @@ def _fetch(date_str):
     }
 
     try:
-        stats = client.get_stats(date_str)
-        result["steps"]           = int(stats.get("totalSteps")         or 0)
-        result["active_calories"] = int(stats.get("activeKilocalories") or 0)
-        result["total_calories"]  = int(stats.get("totalKilocalories")  or 0)
+        s = client.get_stats(date_str)
+        result["steps"]           = int(s.get("totalSteps")         or 0)
+        result["active_calories"] = int(s.get("activeKilocalories") or 0)
+        result["total_calories"]  = int(s.get("totalKilocalories")  or 0)
     except Exception as e:
-        logger.warning("Garmin stats failed (%s): %s", date_str, e)
+        logger.warning("Garmin stats (%s): %s", date_str, e)
 
     try:
         hr = client.get_heart_rates(date_str)
         result["resting_hr"] = hr.get("restingHeartRate") or None
     except Exception as e:
-        logger.warning("Garmin HR failed (%s): %s", date_str, e)
+        logger.warning("Garmin HR (%s): %s", date_str, e)
 
     try:
         for act in (client.get_activities_by_date(date_str, date_str) or []):
@@ -210,16 +200,16 @@ def _fetch(date_str):
                 "category":    _category(atype),
             })
     except Exception as e:
-        logger.warning("Garmin activities failed (%s): %s", date_str, e)
+        logger.warning("Garmin activities (%s): %s", date_str, e)
 
     return result
 
 
 def _describe(act):
-    name    = act.get("activityName", "Activity")
-    dur_s   = int(act.get("duration") or 0)
-    dist_m  = float(act.get("distance") or 0)
-    parts   = [f"[Garmin] {name}"]
+    name   = act.get("activityName", "Activity")
+    dur_s  = int(act.get("duration") or 0)
+    dist_m = float(act.get("distance") or 0)
+    parts  = [f"[Garmin] {name}"]
     if dur_s // 60:
         parts.append(f"{dur_s // 60} min")
     if dist_m > 0:
@@ -227,18 +217,13 @@ def _describe(act):
     return " · ".join(parts)
 
 
-def _category(atype):
-    atype = (atype or "").lower()
-    if any(k in atype for k in ("running", "trail", "treadmill")):
-        return "run"
-    if any(k in atype for k in ("cycling", "biking")):
-        return "bike"
-    if "swim" in atype:
-        return "swim"
-    if any(k in atype for k in ("strength", "fitness_equipment")):
-        return "strength"
-    if any(k in atype for k in ("walking", "hiking")):
-        return "walk"
+def _category(t):
+    t = (t or "").lower()
+    if any(k in t for k in ("running", "trail", "treadmill")): return "run"
+    if any(k in t for k in ("cycling", "biking")):             return "bike"
+    if "swim" in t:                                            return "swim"
+    if any(k in t for k in ("strength", "fitness_equipment")): return "strength"
+    if any(k in t for k in ("walking", "hiking")):             return "walk"
     return "other"
 
 

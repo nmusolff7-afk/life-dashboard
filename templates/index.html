@@ -1280,8 +1280,32 @@
           <div class="card-title" style="margin:0">Garmin Connect</div>
           <div id="garmin-status-dot" style="width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0"></div>
         </div>
-        <div id="garmin-not-configured" style="display:none;font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem">
-          Set <code>GARMIN_EMAIL</code> and <code>GARMIN_PASSWORD</code> in your Railway environment variables to enable sync.
+        <div id="garmin-not-configured" style="display:none">
+          <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.6rem">
+            Garmin's servers rate-limit login attempts from cloud IPs. You need to
+            generate tokens on <strong>your local machine</strong> once and paste them into Railway.
+          </p>
+          <div style="font-size:0.78rem;color:var(--text);line-height:1.6">
+            <div style="margin-bottom:0.4rem"><strong>Step 1</strong> — Run this on your computer:</div>
+            <div style="background:var(--surface2);border-radius:6px;padding:0.6rem 0.75rem;font-family:monospace;font-size:0.72rem;color:var(--accent);word-break:break-all;margin-bottom:0.75rem;line-height:1.5">
+              pip install garminconnect<br>
+              python -c "<br>
+              from garminconnect import Garmin<br>
+              import tempfile,os,json<br>
+              api=Garmin('EMAIL','PASS')<br>
+              api.login()<br>
+              d=tempfile.mkdtemp()<br>
+              api.garth.save(d)<br>
+              print(json.dumps({f:open(os.path.join(d,f)).read() for f in os.listdir(d)}))<br>
+              "
+            </div>
+            <div style="margin-bottom:0.4rem"><strong>Step 2</strong> — Copy the printed JSON</div>
+            <div style="margin-bottom:0.4rem"><strong>Step 3</strong> — In Railway → Variables, add:</div>
+            <div style="background:var(--surface2);border-radius:6px;padding:0.5rem 0.75rem;font-family:monospace;font-size:0.75rem;color:var(--muted);margin-bottom:0.4rem">
+              GARMIN_TOKENS = <em style="color:var(--text)">&lt;paste JSON here&gt;</em>
+            </div>
+            <div style="color:var(--muted);font-size:0.75rem">Tokens last ~90 days. GARMIN_EMAIL + GARMIN_PASSWORD still required.</div>
+          </div>
         </div>
         <div id="garmin-configured-ui" style="display:none">
           <div id="garmin-today-stats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;margin-bottom:0.75rem"></div>
@@ -4047,9 +4071,18 @@ if ("serviceWorker" in navigator) {
         syncBtn.textContent = "Sync Now";
 
         if (data.error) {
+          const isTokenErr = data.error.toLowerCase().includes("token") ||
+                             data.error.toLowerCase().includes("rate") ||
+                             data.error.toLowerCase().includes("429");
+          if (isTokenErr) {
+            noConf.style.display = "";
+            confUI.style.display = "none";
+          }
           msgEl.style.color = "var(--danger)";
           msgEl.textContent = "⚠ " + data.error;
           dot.style.background = "var(--danger)";
+          syncBtn.disabled = false;
+          syncBtn.textContent = "Sync Now";
           return;
         }
 
