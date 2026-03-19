@@ -1665,10 +1665,14 @@ if (savedTab) { sessionStorage.removeItem("activeTab"); activateTab(savedTab); }
 // visible again (catches overnight suspension where setInterval paused).
 let _trackedDate = localToday();
 
+function _reloadKeepTab() {
+  const active = document.querySelector(".nav-btn.active");
+  if (active) sessionStorage.setItem("activeTab", active.dataset.tab);
+  window.location.reload();
+}
+
 function _checkDateRollover() {
-  if (localToday() !== _trackedDate) {
-    window.location.reload();
-  }
+  if (localToday() !== _trackedDate) _reloadKeepTab();
 }
 
 setInterval(_checkDateRollover, 60000);
@@ -4232,7 +4236,7 @@ if ("serviceWorker" in navigator) {
       indicator.style.transform  = "translateY(0px)";
       indicator.style.transition = "";
       labelEl.textContent = "Refreshing…";
-      setTimeout(() => window.location.reload(), 300);
+      setTimeout(_reloadKeepTab, 300);
     } else {
       reset();
     }
