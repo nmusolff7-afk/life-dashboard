@@ -61,6 +61,34 @@
     #content { position: fixed; top: var(--header-h); bottom: var(--nav-h);
       left: 0; right: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
+    /* Pull-to-refresh indicator */
+    #ptr-indicator {
+      position: fixed; top: var(--header-h); left: 0; right: 0;
+      display: flex; align-items: center; justify-content: center;
+      height: 56px; pointer-events: none;
+      transform: translateY(-56px);
+      transition: transform 0.2s ease;
+      z-index: 50;
+    }
+    #ptr-indicator .ptr-inner {
+      display: flex; align-items: center; gap: 0.5rem;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 999px; padding: 0.35rem 1rem;
+      font-size: 0.78rem; color: var(--muted);
+    }
+    #ptr-indicator .ptr-arrow {
+      font-size: 1rem; display: inline-block;
+      transition: transform 0.2s ease;
+    }
+    #ptr-indicator.ptr-ready .ptr-arrow { transform: rotate(180deg); }
+    #ptr-indicator.ptr-ready .ptr-inner { color: var(--accent); border-color: var(--accent); }
+    @keyframes ptr-spin {
+      to { transform: rotate(360deg); }
+    }
+    #ptr-indicator.ptr-loading .ptr-arrow {
+      animation: ptr-spin 0.7s linear infinite;
+    }
+
     .tab-panel { display: none; padding: 1.25rem; padding-bottom: 2rem; }
     .tab-panel.active { display: block; }
     .page-header { margin-bottom: 1.1rem; }
@@ -617,6 +645,13 @@
       <span style="font-size:0.6rem;font-weight:500">Profile</span>
     </button>
   </header>
+
+  <div id="ptr-indicator">
+    <div class="ptr-inner">
+      <span class="ptr-arrow">↓</span>
+      <span class="ptr-label">Pull to refresh</span>
+    </div>
+  </div>
 
   <div id="content">
 
@@ -3874,6 +3909,74 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/static/sw.js");
   });
 }
+
+// ══════════════════════════════════════════════════════
+//  PULL TO REFRESH
+// ══════════════════════════════════════════════════════
+
+(function() {
+  const THRESHOLD   = 72;   // px of pull needed to trigger
+  const MAX_PULL    = 100;  // max visual drag distance
+  const indicator   = document.getElementById("ptr-indicator");
+  const labelEl     = indicator.querySelector(".ptr-label");
+  const content     = document.getElementById("content");
+
+  let startY    = 0;
+  let pulling   = false;
+  let triggered = false;
+
+  content.addEventListener("touchstart", function(e) {
+    if (content.scrollTop > 0) return;   // only at top
+    startY  = e.touches[0].clientY;
+    pulling = true;
+    triggered = false;
+  }, { passive: true });
+
+  content.addEventListener("touchmove", function(e) {
+    if (!pulling) return;
+    const dy = Math.max(0, e.touches[0].clientY - startY);
+    if (dy <= 0) return;
+
+    // Rubber-band resistance: pull slows as it extends
+    const visual = Math.min(MAX_PULL, dy * 0.45);
+    indicator.style.transform = `translateY(${visual - 56}px)`;
+    indicator.style.transition = "none";
+
+    if (dy >= THRESHOLD && !triggered) {
+      indicator.classList.add("ptr-ready");
+      labelEl.textContent = "Release to refresh";
+    } else if (dy < THRESHOLD) {
+      indicator.classList.remove("ptr-ready");
+      labelEl.textContent = "Pull to refresh";
+    }
+  }, { passive: true });
+
+  function reset() {
+    pulling = false;
+    indicator.style.transition = "";
+    indicator.style.transform  = "";
+    indicator.classList.remove("ptr-ready", "ptr-loading");
+    labelEl.textContent = "Pull to refresh";
+  }
+
+  content.addEventListener("touchend", function(e) {
+    if (!pulling) return;
+    const dy = e.changedTouches[0].clientY - startY;
+    if (dy >= THRESHOLD) {
+      // Show loading state then reload
+      indicator.classList.remove("ptr-ready");
+      indicator.classList.add("ptr-loading");
+      indicator.style.transform  = "translateY(0px)";
+      indicator.style.transition = "";
+      labelEl.textContent = "Refreshing…";
+      setTimeout(() => window.location.reload(), 300);
+    } else {
+      reset();
+    }
+  }, { passive: true });
+
+  content.addEventListener("touchcancel", reset, { passive: true });
+})();
 
 // ══════════════════════════════════════════════════════
 //  HOME DASHBOARD
