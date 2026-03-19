@@ -10,8 +10,11 @@ from db import (
     insert_meal, get_today_meals, get_today_totals, delete_meal,
     insert_workout, get_today_workouts, delete_workout, get_today_workout_burn,
     get_meal_history, get_workout_history, get_day_detail,
+    upsert_garmin_daily, get_garmin_daily, get_garmin_last_sync,
+    garmin_activity_exists, insert_garmin_workout,
 )
 from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, shorten_label, scan_meal_image
+import garmin_sync
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "life-dashboard-default-secret-v1")
@@ -317,6 +320,72 @@ def api_parse_workout_plan():
         return jsonify(parse_workout_plan(text))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# ── Garmin ──────────────────────────────────────────────
+
+@app.route("/api/garmin/status")
+@login_required
+def api_garmin_status():
+    configured = garmin_sync.is_configured()
+    today      = client_today()
+    day_data   = get_garmin_daily(uid(), today) if configured else None
+    last_sync  = get_garmin_last_sync(uid()) if configured else None
+    return jsonify({
+        "configured": configured,
+        "last_sync":  last_sync,
+        "today":      day_data,
+    })
+
+
+@app.route("/api/garmin/sync", methods=["POST"])
+@login_required
+def api_garmin_sync():
+    if not garmin_sync.is_configured():
+        return jsonify({"error": "GARMIN_EMAIL and GARMIN_PASSWORD are not set in environment variables."}), 400
+
+    data      = request.get_json() or {}
+    sync_date = data.get("date") or client_today()
+
+    try:
+        result = garmin_sync.fetch_day(sync_date)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+
+    # Persist daily stats
+    upsert_garmin_daily(
+        uid(), sync_date,
+        result["steps"],
+        result["active_calories"],
+        result["total_calories"],
+        result["resting_hr"],
+    )
+
+    # Import activities as workout_log entries (skip duplicates)
+    imported = []
+    for act in result["activities"]:
+        gid = act["garmin_activity_id"] if "garmin_activity_id" in act else act.get("garmin_id", "")
+        if gid and garmin_activity_exists(uid(), gid):
+            continue
+        insert_garmin_workout(
+            uid(), sync_date,
+            act["description"],
+            act["calories"],
+            gid,
+        )
+        imported.append(act["description"])
+
+    return jsonify({
+        "date":            sync_date,
+        "steps":           result["steps"],
+        "active_calories": result["active_calories"],
+        "total_calories":  result["total_calories"],
+        "resting_hr":      result["resting_hr"],
+        "activities_imported": len(imported),
+        "activities":      imported,
+        "workouts":        get_today_workouts(uid(), sync_date),
+        "burn":            get_today_workout_burn(uid(), sync_date),
+    })
 
 
 if __name__ == "__main__":

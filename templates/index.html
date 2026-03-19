@@ -1274,6 +1274,25 @@
         </a>
       </div>
 
+      <!-- Garmin Sync -->
+      <div class="card" id="garmin-card">
+        <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem">
+          <div class="card-title" style="margin:0">Garmin Connect</div>
+          <div id="garmin-status-dot" style="width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0"></div>
+        </div>
+        <div id="garmin-not-configured" style="display:none;font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem">
+          Set <code>GARMIN_EMAIL</code> and <code>GARMIN_PASSWORD</code> in your Railway environment variables to enable sync.
+        </div>
+        <div id="garmin-configured-ui" style="display:none">
+          <div id="garmin-today-stats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;margin-bottom:0.75rem"></div>
+          <div id="garmin-last-sync" style="font-size:0.75rem;color:var(--muted);margin-bottom:0.75rem"></div>
+          <button type="button" id="garmin-sync-btn" class="btn" style="width:100%;background:var(--accent);color:#fff;font-weight:600">
+            Sync Now
+          </button>
+          <div id="garmin-sync-msg" style="font-size:0.8rem;margin-top:0.5rem;color:var(--muted)"></div>
+        </div>
+      </div>
+
       <!-- Timezone -->
       <div class="card">
         <div class="card-title">Timezone</div>
@@ -3951,6 +3970,125 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/static/sw.js");
   });
 }
+
+// ══════════════════════════════════════════════════════
+//  GARMIN SYNC
+// ══════════════════════════════════════════════════════
+
+(function() {
+  const syncBtn   = document.getElementById("garmin-sync-btn");
+  const msgEl     = document.getElementById("garmin-sync-msg");
+  const dot       = document.getElementById("garmin-status-dot");
+  const statsEl   = document.getElementById("garmin-today-stats");
+  const lastEl    = document.getElementById("garmin-last-sync");
+  const noConf    = document.getElementById("garmin-not-configured");
+  const confUI    = document.getElementById("garmin-configured-ui");
+
+  const AUTO_SYNC_INTERVAL_MS = 30 * 60 * 1000;  // 30 minutes
+
+  function renderStats(today) {
+    if (!today) { statsEl.innerHTML = ""; return; }
+    const items = [
+      { label: "Steps",          val: (today.steps || 0).toLocaleString() },
+      { label: "Active Cal",     val: (today.active_calories || 0).toLocaleString() + " kcal" },
+      { label: "Resting HR",     val: today.resting_hr ? today.resting_hr + " bpm" : "—" },
+    ];
+    statsEl.innerHTML = items.map(i => `
+      <div style="background:var(--surface2);border-radius:8px;padding:0.5rem;text-align:center">
+        <div style="font-size:0.95rem;font-weight:700;color:var(--text)">${i.val}</div>
+        <div style="font-size:0.68rem;color:var(--muted);margin-top:0.1rem">${i.label}</div>
+      </div>`).join("");
+  }
+
+  function fmtSyncTime(ts) {
+    if (!ts) return "Never synced";
+    const d = new Date(ts);
+    return "Last sync: " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) +
+           " · " + d.toLocaleDateString([], { month: "short", day: "numeric" });
+  }
+
+  function loadStatus() {
+    fetch("/api/garmin/status")
+      .then(r => r.json())
+      .then(data => {
+        if (!data.configured) {
+          noConf.style.display = "";
+          confUI.style.display = "none";
+          dot.style.background = "var(--muted)";
+          return;
+        }
+        noConf.style.display = "none";
+        confUI.style.display = "";
+        dot.style.background = data.today ? "var(--green)" : "#e07b2a";
+        renderStats(data.today);
+        lastEl.textContent = fmtSyncTime(data.last_sync);
+      })
+      .catch(() => {});
+  }
+
+  function doSync() {
+    syncBtn.disabled = true;
+    syncBtn.textContent = "Syncing…";
+    msgEl.style.color = "var(--muted)";
+    msgEl.textContent = "Connecting to Garmin Connect…";
+
+    fetch("/api/garmin/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: localToday() }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        syncBtn.disabled = false;
+        syncBtn.textContent = "Sync Now";
+
+        if (data.error) {
+          msgEl.style.color = "var(--danger)";
+          msgEl.textContent = "⚠ " + data.error;
+          dot.style.background = "var(--danger)";
+          return;
+        }
+
+        dot.style.background = "var(--green)";
+        renderStats(data);
+        lastEl.textContent = fmtSyncTime(new Date().toISOString());
+
+        const parts = [
+          data.steps.toLocaleString() + " steps",
+          data.active_calories.toLocaleString() + " active kcal",
+        ];
+        if (data.activities_imported > 0) {
+          parts.push(data.activities_imported + " workout" + (data.activities_imported > 1 ? "s" : "") + " imported");
+        }
+        msgEl.style.color = "var(--green)";
+        msgEl.textContent = "✓ " + parts.join(" · ");
+
+        // Refresh workout list and dashboard if activities were imported
+        if (data.activities_imported > 0) {
+          WORKOUT_BURN_TODAY = data.burn;
+          TODAY_WORKOUT_DESCS = (data.workouts || []).map(w => w.description);
+          renderWorkoutList(data.workouts, data.burn);
+          if (typeof window._patchTodayInCharts === "function") window._patchTodayInCharts(null, data.workouts);
+          if (typeof window._rebuildHistory === "function") window._rebuildHistory();
+        }
+        if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+      })
+      .catch(() => {
+        syncBtn.disabled = false;
+        syncBtn.textContent = "Sync Now";
+        msgEl.style.color = "var(--danger)";
+        msgEl.textContent = "⚠ Network error — check your connection.";
+      });
+  }
+
+  syncBtn.addEventListener("click", doSync);
+
+  // Load status on page open and auto-sync every 30 min if tab is visible
+  loadStatus();
+  setInterval(() => {
+    if (document.visibilityState === "visible") doSync();
+  }, AUTO_SYNC_INTERVAL_MS);
+})();
 
 // ══════════════════════════════════════════════════════
 //  TIMEZONE SETTINGS

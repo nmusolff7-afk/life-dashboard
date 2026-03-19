@@ -2,3 +2,5 @@ anthropic
 flask
 gunicorn
 python-dotenv
+garminconnect
+werkzeug

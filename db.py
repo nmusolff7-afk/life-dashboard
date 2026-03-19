@@ -53,7 +53,27 @@ def init_db():
                 other_burn INTEGER DEFAULT 0
             )
         """)
+        # Garmin daily stats (steps, calories, HR) — one row per user per date
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS garmin_daily (
+                user_id  INTEGER REFERENCES users(id),
+                stat_date DATE NOT NULL,
+                steps INTEGER DEFAULT 0,
+                active_calories INTEGER DEFAULT 0,
+                total_calories INTEGER DEFAULT 0,
+                resting_hr INTEGER,
+                synced_at TIMESTAMP NOT NULL,
+                PRIMARY KEY (user_id, stat_date)
+            )
+        """)
         conn.commit()
+
+        # Migrate: add garmin_activity_id to workout_logs to prevent duplicate imports
+        try:
+            conn.execute("ALTER TABLE workout_logs ADD COLUMN garmin_activity_id TEXT")
+            conn.commit()
+        except Exception:
+            pass  # column already exists
 
         # Migrate: add user_id column to existing tables if absent
         for table in ("meal_logs", "workout_logs"):
@@ -240,3 +260,65 @@ def get_day_detail(user_id, date_str):
         "meals":    [dict(r) for r in meals],
         "workouts": [dict(r) for r in workouts],
     }
+
+
+# ── Garmin ────────────────────────────────────────────
+
+def upsert_garmin_daily(user_id, stat_date, steps, active_calories, total_calories, resting_hr):
+    """Insert or replace Garmin daily stats for a user/date."""
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO garmin_daily
+                (user_id, stat_date, steps, active_calories, total_calories, resting_hr, synced_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, stat_date) DO UPDATE SET
+                steps            = excluded.steps,
+                active_calories  = excluded.active_calories,
+                total_calories   = excluded.total_calories,
+                resting_hr       = excluded.resting_hr,
+                synced_at        = excluded.synced_at
+        """, (user_id, stat_date, steps, active_calories, total_calories, resting_hr,
+              datetime.now().isoformat()))
+        conn.commit()
+
+
+def get_garmin_daily(user_id, stat_date):
+    """Return Garmin stats row for a user/date, or None."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM garmin_daily WHERE user_id = ? AND stat_date = ?",
+            (user_id, stat_date)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def get_garmin_last_sync(user_id):
+    """Return the most recent synced_at timestamp for any date, or None."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT MAX(synced_at) as last FROM garmin_daily WHERE user_id = ?",
+            (user_id,)
+        ).fetchone()
+    return row["last"] if row else None
+
+
+def garmin_activity_exists(user_id, garmin_activity_id):
+    """Return True if a workout with this Garmin activity ID already exists."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM workout_logs WHERE user_id = ? AND garmin_activity_id = ?",
+            (user_id, garmin_activity_id)
+        ).fetchone()
+    return row is not None
+
+
+def insert_garmin_workout(user_id, log_date, description, calories_burned, garmin_activity_id):
+    """Insert a Garmin-sourced workout, tagged with its Garmin activity ID."""
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO workout_logs
+                (user_id, logged_at, log_date, description, calories_burned, garmin_activity_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (user_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+              log_date, description, calories_burned, garmin_activity_id))
+        conn.commit()
