@@ -607,6 +607,15 @@
         <div class="subtitle" id="header-date"></div>
       </div>
     </div>
+    <button onclick="activateTab('profile')"
+      style="background:none;border:none;cursor:pointer;color:var(--muted);
+             display:flex;flex-direction:column;align-items:center;gap:2px;
+             padding:0 0.25rem;transition:color .15s;-webkit-tap-highlight-color:transparent">
+      <svg viewBox="0 0 24 24" style="width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round">
+        <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+      </svg>
+      <span style="font-size:0.6rem;font-weight:500">Profile</span>
+    </button>
   </header>
 
   <div id="content">
@@ -1250,9 +1259,6 @@
     </button>
     <button class="nav-btn" data-tab="history">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>History
-    </button>
-    <button class="nav-btn" data-tab="profile">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>Profile
     </button>
   </nav>
 
