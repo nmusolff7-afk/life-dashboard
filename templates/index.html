@@ -2431,9 +2431,15 @@ function deleteWorkout(id) {
   const confirm = document.getElementById("weight-save-confirm");
   if (!input) return;
 
+  function updateBtn() {
+    const entry = getDayEntry(localToday());
+    saveBtn.textContent = (entry && entry.weight) ? "Update Weight" : "Save Weight";
+  }
+
   function load() {
     const entry = getDayEntry(localToday());
     if (entry && entry.weight) { input.value = entry.weight; label.textContent = "Saved for today"; }
+    updateBtn();
   }
 
   function save() {
@@ -2441,6 +2447,7 @@ function deleteWorkout(id) {
     if (!val) { label.textContent = ""; return; }
     saveDayField(localToday(), { weight: val });
     label.textContent = "Saved for today";
+    saveBtn.textContent = "Update Weight";
     if (typeof window._refreshDashboard === "function") window._refreshDashboard();
     confirm.classList.add("show");
     setTimeout(() => confirm.classList.remove("show"), 2000);
@@ -2489,12 +2496,29 @@ function deleteWorkout(id) {
 
   // Load saved value on page load and apply silently
   const saved = getTodaySteps();
-  if (saved > 0) { input.value = saved; applySteps(saved); }
+  if (saved > 0) {
+    input.value = saved;
+    applySteps(saved);
+    saveBtn.textContent = "Update Steps";
+    if (preview) {
+      const savedLabel = document.getElementById("steps-neat-preview");
+      // append saved-for-today note below NEAT preview
+    }
+  }
+
+  // Show a persistent "Saved for today" label on the steps card
+  const stepsLabel = document.createElement("div");
+  stepsLabel.id = "steps-saved-label";
+  stepsLabel.style.cssText = "font-size:0.78rem;color:var(--muted);margin-top:0.4rem";
+  if (saved > 0) stepsLabel.textContent = "Saved for today";
+  preview && preview.parentNode.insertBefore(stepsLabel, preview);
 
   saveBtn.addEventListener("click", () => {
     const steps = parseInt(input.value) || 0;
     saveTodaySteps(steps);
     applySteps(steps);
+    saveBtn.textContent = "Update Steps";
+    stepsLabel.textContent = "Saved for today";
     confirm.classList.add("show");
     setTimeout(() => confirm.classList.remove("show"), 2000);
     flashGreen();
