@@ -226,17 +226,40 @@
     }
     #checklist-overlay.active { display: flex; }
 
-    .cl-header {
-      background: var(--surface); border-bottom: 1px solid var(--border);
-      padding: 0.9rem 1.1rem; display: flex; align-items: center;
-      justify-content: space-between; flex-shrink: 0; gap: 0.75rem;
-    }
-    #workout-timer {
-      font-size: 1.6rem; font-weight: 800; font-variant-numeric: tabular-nums;
-      color: var(--accent2); letter-spacing: 0.02em;
+    #cl-exercise-state {
+      display: flex; flex-direction: column;
+      height: 100%; min-height: 0; overflow: hidden;
     }
 
-    .cl-scroll { flex: 1; overflow-y: auto; padding: 1.1rem; padding-bottom: 2rem; }
+    .cl-header {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1rem; display: flex; align-items: center;
+      justify-content: space-between; flex-shrink: 0; gap: 0.5rem;
+    }
+    .cl-timers {
+      display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
+    }
+    .cl-timer-row {
+      display: flex; gap: 1rem; align-items: baseline;
+    }
+    .cl-timer-block {
+      display: flex; flex-direction: column; align-items: center; gap: 0;
+    }
+    .cl-timer-val {
+      font-size: 1.3rem; font-weight: 800; font-variant-numeric: tabular-nums;
+      color: var(--accent2); letter-spacing: 0.02em; line-height: 1;
+    }
+    .cl-timer-val.rest-val { color: var(--amber); }
+    .cl-timer-lbl {
+      font-size: 0.58rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--muted); margin-top: 1px;
+    }
+
+    .cl-scroll {
+      flex: 1; min-height: 0;
+      overflow-y: auto; -webkit-overflow-scrolling: touch;
+      padding: 1.1rem; padding-bottom: 2rem;
+    }
 
     .exercise-block {
       background: var(--surface); border: 1px solid var(--border);
@@ -262,6 +285,52 @@
       font-size: 0.9rem; background: var(--surface2);
     }
     .set-unit { font-size: 0.78rem; color: var(--muted); flex-shrink: 0; }
+
+    /* ── Idle plan preview ── */
+    .idle-plan-list { width: 100%; margin-bottom: 0.75rem; }
+    .idle-plan-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0.45rem 0; border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+    }
+    .idle-plan-row:last-child { border-bottom: none; }
+    .idle-plan-name { color: var(--text); font-weight: 500; }
+    .idle-plan-meta { color: var(--muted); font-size: 0.78rem; }
+
+    /* ── Change Workout overlay ── */
+    #change-workout-overlay {
+      position: fixed; inset: 0; z-index: 300;
+      background: var(--bg);
+      display: none; flex-direction: column;
+    }
+    #change-workout-overlay.active { display: flex; }
+    .cw-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 1.1rem; padding-bottom: 2rem; }
+    .cw-day-btn {
+      width: 100%; text-align: left; padding: 0.85rem 1rem;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text); cursor: pointer;
+      margin-bottom: 0.5rem; transition: border-color .15s;
+    }
+    .cw-day-btn:hover { border-color: var(--accent2); }
+    .cw-day-name { font-weight: 700; font-size: 0.9rem; margin-bottom: 0.2rem; }
+    .cw-day-meta { font-size: 0.75rem; color: var(--muted); }
+    .cw-custom-fields { display: none; margin-top: 0.5rem; }
+    .cw-custom-fields.visible { display: block; }
+    .cw-ex-row {
+      display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.4rem;
+    }
+    .cw-ex-row input[type="text"] { flex: 1; }
+    .cw-ex-row input[type="number"] { width: 58px; }
+
+    /* ── Undo button on completed workout ── */
+    .done-undo-btn {
+      background: none; border: 1px solid var(--border); border-radius: 6px;
+      color: var(--muted); font-size: 0.75rem; padding: 0.25rem 0.6rem;
+      cursor: pointer; margin-top: 0.4rem; transition: border-color .15s, color .15s;
+      display: inline-block;
+    }
+    .done-undo-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+    .strength-done.redoable { border-color: rgba(121,134,203,.2); }
 
     /* ── Placeholders ── */
     .placeholder { display: flex; flex-direction: column; align-items: center;
@@ -797,11 +866,12 @@
 
         <div id="strength-status-wrap">
         {% if ns.strength_log %}
-        <div class="strength-done">
+        <div class="strength-done redoable">
           <div class="done-check">✅</div>
           <div class="done-body">
             <div class="done-title">Workout logged today{% if ns.strength_log.calories_burned %} · ~{{ ns.strength_log.calories_burned }} kcal{% endif %}</div>
             <div class="done-meta">{{ ns.strength_log.logged_at[11:16] }} · {{ ns.strength_log.description[:120] }}{% if ns.strength_log.description|length > 120 %}…{% endif %}</div>
+            <button class="done-undo-btn" id="undo-workout-btn">Undo — go back in</button>
           </div>
         </div>
         {% else %}
@@ -1227,9 +1297,20 @@
   <!-- Exercise state -->
   <div id="cl-exercise-state">
     <div class="cl-header">
-      <button class="btn btn-ghost" id="cancel-workout-btn" style="padding:0.5rem 0.85rem">Cancel</button>
-      <div id="workout-timer">00:00</div>
-      <button class="btn btn-green" id="finish-workout-btn">Finish Workout</button>
+      <button class="btn btn-ghost" id="cancel-workout-btn" style="padding:0.45rem 0.75rem;font-size:0.85rem">Cancel</button>
+      <div class="cl-timers">
+        <div class="cl-timer-row">
+          <div class="cl-timer-block">
+            <div class="cl-timer-val" id="workout-timer">00:00</div>
+            <div class="cl-timer-lbl">Workout</div>
+          </div>
+          <div class="cl-timer-block">
+            <div class="cl-timer-val rest-val" id="rest-timer">00:00</div>
+            <div class="cl-timer-lbl">Rest</div>
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-green" id="finish-workout-btn" style="font-size:0.85rem;padding:0.45rem 0.75rem">Finish</button>
     </div>
     <div class="cl-scroll" id="checklist-body"></div>
   </div>
@@ -1237,6 +1318,24 @@
   <div id="cl-finishing-state" style="display:none;flex:1" class="cl-finishing">
     <div class="cl-spinner">⚙️</div>
     <div class="cl-status" id="cl-status-text">Analyzing workout with Claude…</div>
+  </div>
+</div>
+
+<!-- Change Workout overlay -->
+<div id="change-workout-overlay">
+  <div class="cl-header">
+    <button class="btn btn-ghost" id="cw-cancel-btn" style="padding:0.45rem 0.75rem;font-size:0.85rem">Cancel</button>
+    <span style="font-size:0.9rem;font-weight:700">Change Workout</span>
+    <div style="width:70px"></div>
+  </div>
+  <div class="cw-scroll">
+    <div class="card-title" style="margin-bottom:0.65rem">Pick a day from your plan</div>
+    <div id="cw-day-list"></div>
+    <div style="height:1px;background:var(--border);margin:1rem 0"></div>
+    <div class="card-title" style="margin-bottom:0.65rem">Or build a one-off custom workout</div>
+    <div id="cw-custom-rows"></div>
+    <button class="btn btn-ghost" id="cw-add-ex-btn" style="margin-bottom:0.75rem">+ Add Exercise</button>
+    <button class="btn btn-primary btn-full" id="cw-start-custom-btn">Start Custom Workout</button>
   </div>
 </div>
 
@@ -1525,6 +1624,8 @@ function renderWorkoutList(workouts, burn) {
 }
 
 function renderStrengthStatus(workouts) {
+  // This global version is called on initial AJAX updates before the IIFE overrides it.
+  // The IIFE's override (which adds Undo) runs immediately after page load and replaces this.
   const wrap = document.getElementById("strength-status-wrap");
   if (!wrap) return;
   const strengthLog = (workouts || []).find(w => w.description.startsWith('Strength workout'));
@@ -1534,15 +1635,20 @@ function renderStrengthStatus(workouts) {
     const desc    = strengthLog.description.length > 120
       ? strengthLog.description.slice(0, 120) + '…'
       : strengthLog.description;
-    wrap.innerHTML = `<div class="strength-done">
+    wrap.innerHTML = `<div class="strength-done redoable">
       <div class="done-check">✅</div>
       <div class="done-body">
         <div class="done-title">Workout logged today${kcalStr}</div>
         <div class="done-meta">${time} · ${desc}</div>
+        <button class="done-undo-btn" id="undo-workout-btn">Undo — go back in</button>
       </div>
     </div>`;
+    // Undo wired up by the IIFE override; this stub prevents a broken button
+    const undoBtn = document.getElementById("undo-workout-btn");
+    if (undoBtn) undoBtn.addEventListener("click", () => {
+      if (typeof window._openUndoWorkout === "function") window._openUndoWorkout();
+    });
   }
-  // If no strength log, leave idle state as-is (start button still there)
 }
 
 function deleteMeal(id) {
@@ -1880,22 +1986,50 @@ function deleteWorkout(id) {
   const overlay    = document.getElementById("checklist-overlay");
   const clBody     = document.getElementById("checklist-body");
   const timerEl    = document.getElementById("workout-timer");
+  const restEl     = document.getElementById("rest-timer");
   const cancelBtn  = document.getElementById("cancel-workout-btn");
   const finishBtn  = document.getElementById("finish-workout-btn");
   const exState    = document.getElementById("cl-exercise-state");
   const finState   = document.getElementById("cl-finishing-state");
   const statusTxt  = document.getElementById("cl-status-text");
 
-  // startBtn only exists when no workout logged today
-  const startBtn = document.getElementById("start-workout-btn");
+  const DAYS_OF_WEEK = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 
-  let timerInterval = null;
-  let elapsed       = 0;
-  let workoutState  = null;
+  let timerInterval  = null;
+  let elapsed        = 0;
+  let restElapsed    = 0;
+  let workoutState   = null;
+  let lastFinished   = null; // saved state for Undo
+  let activeDayName  = null; // which day's history to save to
+
+  // ── Helpers ──────────────────────────────────────────
 
   function formatTime(s) {
     return String(Math.floor(s/60)).padStart(2,"0") + ":" + String(s%60).padStart(2,"0");
   }
+
+  // ── workout history in localStorage ──────────────────
+
+  function loadDayHistory(dayName) {
+    try {
+      const h = JSON.parse(localStorage.getItem("workoutHistory") || "{}");
+      return h[dayName] || null;
+    } catch(e) { return null; }
+  }
+
+  function saveDayHistory(dayName, state) {
+    try {
+      const h = JSON.parse(localStorage.getItem("workoutHistory") || "{}");
+      // store per-exercise: [{name, sets:[{weight,reps}]}]
+      h[dayName] = state.map(ex => ({
+        name: ex.name,
+        sets: ex.sets.map(s => ({ weight: s.weight, reps: s.reps }))
+      }));
+      localStorage.setItem("workoutHistory", JSON.stringify(h));
+    } catch(e) {}
+  }
+
+  // ── Render checklist ──────────────────────────────────
 
   function renderChecklist(state) {
     clBody.innerHTML = "";
@@ -1920,19 +2054,23 @@ function deleteWorkout(id) {
           row.classList.toggle("done", cb.checked);
           const done = workoutState[ei].sets.filter(s => s.completed).length;
           document.getElementById(`ex-prog-${ei}`).textContent = `${done} / ${ex.sets.length}`;
+          // Reset rest timer on every check
+          if (cb.checked) { restElapsed = 0; }
         });
 
         const num = document.createElement("span");
         num.className = "set-num"; num.textContent = "Set " + (si+1);
 
         const wInput = document.createElement("input");
-        wInput.type = "number"; wInput.value = set.weight; wInput.min = 0; wInput.step = 5;
+        wInput.type = "number"; wInput.value = set.weight || ""; wInput.min = 0; wInput.step = 5;
+        wInput.placeholder = "lbs";
         wInput.addEventListener("input", () => workoutState[ei].sets[si].weight = parseFloat(wInput.value)||0);
 
         const lbs = document.createElement("span"); lbs.className = "set-unit"; lbs.textContent = "lbs ×";
 
         const rInput = document.createElement("input");
-        rInput.type = "number"; rInput.value = set.reps; rInput.min = 0; rInput.step = 1;
+        rInput.type = "number"; rInput.value = set.reps || ""; rInput.min = 0; rInput.step = 1;
+        rInput.placeholder = "reps";
         rInput.addEventListener("input", () => workoutState[ei].sets[si].reps = parseInt(rInput.value)||0);
 
         const reps = document.createElement("span"); reps.className = "set-unit"; reps.textContent = "reps";
@@ -1945,31 +2083,47 @@ function deleteWorkout(id) {
     });
   }
 
+  // ── Start session ────────────────────────────────────
+
   function showOverlay() {
     exState.style.display = "";
     finState.style.display = "none";
     overlay.classList.add("active");
   }
 
-  function startWorkoutSession(exercises) {
-    workoutState = exercises.map(ex => ({
-      name: ex.name,
-      sets: Array.from({length: ex.sets}, () => ({
-        completed: false, weight: ex.defaultWeight || 0, reps: ex.defaultReps || 0
-      }))
-    }));
+  function startWorkoutSession(exercises, dayName) {
+    activeDayName = dayName || null;
+    const history = dayName ? loadDayHistory(dayName) : null;
+
+    workoutState = exercises.map(ex => {
+      // find matching history entry by name
+      const prev = history ? history.find(h => h.name === ex.name) : null;
+      return {
+        name: ex.name,
+        sets: Array.from({length: ex.sets}, (_, si) => ({
+          completed: false,
+          weight: prev ? (prev.sets[si] ? prev.sets[si].weight : (ex.defaultWeight || 0)) : (ex.defaultWeight || 0),
+          reps:   prev ? (prev.sets[si] ? prev.sets[si].reps   : (ex.defaultReps   || 0)) : (ex.defaultReps   || 0),
+        }))
+      };
+    });
+
     renderChecklist(workoutState);
     const startTs = Date.now();
-    elapsed = 0;
+    elapsed = 0; restElapsed = 0;
     timerEl.textContent = "00:00";
+    restEl.textContent  = "00:00";
+    clearInterval(timerInterval);
     timerInterval = setInterval(() => {
-      elapsed = Math.floor((Date.now() - startTs) / 1000);
+      elapsed     = Math.floor((Date.now() - startTs) / 1000);
+      restElapsed += 1;
       timerEl.textContent = formatTime(elapsed);
+      restEl.textContent  = formatTime(restElapsed);
     }, 1000);
     showOverlay();
   }
 
-  const DAYS_OF_WEEK = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  // ── Plan helpers ──────────────────────────────────────
 
   function getTodayPlan() {
     try {
@@ -1981,15 +2135,31 @@ function deleteWorkout(id) {
     } catch(e) { return null; }
   }
 
+  function getFullWeeklyPlan() {
+    try {
+      const s = localStorage.getItem("weeklyPlan");
+      return s ? JSON.parse(s) : null;
+    } catch(e) { return null; }
+  }
+
+  // ── Idle state: show plan preview ────────────────────
+
   const idleEl = document.getElementById("strength-idle");
-  if (idleEl) {
+
+  function renderIdleState() {
+    if (!idleEl) return;
     const todayExs = getTodayPlan();
     const dayName  = DAYS_OF_WEEK[new Date().getDay()];
 
-    if (todayExs === null) {
-      // No weekly plan configured — use DEFAULT_PLAN
-      idleEl.querySelector("p").textContent = "No weekly plan set. Using default plan. Configure one in Profile.";
-      startBtn.addEventListener("click", () => startWorkoutSession(DEFAULT_PLAN));
+    if (todayExs === null || (todayExs.length === 0 && !getFullWeeklyPlan())) {
+      // No plan configured
+      idleEl.innerHTML = `
+        <p style="font-size:0.82rem;color:var(--muted);text-align:center;max-width:260px">
+          No weekly plan set. Configure one in Profile to see today's workout here.</p>
+        <button class="btn btn-green" id="start-workout-btn" style="min-width:180px">Start Default Workout</button>
+        <button class="btn btn-ghost" id="change-workout-idle-btn" style="min-width:180px;margin-top:0.4rem">Change Workout</button>`;
+      document.getElementById("start-workout-btn").addEventListener("click", () => startWorkoutSession(DEFAULT_PLAN, null));
+      document.getElementById("change-workout-idle-btn").addEventListener("click", openChangeWorkout);
 
     } else if (todayExs.length === 0) {
       // Rest day
@@ -1997,22 +2167,86 @@ function deleteWorkout(id) {
         <div class="rest-day-notice">
           <span>Rest day — no workout scheduled for ${dayName}.</span>
           <button class="btn btn-ghost" id="override-rest-btn">Override &amp; Start Anyway</button>
+          <button class="btn btn-ghost" id="change-workout-idle-btn" style="margin-top:0.4rem">Change Workout</button>
         </div>`;
-      document.getElementById("override-rest-btn").addEventListener("click", () => startWorkoutSession(DEFAULT_PLAN));
+      document.getElementById("override-rest-btn").addEventListener("click", () => startWorkoutSession(DEFAULT_PLAN, null));
+      document.getElementById("change-workout-idle-btn").addEventListener("click", openChangeWorkout);
 
     } else {
-      // Today has exercises from the weekly plan
-      idleEl.querySelector("p").textContent =
-        `${dayName}'s plan: ${todayExs.length} exercise${todayExs.length === 1 ? "" : "s"}`;
-      startBtn.addEventListener("click", () => startWorkoutSession(todayExs));
+      // Show today's exercises with previous weights
+      const history = loadDayHistory(dayName);
+      let planHtml = `<div class="idle-plan-list">`;
+      todayExs.forEach(ex => {
+        const prev = history ? history.find(h => h.name === ex.name) : null;
+        const prevStr = prev && prev.sets && prev.sets[0] && prev.sets[0].weight
+          ? `Last: ${prev.sets[0].weight} lbs × ${prev.sets[0].reps}`
+          : '';
+        planHtml += `<div class="idle-plan-row">
+          <span class="idle-plan-name">${ex.name}</span>
+          <span class="idle-plan-meta">${ex.sets} sets${prevStr ? ' · ' + prevStr : ''}</span>
+        </div>`;
+      });
+      planHtml += `</div>`;
+      idleEl.innerHTML = planHtml
+        + `<div class="btn-row" style="width:100%;justify-content:center;gap:0.5rem;margin-top:0.25rem">
+             <button class="btn btn-green" id="start-workout-btn" style="flex:1">Start ${dayName}'s Workout</button>
+             <button class="btn btn-ghost" id="change-workout-idle-btn">Change</button>
+           </div>`;
+      document.getElementById("start-workout-btn").addEventListener("click", () => startWorkoutSession(todayExs, dayName));
+      document.getElementById("change-workout-idle-btn").addEventListener("click", openChangeWorkout);
     }
   }
 
+  renderIdleState();
+
+  // ── renderStrengthStatus override with Undo ───────────
+
+  const _origRenderStrengthStatus = window.renderStrengthStatus;
+  window.renderStrengthStatus = function(workouts) {
+    const wrap = document.getElementById("strength-status-wrap");
+    if (!wrap) return;
+    const strengthLog = (workouts || []).find(w => w.description.startsWith('Strength workout'));
+    if (strengthLog) {
+      const kcalStr = strengthLog.calories_burned ? ` · ~${strengthLog.calories_burned} kcal` : '';
+      const time    = (strengthLog.logged_at || '').slice(11, 16);
+      const desc    = strengthLog.description.length > 120
+        ? strengthLog.description.slice(0, 120) + '…'
+        : strengthLog.description;
+      wrap.innerHTML = `<div class="strength-done redoable">
+        <div class="done-check">✅</div>
+        <div class="done-body">
+          <div class="done-title">Workout logged today${kcalStr}</div>
+          <div class="done-meta">${time} · ${desc}</div>
+          <button class="done-undo-btn" id="undo-workout-btn">Undo — go back in</button>
+        </div>
+      </div>`;
+      document.getElementById("undo-workout-btn").addEventListener("click", () => {
+        // Reopen session with saved state; log entry stays in DB
+        if (lastFinished) {
+          workoutState = JSON.parse(JSON.stringify(lastFinished));
+          renderChecklist(workoutState);
+          showOverlay();
+        } else {
+          // No saved state in memory (e.g. page was reloaded) — reopen with today's plan
+          const todayExs = getTodayPlan() || DEFAULT_PLAN;
+          const dayName  = DAYS_OF_WEEK[new Date().getDay()];
+          startWorkoutSession(todayExs, dayName);
+        }
+      });
+    }
+    // If no strength log, re-render idle state (handles case where user deleted the entry)
+    if (!strengthLog) renderIdleState();
+  };
+
+  // ── Cancel ────────────────────────────────────────────
+
   cancelBtn.addEventListener("click", () => {
     clearInterval(timerInterval);
-    elapsed = 0;
+    elapsed = 0; restElapsed = 0;
     overlay.classList.remove("active");
   });
+
+  // ── Finish ────────────────────────────────────────────
 
   finishBtn.addEventListener("click", () => {
     clearInterval(timerInterval);
@@ -2028,12 +2262,14 @@ function deleteWorkout(id) {
       return;
     }
 
-    // If finished in under 90 seconds, flag as test so Claude knows
+    // Save history for next time this day comes up
+    if (activeDayName) saveDayHistory(activeDayName, workoutState);
+    lastFinished = JSON.parse(JSON.stringify(workoutState)); // deep copy for Undo
+
     const testNote = elapsed < 90 ? " [NOTE: completed in under 90 seconds — this is likely a test run]" : "";
     const minutes  = Math.max(1, Math.round(elapsed / 60));
     const desc     = `Strength workout (${minutes} min): ` + completedLines.join("; ") + testNote;
 
-    // Switch overlay to finishing state
     exState.style.display = "none";
     finState.style.display = "flex";
     statusTxt.textContent = "Analyzing workout with Claude…";
@@ -2044,7 +2280,6 @@ function deleteWorkout(id) {
       .then(burnData => {
         const kcal = burnData.error ? 0 : (burnData.calories_burned || 0);
         statusTxt.textContent = `Saving workout… (~${kcal} kcal)`;
-
         return fetch("/api/log-workout", { method:"POST", headers:{"Content-Type":"application/json"},
           body: JSON.stringify({description: desc, calories_burned: kcal}) });
       })
@@ -2055,16 +2290,12 @@ function deleteWorkout(id) {
         WORKOUT_BURN_TODAY = data.burn;
         TODAY_WORKOUT_DESCS = (data.workouts || []).map(w => w.description);
         renderWorkoutList(data.workouts, data.burn);
-        renderStrengthStatus(data.workouts);
-        try {
-          const p = localStorage.getItem("profileData");
-          if (p) applyProfileToMeals(JSON.parse(p));
-        } catch(e) {}
+        window.renderStrengthStatus(data.workouts);
+        try { const p = localStorage.getItem("profileData"); if (p) applyProfileToMeals(JSON.parse(p)); } catch(e) {}
         if (typeof window._refreshDashboard === "function") window._refreshDashboard();
         flashGreen();
       })
       .catch(() => {
-        // Save with 0 kcal on any error rather than losing the workout
         fetch("/api/log-workout", { method:"POST", headers:{"Content-Type":"application/json"},
           body: JSON.stringify({description: desc, calories_burned: 0}) })
           .then(() => fetch("/api/today-workouts"))
@@ -2074,12 +2305,88 @@ function deleteWorkout(id) {
             WORKOUT_BURN_TODAY = data.burn;
             TODAY_WORKOUT_DESCS = (data.workouts || []).map(w => w.description);
             renderWorkoutList(data.workouts, data.burn);
-            renderStrengthStatus(data.workouts);
+            window.renderStrengthStatus(data.workouts);
             flashGreen();
           })
           .catch(() => { sessionStorage.setItem("activeTab","workout"); window.location.href="/"; });
       });
   });
+
+  // ── Change Workout overlay ────────────────────────────
+
+  const cwOverlay  = document.getElementById("change-workout-overlay");
+  const cwCancel   = document.getElementById("cw-cancel-btn");
+  const cwDayList  = document.getElementById("cw-day-list");
+  const cwCustom   = document.getElementById("cw-custom-rows");
+  const cwAddEx    = document.getElementById("cw-add-ex-btn");
+  const cwStartCus = document.getElementById("cw-start-custom-btn");
+
+  function openChangeWorkout() {
+    // Populate day picker
+    cwDayList.innerHTML = "";
+    const plan = getFullWeeklyPlan();
+    DAYS_OF_WEEK.forEach(day => {
+      const exs = plan ? (plan[day] || []) : [];
+      const btn = document.createElement("button");
+      btn.className = "cw-day-btn";
+      const meta = exs.length === 0 ? "Rest day"
+        : exs.map(e => e.name).slice(0,3).join(", ") + (exs.length > 3 ? "…" : "");
+      btn.innerHTML = `<div class="cw-day-name">${day}</div><div class="cw-day-meta">${meta}</div>`;
+      btn.addEventListener("click", () => {
+        cwOverlay.classList.remove("active");
+        const exercises = exs.length > 0 ? exs : DEFAULT_PLAN;
+        startWorkoutSession(exercises, day);
+      });
+      cwDayList.appendChild(btn);
+    });
+    // Reset custom section
+    cwCustom.innerHTML = "";
+    addCustomRow();
+    cwOverlay.classList.add("active");
+  }
+
+  function addCustomRow() {
+    const row = document.createElement("div");
+    row.className = "cw-ex-row";
+    row.innerHTML = `
+      <input type="text" placeholder="Exercise name" class="cw-ex-name">
+      <input type="number" placeholder="Sets" class="cw-ex-sets" min="1" max="10" value="3">
+      <button class="btn btn-danger" style="padding:0.3rem 0.5rem;flex-shrink:0">✕</button>`;
+    row.querySelector(".btn-danger").addEventListener("click", () => {
+      if (cwCustom.children.length > 1) row.remove();
+    });
+    cwCustom.appendChild(row);
+  }
+
+  cwAddEx.addEventListener("click", addCustomRow);
+
+  cwStartCus.addEventListener("click", () => {
+    const rows = [...cwCustom.querySelectorAll(".cw-ex-row")];
+    const exercises = rows.map(r => ({
+      name: r.querySelector(".cw-ex-name").value.trim(),
+      sets: parseInt(r.querySelector(".cw-ex-sets").value) || 3,
+      defaultWeight: 0, defaultReps: 0,
+    })).filter(e => e.name);
+    if (!exercises.length) return;
+    cwOverlay.classList.remove("active");
+    startWorkoutSession(exercises, null); // null = don't save to history
+  });
+
+  cwCancel.addEventListener("click", () => cwOverlay.classList.remove("active"));
+
+  // Expose for the global renderStrengthStatus stub
+  window._openUndoWorkout = function() {
+    if (lastFinished) {
+      workoutState = JSON.parse(JSON.stringify(lastFinished));
+      renderChecklist(workoutState);
+      showOverlay();
+    } else {
+      const todayExs = getTodayPlan() || DEFAULT_PLAN;
+      const dayName  = DAYS_OF_WEEK[new Date().getDay()];
+      startWorkoutSession(todayExs, dayName);
+    }
+  };
+
 })();
 
 // ══════════════════════════════════════════════════════
