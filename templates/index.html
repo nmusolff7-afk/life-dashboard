@@ -322,14 +322,17 @@
     .cw-ex-row input[type="text"] { flex: 1; }
     .cw-ex-row input[type="number"] { width: 58px; }
 
-    /* ── Undo button on completed workout ── */
-    .done-undo-btn {
+    /* ── Edit / Delete buttons on completed workout ── */
+    .done-action-row { display: flex; gap: 0.4rem; margin-top: 0.45rem; }
+    .done-edit-btn, .done-delete-btn {
       background: none; border: 1px solid var(--border); border-radius: 6px;
-      color: var(--muted); font-size: 0.75rem; padding: 0.25rem 0.6rem;
-      cursor: pointer; margin-top: 0.4rem; transition: border-color .15s, color .15s;
-      display: inline-block;
+      font-size: 0.75rem; padding: 0.25rem 0.65rem;
+      cursor: pointer; transition: border-color .15s, color .15s;
     }
-    .done-undo-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+    .done-edit-btn   { color: var(--muted); }
+    .done-edit-btn:hover   { border-color: var(--accent2); color: var(--accent2); }
+    .done-delete-btn { color: var(--danger); border-color: transparent; }
+    .done-delete-btn:hover { border-color: var(--danger); }
     .strength-done.redoable { border-color: rgba(121,134,203,.2); }
 
     /* ── Placeholders ── */
@@ -871,7 +874,10 @@
           <div class="done-body">
             <div class="done-title">Workout logged today{% if ns.strength_log.calories_burned %} · ~{{ ns.strength_log.calories_burned }} kcal{% endif %}</div>
             <div class="done-meta">{{ ns.strength_log.logged_at[11:16] }} · {{ ns.strength_log.description[:120] }}{% if ns.strength_log.description|length > 120 %}…{% endif %}</div>
-            <button class="done-undo-btn" id="undo-workout-btn">Undo — go back in</button>
+            <div class="done-action-row">
+              <button class="done-edit-btn" id="edit-workout-btn">Edit</button>
+              <button class="done-delete-btn" id="delete-workout-status-btn">Delete</button>
+            </div>
           </div>
         </div>
         {% else %}
@@ -1643,11 +1649,7 @@ function renderStrengthStatus(workouts) {
         <button class="done-undo-btn" id="undo-workout-btn">Undo — go back in</button>
       </div>
     </div>`;
-    // Undo wired up by the IIFE override; this stub prevents a broken button
-    const undoBtn = document.getElementById("undo-workout-btn");
-    if (undoBtn) undoBtn.addEventListener("click", () => {
-      if (typeof window._openUndoWorkout === "function") window._openUndoWorkout();
-    });
+    // Buttons wired up by the IIFE's wireCompletedButtons() on init
   }
 }
 
@@ -2199,15 +2201,60 @@ function deleteWorkout(id) {
 
   renderIdleState();
 
-  // Wire up undo button if it was server-rendered on initial page load
-  const existingUndo = document.getElementById("undo-workout-btn");
-  if (existingUndo) {
-    existingUndo.addEventListener("click", () => window._openUndoWorkout && window._openUndoWorkout());
+  // ── Edit session (no timer) ───────────────────────────
+
+  function openEditSession() {
+    if (lastFinished) {
+      workoutState = JSON.parse(JSON.stringify(lastFinished));
+    } else {
+      // Page was reloaded — no in-memory state; rebuild from today's plan with history
+      const todayExs = getTodayPlan() || DEFAULT_PLAN;
+      const dayName  = DAYS_OF_WEEK[new Date().getDay()];
+      activeDayName  = dayName;
+      workoutState   = todayExs.map(ex => {
+        const history = loadDayHistory(dayName);
+        const prev    = history ? history.find(h => h.name === ex.name) : null;
+        return {
+          name: ex.name,
+          sets: Array.from({length: ex.sets}, (_, si) => ({
+            completed: true,
+            weight: prev ? (prev.sets[si] ? prev.sets[si].weight : (ex.defaultWeight || 0)) : (ex.defaultWeight || 0),
+            reps:   prev ? (prev.sets[si] ? prev.sets[si].reps   : (ex.defaultReps   || 0)) : (ex.defaultReps   || 0),
+          }))
+        };
+      });
+    }
+    // Timer stays frozen — clear any running interval, display dashes
+    clearInterval(timerInterval);
+    timerInterval = null;
+    timerEl.textContent = "--:--";
+    restEl.textContent  = "--:--";
+    renderChecklist(workoutState);
+    showOverlay();
   }
 
-  // ── renderStrengthStatus override with Undo ───────────
+  // ── Wire up buttons rendered by server on initial load ─
 
-  const _origRenderStrengthStatus = window.renderStrengthStatus;
+  function wireCompletedButtons() {
+    const editBtn = document.getElementById("edit-workout-btn");
+    const delBtn  = document.getElementById("delete-workout-status-btn");
+    if (editBtn) editBtn.addEventListener("click", openEditSession);
+    if (delBtn)  delBtn.addEventListener("click",  revertToIdle);
+  }
+
+  function revertToIdle() {
+    // Wipe the completed card and show idle state — workout entries list untouched
+    const wrap = document.getElementById("strength-status-wrap");
+    if (wrap) {
+      wrap.innerHTML = `<div id="strength-idle" class="strength-idle-inner"></div>`;
+    }
+    renderIdleState();
+  }
+
+  wireCompletedButtons();
+
+  // ── renderStrengthStatus override with Edit + Delete ──
+
   window.renderStrengthStatus = function(workouts) {
     const wrap = document.getElementById("strength-status-wrap");
     if (!wrap) return;
@@ -2223,24 +2270,14 @@ function deleteWorkout(id) {
         <div class="done-body">
           <div class="done-title">Workout logged today${kcalStr}</div>
           <div class="done-meta">${time} · ${desc}</div>
-          <button class="done-undo-btn" id="undo-workout-btn">Undo — go back in</button>
+          <div class="done-action-row">
+            <button class="done-edit-btn" id="edit-workout-btn">Edit</button>
+            <button class="done-delete-btn" id="delete-workout-status-btn">Delete</button>
+          </div>
         </div>
       </div>`;
-      document.getElementById("undo-workout-btn").addEventListener("click", () => {
-        // Reopen session with saved state; log entry stays in DB
-        if (lastFinished) {
-          workoutState = JSON.parse(JSON.stringify(lastFinished));
-          renderChecklist(workoutState);
-          showOverlay();
-        } else {
-          // No saved state in memory (e.g. page was reloaded) — reopen with today's plan
-          const todayExs = getTodayPlan() || DEFAULT_PLAN;
-          const dayName  = DAYS_OF_WEEK[new Date().getDay()];
-          startWorkoutSession(todayExs, dayName);
-        }
-      });
+      wireCompletedButtons();
     }
-    // If no strength log, re-render idle state (handles case where user deleted the entry)
     if (!strengthLog) renderIdleState();
   };
 
@@ -2380,18 +2417,7 @@ function deleteWorkout(id) {
 
   cwCancel.addEventListener("click", () => cwOverlay.classList.remove("active"));
 
-  // Expose for the global renderStrengthStatus stub
-  window._openUndoWorkout = function() {
-    if (lastFinished) {
-      workoutState = JSON.parse(JSON.stringify(lastFinished));
-      renderChecklist(workoutState);
-      showOverlay();
-    } else {
-      const todayExs = getTodayPlan() || DEFAULT_PLAN;
-      const dayName  = DAYS_OF_WEEK[new Date().getDay()];
-      startWorkoutSession(todayExs, dayName);
-    }
-  };
+  // No longer needed — wireCompletedButtons handles this directly
 
 })();
 
