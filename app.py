@@ -12,6 +12,7 @@ from db import (
     get_meal_history, get_workout_history, get_day_detail,
     upsert_garmin_daily, get_garmin_daily, get_garmin_last_sync,
     garmin_activity_exists, insert_garmin_workout,
+    get_setting, set_setting,
 )
 from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, shorten_label, scan_meal_image
 import garmin_sync

@@ -66,6 +66,13 @@ def init_db():
                 PRIMARY KEY (user_id, stat_date)
             )
         """)
+        # Key-value store for app-level settings (e.g. garth OAuth tokens)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+        """)
         conn.commit()
 
         # Migrate: add garmin_activity_id to workout_logs to prevent duplicate imports
@@ -321,4 +328,22 @@ def insert_garmin_workout(user_id, log_date, description, calories_burned, garmi
             VALUES (?, ?, ?, ?, ?, ?)
         """, (user_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
               log_date, description, calories_burned, garmin_activity_id))
+        conn.commit()
+
+
+# ── App settings (key-value) ──────────────────────────
+
+def get_setting(key):
+    with get_conn() as conn:
+        row = conn.execute("SELECT value FROM app_settings WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row else None
+
+
+def set_setting(key, value):
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, value)
+        )
         conn.commit()
