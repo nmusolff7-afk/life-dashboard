@@ -114,41 +114,27 @@ PROFILE_SCHEMA = {
 
 PROFILE_GENERATION_PROMPT = """You are a world-class personal health and life coach generating a comprehensive user profile.
 
-You have been given a user's answers from a detailed onboarding survey. Your job is to analyze ALL of their responses holistically and fill in a structured 200-variable profile map. This profile will be used to provide deeply personalized health, fitness, nutrition, and life insights.
+You have been given a user's answers from a detailed onboarding survey. Analyze ALL responses holistically and fill in a structured profile map. This profile powers deeply personalized health, fitness, nutrition, and life insights.
 
 Guidelines:
-- Use the raw inputs to fill every field you can directly derive
-- Infer psychological and behavioral traits carefully from how they phrase things, not just what they say
+- Use raw inputs to fill every field you can directly derive
+- Infer psychological and behavioral traits from how they phrase things, not just what they say
 - Calculate physical metrics (BMI, RMR, TDEE, etc.) using standard formulas
-- Be honest and nuanced — don't just fill everything positively
+- Be honest and nuanced — don't fill everything positively
 - For list fields, output actual JSON arrays
 - For score fields (1-10), give genuine assessments
 - Leave fields as null only if there is truly no basis to infer them
-- The "personalized_insight" should be 2-3 sentences that would make this person feel deeply understood
+- The "personalized_insight" should be 2-3 sentences that make this person feel deeply understood
 
-Physical calculations to use:
-- BMI = weight_lbs / height_inches² × 703
-- RMR (Mifflin-St Jeor): Men: 10×kg + 6.25×cm − 5×age + 5 | Women: 10×kg + 6.25×cm − 5×age − 161
-- If body_fat_pct given, use Katch-McArdle: RMR = 370 + 21.6 × lean_mass_kg
-- TDEE multipliers: sedentary×1.2, light×1.375, moderate×1.55, active×1.725, very active×1.9
-- Weight loss rate: deficit_kcal / 3500 × 7 = lbs/week
-
-Respond ONLY with a valid JSON object matching the schema keys provided. No markdown, no explanation."""
+Respond ONLY with a valid JSON object. No markdown, no explanation."""
 
 
 def generate_profile_map(raw_inputs: dict) -> dict:
-    """Run Claude Opus on the collected onboarding data and return filled profile map."""
-    schema_keys = list(PROFILE_SCHEMA.keys())
-    user_content = f"""USER ONBOARDING RESPONSES:
-{json.dumps(raw_inputs, indent=2)}
-
-PROFILE SCHEMA KEYS TO FILL:
-{json.dumps(schema_keys)}
-
-Generate the complete profile map JSON now."""
+    """Run Claude Sonnet on the collected onboarding data and return filled profile map."""
+    user_content = f"USER ONBOARDING RESPONSES:\n{json.dumps(raw_inputs)}\n\nGenerate the complete profile map JSON now."
 
     response = _client().messages.create(
-        model="claude-opus-4-6",
+        model="claude-sonnet-4-6",
         max_tokens=4096,
         system=PROFILE_GENERATION_PROMPT,
         messages=[{"role": "user", "content": user_content}],
@@ -203,9 +189,9 @@ Return ONLY a valid JSON object with these exact keys:
 
 
 def generate_mind_insights(profile_map: dict) -> dict:
-    """Generate Mind tab insights from the profile map using Claude Opus."""
+    """Generate Mind tab insights from the profile map using Claude Sonnet."""
     response = _client().messages.create(
-        model="claude-opus-4-6",
+        model="claude-sonnet-4-6",
         max_tokens=2048,
         system=MIND_INSIGHTS_PROMPT,
         messages=[{"role": "user", "content": json.dumps(profile_map)}],

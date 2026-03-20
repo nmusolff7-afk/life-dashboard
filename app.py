@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
+import threading
 from datetime import date, timedelta
 from functools import wraps
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
@@ -25,6 +26,9 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "life-dashboard-default-secret-v1")
 app.permanent_session_lifetime = timedelta(days=90)
 init_db()
+
+# In-memory store for async onboarding jobs: {user_id: {"status": "pending"|"done"|"error", "profile": {...}, "error": "..."}}
+_ob_jobs: dict = {}
 
 RMR = 1550
 
@@ -183,37 +187,44 @@ def api_onboarding_status():
     return jsonify({"complete": is_onboarding_complete(uid())})
 
 
+def _run_profile_generation(user_id: int, raw: dict):
+    """Background thread: generate profile map and write to DB."""
+    import traceback
+    try:
+        profile = generate_profile_map(raw)
+        with app.app_context():
+            complete_onboarding(user_id, json.dumps(profile))
+        _ob_jobs[user_id] = {"status": "done", "profile": profile}
+    except Exception as e:
+        tb = traceback.format_exc()
+        _ob_jobs[user_id] = {"status": "error", "error": f"{type(e).__name__}: {e}", "traceback": tb[-800:]}
+
+
 @app.route("/api/onboarding/complete", methods=["POST"])
 @login_required
 def api_onboarding_complete():
-    """Run Claude Opus to generate the 200-var profile map and mark onboarding done."""
-    import traceback
+    """Start async profile generation — returns immediately with job queued."""
     user = uid()
-    step = "init"
-    try:
-        step = "get_onboarding"
-        row = get_onboarding(user)
-        if not row:
-            return jsonify({"error": "step=get_onboarding: no row found — go back to page 1 and hit Continue once to save your answers, then try again."}), 400
+    row = get_onboarding(user)
+    if not row:
+        return jsonify({"error": "No onboarding data found — go back to page 1 and hit Continue, then try again."}), 400
 
-        step = "parse_raw_inputs"
-        raw = json.loads(row.get("raw_inputs") or "{}")
+    raw = json.loads(row.get("raw_inputs") or "{}")
+    _ob_jobs[user] = {"status": "pending"}
+    t = threading.Thread(target=_run_profile_generation, args=(user, raw), daemon=True)
+    t.start()
+    return jsonify({"queued": True})
 
-        step = "generate_profile_map (Claude API)"
-        profile = generate_profile_map(raw)
 
-        step = "complete_onboarding (DB write)"
-        complete_onboarding(user, json.dumps(profile))
-
-        step = "verify_complete"
-        if not is_onboarding_complete(user):
-            return jsonify({"error": "step=verify: DB write did not persist — Railway may be using an ephemeral filesystem. Check that a persistent volume is mounted."}), 500
-
-        return jsonify({"ok": True, "profile": profile})
-
-    except Exception as e:
-        tb = traceback.format_exc()
-        return jsonify({"error": f"step={step}: {type(e).__name__}: {e}", "traceback": tb[-800:]}), 500
+@app.route("/api/onboarding/poll")
+@login_required
+def api_onboarding_poll():
+    """Poll for async profile generation status."""
+    user = uid()
+    job = _ob_jobs.get(user)
+    if job is None:
+        return jsonify({"status": "not_started"})
+    return jsonify(job)
 
 
 # ── Mind tab ────────────────────────────────────────────

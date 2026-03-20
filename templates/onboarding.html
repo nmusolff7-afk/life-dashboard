@@ -774,52 +774,64 @@
       });
     } catch (_) {}
 
-    // Now generate profile
-    let res, data, rawText;
+    // Kick off async generation
     try {
-      res = await fetch("/api/onboarding/complete", { method: "POST" });
-      rawText = await res.text();
-      try { data = JSON.parse(rawText); } catch (_) { data = {}; }
+      const kickoff = await fetch("/api/onboarding/complete", { method: "POST" });
+      if (!kickoff.ok) {
+        const t = await kickoff.text();
+        let d = {}; try { d = JSON.parse(t); } catch (_) {}
+        showObError("HTTP " + kickoff.status, d.error || t.slice(0, 600));
+        return;
+      }
     } catch (fetchErr) {
+      showObError("Network error", "fetch failed: " + fetchErr.message);
+      return;
+    }
+
+    // Poll /api/onboarding/poll every 3 seconds
+    const pollInterval = setInterval(async () => {
+      let job;
+      try {
+        const r = await fetch("/api/onboarding/poll");
+        job = await r.json();
+      } catch (_) { return; } // transient — keep polling
+
+      if (job.status === "pending" || job.status === "not_started") return;
+
+      clearInterval(pollInterval);
       document.getElementById("ob-spinner").classList.remove("show");
       document.getElementById("ob-complete").style.display = "block";
-      document.getElementById("ob-complete-icon").textContent = "⚠";
-      document.getElementById("ob-complete-heading").textContent = "Network error";
-      document.getElementById("ob-complete-body").textContent = "";
-      document.getElementById("ob-error").textContent = "fetch failed: " + fetchErr.message;
-      document.getElementById("ob-error").style.display = "";
-      document.getElementById("ob-retry-btn").style.display = "";
-      return;
-    }
 
+      if (job.status === "error") {
+        showObError("Profile generation failed", [job.error, job.traceback].filter(Boolean).join("\n\n"));
+        return;
+      }
+
+      // Done
+      try {
+        document.getElementById("ob-complete-icon").textContent = "✦";
+        document.getElementById("ob-complete-heading").textContent = "Your Profile is Ready";
+        document.getElementById("ob-complete-body").textContent = "Apex now understands who you are. Your dashboard is calibrated to your goals, lifestyle, and motivations.";
+        buildSummary(job.profile || {});
+        document.getElementById("ob-enter-btn").style.display = "";
+      } catch (renderErr) {
+        document.getElementById("ob-error").textContent = "Display error (profile saved): " + renderErr.message;
+        document.getElementById("ob-error").style.display = "";
+        document.getElementById("ob-enter-btn").style.display = "";
+      }
+    }, 3000);
+  }
+
+  function showObError(heading, detail) {
     document.getElementById("ob-spinner").classList.remove("show");
     document.getElementById("ob-complete").style.display = "block";
-
-    if (!res.ok || data.error) {
-      document.getElementById("ob-complete-icon").textContent = "⚠";
-      document.getElementById("ob-complete-heading").textContent = "Error (HTTP " + res.status + ")";
-      document.getElementById("ob-complete-body").textContent = "Your answers are saved. Details below — tap Try again when ready.";
-      const detail = [data.error, data.traceback].filter(Boolean).join("\n\n") || rawText.slice(0, 600) || "(empty response)";
-      console.error("Onboarding error:", detail);
-      document.getElementById("ob-error").textContent = detail;
-      document.getElementById("ob-error").style.display = "";
-      document.getElementById("ob-retry-btn").style.display = "";
-      return;
-    }
-
-    // Success — but catch any JS error in buildSummary separately
-    try {
-      document.getElementById("ob-complete-icon").textContent = "✦";
-      document.getElementById("ob-complete-heading").textContent = "Your Profile is Ready";
-      document.getElementById("ob-complete-body").textContent = "Apex now understands who you are. Your dashboard is calibrated to your goals, lifestyle, and motivations.";
-      buildSummary(data.profile || {});
-      document.getElementById("ob-enter-btn").style.display = "";
-    } catch (renderErr) {
-      // Profile was saved OK — JS rendering failed. Still let the user in.
-      document.getElementById("ob-error").textContent = "Display error (profile saved): " + renderErr.message;
-      document.getElementById("ob-error").style.display = "";
-      document.getElementById("ob-enter-btn").style.display = "";
-    }
+    document.getElementById("ob-complete-icon").textContent = "⚠";
+    document.getElementById("ob-complete-heading").textContent = heading;
+    document.getElementById("ob-complete-body").textContent = "Your answers are saved. Details below — tap Try again when ready.";
+    console.error("Onboarding error:", detail);
+    document.getElementById("ob-error").textContent = detail || "(no details)";
+    document.getElementById("ob-error").style.display = "";
+    document.getElementById("ob-retry-btn").style.display = "";
   }
 
   function buildSummary(p) {
