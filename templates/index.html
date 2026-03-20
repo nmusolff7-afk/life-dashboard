@@ -595,6 +595,23 @@
       color: var(--muted); font-size: 0.88rem; cursor: pointer; margin-top: 0.25rem;
     }
 
+    /* ══ DELETE ACCOUNT MODAL ═══════════════════ */
+    #delete-account-modal {
+      position: fixed; inset: 0; z-index: 400;
+      display: none; align-items: center; justify-content: center; padding: 1.5rem;
+    }
+    #delete-account-modal.active { display: flex; }
+    #delete-account-backdrop {
+      position: absolute; inset: 0; background: rgba(0,0,0,0.72);
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    }
+    #delete-account-box {
+      position: relative; z-index: 1; background: var(--surface);
+      border: 1.5px solid var(--danger); border-radius: 18px;
+      padding: 1.75rem 1.25rem 1.25rem; width: 100%; max-width: 320px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.6); text-align: center;
+    }
+
     /* ══ EDIT MEAL MODAL ════════════════════════ */
     #edit-meal-modal {
       position: fixed; inset: 0; z-index: 400;
@@ -1397,6 +1414,19 @@
         <div id="tz-current-date" style="font-size:0.78rem;color:var(--muted)"></div>
       </div>
 
+      <!-- Delete Account -->
+      <div class="card" style="border-color:rgba(248,81,73,0.25)">
+        <div class="card-title" style="color:var(--danger)">Danger Zone</div>
+        <p style="font-size:0.83rem;color:var(--muted);margin-bottom:1rem;line-height:1.5">
+          Permanently deletes your account and all associated data — meals, workouts, and history. This cannot be undone.
+        </p>
+        <button type="button" id="delete-account-btn"
+          class="btn btn-full"
+          style="background:none;border:1.5px solid var(--danger);color:var(--danger);font-weight:600">
+          Delete My Account
+        </button>
+      </div>
+
     </div><!-- /tab-profile -->
 
   </div><!-- /content -->
@@ -1476,6 +1506,23 @@
       <button id="edit-meal-save-btn" class="btn btn-primary" style="flex:1">Save</button>
       <button id="edit-meal-cancel-btn" class="btn btn-ghost">Cancel</button>
     </div>
+  </div>
+</div>
+
+<!-- Delete account confirmation modal -->
+<div id="delete-account-modal">
+  <div id="delete-account-backdrop"></div>
+  <div id="delete-account-box">
+    <div style="font-size:1.5rem;margin-bottom:0.5rem">⚠️</div>
+    <div class="photo-source-title" style="color:var(--danger)">Delete Account?</div>
+    <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1.25rem;line-height:1.5;text-align:center">
+      This will permanently erase your account and all your data. There is no way to undo this.
+    </p>
+    <button id="delete-account-confirm-btn" class="btn btn-full"
+      style="background:var(--danger);color:#fff;font-weight:700;margin-bottom:0.6rem;border:none">
+      Yes, delete my account
+    </button>
+    <button id="delete-account-cancel-btn" class="photo-source-cancel">Cancel</button>
   </div>
 </div>
 
@@ -4784,6 +4831,42 @@ if ("serviceWorker" in navigator) {
   }
 
   init();
+})();
+
+// ══════════════════════════════════════════════════════
+//  DELETE ACCOUNT
+// ══════════════════════════════════════════════════════
+
+(function() {
+  const modal      = document.getElementById("delete-account-modal");
+  const openBtn    = document.getElementById("delete-account-btn");
+  const cancelBtn  = document.getElementById("delete-account-cancel-btn");
+  const confirmBtn = document.getElementById("delete-account-confirm-btn");
+  const backdrop   = document.getElementById("delete-account-backdrop");
+
+  openBtn.addEventListener("click", () => modal.classList.add("active"));
+  cancelBtn.addEventListener("click", () => modal.classList.remove("active"));
+  backdrop.addEventListener("click", () => modal.classList.remove("active"));
+
+  confirmBtn.addEventListener("click", () => {
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = "Deleting…";
+    fetch("/api/delete-account", { method: "POST" })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          localStorage.clear();
+          window.location.href = "/login";
+        } else {
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = "Yes, delete my account";
+        }
+      })
+      .catch(() => {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = "Yes, delete my account";
+      });
+  });
 })();
 </script>
 </body>

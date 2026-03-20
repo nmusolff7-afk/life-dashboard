@@ -98,6 +98,16 @@ def init_db():
 
 # ── Auth ────────────────────────────────────────────────
 
+def delete_account(user_id):
+    """Permanently delete a user and all their data."""
+    with get_conn() as conn:
+        conn.execute("DELETE FROM meal_logs    WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM workout_logs WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM garmin_daily WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM users        WHERE id      = ?", (user_id,))
+        conn.commit()
+
+
 def create_user(username, password):
     """Returns new user_id on success, None if username is already taken."""
     with get_conn() as conn:

@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from functools import wraps
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 from db import (
-    init_db, create_user, verify_user,
+    init_db, create_user, verify_user, delete_account,
     insert_meal, get_today_meals, get_today_totals, update_meal, delete_meal,
     insert_workout, get_today_workouts, delete_workout, get_today_workout_burn,
     get_meal_history, get_workout_history, get_day_detail,
@@ -117,6 +117,14 @@ def login_page():
 def logout():
     session.clear()
     return redirect(url_for("login_page"))
+
+
+@app.route("/api/delete-account", methods=["POST"])
+@login_required
+def api_delete_account():
+    delete_account(uid())
+    session.clear()
+    return jsonify({"ok": True})
 
 
 # ── Main app ────────────────────────────────────────────
