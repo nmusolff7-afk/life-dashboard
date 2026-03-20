@@ -58,3 +58,36 @@ self.addEventListener("fetch", event => {
     );
   }
 });
+
+// ── Workout background notification ──────────────────────────────────────────
+// The page posts "workout-start" when a session begins and "workout-end" when
+// it finishes or is cancelled. This keeps a persistent notification in the
+// Android system tray so the user can return to the app at any time.
+
+self.addEventListener("message", event => {
+  if (event.data === "workout-start") {
+    self.registration.showNotification("Workout in Progress", {
+      body: "Tap to return to your workout.",
+      icon: "/static/icon-192.png",
+      tag: "workout-active",
+      renotify: false,
+      silent: true,
+    });
+  } else if (event.data === "workout-end") {
+    self.registration.getNotifications({ tag: "workout-active" })
+      .then(notifs => notifs.forEach(n => n.close()));
+  }
+});
+
+self.addEventListener("notificationclick", event => {
+  if (event.notification.tag !== "workout-active") return;
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
+      for (const c of list) {
+        if ("focus" in c) return c.focus();
+      }
+      if (clients.openWindow) return clients.openWindow("/");
+    })
+  );
+});

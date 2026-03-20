@@ -2153,11 +2153,39 @@ function deleteWorkout(id) {
   const DAYS_OF_WEEK = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 
   let timerInterval  = null;
+  let startTs        = 0;
   let elapsed        = 0;
   let restElapsed    = 0;
   let workoutState   = null;
   let lastFinished   = null; // saved state for Undo
   let activeDayName  = null; // which day's history to save to
+
+  const LS_TIMER_KEY = "workoutActiveStartTs";
+
+  function _notifySW(msg) {
+    if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage(msg);
+    }
+  }
+
+  function _clearWorkoutTimer() {
+    clearInterval(timerInterval);
+    timerInterval = null;
+    localStorage.removeItem(LS_TIMER_KEY);
+    _notifySW("workout-end");
+  }
+
+  // When the app is foregrounded after being backgrounded on Android,
+  // recalculate elapsed from the persisted wall-clock start time so the
+  // timer is always accurate regardless of JS throttling in the background.
+  document.addEventListener("visibilitychange", function() {
+    if (document.visibilityState !== "visible" || timerInterval === null) return;
+    const saved = parseInt(localStorage.getItem(LS_TIMER_KEY) || "0", 10);
+    if (!saved) return;
+    startTs = saved;
+    elapsed = Math.floor((Date.now() - startTs) / 1000);
+    timerEl.textContent = formatTime(elapsed);
+  });
 
   // ── Helpers ──────────────────────────────────────────
 
@@ -2266,7 +2294,9 @@ function deleteWorkout(id) {
     });
 
     renderChecklist(workoutState);
-    const startTs = Date.now();
+    startTs = Date.now();
+    localStorage.setItem(LS_TIMER_KEY, String(startTs));
+    _notifySW("workout-start");
     elapsed = 0; restElapsed = 0;
     timerEl.textContent = "00:00";
     restEl.textContent  = "00:00";
@@ -2438,7 +2468,7 @@ function deleteWorkout(id) {
   // ── Cancel ────────────────────────────────────────────
 
   cancelBtn.addEventListener("click", () => {
-    clearInterval(timerInterval);
+    _clearWorkoutTimer();
     elapsed = 0; restElapsed = 0;
     overlay.classList.remove("active");
   });
@@ -2446,7 +2476,7 @@ function deleteWorkout(id) {
   // ── Finish ────────────────────────────────────────────
 
   finishBtn.addEventListener("click", () => {
-    clearInterval(timerInterval);
+    _clearWorkoutTimer();
 
     const completedLines = (workoutState || []).map(ex => {
       const done = ex.sets.filter(s => s.completed);
