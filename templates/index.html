@@ -3594,25 +3594,30 @@ try {
       order: 2,
     }];
 
-    if (targetD) {
-      datasets.push({
-        type: "line",
-        label: "Target",
-        data: entries.map(() => -targetD),
-        borderColor: "#7986cb",
-        borderDash: [6, 4],
-        borderWidth: 1.5,
-        pointRadius: 0,
-        fill: false,
-        tension: 0,
-        order: 1,
-      });
-    }
+    // Target line drawn as a canvas plugin so it spans edge-to-edge
+    // (a dataset line on a bar chart only connects bar centers, leaving gaps).
+    const goalLinePlugin = targetD ? [{
+      id: "deficitGoalLine",
+      afterDatasetsDraw(chart) {
+        const { ctx, scales: { x, y } } = chart;
+        const yPx = y.getPixelForValue(-targetD);
+        ctx.save();
+        ctx.strokeStyle = "#7986cb";
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(x.left, yPx);
+        ctx.lineTo(x.right, yPx);
+        ctx.stroke();
+        ctx.restore();
+      },
+    }] : [];
 
     if (dChart) dChart.destroy();
     dChart = new Chart(canvas, {
       type: "bar",
       data: { labels, datasets },
+      plugins: goalLinePlugin,
       options: {
         responsive: true, maintainAspectRatio: true, aspectRatio: 1.8,
         plugins: {
