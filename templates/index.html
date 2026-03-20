@@ -4455,6 +4455,78 @@ if ("serviceWorker" in navigator) {
   // Run on initial load (home tab is active by default)
   refresh();
 })();
+
+// ══════════════════════════════════════════════════════
+//  MEAL REMINDER NOTIFICATIONS
+// ══════════════════════════════════════════════════════
+
+(function() {
+  const REMINDERS = [
+    { key: "breakfast", hour: 9,  title: "Log Breakfast", body: "Don't forget to log your breakfast." },
+    { key: "lunch",     hour: 12, title: "Log Lunch",     body: "Time to log your lunch."             },
+    { key: "dinner",    hour: 18, title: "Log Dinner",    body: "Remember to log your dinner."        },
+  ];
+
+  function firedKey() {
+    return "mealNotifsFired_" + localToday();
+  }
+
+  function hasFired(key) {
+    try { return !!(JSON.parse(localStorage.getItem(firedKey()) || "{}")[key]); }
+    catch { return false; }
+  }
+
+  function markFired(key) {
+    try {
+      const k = firedKey();
+      const obj = JSON.parse(localStorage.getItem(k) || "{}");
+      obj[key] = true;
+      localStorage.setItem(k, JSON.stringify(obj));
+    } catch {}
+  }
+
+  function showNotification(reminder) {
+    if (hasFired(reminder.key)) return;
+    markFired(reminder.key);
+    const n = new Notification(reminder.title, {
+      body: reminder.body,
+      icon: "/static/icon-192.png",
+    });
+    n.addEventListener("click", () => {
+      window.focus();
+      const mealsBtn = document.querySelector('.nav-btn[data-tab="meals"]');
+      if (mealsBtn) mealsBtn.click();
+    });
+  }
+
+  function scheduleReminders() {
+    const now = new Date();
+    REMINDERS.forEach(r => {
+      if (hasFired(r.key)) return;
+      const target = new Date(now);
+      target.setHours(r.hour, 0, 0, 0);
+      const ms = target - now;
+      if (ms > 0) setTimeout(() => showNotification(r), ms);
+    });
+  }
+
+  function init() {
+    if (!("Notification" in window)) return;
+    if (Notification.permission === "granted") {
+      scheduleReminders();
+    } else if (Notification.permission !== "denied") {
+      // Ask on the first tap so the prompt isn't blocked by the browser
+      document.addEventListener("click", function request() {
+        Notification.requestPermission().then(p => {
+          if (p === "granted") scheduleReminders();
+        });
+        document.removeEventListener("click", request);
+      }, { once: true });
+    }
+  }
+
+  init();
+})();
 </script>
 </body>
 </html>
