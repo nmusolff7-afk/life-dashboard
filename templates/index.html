@@ -673,7 +673,7 @@
     <div class="header-brand">
       <img src="/static/apex-logo.png" alt="Apex" class="header-logo">
       <div>
-        <h1>APEX DASHBOARD</h1>
+        <h1>YOUR DASHBOARD</h1>
         <div class="subtitle" id="header-date"></div>
       </div>
     </div>
@@ -829,6 +829,16 @@
                      border-radius:50%;background:var(--danger);color:#fff;border:none;
                      cursor:pointer;font-size:0.8rem;line-height:1;display:flex;
                      align-items:center;justify-content:center;padding:0;flex-shrink:0">✕</button>
+          </div>
+
+          <!-- Context + analyze (shown after photo selected) -->
+          <div id="scan-context-row" style="display:none;margin-top:0.65rem">
+            <textarea id="scan-context" rows="2"
+              style="width:100%;box-sizing:border-box;resize:none;background:var(--surface2);
+                     border:1px solid var(--border);border-radius:10px;color:var(--text);
+                     font-size:0.85rem;padding:0.55rem 0.75rem;font-family:inherit;margin-bottom:0.5rem"
+              placeholder="Add context (optional) — e.g. &quot;only ate half&quot;, &quot;large restaurant portion&quot;"></textarea>
+            <button type="button" class="btn btn-primary btn-full" id="analyze-btn">Analyze Photo</button>
           </div>
 
           <!-- Log Meal (shown after macros populated) -->
@@ -1735,6 +1745,7 @@ function activateTab(t) {
   document.getElementById("content").scrollTop = 0;
   document.querySelectorAll(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === t));
   document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.id === "tab-" + t));
+  sessionStorage.setItem("activeTab", t);
   if (t === "home"    && typeof window._refreshDashboard  === "function") window._refreshDashboard();
   if (t === "charts"  && typeof window._onChartsActivate  === "function") window._onChartsActivate();
   if (t === "history" && typeof window._onHistoryActivate === "function") window._onHistoryActivate();
@@ -1996,6 +2007,9 @@ function deleteWorkout(id) {
   const scanPreview    = document.getElementById("scan-preview");
   const scanPreviewImg = document.getElementById("scan-preview-img");
   const scanRemoveBtn  = document.getElementById("scan-remove-btn");
+  const scanContextRow = document.getElementById("scan-context-row");
+  const scanContextEl  = document.getElementById("scan-context");
+  const analyzeBtn     = document.getElementById("analyze-btn");
   const mealOrDivider  = document.getElementById("meal-or-divider");
   const photoScanRow   = document.getElementById("photo-scan-row");
   const photoModal     = document.getElementById("photo-source-modal");
@@ -2011,7 +2025,8 @@ function deleteWorkout(id) {
 
   pairs.forEach(([vis,hid]) => vis.addEventListener("input", () => hid.value = vis.value));
 
-  let shortLabel = null;
+  let shortLabel    = null;
+  let _pendingImage = null; // {b64, mediaType} stored after resize, used by analyzeBtn
 
   // ── Resize image to max dimension before sending ──────
   function resizeAndEncode(file, cb) {
@@ -2045,23 +2060,28 @@ function deleteWorkout(id) {
   }
 
   function exitScanMode() {
-    scanPreview.style.display   = "none";
-    scanPreviewImg.src          = "";
-    scanStatus.style.display    = "none";
-    mealInput.disabled          = false;
-    mealInput.style.opacity     = "";
-    mealInput.value             = "";
-    hDesc.value                 = "";
-    shortLabel                  = null;
-    macrosBtn.style.display     = "";
-    mealOrDivider.style.display = "";
-    photoScanRow.style.display  = "";
+    scanPreview.style.display    = "none";
+    scanPreviewImg.src           = "";
+    scanStatus.style.display     = "none";
+    scanContextRow.style.display = "none";
+    scanContextEl.value          = "";
+    analyzeBtn.disabled          = false;
+    analyzeBtn.textContent       = "Analyze Photo";
+    _pendingImage                = null;
+    mealInput.disabled           = false;
+    mealInput.style.opacity      = "";
+    mealInput.value              = "";
+    hDesc.value                  = "";
+    shortLabel                   = null;
+    macrosBtn.style.display      = "";
+    mealOrDivider.style.display  = "";
+    photoScanRow.style.display   = "";
     macroFields.classList.remove("visible");
-    logBtn.style.display        = "none";
-    aiNotes.textContent         = "";
+    logBtn.style.display         = "none";
+    aiNotes.textContent          = "";
     pairs.forEach(([vis, hid]) => { vis.value = ""; hid.value = ""; });
-    scanInput.value             = "";
-    galleryInput.value          = "";
+    scanInput.value              = "";
+    galleryInput.value           = "";
   }
 
   const scanStatus = document.getElementById("scan-status");
@@ -2069,42 +2089,62 @@ function deleteWorkout(id) {
   // ── Shared scan handler ───────────────────────────────
   function handleImageFile(file) {
     if (!file) return;
-    scanPreviewImg.src        = URL.createObjectURL(file);
-    scanPreview.style.display = "";
-    scanStatus.style.display  = "flex";
+    scanPreviewImg.src           = URL.createObjectURL(file);
+    scanPreview.style.display    = "";
+    scanContextRow.style.display = "";
     enterScanMode();
+    resizeAndEncode(file, (b64, mediaType) => { _pendingImage = {b64, mediaType}; });
+  }
 
-    resizeAndEncode(file, (b64, mediaType) => {
-      fetch("/api/scan-meal", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({image_b64: b64, media_type: mediaType})
+  function runScan() {
+    if (!_pendingImage) return;
+    analyzeBtn.disabled    = true;
+    analyzeBtn.textContent = "Analyzing…";
+    scanStatus.style.display = "flex";
+    const context = scanContextEl.value.trim();
+    fetch("/api/scan-meal", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        image_b64:  _pendingImage.b64,
+        media_type: _pendingImage.mediaType,
+        context:    context || "",
       })
-      .then(r => r.json())
-      .then(data => {
-        scanStatus.style.display = "none";
-        if (data.error) {
-          exitScanMode();
-          aiNotes.textContent = "⚠ " + data.error; aiNotes.style.color = "var(--danger)";
-          macroFields.classList.add("visible"); return;
-        }
-        if (data.description) {
-          mealInput.value = data.description;
-          hDesc.value     = data.description;
-          shortLabel      = data.description;
-        }
-        pairs[0][0].value = data.calories;   pairs[0][1].value = data.calories;
-        pairs[1][0].value = data.protein_g;  pairs[1][1].value = data.protein_g;
-        pairs[2][0].value = data.carbs_g;    pairs[2][1].value = data.carbs_g;
-        pairs[3][0].value = data.fat_g;      pairs[3][1].value = data.fat_g;
-        aiNotes.style.color = "";
-        aiNotes.textContent = data.notes ? "AI note: " + data.notes : "";
-        macroFields.classList.add("visible");
-        logBtn.style.display = "";
-      })
-      .catch(() => { scanStatus.style.display = "none"; exitScanMode(); });
+    })
+    .then(r => r.json())
+    .then(data => {
+      scanStatus.style.display     = "none";
+      scanContextRow.style.display = "none";
+      analyzeBtn.disabled          = false;
+      analyzeBtn.textContent       = "Analyze Photo";
+      if (data.error) {
+        exitScanMode();
+        aiNotes.textContent = "⚠ " + data.error; aiNotes.style.color = "var(--danger)";
+        macroFields.classList.add("visible"); return;
+      }
+      if (data.description) {
+        mealInput.value = data.description;
+        hDesc.value     = data.description;
+        shortLabel      = data.description;
+      }
+      pairs[0][0].value = data.calories;   pairs[0][1].value = data.calories;
+      pairs[1][0].value = data.protein_g;  pairs[1][1].value = data.protein_g;
+      pairs[2][0].value = data.carbs_g;    pairs[2][1].value = data.carbs_g;
+      pairs[3][0].value = data.fat_g;      pairs[3][1].value = data.fat_g;
+      aiNotes.style.color = "";
+      aiNotes.textContent = data.notes ? "AI note: " + data.notes : "";
+      macroFields.classList.add("visible");
+      logBtn.style.display = "";
+    })
+    .catch(() => {
+      scanStatus.style.display = "none";
+      analyzeBtn.disabled      = false;
+      analyzeBtn.textContent   = "Analyze Photo";
+      exitScanMode();
     });
   }
+
+  analyzeBtn.addEventListener("click", runScan);
 
   // ── Photo source modal ────────────────────────────────
   function openPhotoModal()  { photoModal.classList.add("active"); }

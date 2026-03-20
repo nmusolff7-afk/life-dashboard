@@ -66,7 +66,10 @@ Respond ONLY with this exact JSON structure (no markdown, no explanation):
 Be realistic about portion sizes based on what is visible in the image."""
 
 
-def scan_meal_image(image_b64: str, media_type: str) -> dict:
+def scan_meal_image(image_b64: str, media_type: str, context: str = "") -> dict:
+    prompt = SCAN_PROMPT
+    if context:
+        prompt += f"\n\nAdditional context from the user: {context}"
     response = _client().messages.create(
         model="claude-opus-4-6",
         max_tokens=256,
@@ -81,7 +84,7 @@ def scan_meal_image(image_b64: str, media_type: str) -> dict:
                         "data": image_b64,
                     }
                 },
-                {"type": "text", "text": SCAN_PROMPT},
+                {"type": "text", "text": prompt},
             ]
         }],
     )

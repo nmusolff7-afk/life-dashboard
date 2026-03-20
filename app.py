@@ -234,10 +234,11 @@ def api_scan_meal():
     data = request.get_json() or {}
     image_b64  = data.get("image_b64", "")
     media_type = data.get("media_type", "image/jpeg")
+    context    = data.get("context", "").strip()
     if not image_b64:
         return jsonify({"error": "No image provided"}), 400
     try:
-        return jsonify(scan_meal_image(image_b64, media_type))
+        return jsonify(scan_meal_image(image_b64, media_type, context=context))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
