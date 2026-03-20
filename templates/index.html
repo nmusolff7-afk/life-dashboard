@@ -458,6 +458,9 @@
 
     /* ══ CHARTS ════════════════════════════════ */
     .chart-wrap { position: relative; }
+    .chart-range-pills { display:flex; gap:0.45rem; margin-top:0.85rem; }
+    .chart-range-pill { padding:0.25rem 0.7rem; font-size:0.75rem; line-height:1.5; }
+    .chart-range-pill.active { border-color:var(--accent2); color:var(--accent2); background:rgba(121,134,203,0.12); }
     .chart-stats { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.75rem;
       padding-top: 0.75rem; border-top: 1px solid var(--border); }
     .chart-stat { flex: 1; min-width: 70px; }
@@ -1102,22 +1105,38 @@
 
       <!-- Body Weight Trend -->
       <div class="card">
-        <div class="card-title">Body Weight Trend</div>
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          Body Weight Trend
+          <span id="weight-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0">7 days</span>
+        </div>
         <div class="chart-wrap"><canvas id="chart-weight"></canvas></div>
-        <div id="weight-nodata" style="display:none" class="empty" style="padding:0.75rem 0;font-size:0.85rem">
+        <div id="weight-nodata" style="display:none" class="empty">
           No weight entries yet — log today's weight in the Weight tab.
         </div>
         <div class="chart-stats" id="weight-stats"></div>
+        <div class="chart-range-pills">
+          <button class="btn btn-ghost chart-range-pill weight-pill active" data-days="7">7D</button>
+          <button class="btn btn-ghost chart-range-pill weight-pill" data-days="30">30D</button>
+          <button class="btn btn-ghost chart-range-pill weight-pill" data-days="90">90D</button>
+        </div>
       </div>
 
       <!-- Daily Deficit / Surplus -->
       <div class="card">
-        <div class="card-title">Daily Deficit / Surplus</div>
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          Daily Deficit / Surplus
+          <span id="deficit-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0">7 days</span>
+        </div>
         <div class="chart-wrap"><canvas id="chart-deficit"></canvas></div>
-        <div id="deficit-nodata" style="display:none" class="empty" style="padding:0.75rem 0;font-size:0.85rem">
+        <div id="deficit-nodata" style="display:none" class="empty">
           No meal data yet.
         </div>
         <div class="chart-stats" id="deficit-stats"></div>
+        <div class="chart-range-pills">
+          <button class="btn btn-ghost chart-range-pill deficit-pill active" data-days="7">7D</button>
+          <button class="btn btn-ghost chart-range-pill deficit-pill" data-days="30">30D</button>
+          <button class="btn btn-ghost chart-range-pill deficit-pill" data-days="90">90D</button>
+        </div>
       </div>
 
       <!-- Strength Progress -->
@@ -3446,9 +3465,11 @@ try {
   let histData  = null;   // cached server response
   let fetching  = false;
   let fetched   = false;
-  let wChart    = null;   // weight chart instance
-  let dChart    = null;   // deficit chart instance
-  let sChart    = null;   // strength chart instance
+  let wChart      = null;   // weight chart instance
+  let dChart      = null;   // deficit chart instance
+  let sChart      = null;   // strength chart instance
+  let weightDays  = 7;
+  let deficitDays = 7;
 
   // ── Date helpers ──────────────────────────────────
   function localDateStr(d) {
@@ -3479,7 +3500,7 @@ try {
     const dailyLog  = JSON.parse(localStorage.getItem("dailyLog") || "{}");
     const profile   = JSON.parse(localStorage.getItem("profileData") || "{}");
     const targetWt  = profile.tgtWeight || null;
-    const cutoff    = daysAgoStr(29);
+    const cutoff    = daysAgoStr(weightDays - 1);
 
     const entries = Object.entries(dailyLog)
       .filter(([d, v]) => d >= cutoff && v && v.weight)
@@ -3555,7 +3576,7 @@ try {
           },
         },
         scales: {
-          x: { grid: { color: "#21262d" }, ticks: { maxTicksLimit: 7, maxRotation: 0 } },
+          x: { grid: { color: "#21262d" }, ticks: { maxTicksLimit: weightDays <= 7 ? 7 : weightDays <= 30 ? 8 : 10, maxRotation: 0 } },
           y: {
             grid: { color: "#21262d" },
             ticks: { callback: v => v + " lbs" },
@@ -3594,27 +3615,38 @@ try {
 
   // ── 2. Daily Deficit / Surplus ────────────────────
   function buildDeficitChart() {
-    // Read from dailyLog (rich, new). Fall back to old dailyDeficitLog entries for any days
-    // that were saved before the upgrade.
-    const _new = JSON.parse(localStorage.getItem("dailyLog") || "{}");
-    const _old = JSON.parse(localStorage.getItem("dailyDeficitLog") || "{}");
-    const deficitLog = Object.assign({},
-      Object.fromEntries(Object.entries(_old)),
-      Object.fromEntries(Object.entries(_new).map(([d, v]) => [d, typeof v === "object" ? v.deficit : v]))
-    );
-    const profile    = JSON.parse(localStorage.getItem("profileData") || "{}");
-    const targetD    = profile.deficit || null;
-    const cutoff     = daysAgoStr(29);
-
-    const entries = Object.entries(deficitLog)
-      .filter(([d]) => d >= cutoff)
-      .sort(([a], [b]) => a < b ? -1 : 1);
+    const profile = JSON.parse(localStorage.getItem("profileData") || "{}");
+    const rmr     = profile.rmr || 1550;
+    const targetD = profile.deficit || null;
 
     const nodataEl = document.getElementById("deficit-nodata");
     const statsEl  = document.getElementById("deficit-stats");
     const canvas   = document.getElementById("chart-deficit");
 
-    if (entries.length === 0) {
+    // Full date list for the selected window
+    const dates = [];
+    for (let i = deficitDays - 1; i >= 0; i--) dates.push(daysAgoStr(i));
+
+    // Primary: server histData; fallback: localStorage for today
+    const serverMeals    = (histData && histData.meals)    || {};
+    const serverWorkouts = (histData && histData.workouts) || {};
+    const localLog       = JSON.parse(localStorage.getItem("dailyLog") || "{}");
+
+    const deficits = dates.map(d => {
+      const mealRow = serverMeals[d];
+      if (mealRow && mealRow.calories > 0) {
+        const burn = (serverWorkouts[d] || []).reduce((s, w) => s + (w.calories_burned || 0), 0);
+        return mealRow.calories - (rmr + burn);  // positive = surplus, negative = deficit
+      }
+      // Today's running totals from localStorage
+      const local = localLog[d];
+      if (local && typeof local === "object" && local.deficit != null) return -local.deficit;
+      if (local && typeof local === "number") return -local;
+      return null;
+    });
+
+    const hasData = deficits.some(v => v !== null);
+    if (!hasData) {
       canvas.style.display = "none";
       if (nodataEl) nodataEl.style.display = "";
       statsEl.innerHTML = "";
@@ -3623,90 +3655,93 @@ try {
     canvas.style.display = "";
     if (nodataEl) nodataEl.style.display = "none";
 
-    const labels   = entries.map(([d]) => fmtDate(d));
-    const deficits = entries.map(([, v]) => v);
-    const plotVals = deficits.map(v => -v);  // invert: deficit goes down, surplus goes up
-
-    const barColors    = plotVals.map(v => v <= 0 ? "rgba(63,185,80,0.72)" : "rgba(248,81,73,0.72)");
-    const borderColors = plotVals.map(v => v <= 0 ? "#3fb950" : "#f85149");
+    const nonNull   = deficits.filter(v => v !== null);
+    const maxAbs    = Math.max(...nonNull.map(Math.abs), targetD ? Math.abs(targetD) : 0, 200);
+    const yPad      = Math.ceil(maxAbs * 1.15 / 100) * 100;
+    const labels    = dates.map(fmtDate);
+    const tolerance = targetD ? Math.abs(targetD) * 0.30 : null;
+    const ptColors  = deficits.map(v => {
+      if (v === null) return "transparent";
+      if (tolerance !== null) return Math.abs(v - (-Math.abs(targetD))) <= tolerance ? "#3fb950" : "#f85149";
+      return v <= 0 ? "#3fb950" : "#f85149";
+    });
 
     const datasets = [{
-      type: "bar",
       label: "Deficit / Surplus",
-      data: plotVals,
-      backgroundColor: barColors,
-      borderColor: borderColors,
-      borderWidth: 1,
-      borderRadius: 3,
-      order: 2,
+      data: deficits,
+      borderColor: "#7986cb",
+      backgroundColor: "rgba(121,134,203,0.08)",
+      borderWidth: 2,
+      pointRadius: deficits.map(v => v === null ? 0 : 3),
+      pointBackgroundColor: ptColors,
+      pointBorderColor: ptColors,
+      tension: 0.3,
+      fill: true,
+      spanGaps: true,
     }];
 
-    // Target line drawn as a canvas plugin so it spans edge-to-edge
-    // (a dataset line on a bar chart only connects bar centers, leaving gaps).
-    const goalLinePlugin = targetD ? [{
-      id: "deficitGoalLine",
-      afterDatasetsDraw(chart) {
-        const { ctx, scales: { x, y } } = chart;
-        const yPx = y.getPixelForValue(-targetD);
-        ctx.save();
-        ctx.strokeStyle = "#7986cb";
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([6, 4]);
-        ctx.beginPath();
-        ctx.moveTo(x.left, yPx);
-        ctx.lineTo(x.right, yPx);
-        ctx.stroke();
-        ctx.restore();
-      },
-    }] : [];
+    if (targetD) {
+      datasets.push({
+        label: "Target",
+        data: dates.map(() => -Math.abs(targetD)),
+        borderColor: "#3fb950",
+        borderDash: [6, 4],
+        borderWidth: 1.5,
+        pointRadius: 0,
+        fill: false,
+        tension: 0,
+      });
+    }
 
     if (dChart) dChart.destroy();
     dChart = new Chart(canvas, {
-      type: "bar",
+      type: "line",
       data: { labels, datasets },
-      plugins: goalLinePlugin,
       options: {
         responsive: true, maintainAspectRatio: true, aspectRatio: 1.8,
+        interaction: { mode: "index", intersect: false },
         plugins: {
           legend: { display: false },
           tooltip: {
             ...TOOLTIP_STYLE,
             callbacks: {
               label: ctx => {
-                if (ctx.datasetIndex === 1) return ` Target: ${Math.abs(ctx.parsed.y)} kcal deficit`;
+                if (ctx.datasetIndex === 1) return ` Goal: ${Math.abs(targetD)} kcal deficit`;
                 const v = ctx.parsed.y;
-                return v <= 0 ? ` ${Math.abs(v)} kcal deficit` : ` ${v} kcal surplus`;
+                if (v === null) return "";
+                return v <= 0 ? ` ${Math.abs(Math.round(v))} kcal deficit` : ` ${Math.round(v)} kcal surplus`;
               },
             },
           },
         },
         scales: {
-          x: { grid: { color: "#21262d" }, ticks: { maxTicksLimit: 7, maxRotation: 0 } },
+          x: { grid: { color: "#21262d" }, ticks: { maxTicksLimit: deficitDays <= 7 ? 7 : deficitDays <= 30 ? 8 : 10, maxRotation: 0 } },
           y: {
-            grid: { color: "#21262d" },
-            ticks: { callback: v => Math.abs(v) + " kcal" },
+            min: -yPad, max: yPad,
+            grid: { color: ctx => ctx.tick.value === 0 ? "rgba(255,255,255,0.2)" : "#21262d" },
+            ticks: { callback: v => v === 0 ? "0" : (v > 0 ? "+" : "") + Math.round(v) },
           },
         },
       },
     });
 
-    const last7  = deficits.slice(-7);
+    const last7  = deficits.slice(-7).filter(v => v !== null);
     const avg7   = last7.length ? Math.round(last7.reduce((s, v) => s + v, 0) / last7.length) : 0;
-    const avgClr = avg7 >= 0 ? "var(--green)" : "var(--danger)";
-    const avgLbl = avg7 >= 0 ? "Avg Deficit" : "Avg Surplus";
+    const avgClr = avg7 <= 0 ? "var(--green)" : "var(--danger)";
+    const avgLbl = avg7 <= 0 ? "Avg Deficit" : "Avg Surplus";
     let html = `
       <div class="chart-stat">
         <div class="chart-stat-val" style="color:${avgClr}">${Math.abs(avg7)}</div>
         <div class="chart-stat-lbl">7-Day ${avgLbl}</div>
       </div>
       <div class="chart-stat">
-        <div class="chart-stat-val">${entries.length}</div>
+        <div class="chart-stat-val">${nonNull.length}</div>
         <div class="chart-stat-lbl">Days Logged</div>
       </div>`;
     if (targetD) {
       html += `<div class="chart-stat">
-        <div class="chart-stat-val">${targetD}</div>
-        <div class="chart-stat-lbl">Target</div>
+        <div class="chart-stat-val">${Math.abs(targetD)}</div>
+        <div class="chart-stat-lbl">Goal Deficit</div>
       </div>`;
     }
     statsEl.innerHTML = html;
@@ -4025,6 +4060,28 @@ try {
 
   document.getElementById("strength-ex-select").addEventListener("change", function() {
     if (histData) buildStrengthChart(this.value);
+  });
+
+  document.querySelectorAll(".weight-pill").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      weightDays = parseInt(this.dataset.days);
+      document.querySelectorAll(".weight-pill").forEach(function(b) {
+        b.classList.toggle("active", b === btn);
+      });
+      document.getElementById("weight-range-label").textContent = weightDays + " days";
+      if (histData) buildWeightChart();
+    });
+  });
+
+  document.querySelectorAll(".deficit-pill").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      deficitDays = parseInt(this.dataset.days);
+      document.querySelectorAll(".deficit-pill").forEach(function(b) {
+        b.classList.toggle("active", b === btn);
+      });
+      document.getElementById("deficit-range-label").textContent = deficitDays + " days";
+      if (histData) buildDeficitChart();
+    });
   });
 
   // Hook called by activateTab("charts")
