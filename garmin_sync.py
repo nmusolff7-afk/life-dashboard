@@ -228,7 +228,12 @@ def _category(t):
 
 
 def is_configured():
-    return bool(
-        os.environ.get("GARMIN_EMAIL", "").strip() and
-        os.environ.get("GARMIN_PASSWORD", "").strip()
-    )
+    env_tokens = os.environ.get("GARMIN_TOKENS", "").strip()
+    if env_tokens and env_tokens != '""':
+        return True
+    try:
+        from db import get_setting
+        db_tokens = get_setting(DB_KEY)
+        return bool(db_tokens and db_tokens.strip() and db_tokens.strip() != '""')
+    except Exception:
+        return False
