@@ -467,12 +467,10 @@
     .chart-stat-val { font-size: 1.2rem; font-weight: 800; line-height: 1.2; color: var(--text); }
     .chart-stat-lbl { font-size: 0.68rem; color: var(--muted); text-transform: uppercase;
       letter-spacing: .05em; margin-top: 3px; }
-    .cal-month-lbl { font-size: 0.75rem; font-weight: 700; color: var(--muted);
-      text-transform: uppercase; letter-spacing: .06em; margin-bottom: 0.4rem; margin-top: 1rem; }
-    .cal-month-lbl:first-child { margin-top: 0; }
-    .cal-dows { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; margin-bottom: 3px; }
+    .cal-dows { display: grid; grid-template-columns: repeat(7,1fr) 3rem; gap: 3px; margin-bottom: 3px; }
     .cal-dow-lbl { text-align: center; font-size: 0.62rem; color: var(--muted); }
-    .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; margin-bottom: 0.2rem; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7,1fr) 3rem; gap: 3px; margin-bottom: 3px; }
+    .cal-week-lbl { font-size: 0.58rem; color: var(--muted); display: flex; align-items: center; padding-left: 4px; line-height: 1.2; }
     .cal-cell { aspect-ratio: 1; border-radius: 3px; cursor: pointer; transition: filter .1s; }
     .cal-cell:hover { filter: brightness(1.25); }
     .cal-cell.no-cursor { cursor: default; }
@@ -3884,52 +3882,63 @@ try {
     const container = document.getElementById("cal-container");
     container.innerHTML = "";
 
-    const today       = todayStr();
-    const profile     = JSON.parse(localStorage.getItem("profileData") || "{}");
-    const rmr         = profile.rmr || SERVER_RMR;
-    const CARDIO_KW   = /run|ran|jog|walk|hike|treadmill|mile|cardio|bike|cycl|swim|row|ellip/;
+    const today     = todayStr();
+    const profile   = JSON.parse(localStorage.getItem("profileData") || "{}");
+    const rmr       = profile.rmr || SERVER_RMR;
+    const CARDIO_KW = /run|ran|jog|walk|hike|treadmill|mile|cardio|bike|cycl|swim|row|ellip/;
 
-    const now = new Date();
+    // Day-of-week header: Mon … Sun + blank label column
+    const dowRow = document.createElement("div");
+    dowRow.className = "cal-dows";
+    ["Mo","Tu","We","Th","Fr","Sa","Su"].forEach(d => {
+      const c = document.createElement("div");
+      c.className = "cal-dow-lbl";
+      c.textContent = d;
+      dowRow.appendChild(c);
+    });
+    dowRow.appendChild(document.createElement("div")); // spacer for label column
+    container.appendChild(dowRow);
 
-    for (let mi = 0; mi <= 2; mi++) {
-      const monthDate   = new Date(now.getFullYear(), now.getMonth() - mi, 1);
-      const year        = monthDate.getFullYear();
-      const month       = monthDate.getMonth();
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-      const firstDow    = new Date(year, month, 1).getDay(); // 0=Sun
+    // Find the Monday on or before today
+    const nowDate = new Date();
+    const dow = nowDate.getDay(); // 0=Sun … 6=Sat
+    const daysFromMon = (dow + 6) % 7; // Mon=0 … Sun=6
+    const latestMon = new Date(nowDate);
+    latestMon.setDate(nowDate.getDate() - daysFromMon);
 
-      // Month label
-      const lbl = document.createElement("div");
-      lbl.className = "cal-month-lbl";
-      lbl.textContent = monthDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-      container.appendChild(lbl);
+    // Show 13 weeks (current partial week + 12 full weeks back)
+    const WEEKS = 13;
 
-      // Day-of-week headers
-      const dowRow = document.createElement("div");
-      dowRow.className = "cal-dows";
-      ["Su","Mo","Tu","We","Th","Fr","Sa"].forEach(d => {
-        const c = document.createElement("div"); c.className = "cal-dow-lbl"; c.textContent = d;
-        dowRow.appendChild(c);
-      });
-      container.appendChild(dowRow);
+    function isoDate(d) {
+      return d.getFullYear() + "-"
+        + String(d.getMonth() + 1).padStart(2, "0") + "-"
+        + String(d.getDate()).padStart(2, "0");
+    }
 
-      // Grid
+    function shortDate(d) {
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    }
+
+    for (let w = 0; w < WEEKS; w++) {
+      const monDate = new Date(latestMon);
+      monDate.setDate(latestMon.getDate() - w * 7);
+
       const grid = document.createElement("div");
       grid.className = "cal-grid";
 
-      // Leading empty cells
-      for (let i = 0; i < firstDow; i++) {
-        const e = document.createElement("div");
-        e.style.aspectRatio = "1";
-        grid.appendChild(e);
-      }
+      let weekStart = null, weekEnd = null;
 
-      // Day cells
-      for (let day = 1; day <= daysInMonth; day++) {
-        const ds       = `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+      for (let d = 0; d < 7; d++) {
+        const cellDate = new Date(monDate);
+        cellDate.setDate(monDate.getDate() + d);
+        const ds       = isoDate(cellDate);
         const isFuture = ds > today;
-        const ws       = histData.workouts[ds] || [];
-        const meals    = histData.meals[ds] || null;
+
+        if (!weekStart) weekStart = cellDate;
+        weekEnd = cellDate;
+
+        const ws    = histData.workouts[ds] || [];
+        const meals = histData.meals[ds]    || null;
 
         let hasStrength = false, hasCardio = false;
         ws.forEach(w => {
@@ -3941,12 +3950,12 @@ try {
 
         let bg;
         if (isFuture)                      bg = "transparent";
-        else if (!hasAnyData)              bg = "var(--surface2)";   // no data / before tracking
-        else if (!ws.length)               bg = "#484f58";           // rest day
+        else if (!hasAnyData)              bg = "var(--surface2)";
+        else if (!ws.length)               bg = "#484f58";
         else if (hasStrength && hasCardio) bg = "#3dcfbf";
         else if (hasStrength)              bg = "#3fb950";
         else if (hasCardio)                bg = "#58a6ff";
-        else                               bg = "#6e7681";           // other activity
+        else                               bg = "#6e7681";
 
         const cell = document.createElement("div");
         cell.className = "cal-cell" + (isFuture ? " no-cursor" : "");
@@ -3956,13 +3965,17 @@ try {
         cell.dataset.burn     = ws.reduce((s, w) => s + (w.calories_burned || 0), 0);
         cell.dataset.calories = meals ? meals.calories : "";
         cell.dataset.rmr      = rmr;
-        // Store up to 4 descriptions to keep dataset small
         cell.dataset.workouts = JSON.stringify(ws.slice(0, 4).map(w => w.description));
 
         if (!isFuture && hasAnyData) cell.addEventListener("click", onCalCellClick);
-
         grid.appendChild(cell);
       }
+
+      // Week label (date range)
+      const lbl = document.createElement("div");
+      lbl.className = "cal-week-lbl";
+      lbl.textContent = shortDate(weekStart) + "–" + shortDate(weekEnd);
+      grid.appendChild(lbl);
 
       container.appendChild(grid);
     }
