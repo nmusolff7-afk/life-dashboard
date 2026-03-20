@@ -177,19 +177,39 @@ def api_onboarding_save():
     return jsonify({"ok": True})
 
 
+@app.route("/api/onboarding/status")
+@login_required
+def api_onboarding_status():
+    return jsonify({"complete": is_onboarding_complete(uid())})
+
+
 @app.route("/api/onboarding/complete", methods=["POST"])
 @login_required
 def api_onboarding_complete():
     """Run Claude Opus to generate the 200-var profile map and mark onboarding done."""
-    row = get_onboarding(uid())
+    import logging
+    log = logging.getLogger(__name__)
+    user = uid()
+    log.warning("onboarding/complete called for user %s", user)
+
+    row = get_onboarding(user)
     if not row:
-        return jsonify({"error": "No onboarding data found"}), 400
+        log.warning("onboarding/complete: no row found for user %s", user)
+        return jsonify({"error": "No onboarding data found — please go back and save your answers."}), 400
     try:
         raw = json.loads(row.get("raw_inputs") or "{}")
+        log.warning("onboarding/complete: calling Claude for user %s, raw keys: %s", user, list(raw.keys())[:5])
         profile = generate_profile_map(raw)
-        complete_onboarding(uid(), json.dumps(profile))
+        log.warning("onboarding/complete: Claude succeeded, saving profile for user %s", user)
+        complete_onboarding(user, json.dumps(profile))
+        # Verify the write actually took
+        if not is_onboarding_complete(user):
+            log.error("onboarding/complete: DB write appeared to succeed but is_onboarding_complete still False for user %s", user)
+            return jsonify({"error": "Profile generated but failed to save — please tap 'Try again'."}), 500
+        log.warning("onboarding/complete: verified complete for user %s", user)
         return jsonify({"ok": True, "profile": profile})
     except Exception as e:
+        log.error("onboarding/complete exception for user %s: %s", user, str(e), exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 

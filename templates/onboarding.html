@@ -523,7 +523,7 @@
         <p id="ob-complete-body">Apex now understands who you are. Your dashboard is calibrated to your goals, lifestyle, and motivations.</p>
         <div class="ob-profile-summary" id="ob-profile-summary"></div>
         <div class="error-msg" id="ob-error" style="display:none;margin-top:1rem"></div>
-        <button class="btn btn-primary" id="ob-enter-btn" style="display:none;width:100%;margin-top:1.5rem;padding:0.9rem;font-size:1rem" onclick="window.location.href='/'">
+        <button class="btn btn-primary" id="ob-enter-btn" style="display:none;width:100%;margin-top:1.5rem;padding:0.9rem;font-size:1rem" onclick="enterApex(this)">
           Enter Apex ›
         </button>
         <button class="btn btn-ghost" id="ob-retry-btn" style="display:none;width:100%;margin-top:0.75rem" onclick="runCompletion()">
@@ -807,9 +807,14 @@
   }
 
   function buildSummary(p) {
+    function fmt(v, suffix) {
+      if (v == null || v === "") return "—";
+      const n = parseFloat(v);
+      return isNaN(n) ? String(v) : (suffix ? n.toFixed(1) + suffix : String(v));
+    }
     const rows = [
       ["Name",        p.first_name || "—"],
-      ["BMI",         p.bmi ? p.bmi.toFixed(1) : "—"],
+      ["BMI",         fmt(p.bmi, "")],
       ["RMR",         p.rmr_kcal ? p.rmr_kcal + " kcal" : "—"],
       ["Calorie goal",p.daily_calorie_goal ? p.daily_calorie_goal + " kcal / day" : "—"],
       ["Protein goal",p.daily_protein_goal_g ? p.daily_protein_goal_g + "g / day" : "—"],
@@ -824,6 +829,26 @@
       `<div class="summary-row"><span class="k">${k}</span><span class="v">${v}</span></div>`
     ).join("");
   }
+
+  window.enterApex = async function(btn) {
+    btn.disabled = true;
+    btn.textContent = "Verifying…";
+    try {
+      const res = await fetch("/api/onboarding/status");
+      const data = await res.json();
+      if (data.complete) {
+        window.location.href = "/";
+      } else {
+        btn.disabled = false;
+        btn.textContent = "Enter Apex ›";
+        document.getElementById("ob-error").textContent = "Profile not yet saved — please tap 'Try again' above.";
+        document.getElementById("ob-error").style.display = "";
+      }
+    } catch (_) {
+      // Network hiccup — just navigate, the server redirect will handle it
+      window.location.href = "/";
+    }
+  };
 
   // Load saved data if returning to onboarding
   const saved = {{ saved | tojson }};
