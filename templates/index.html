@@ -3625,14 +3625,20 @@ try {
     const statsEl  = document.getElementById("deficit-stats");
     const canvas   = document.getElementById("chart-deficit");
 
-    // Full date list for the selected window
-    const dates = [];
-    for (let i = deficitDays - 1; i >= 0; i--) dates.push(daysAgoStr(i));
-
     // Primary: server histData; fallback: localStorage for today
     const serverMeals    = (histData && histData.meals)    || {};
     const serverWorkouts = (histData && histData.workouts) || {};
     const localLog       = JSON.parse(localStorage.getItem("dailyLog") || "{}");
+
+    // Build only dates that have actual data within the selected window
+    const cutoff = daysAgoStr(deficitDays - 1);
+    const allDates = new Set([
+      ...Object.keys(serverMeals),
+      ...Object.keys(localLog),
+    ]);
+    const dates = [...allDates]
+      .filter(d => d >= cutoff && d <= localToday())
+      .sort();
 
     const deficits = dates.map(d => {
       const mealRow = serverMeals[d];
@@ -3647,8 +3653,10 @@ try {
       return null;
     });
 
-    const hasData = deficits.some(v => v !== null);
-    if (!hasData) {
+    // Only keep dates with actual values
+    const entries = dates.map((d, i) => [d, deficits[i]]).filter(([, v]) => v !== null);
+
+    if (entries.length === 0) {
       canvas.style.display = "none";
       if (nodataEl) nodataEl.style.display = "";
       statsEl.innerHTML = "";
@@ -3657,35 +3665,35 @@ try {
     canvas.style.display = "";
     if (nodataEl) nodataEl.style.display = "none";
 
-    const nonNull   = deficits.filter(v => v !== null);
+    const filteredDates   = entries.map(([d]) => d);
+    const filteredDeficits = entries.map(([, v]) => v);
+    const nonNull   = filteredDeficits;
     const maxAbs    = Math.max(...nonNull.map(Math.abs), targetD ? Math.abs(targetD) : 0, 200);
     const yPad      = Math.ceil(maxAbs * 1.15 / 100) * 100;
-    const labels    = dates.map(fmtDate);
+    const labels    = filteredDates.map(fmtDate);
     const tolerance = targetD ? Math.abs(targetD) * 0.30 : null;
-    const ptColors  = deficits.map(v => {
-      if (v === null) return "transparent";
+    const ptColors  = filteredDeficits.map(v => {
       if (tolerance !== null) return Math.abs(v - (-Math.abs(targetD))) <= tolerance ? "#3fb950" : "#f85149";
       return v <= 0 ? "#3fb950" : "#f85149";
     });
 
     const datasets = [{
       label: "Deficit / Surplus",
-      data: deficits,
+      data: filteredDeficits,
       borderColor: "#7986cb",
       backgroundColor: "rgba(121,134,203,0.08)",
       borderWidth: 2,
-      pointRadius: deficits.map(v => v === null ? 0 : 3),
+      pointRadius: 3,
       pointBackgroundColor: ptColors,
       pointBorderColor: ptColors,
       tension: 0.3,
       fill: true,
-      spanGaps: true,
     }];
 
     if (targetD) {
       datasets.push({
         label: "Target",
-        data: dates.map(() => -Math.abs(targetD)),
+        data: filteredDates.map(() => -Math.abs(targetD)),
         borderColor: "#3fb950",
         borderDash: [6, 4],
         borderWidth: 1.5,
@@ -3727,7 +3735,7 @@ try {
       },
     });
 
-    const last7  = deficits.slice(-7).filter(v => v !== null);
+    const last7  = filteredDeficits.slice(-7);
     const avg7   = last7.length ? Math.round(last7.reduce((s, v) => s + v, 0) / last7.length) : 0;
     const avgClr = avg7 <= 0 ? "var(--green)" : "var(--danger)";
     const avgLbl = avg7 <= 0 ? "Avg Deficit" : "Avg Surplus";
