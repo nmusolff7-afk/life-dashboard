@@ -130,7 +130,10 @@
       border-radius: 12px; padding: 1.1rem; margin-bottom: 1rem; }
     .card-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .07em;
       font-weight: 700; color: var(--muted); margin-bottom: 0.85rem; }
-    .error-msg { color: var(--danger); font-size: 0.82rem; margin-top: 0.5rem; display: none; }
+    .error-msg { color: var(--danger); font-size: 0.78rem; margin-top: 0.5rem; display: none;
+      white-space: pre-wrap; word-break: break-all; max-height: 220px; overflow-y: auto;
+      background: rgba(248,81,73,.07); border: 1px solid rgba(248,81,73,.25);
+      border-radius: 8px; padding: 0.6rem 0.75rem; text-align: left; }
   </style>
 </head>
 <body>
@@ -796,7 +799,8 @@
       document.getElementById("ob-complete-icon").textContent = "⚠";
       document.getElementById("ob-complete-heading").textContent = "Error (HTTP " + res.status + ")";
       document.getElementById("ob-complete-body").textContent = "Your answers are saved. Details below — tap Try again when ready.";
-      document.getElementById("ob-error").textContent = data.error || rawText.slice(0, 300);
+      const detail = [data.error, data.traceback].filter(Boolean).join("\n\n") || rawText.slice(0, 600);
+      document.getElementById("ob-error").textContent = detail;
       document.getElementById("ob-error").style.display = "";
       document.getElementById("ob-retry-btn").style.display = "";
       return;

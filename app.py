@@ -187,30 +187,33 @@ def api_onboarding_status():
 @login_required
 def api_onboarding_complete():
     """Run Claude Opus to generate the 200-var profile map and mark onboarding done."""
-    import logging
-    log = logging.getLogger(__name__)
+    import traceback
     user = uid()
-    log.warning("onboarding/complete called for user %s", user)
-
-    row = get_onboarding(user)
-    if not row:
-        log.warning("onboarding/complete: no row found for user %s", user)
-        return jsonify({"error": "No onboarding data found — please go back and save your answers."}), 400
+    step = "init"
     try:
+        step = "get_onboarding"
+        row = get_onboarding(user)
+        if not row:
+            return jsonify({"error": "step=get_onboarding: no row found — go back to page 1 and hit Continue once to save your answers, then try again."}), 400
+
+        step = "parse_raw_inputs"
         raw = json.loads(row.get("raw_inputs") or "{}")
-        log.warning("onboarding/complete: calling Claude for user %s, raw keys: %s", user, list(raw.keys())[:5])
+
+        step = "generate_profile_map (Claude API)"
         profile = generate_profile_map(raw)
-        log.warning("onboarding/complete: Claude succeeded, saving profile for user %s", user)
+
+        step = "complete_onboarding (DB write)"
         complete_onboarding(user, json.dumps(profile))
-        # Verify the write actually took
+
+        step = "verify_complete"
         if not is_onboarding_complete(user):
-            log.error("onboarding/complete: DB write appeared to succeed but is_onboarding_complete still False for user %s", user)
-            return jsonify({"error": "Profile generated but failed to save — please tap 'Try again'."}), 500
-        log.warning("onboarding/complete: verified complete for user %s", user)
+            return jsonify({"error": "step=verify: DB write did not persist — Railway may be using an ephemeral filesystem. Check that a persistent volume is mounted."}), 500
+
         return jsonify({"ok": True, "profile": profile})
+
     except Exception as e:
-        log.error("onboarding/complete exception for user %s: %s", user, str(e), exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        tb = traceback.format_exc()
+        return jsonify({"error": f"step={step}: {type(e).__name__}: {e}", "traceback": tb[-800:]}), 500
 
 
 # ── Mind tab ────────────────────────────────────────────
