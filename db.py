@@ -132,12 +132,13 @@ def get_user(user_id):
 
 # ── Meals ────────────────────────────────────────────────
 
-def insert_meal(user_id, description, calories, protein_g, carbs_g, fat_g, log_date=None):
+def insert_meal(user_id, description, calories, protein_g, carbs_g, fat_g, log_date=None, logged_at=None):
     ld = log_date or date.today().isoformat()
+    ts = logged_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with get_conn() as conn:
         conn.execute(
             "INSERT INTO meal_logs (user_id, logged_at, log_date, description, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (user_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), ld, description, calories, protein_g, carbs_g, fat_g),
+            (user_id, ts, ld, description, calories, protein_g, carbs_g, fat_g),
         )
         conn.commit()
 
@@ -187,12 +188,13 @@ def delete_meal(meal_id, user_id):
 
 # ── Workouts ─────────────────────────────────────────────
 
-def insert_workout(user_id, description, calories_burned=0, log_date=None):
+def insert_workout(user_id, description, calories_burned=0, log_date=None, logged_at=None):
     ld = log_date or date.today().isoformat()
+    ts = logged_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with get_conn() as conn:
         conn.execute(
             "INSERT INTO workout_logs (user_id, logged_at, log_date, description, calories_burned) VALUES (?, ?, ?, ?, ?)",
-            (user_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), ld, description, calories_burned),
+            (user_id, ts, ld, description, calories_burned),
         )
         conn.commit()
 

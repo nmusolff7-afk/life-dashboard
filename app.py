@@ -176,7 +176,8 @@ def api_log_meal():
             "fat_g":     float(data.get("fat_g", 0)),
         }
         cd = data.get("client_date") or client_today()
-        insert_meal(uid(), description=description, log_date=cd, **nutrition)
+        ct = data.get("client_time") or None
+        insert_meal(uid(), description=description, log_date=cd, logged_at=ct, **nutrition)
         return jsonify({"meals": get_today_meals(uid(), cd), "totals": get_today_totals(uid(), cd)})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -298,7 +299,8 @@ def api_log_workout():
     if not description:
         return jsonify({"error": "No description"}), 400
     cd = data.get("client_date") or client_today()
-    insert_workout(uid(), description, calories_burned, log_date=cd)
+    ct = data.get("client_time") or None
+    insert_workout(uid(), description, calories_burned, log_date=cd, logged_at=ct)
     return jsonify({"ok": True})
 
 

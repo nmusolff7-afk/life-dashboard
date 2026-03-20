@@ -1630,6 +1630,26 @@ function localToday() {
     String(d.getDate()).padStart(2, "0");
 }
 
+// Local time as "YYYY-MM-DD HH:MM:SS" — used for logged_at timestamps so
+// entries display in the user's local time, not UTC.
+function localNow() {
+  const tz = localStorage.getItem("userTimezone");
+  const pad = n => String(n).padStart(2, "0");
+  if (tz) {
+    try {
+      const p = new Intl.DateTimeFormat("en-CA", {
+        timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+      }).formatToParts(new Date());
+      const v = t => p.find(x => x.type === t).value;
+      return `${v("year")}-${v("month")}-${v("day")} ${v("hour")}:${v("minute")}:${v("second")}`;
+    } catch(e) { /* fall through */ }
+  }
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ` +
+         `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 // Keep the server in sync with the client's local date so all inserts and
 // queries use the correct calendar day regardless of server timezone (UTC).
 function _syncDateCookie() {
@@ -2234,6 +2254,7 @@ function deleteWorkout(id) {
         carbs_g:      parseFloat(pairs[2][1].value) || 0,
         fat_g:        parseFloat(pairs[3][1].value) || 0,
         client_date:  localToday(),
+        client_time:  localNow(),
       })
     })
     .then(r => r.json())
@@ -2314,7 +2335,7 @@ function deleteWorkout(id) {
     if (!input.value.trim()) return;
     logBtn.disabled = true; logBtn.textContent = "Saving…";
     fetch("/api/log-workout", { method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({description: desc, calories_burned: kcal, client_date: localToday()}) })
+      body: JSON.stringify({description: desc, calories_burned: kcal, client_date: localToday(), client_time: localNow()}) })
       .then(() => fetch("/api/today-workouts"))
       .then(r => r.json())
       .then(data => {
@@ -2710,7 +2731,7 @@ function deleteWorkout(id) {
         const kcal = burnData.error ? 0 : (burnData.calories_burned || 0);
         statusTxt.textContent = `Saving workout… (~${kcal} kcal)`;
         return fetch("/api/log-workout", { method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({description: desc, calories_burned: kcal, client_date: localToday()}) });
+          body: JSON.stringify({description: desc, calories_burned: kcal, client_date: localToday(), client_time: localNow()}) });
       })
       .then(() => fetch("/api/today-workouts"))
       .then(r => r.json())
@@ -2728,7 +2749,7 @@ function deleteWorkout(id) {
       })
       .catch(() => {
         fetch("/api/log-workout", { method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({description: desc, calories_burned: 0, client_date: localToday()}) })
+          body: JSON.stringify({description: desc, calories_burned: 0, client_date: localToday(), client_time: localNow()}) })
           .then(() => fetch("/api/today-workouts"))
           .then(r => r.json())
           .then(data => {
