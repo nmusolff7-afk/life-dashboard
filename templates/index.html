@@ -1071,103 +1071,108 @@
     <!-- ══════════════════════════════════
          HISTORY TAB
     ══════════════════════════════════ -->
-    <div class="tab-panel" id="tab-history">
+    <div class="tab-panel" id="tab-progress">
       <div class="page-header">
-        <h2>History</h2>
-        <p>Your log for the past 90 days</p>
-      </div>
-      <div id="hist-loading" class="empty" style="display:none"><div class="icon">⏳</div>Loading…</div>
-      <div id="hist-error"   class="empty" style="display:none"><div class="icon">⚠️</div>Failed to load.</div>
-      <div class="card" id="hist-list-card" style="display:none">
-        <div class="card-title">Last 90 Days</div>
-        <div id="hist-list"></div>
-      </div>
-      <div id="hist-empty" class="empty" style="display:none">
-        <div class="icon">📅</div>No history yet. Start logging meals and workouts.
-      </div>
-    </div><!-- /tab-history -->
-
-    <!-- ══════════════════════════════════
-         CHARTS TAB
-    ══════════════════════════════════ -->
-    <div class="tab-panel" id="tab-charts">
-      <div class="page-header">
-        <h2>Charts</h2>
-        <p>Trends, progress, and activity</p>
+        <h2>Progress</h2>
+        <p>History, charts, and trends</p>
       </div>
 
-      <div id="charts-loading" class="empty" style="display:none">
-        <div class="icon">⏳</div>Loading…
-      </div>
-      <div id="charts-error" class="empty" style="display:none">
-        <div class="icon">⚠️</div>Failed to load data. Reload and try again.
-      </div>
+      <!-- History -->
+      <div id="tab-history-inner">
+        <div id="hist-loading" class="empty" style="display:none"><div class="icon">⏳</div>Loading…</div>
+        <div id="hist-error"   class="empty" style="display:none"><div class="icon">⚠️</div>Failed to load.</div>
+        <div class="card" id="hist-list-card" style="display:none">
+          <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+            History
+            <span id="hist-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0">Last 7 days</span>
+          </div>
+          <div id="hist-list"></div>
+          <div style="display:flex;justify-content:center;gap:0.6rem;margin-top:0.85rem" id="hist-range-btns">
+            <button id="hist-show-less" class="btn btn-ghost" style="display:none;font-size:0.8rem;padding:0.3rem 0.9rem">Show less</button>
+            <button id="hist-show-more" class="btn btn-ghost" style="font-size:0.8rem;padding:0.3rem 0.9rem">Show 30 days</button>
+          </div>
+        </div>
+        <div id="hist-empty" class="empty" style="display:none">
+          <div class="icon">📅</div>No history yet. Start logging meals and workouts.
+        </div>
+      </div><!-- /tab-history-inner -->
 
-      <!-- Body Weight Trend -->
-      <div class="card">
-        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
-          Body Weight Trend
-          <span id="weight-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0">7 days</span>
+      <!-- Charts -->
+      <div id="tab-charts-inner">
+        <div id="charts-loading" class="empty" style="display:none">
+          <div class="icon">⏳</div>Loading…
         </div>
-        <div class="chart-wrap"><canvas id="chart-weight"></canvas></div>
-        <div id="weight-nodata" style="display:none" class="empty">
-          No weight entries yet — log today's weight in the Weight tab.
+        <div id="charts-error" class="empty" style="display:none">
+          <div class="icon">⚠️</div>Failed to load data. Reload and try again.
         </div>
-        <div class="chart-stats" id="weight-stats"></div>
-        <div class="chart-range-pills">
-          <button class="btn btn-ghost chart-range-pill weight-pill active" data-days="7">7D</button>
-          <button class="btn btn-ghost chart-range-pill weight-pill" data-days="30">30D</button>
-          <button class="btn btn-ghost chart-range-pill weight-pill" data-days="90">90D</button>
-        </div>
-      </div>
 
-      <!-- Daily Deficit / Surplus -->
-      <div class="card">
-        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
-          Daily Deficit / Surplus
-          <span id="deficit-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0">7 days</span>
+        <!-- Body Weight Trend -->
+        <div class="card">
+          <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+            Body Weight Trend
+            <span id="weight-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0">7 days</span>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-weight"></canvas></div>
+          <div id="weight-nodata" style="display:none" class="empty">
+            No weight entries yet — log today's weight in the Weight tab.
+          </div>
+          <div class="chart-stats" id="weight-stats"></div>
+          <div class="chart-range-pills">
+            <button class="btn btn-ghost chart-range-pill weight-pill active" data-days="7">7D</button>
+            <button class="btn btn-ghost chart-range-pill weight-pill" data-days="30">30D</button>
+            <button class="btn btn-ghost chart-range-pill weight-pill" data-days="90">90D</button>
+          </div>
         </div>
-        <div class="chart-wrap"><canvas id="chart-deficit"></canvas></div>
-        <div id="deficit-nodata" style="display:none" class="empty">
-          No meal data yet.
-        </div>
-        <div class="chart-stats" id="deficit-stats"></div>
-        <div class="chart-range-pills">
-          <button class="btn btn-ghost chart-range-pill deficit-pill active" data-days="7">7D</button>
-          <button class="btn btn-ghost chart-range-pill deficit-pill" data-days="30">30D</button>
-          <button class="btn btn-ghost chart-range-pill deficit-pill" data-days="90">90D</button>
-        </div>
-      </div>
 
-      <!-- Strength Progress -->
-      <div class="card">
-        <div class="card-title">Strength Progress</div>
-        <div class="field" style="margin-bottom:0.6rem">
-          <select id="strength-ex-select">
-            <option value="">Select an exercise…</option>
-          </select>
+        <!-- Daily Deficit / Surplus -->
+        <div class="card">
+          <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+            Daily Deficit / Surplus
+            <span id="deficit-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0">7 days</span>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-deficit"></canvas></div>
+          <div id="deficit-nodata" style="display:none" class="empty">
+            No meal data yet.
+          </div>
+          <div class="chart-stats" id="deficit-stats"></div>
+          <div class="chart-range-pills">
+            <button class="btn btn-ghost chart-range-pill deficit-pill active" data-days="7">7D</button>
+            <button class="btn btn-ghost chart-range-pill deficit-pill" data-days="30">30D</button>
+            <button class="btn btn-ghost chart-range-pill deficit-pill" data-days="90">90D</button>
+          </div>
         </div>
-        <div class="chart-wrap"><canvas id="chart-strength" style="display:none"></canvas></div>
-        <div id="strength-empty" class="empty" style="padding:0.75rem 0">
-          <div class="icon" style="font-size:1.5rem">💪</div>
-          Select an exercise above to see your progress over time.
-        </div>
-      </div>
 
-      <!-- Activity Calendar -->
-      <div class="card">
-        <div class="card-title">Activity Calendar</div>
-        <div id="cal-container"></div>
-        <div class="cal-legend">
-          <span><span class="cal-dot" style="background:#3fb950"></span>Lifted</span>
-          <span><span class="cal-dot" style="background:#58a6ff"></span>Ran</span>
-          <span><span class="cal-dot" style="background:#3dcfbf"></span>Both</span>
-          <span><span class="cal-dot" style="background:#484f58"></span>Rest</span>
-          <span><span class="cal-dot" style="border:1px solid var(--border);background:var(--surface2)"></span>No data</span>
+        <!-- Strength Progress -->
+        <div class="card">
+          <div class="card-title">Strength Progress</div>
+          <div class="field" style="margin-bottom:0.6rem">
+            <select id="strength-ex-select">
+              <option value="">Select an exercise…</option>
+            </select>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-strength" style="display:none"></canvas></div>
+          <div id="strength-empty" class="empty" style="padding:0.75rem 0">
+            <div class="icon" style="font-size:1.5rem">💪</div>
+            Select an exercise above to see your progress over time.
+          </div>
         </div>
-      </div>
 
-    </div><!-- /tab-charts -->
+        <!-- Activity Calendar -->
+        <div class="card">
+          <div class="card-title">Activity Calendar</div>
+          <div id="cal-container"></div>
+          <div class="cal-legend">
+            <span><span class="cal-dot" style="background:#3fb950"></span>Lifted</span>
+            <span><span class="cal-dot" style="background:#58a6ff"></span>Ran</span>
+            <span><span class="cal-dot" style="background:#3dcfbf"></span>Both</span>
+            <span><span class="cal-dot" style="background:#484f58"></span>Rest</span>
+            <span><span class="cal-dot" style="border:1px solid var(--border);background:var(--surface2)"></span>No data</span>
+          </div>
+        </div>
+
+      </div><!-- /tab-charts-inner -->
+
+    </div><!-- /tab-progress -->
 
     <!-- ══════════════════════════════════
          PROFILE TAB
@@ -1461,11 +1466,8 @@
     <button class="nav-btn" data-tab="workout">
       <svg viewBox="0 0 24 24"><path d="M6 4v16M18 4v16M3 8h4M17 8h4M3 16h4M17 16h4"/></svg>Fitness
     </button>
-    <button class="nav-btn" data-tab="charts">
-      <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Charts
-    </button>
-    <button class="nav-btn" data-tab="history">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>History
+    <button class="nav-btn" data-tab="progress">
+      <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Progress
     </button>
   </nav>
 
@@ -1836,9 +1838,9 @@ function activateTab(t) {
   document.querySelectorAll(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === t));
   document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.id === "tab-" + t));
   sessionStorage.setItem("activeTab", t);
-  if (t === "home"    && typeof window._refreshDashboard  === "function") window._refreshDashboard();
-  if (t === "charts"  && typeof window._onChartsActivate  === "function") window._onChartsActivate();
-  if (t === "history" && typeof window._onHistoryActivate === "function") window._onHistoryActivate();
+  if (t === "home"     && typeof window._refreshDashboard  === "function") window._refreshDashboard();
+  if (t === "progress" && typeof window._onChartsActivate  === "function") window._onChartsActivate();
+  if (t === "progress" && typeof window._onHistoryActivate === "function") window._onHistoryActivate();
 }
 
 document.querySelectorAll(".nav-btn").forEach(btn => {
@@ -4115,8 +4117,8 @@ try {
     buildActivityCalendar();
   };
 
-  // Init immediately if the charts tab is active on page load
-  if (document.getElementById("tab-charts").classList.contains("active")) initCharts();
+  // Init immediately if the progress tab is active on page load
+  if (document.getElementById("tab-progress").classList.contains("active")) initCharts();
 })();
 
 // ══════════════════════════════════════════════════════
@@ -4137,6 +4139,8 @@ try {
   }
 
   // ── List view ─────────────────────────────────────
+  let histShowDays = 7;
+
   function buildHistoryList(serverData) {
     const dailyLog = JSON.parse(localStorage.getItem("dailyLog")  || "{}");
 
@@ -4149,10 +4153,13 @@ try {
     const today  = localToday();
     const dates  = [...allDates].filter(d => d <= today).sort().reverse();
 
-    const loadEl  = document.getElementById("hist-loading");
-    const listEl  = document.getElementById("hist-list");
-    const cardEl  = document.getElementById("hist-list-card");
-    const emptyEl = document.getElementById("hist-empty");
+    const loadEl    = document.getElementById("hist-loading");
+    const listEl    = document.getElementById("hist-list");
+    const cardEl    = document.getElementById("hist-list-card");
+    const emptyEl   = document.getElementById("hist-empty");
+    const labelEl   = document.getElementById("hist-range-label");
+    const moreBtn   = document.getElementById("hist-show-more");
+    const lessBtn   = document.getElementById("hist-show-less");
 
     loadEl.style.display = "none";
 
@@ -4162,7 +4169,15 @@ try {
     }
     cardEl.style.display = "";
 
-    listEl.innerHTML = dates.map(d => {
+    const visible = dates.slice(0, histShowDays);
+    labelEl.textContent = "Last " + histShowDays + " days";
+    moreBtn.style.display = dates.length > histShowDays ? "" : "none";
+    lessBtn.style.display = histShowDays > 7 ? "" : "none";
+    if (histShowDays <= 7)  { moreBtn.textContent = "Show 30 days"; }
+    else if (histShowDays <= 30) { moreBtn.textContent = "Show 90 days"; }
+    else { moreBtn.style.display = "none"; }
+
+    listEl.innerHTML = visible.map(d => {
       const lbl      = dateLabel(d);
       const dayData  = dailyLog[d] || null;
       const weight   = dayData ? (dayData.weight || null) : null;
@@ -4221,6 +4236,16 @@ try {
       row.addEventListener("click", () => showDayDetail(row.dataset.date));
     });
   }
+
+  document.getElementById("hist-show-more").addEventListener("click", function() {
+    histShowDays = histShowDays <= 7 ? 30 : 90;
+    if (window._appHistory) buildHistoryList(window._appHistory);
+  });
+
+  document.getElementById("hist-show-less").addEventListener("click", function() {
+    histShowDays = histShowDays >= 90 ? 30 : 7;
+    if (window._appHistory) buildHistoryList(window._appHistory);
+  });
 
   // ── Day detail overlay ────────────────────────────
   function showDayDetail(date) {
@@ -4348,7 +4373,7 @@ try {
     if (window._appHistory) buildHistoryList(window._appHistory);
   };
 
-  if (document.getElementById("tab-history").classList.contains("active")) initHistory();
+  if (document.getElementById("tab-progress").classList.contains("active")) initHistory();
 })();
 
 // ══════════════════════════════════════════════════════
