@@ -772,37 +772,48 @@
     } catch (_) {}
 
     // Now generate profile
+    let res, data, rawText;
     try {
-      const res = await fetch("/api/onboarding/complete", { method: "POST" });
-      const data = await res.json();
+      res = await fetch("/api/onboarding/complete", { method: "POST" });
+      rawText = await res.text();
+      try { data = JSON.parse(rawText); } catch (_) { data = {}; }
+    } catch (fetchErr) {
       document.getElementById("ob-spinner").classList.remove("show");
       document.getElementById("ob-complete").style.display = "block";
+      document.getElementById("ob-complete-icon").textContent = "⚠";
+      document.getElementById("ob-complete-heading").textContent = "Network error";
+      document.getElementById("ob-complete-body").textContent = "";
+      document.getElementById("ob-error").textContent = "fetch failed: " + fetchErr.message;
+      document.getElementById("ob-error").style.display = "";
+      document.getElementById("ob-retry-btn").style.display = "";
+      return;
+    }
 
-      if (!res.ok || data.error) {
-        document.getElementById("ob-complete-icon").textContent = "⚠";
-        document.getElementById("ob-complete-heading").textContent = "Something went wrong";
-        document.getElementById("ob-complete-body").textContent = "Your answers are saved. Tap below to try building your profile again.";
-        document.getElementById("ob-error").textContent = data.error || "Unknown error";
-        document.getElementById("ob-error").style.display = "";
-        document.getElementById("ob-retry-btn").style.display = "";
-        return;
-      }
+    document.getElementById("ob-spinner").classList.remove("show");
+    document.getElementById("ob-complete").style.display = "block";
 
-      // Success
+    if (!res.ok || data.error) {
+      document.getElementById("ob-complete-icon").textContent = "⚠";
+      document.getElementById("ob-complete-heading").textContent = "Error (HTTP " + res.status + ")";
+      document.getElementById("ob-complete-body").textContent = "Your answers are saved. Details below — tap Try again when ready.";
+      document.getElementById("ob-error").textContent = data.error || rawText.slice(0, 300);
+      document.getElementById("ob-error").style.display = "";
+      document.getElementById("ob-retry-btn").style.display = "";
+      return;
+    }
+
+    // Success — but catch any JS error in buildSummary separately
+    try {
       document.getElementById("ob-complete-icon").textContent = "✦";
       document.getElementById("ob-complete-heading").textContent = "Your Profile is Ready";
       document.getElementById("ob-complete-body").textContent = "Apex now understands who you are. Your dashboard is calibrated to your goals, lifestyle, and motivations.";
       buildSummary(data.profile || {});
       document.getElementById("ob-enter-btn").style.display = "";
-    } catch (err) {
-      document.getElementById("ob-spinner").classList.remove("show");
-      document.getElementById("ob-complete").style.display = "block";
-      document.getElementById("ob-complete-icon").textContent = "⚠";
-      document.getElementById("ob-complete-heading").textContent = "Connection error";
-      document.getElementById("ob-complete-body").textContent = "Your answers are saved. Check your connection and try again.";
-      document.getElementById("ob-error").textContent = err.message || "Network error";
+    } catch (renderErr) {
+      // Profile was saved OK — JS rendering failed. Still let the user in.
+      document.getElementById("ob-error").textContent = "Display error (profile saved): " + renderErr.message;
       document.getElementById("ob-error").style.display = "";
-      document.getElementById("ob-retry-btn").style.display = "";
+      document.getElementById("ob-enter-btn").style.display = "";
     }
   }
 
