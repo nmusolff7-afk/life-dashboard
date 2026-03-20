@@ -518,13 +518,16 @@
         </div>
       </div>
       <div class="ob-complete" id="ob-complete" style="display:none">
-        <div class="ob-complete-icon">✦</div>
-        <h2>Your Profile is Ready</h2>
-        <p>Apex now understands who you are. Your dashboard is calibrated to your goals, lifestyle, and motivations.</p>
+        <div class="ob-complete-icon" id="ob-complete-icon">✦</div>
+        <h2 id="ob-complete-heading">Your Profile is Ready</h2>
+        <p id="ob-complete-body">Apex now understands who you are. Your dashboard is calibrated to your goals, lifestyle, and motivations.</p>
         <div class="ob-profile-summary" id="ob-profile-summary"></div>
         <div class="error-msg" id="ob-error" style="display:none;margin-top:1rem"></div>
-        <button class="btn btn-primary" id="ob-enter-btn" style="width:100%;margin-top:1.5rem;padding:0.9rem;font-size:1rem" onclick="window.location.href='/'">
+        <button class="btn btn-primary" id="ob-enter-btn" style="display:none;width:100%;margin-top:1.5rem;padding:0.9rem;font-size:1rem" onclick="window.location.href='/'">
           Enter Apex ›
+        </button>
+        <button class="btn btn-ghost" id="ob-retry-btn" style="display:none;width:100%;margin-top:0.75rem" onclick="runCompletion()">
+          Try again
         </button>
       </div>
     </div>
@@ -719,13 +722,11 @@
     }
 
     const meta = PAGE_META[currentPage - 1];
-    if (meta) {
-      document.getElementById("ob-page-title").textContent = meta.title;
-      document.getElementById("ob-page-sub").textContent   = meta.sub;
-    }
+    document.getElementById("ob-page-title").textContent = meta ? meta.title : "";
+    document.getElementById("ob-page-sub").textContent   = meta ? meta.sub   : "";
     document.getElementById("ob-step-label").textContent = currentPage <= TOTAL_PAGES
       ? `Step ${currentPage} of ${TOTAL_PAGES}`
-      : "One moment…";
+      : "";
     document.getElementById("content")?.scrollTo(0, 0);
     window.scrollTo(0, 0);
   }
@@ -754,9 +755,12 @@
     }
   };
 
-  async function runCompletion() {
+  window.runCompletion = async function runCompletion() {
     document.getElementById("ob-spinner").classList.add("show");
     document.getElementById("ob-complete").style.display = "none";
+    document.getElementById("ob-enter-btn").style.display = "none";
+    document.getElementById("ob-retry-btn").style.display = "none";
+    document.getElementById("ob-error").style.display = "none";
 
     // Save final data first
     try {
@@ -775,17 +779,30 @@
       document.getElementById("ob-complete").style.display = "block";
 
       if (!res.ok || data.error) {
-        document.getElementById("ob-error").textContent = data.error || "Something went wrong.";
+        document.getElementById("ob-complete-icon").textContent = "⚠";
+        document.getElementById("ob-complete-heading").textContent = "Something went wrong";
+        document.getElementById("ob-complete-body").textContent = "Your answers are saved. Tap below to try building your profile again.";
+        document.getElementById("ob-error").textContent = data.error || "Unknown error";
         document.getElementById("ob-error").style.display = "";
+        document.getElementById("ob-retry-btn").style.display = "";
         return;
       }
 
+      // Success
+      document.getElementById("ob-complete-icon").textContent = "✦";
+      document.getElementById("ob-complete-heading").textContent = "Your Profile is Ready";
+      document.getElementById("ob-complete-body").textContent = "Apex now understands who you are. Your dashboard is calibrated to your goals, lifestyle, and motivations.";
       buildSummary(data.profile || {});
+      document.getElementById("ob-enter-btn").style.display = "";
     } catch (err) {
       document.getElementById("ob-spinner").classList.remove("show");
       document.getElementById("ob-complete").style.display = "block";
-      document.getElementById("ob-error").textContent = "Network error — please try again.";
+      document.getElementById("ob-complete-icon").textContent = "⚠";
+      document.getElementById("ob-complete-heading").textContent = "Connection error";
+      document.getElementById("ob-complete-body").textContent = "Your answers are saved. Check your connection and try again.";
+      document.getElementById("ob-error").textContent = err.message || "Network error";
       document.getElementById("ob-error").style.display = "";
+      document.getElementById("ob-retry-btn").style.display = "";
     }
   }
 
