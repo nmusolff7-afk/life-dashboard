@@ -866,7 +866,11 @@
               <td class="td-carb">{{ "%.0f"|format(meal.carbs_g) }}g</td>
               <td class="td-fat">{{ "%.0f"|format(meal.fat_g) }}g</td>
               <td style="white-space:nowrap">
-                <button type="button" class="btn-edit-meal" onclick="editMeal({{ meal.id }}, {{ meal.description|tojson }}, {{ meal.calories }}, {{ meal.protein_g }}, {{ meal.carbs_g }}, {{ meal.fat_g }})">✎</button>
+                <button type="button" class="btn-edit-meal"
+                  data-id="{{ meal.id }}" data-desc="{{ meal.description|e }}"
+                  data-cal="{{ meal.calories }}" data-pro="{{ meal.protein_g }}"
+                  data-carb="{{ meal.carbs_g }}" data-fat="{{ meal.fat_g }}"
+                  onclick="editMealFromBtn(this)">✎</button>
                 <button type="button" class="btn btn-danger" onclick="deleteMeal({{ meal.id }})">✕</button>
               </td>
             </tr>
@@ -1803,7 +1807,7 @@ function renderMealTable(meals, totals) {
   if (meals && meals.length > 0) {
     html += '<table class="meal-table"><thead><tr><th>Meal</th><th>Cal</th><th>Pro</th><th>Carb</th><th>Fat</th><th></th></tr></thead><tbody>';
     meals.forEach(m => {
-      const ed = `editMeal(${m.id},${JSON.stringify(m.description)},${m.calories},${m.protein_g},${m.carbs_g},${m.fat_g})`;
+      const descAttr = m.description.replace(/&/g,"&amp;").replace(/"/g,"&quot;");
       html += `<tr>
         <td>${m.description}</td>
         <td class="td-cal">${m.calories}</td>
@@ -1811,7 +1815,11 @@ function renderMealTable(meals, totals) {
         <td class="td-carb">${Math.round(m.carbs_g)}g</td>
         <td class="td-fat">${Math.round(m.fat_g)}g</td>
         <td style="white-space:nowrap">
-          <button type="button" class="btn-edit-meal" onclick="${ed}">✎</button>
+          <button type="button" class="btn-edit-meal"
+            data-id="${m.id}" data-desc="${descAttr}"
+            data-cal="${m.calories}" data-pro="${m.protein_g}"
+            data-carb="${m.carbs_g}" data-fat="${m.fat_g}"
+            onclick="editMealFromBtn(this)">✎</button>
           <button type="button" class="btn btn-danger" onclick="deleteMeal(${m.id})">✕</button>
         </td>
       </tr>`;
@@ -1912,6 +1920,17 @@ const _editFat       = document.getElementById("edit-meal-fat");
 const _editSaveBtn   = document.getElementById("edit-meal-save-btn");
 const _editCancelBtn = document.getElementById("edit-meal-cancel-btn");
 const _editBackdrop  = document.getElementById("edit-meal-backdrop");
+
+function editMealFromBtn(btn) {
+  editMeal(
+    parseInt(btn.dataset.id),
+    btn.dataset.desc,
+    parseFloat(btn.dataset.cal),
+    parseFloat(btn.dataset.pro),
+    parseFloat(btn.dataset.carb),
+    parseFloat(btn.dataset.fat)
+  );
+}
 
 function editMeal(id, description, calories, protein_g, carbs_g, fat_g) {
   _editIdField.value = id;
