@@ -13,9 +13,13 @@ from db import (
     upsert_garmin_daily, get_garmin_daily, get_garmin_last_sync,
     garmin_activity_exists, insert_garmin_workout,
     get_setting, set_setting,
+    get_onboarding, upsert_onboarding_inputs, complete_onboarding,
+    get_profile_map, is_onboarding_complete,
 )
 from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, shorten_label, scan_meal_image
+from claude_profile import generate_profile_map, generate_mind_insights
 import garmin_sync
+import json
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "life-dashboard-default-secret-v1")
@@ -132,7 +136,82 @@ def api_delete_account():
 @app.route("/")
 @login_required
 def index():
+    if not is_onboarding_complete(uid()):
+        return redirect(url_for("onboarding"))
     return render_index()
+
+
+# ── Onboarding ──────────────────────────────────────────
+
+@app.route("/onboarding")
+@login_required
+def onboarding():
+    if is_onboarding_complete(uid()):
+        return redirect(url_for("index"))
+    row = get_onboarding(uid())
+    raw = {}
+    if row and row.get("raw_inputs"):
+        try:
+            raw = json.loads(row["raw_inputs"])
+        except Exception:
+            pass
+    return render_template("onboarding.html",
+                           username=session.get("username", ""),
+                           saved=raw)
+
+
+@app.route("/api/onboarding/save", methods=["POST"])
+@login_required
+def api_onboarding_save():
+    """Save raw page inputs progressively (called after each page)."""
+    data = request.get_json() or {}
+    row = get_onboarding(uid())
+    existing = {}
+    if row and row.get("raw_inputs"):
+        try:
+            existing = json.loads(row["raw_inputs"])
+        except Exception:
+            pass
+    existing.update(data)
+    upsert_onboarding_inputs(uid(), json.dumps(existing))
+    return jsonify({"ok": True})
+
+
+@app.route("/api/onboarding/complete", methods=["POST"])
+@login_required
+def api_onboarding_complete():
+    """Run Claude Opus to generate the 200-var profile map and mark onboarding done."""
+    row = get_onboarding(uid())
+    if not row:
+        return jsonify({"error": "No onboarding data found"}), 400
+    try:
+        raw = json.loads(row.get("raw_inputs") or "{}")
+        profile = generate_profile_map(raw)
+        complete_onboarding(uid(), json.dumps(profile))
+        return jsonify({"ok": True, "profile": profile})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ── Mind tab ────────────────────────────────────────────
+
+@app.route("/api/mind/insights")
+@login_required
+def api_mind_insights():
+    profile = get_profile_map(uid())
+    if not profile:
+        return jsonify({"error": "no_profile"}), 404
+    try:
+        insights = generate_mind_insights(profile)
+        return jsonify(insights)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/mind/profile")
+@login_required
+def api_mind_profile():
+    return jsonify(get_profile_map(uid()))
 
 
 # ── Meals ───────────────────────────────────────────────

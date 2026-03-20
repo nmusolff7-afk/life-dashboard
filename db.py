@@ -73,6 +73,17 @@ def init_db():
                 value TEXT NOT NULL
             )
         """)
+        # User onboarding: raw page inputs + Claude-generated 200-var profile map
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_onboarding (
+                user_id    INTEGER PRIMARY KEY REFERENCES users(id),
+                completed  INTEGER DEFAULT 0,
+                raw_inputs TEXT DEFAULT '{}',
+                profile_map TEXT DEFAULT '{}',
+                created_at TIMESTAMP NOT NULL,
+                updated_at TIMESTAMP NOT NULL
+            )
+        """)
         conn.commit()
 
         # Migrate: add garmin_activity_id to workout_logs to prevent duplicate imports
@@ -368,3 +379,60 @@ def set_setting(key, value):
             (key, value)
         )
         conn.commit()
+
+
+# ── User onboarding ────────────────────────────────────
+
+def get_onboarding(user_id):
+    """Return the onboarding row as a dict, or None if not started."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM user_onboarding WHERE user_id = ?", (user_id,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def upsert_onboarding_inputs(user_id, raw_inputs_json):
+    """Save raw page inputs; create row if it doesn't exist."""
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO user_onboarding (user_id, completed, raw_inputs, profile_map, created_at, updated_at)
+            VALUES (?, 0, ?, '{}', ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                raw_inputs = excluded.raw_inputs,
+                updated_at = excluded.updated_at
+        """, (user_id, raw_inputs_json, now, now))
+        conn.commit()
+
+
+def complete_onboarding(user_id, profile_map_json):
+    """Mark onboarding complete and store the generated profile map."""
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO user_onboarding (user_id, completed, raw_inputs, profile_map, created_at, updated_at)
+            VALUES (?, 1, '{}', ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                completed   = 1,
+                profile_map = excluded.profile_map,
+                updated_at  = excluded.updated_at
+        """, (user_id, profile_map_json, now, now))
+        conn.commit()
+
+
+def get_profile_map(user_id):
+    """Return the parsed 200-var profile map dict, or {}."""
+    import json
+    row = get_onboarding(user_id)
+    if not row or not row.get("profile_map"):
+        return {}
+    try:
+        return json.loads(row["profile_map"])
+    except Exception:
+        return {}
+
+
+def is_onboarding_complete(user_id):
+    row = get_onboarding(user_id)
+    return bool(row and row.get("completed"))

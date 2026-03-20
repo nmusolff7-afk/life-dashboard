@@ -485,6 +485,34 @@
       line-height: 1.6; pointer-events: auto; }
     .cal-popup-close { float: right; cursor: pointer; color: var(--muted);
       margin-left: 0.5rem; line-height: 1; }
+    /* ── Mind tab ── */
+    .mind-metric { background: var(--surface2); border-radius: 10px; padding: 0.65rem 0.5rem;
+      text-align: center; }
+    .mind-metric-val { font-family: 'Rajdhani', sans-serif; font-size: 1.35rem;
+      font-weight: 700; color: var(--accent2); line-height: 1; }
+    .mind-metric-lbl { font-size: 0.65rem; color: var(--muted); margin-top: 0.2rem;
+      text-transform: uppercase; letter-spacing: .04em; }
+    .mind-score-row { display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.55rem 0; border-bottom: 1px solid var(--surface2); }
+    .mind-score-row:last-child { border-bottom: none; }
+    .mind-score-label { font-size: 0.82rem; color: var(--muted); flex: 1; }
+    .mind-score-bar-wrap { width: 90px; height: 5px; background: var(--surface2);
+      border-radius: 99px; overflow: hidden; flex-shrink: 0; }
+    .mind-score-bar { height: 100%; border-radius: 99px; }
+    .mind-score-num { font-size: 0.82rem; font-weight: 700; color: var(--text);
+      width: 28px; text-align: right; flex-shrink: 0; }
+    .mind-score-ctx { font-size: 0.74rem; color: var(--muted); line-height: 1.4;
+      padding-left: 0; margin-top: 0.15rem; }
+    .mind-list-item { display: flex; align-items: flex-start; gap: 0.5rem;
+      padding: 0.45rem 0; border-bottom: 1px solid var(--surface2);
+      font-size: 0.85rem; color: var(--text); line-height: 1.5; }
+    .mind-list-item:last-child { border-bottom: none; }
+    .mind-list-dot { width: 6px; height: 6px; border-radius: 50%;
+      flex-shrink: 0; margin-top: 0.45em; }
+    .mind-strategy-row { padding: 0.5rem 0; border-bottom: 1px solid var(--surface2);
+      font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+    .mind-strategy-row:last-child { border-bottom: none; }
+    .mind-strategy-row strong { color: var(--text); }
 
     /* ══ HISTORY ════════════════════════════════ */
     .hist-row { display: flex; align-items: center; gap: 0.75rem;
@@ -1451,6 +1479,107 @@
 
     </div><!-- /tab-profile -->
 
+    <!-- ══════════════════════════════════
+         MIND TAB
+    ══════════════════════════════════ -->
+    <div class="tab-panel" id="tab-mind">
+      <div class="page-header">
+        <h2>Mind</h2>
+        <p>Your personal intelligence profile</p>
+      </div>
+
+      <div id="mind-loading" class="empty" style="display:none">
+        <div class="icon">⏳</div>Loading your profile…
+      </div>
+      <div id="mind-no-profile" class="empty" style="display:none">
+        <div class="icon">✦</div>
+        <div>Complete onboarding to unlock your Mind profile.</div>
+        <a href="/onboarding" class="btn" style="margin-top:1rem;background:var(--accent);color:#fff;text-decoration:none;padding:0.65rem 1.5rem;border-radius:10px;font-weight:600;display:inline-block">Begin Onboarding</a>
+      </div>
+      <div id="mind-error" class="empty" style="display:none">
+        <div class="icon">⚠️</div>Failed to load — tap to retry.
+      </div>
+
+      <!-- Readiness score -->
+      <div class="card" id="mind-readiness-card" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+          <div class="card-title" style="margin:0">Readiness Score</div>
+          <div id="mind-readiness-label" style="font-size:0.78rem;color:var(--muted)"></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:1rem">
+          <div id="mind-readiness-score" style="font-family:'Rajdhani',sans-serif;font-size:3.5rem;font-weight:700;color:var(--accent2);line-height:1"></div>
+          <div style="flex:1">
+            <div style="height:8px;background:var(--surface2);border-radius:99px;overflow:hidden">
+              <div id="mind-readiness-bar" style="height:100%;border-radius:99px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .6s ease"></div>
+            </div>
+            <div id="mind-readiness-insight" style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem;line-height:1.5"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Body metrics -->
+      <div class="card" id="mind-body-card" style="display:none">
+        <div class="card-title">Body Metrics</div>
+        <div id="mind-body-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem"></div>
+      </div>
+
+      <!-- Scores -->
+      <div class="card" id="mind-scores-card" style="display:none">
+        <div class="card-title">Wellness Scores</div>
+        <div id="mind-scores-list"></div>
+      </div>
+
+      <!-- Archetype -->
+      <div class="card" id="mind-archetype-card" style="display:none">
+        <div class="card-title">Behavioral Profile</div>
+        <div id="mind-archetype-name" style="font-family:'Rajdhani',sans-serif;font-size:1.4rem;font-weight:700;color:var(--accent2);margin-bottom:0.4rem"></div>
+        <div id="mind-archetype-desc" style="font-size:0.85rem;color:var(--muted);line-height:1.6"></div>
+      </div>
+
+      <!-- Personal insight -->
+      <div class="card" id="mind-insight-card" style="display:none">
+        <div class="card-title">Your Profile Insight</div>
+        <div id="mind-insight-text" style="font-size:0.9rem;color:var(--text);line-height:1.7"></div>
+      </div>
+
+      <!-- Strengths & Risks -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem" id="mind-str-risk" style="display:none">
+        <div class="card" id="mind-strengths-card" style="display:none">
+          <div class="card-title" style="color:var(--green)">Strengths</div>
+          <div id="mind-strengths-list"></div>
+        </div>
+        <div class="card" id="mind-risks-card" style="display:none">
+          <div class="card-title" style="color:var(--danger)">Watch Points</div>
+          <div id="mind-risks-list"></div>
+        </div>
+      </div>
+
+      <!-- Top actions -->
+      <div class="card" id="mind-actions-card" style="display:none">
+        <div class="card-title">Top 3 Actions</div>
+        <div id="mind-actions-list"></div>
+      </div>
+
+      <!-- Strategy -->
+      <div class="card" id="mind-strategy-card" style="display:none">
+        <div class="card-title">Your Strategy</div>
+        <div id="mind-strategy-list"></div>
+      </div>
+
+      <!-- Leverage point -->
+      <div class="card" id="mind-leverage-card" style="display:none">
+        <div class="card-title">Highest Leverage Point</div>
+        <div id="mind-leverage-text" style="font-size:0.9rem;color:var(--accent2);font-weight:600;line-height:1.5"></div>
+      </div>
+
+      <div style="text-align:center;margin-top:0.5rem;margin-bottom:1rem">
+        <button class="btn btn-ghost" id="mind-refresh-btn" style="font-size:0.8rem;padding:0.45rem 1.1rem">
+          Regenerate insights
+        </button>
+      </div>
+
+    </div><!-- /tab-mind -->
+
   </div><!-- /content -->
 
   <!-- ── Bottom nav ── -->
@@ -1466,6 +1595,9 @@
     </button>
     <button class="nav-btn" data-tab="progress">
       <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Progress
+    </button>
+    <button class="nav-btn" data-tab="mind">
+      <svg viewBox="0 0 24 24"><path d="M9.5 2A6.5 6.5 0 0 1 16 8.5c0 2.5-1.4 4.7-3.5 5.9V17h-3v-2.6A6.5 6.5 0 0 1 9.5 2z"/><line x1="9.5" y1="17" x2="9.5" y2="21"/><line x1="7" y1="21" x2="12" y2="21"/></svg>Mind
     </button>
   </nav>
 
@@ -1839,6 +1971,7 @@ function activateTab(t) {
   if (t === "home"     && typeof window._refreshDashboard  === "function") window._refreshDashboard();
   if (t === "progress" && typeof window._onChartsActivate  === "function") window._onChartsActivate();
   if (t === "progress" && typeof window._onHistoryActivate === "function") window._onHistoryActivate();
+  if (t === "mind"     && typeof window._onMindActivate    === "function") window._onMindActivate();
 }
 
 document.querySelectorAll(".nav-btn").forEach(btn => {
@@ -4395,6 +4528,181 @@ try {
   };
 
   if (document.getElementById("tab-progress").classList.contains("active")) initHistory();
+})();
+
+// ══════════════════════════════════════════════════════
+//  MIND TAB
+// ══════════════════════════════════════════════════════
+
+(function() {
+  let mindData  = null;
+  let fetching  = false;
+
+  function show(id)  { const e = document.getElementById(id); if (e) e.style.display = ""; }
+  function hide(id)  { const e = document.getElementById(id); if (e) e.style.display = "none"; }
+  function setText(id, t) { const e = document.getElementById(id); if (e) e.textContent = t; }
+  function setHTML(id, h) { const e = document.getElementById(id); if (e) e.innerHTML = h; }
+
+  function scoreColor(v) {
+    if (v >= 8) return "var(--green)";
+    if (v >= 5) return "var(--amber)";
+    return "var(--danger)";
+  }
+
+  function renderMind(d) {
+    mindData = d;
+
+    // Readiness
+    show("mind-readiness-card");
+    setText("mind-readiness-score", d.readiness_score ?? "—");
+    setText("mind-readiness-label", d.readiness_label || "");
+    setText("mind-readiness-insight", d.biggest_leverage_point || "");
+    const bar = document.getElementById("mind-readiness-bar");
+    if (bar) bar.style.width = (d.readiness_score || 0) + "%";
+
+    // Body metrics
+    if (d.body) {
+      show("mind-body-card");
+      const b = d.body;
+      const metrics = [
+        ["BMI",        b.bmi ? b.bmi.toFixed(1) : "—"],
+        ["RMR",        b.rmr ? b.rmr + " kcal" : "—"],
+        ["TDEE",       b.tdee ? b.tdee + " kcal" : "—"],
+        ["Cal Goal",   b.calorie_goal ? b.calorie_goal + " kcal" : "—"],
+        ["Protein",    b.protein_goal_g ? b.protein_goal_g + "g" : "—"],
+        ["To Goal",    b.lbs_to_goal != null ? b.lbs_to_goal + " lbs" : "—"],
+        ["Timeline",   b.weeks_to_goal ? "~" + b.weeks_to_goal + "w" : "—"],
+        ["Loss Rate",  b.weight_loss_rate ? b.weight_loss_rate.toFixed(1) + " lbs/wk" : "—"],
+        ["BMI Cat.",   b.bmi_category || "—"],
+      ];
+      setHTML("mind-body-grid", metrics.map(([l, v]) =>
+        `<div class="mind-metric">
+          <div class="mind-metric-val">${v}</div>
+          <div class="mind-metric-lbl">${l}</div>
+        </div>`
+      ).join(""));
+    }
+
+    // Wellness scores
+    if (d.scores && d.scores.length) {
+      show("mind-scores-card");
+      setHTML("mind-scores-list", d.scores.map(s => {
+        const clr = scoreColor(s.value);
+        return `<div class="mind-score-row">
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:0.75rem">
+              <span class="mind-score-label">${s.label}</span>
+              <div class="mind-score-bar-wrap">
+                <div class="mind-score-bar" style="width:${s.value * 10}%;background:${clr}"></div>
+              </div>
+              <span class="mind-score-num" style="color:${clr}">${s.value}</span>
+            </div>
+            ${s.context ? `<div class="mind-score-ctx">${s.context}</div>` : ""}
+          </div>
+        </div>`;
+      }).join(""));
+    }
+
+    // Archetype
+    if (d.behavioral_archetype) {
+      show("mind-archetype-card");
+      setText("mind-archetype-name", d.behavioral_archetype);
+      setText("mind-archetype-desc", d.archetype_description || "");
+    }
+
+    // Insight
+    if (d.personalized_insight) {
+      show("mind-insight-card");
+      setText("mind-insight-text", d.personalized_insight);
+    }
+
+    // Strengths & Risks
+    if (d.strengths || d.risks) {
+      if (d.strengths && d.strengths.length) {
+        show("mind-strengths-card");
+        setHTML("mind-strengths-list", d.strengths.map(s =>
+          `<div class="mind-list-item"><div class="mind-list-dot" style="background:var(--green)"></div>${s}</div>`
+        ).join(""));
+      }
+      if (d.risks && d.risks.length) {
+        show("mind-risks-card");
+        setHTML("mind-risks-list", d.risks.map(r =>
+          `<div class="mind-list-item"><div class="mind-list-dot" style="background:var(--danger)"></div>${r}</div>`
+        ).join(""));
+      }
+    }
+
+    // Top actions
+    if (d.top_actions && d.top_actions.length) {
+      show("mind-actions-card");
+      setHTML("mind-actions-list", d.top_actions.map((a, i) =>
+        `<div class="mind-list-item">
+          <div style="flex-shrink:0;width:20px;height:20px;border-radius:50%;
+            background:var(--accent);color:#fff;font-size:0.7rem;font-weight:700;
+            display:flex;align-items:center;justify-content:center">${i+1}</div>
+          ${a}
+        </div>`
+      ).join(""));
+    }
+
+    // Strategy
+    const strategies = [
+      d.calorie_strategy  ? ["Calorie Strategy", d.calorie_strategy]  : null,
+      d.macro_strategy    ? ["Macro Strategy",   d.macro_strategy]    : null,
+      d.sleep_priority    ? ["Sleep Priority",   d.sleep_priority]    : null,
+      d.stress_priority   ? ["Stress Priority",  d.stress_priority]   : null,
+    ].filter(Boolean);
+    if (strategies.length) {
+      show("mind-strategy-card");
+      setHTML("mind-strategy-list", strategies.map(([k, v]) =>
+        `<div class="mind-strategy-row"><strong>${k}:</strong> ${v}</div>`
+      ).join(""));
+    }
+
+    // Leverage
+    if (d.biggest_leverage_point) {
+      show("mind-leverage-card");
+      setText("mind-leverage-text", d.biggest_leverage_point);
+    }
+  }
+
+  function initMind(force) {
+    if (fetching) return;
+    if (mindData && !force) return; // already loaded
+    fetching = true;
+    hide("mind-no-profile"); hide("mind-error");
+    show("mind-loading");
+    fetch("/api/mind/insights")
+      .then(r => r.json())
+      .then(data => {
+        fetching = false;
+        hide("mind-loading");
+        if (data.error === "no_profile") {
+          show("mind-no-profile");
+        } else {
+          renderMind(data);
+        }
+      })
+      .catch(() => {
+        fetching = false;
+        hide("mind-loading");
+        show("mind-error");
+      });
+  }
+
+  document.getElementById("mind-refresh-btn").addEventListener("click", () => {
+    mindData = null;
+    // reset all cards
+    ["mind-readiness-card","mind-body-card","mind-scores-card","mind-archetype-card",
+     "mind-insight-card","mind-strengths-card","mind-risks-card","mind-actions-card",
+     "mind-strategy-card","mind-leverage-card"].forEach(id => hide(id));
+    initMind(true);
+  });
+
+  document.getElementById("mind-error").addEventListener("click", () => initMind(true));
+
+  window._onMindActivate = () => initMind(false);
+  if (document.getElementById("tab-mind").classList.contains("active")) initMind(false);
 })();
 
 // ══════════════════════════════════════════════════════

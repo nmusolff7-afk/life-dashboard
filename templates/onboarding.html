@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <title>Apex Fitness — Build Your Profile</title>
+  <meta name="theme-color" content="#0d1117"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:      #0d1117;
+      --surface: #161b22;
+      --surface2:#21262d;
+      --border:  #30363d;
+      --accent:  #5c6bc0;
+      --accent2: #7986cb;
+      --text:    #e6edf3;
+      --muted:   #8b949e;
+      --danger:  #f85149;
+      --green:   #3fb950;
+      --amber:   #e3b341;
+    }
+    html, body { min-height: 100%; background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 15px; }
+    .ob-wrap { min-height: 100dvh; display: flex; flex-direction: column; }
+
+    /* ── Progress bar ── */
+    .ob-progress { height: 3px; background: var(--surface2); position: sticky; top: 0; z-index: 10; }
+    .ob-progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2));
+      transition: width .4s ease; }
+
+    /* ── Header ── */
+    .ob-header { padding: 1.5rem 1.25rem 0.5rem; text-align: center; }
+    .ob-logo { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; margin-bottom: 1.25rem; }
+    .ob-logo img { height: 44px; }
+    .ob-logo-name { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 0.15em; }
+    .ob-step-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+    .ob-page-title { font-family: 'Rajdhani', sans-serif; font-size: 1.7rem; font-weight: 700;
+      letter-spacing: 0.03em; line-height: 1.1; margin-bottom: 0.35rem; }
+    .ob-page-sub { font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+
+    /* ── Pages ── */
+    .ob-pages { flex: 1; overflow: hidden; position: relative; }
+    .ob-page { display: none; padding: 1.25rem; padding-bottom: 6rem; }
+    .ob-page.active { display: block; }
+
+    /* ── Form elements ── */
+    .field { margin-bottom: 1.1rem; }
+    .field label { display: block; font-size: 0.8rem; color: var(--muted);
+      margin-bottom: 0.35rem; font-weight: 500; }
+    .field .hint { font-size: 0.74rem; color: var(--muted); margin-top: 0.25rem; opacity: 0.75; }
+    input[type="text"], input[type="number"], input[type="email"], input[type="date"],
+    textarea, select {
+      width: 100%; background: var(--surface2); border: 1.5px solid var(--border);
+      border-radius: 10px; color: var(--text); font-size: 0.95rem;
+      padding: 0.7rem 0.95rem; outline: none; transition: border-color .15s;
+      font-family: inherit; -webkit-appearance: none; appearance: none;
+    }
+    input:focus, textarea:focus, select:focus { border-color: var(--accent2); }
+    textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
+    .input-row { display: grid; gap: 0.75rem; grid-template-columns: 1fr 1fr; }
+    .input-row-3 { display: grid; gap: 0.75rem; grid-template-columns: 1fr 1fr 1fr; }
+
+    /* ── Segmented / chip buttons ── */
+    .chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.1rem; }
+    .chip { padding: 0.45rem 1rem; border-radius: 99px; border: 1.5px solid var(--border);
+      background: var(--surface2); color: var(--muted); font-size: 0.85rem;
+      cursor: pointer; transition: all .15s; user-select: none; }
+    .chip.active { border-color: var(--accent2); background: rgba(121,134,203,0.15);
+      color: var(--accent2); }
+    .chip-multi.chip.active { border-color: var(--green); background: rgba(63,185,80,0.12);
+      color: var(--green); }
+
+    /* ── Slider ── */
+    .slider-field { margin-bottom: 1.1rem; }
+    .slider-field label { display: flex; justify-content: space-between;
+      font-size: 0.8rem; color: var(--muted); margin-bottom: 0.4rem; }
+    .slider-field label span { color: var(--accent2); font-weight: 600; }
+    input[type="range"] { width: 100%; accent-color: var(--accent2);
+      height: 4px; cursor: pointer; }
+    .slider-endpoints { display: flex; justify-content: space-between;
+      font-size: 0.68rem; color: var(--muted); margin-top: 0.15rem; }
+
+    /* ── Claude assist ── */
+    .claude-assist { background: rgba(121,134,203,0.07); border: 1px solid rgba(121,134,203,0.2);
+      border-radius: 10px; padding: 0.75rem 0.9rem; margin-top: 0.5rem;
+      font-size: 0.82rem; color: var(--muted); line-height: 1.5; display: none; }
+    .claude-assist.show { display: block; }
+    .claude-assist-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: .06em;
+      color: var(--accent2); font-weight: 600; margin-bottom: 0.3rem; }
+
+    /* ── Navigation footer ── */
+    .ob-footer { position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--bg); border-top: 1px solid var(--border);
+      padding: 1rem 1.25rem; display: flex; gap: 0.75rem; }
+    .btn { padding: 0.75rem 1.25rem; border-radius: 10px; border: none;
+      font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: all .15s;
+      font-family: inherit; }
+    .btn-primary { background: var(--accent); color: #fff; flex: 1; }
+    .btn-primary:hover { background: var(--accent2); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-ghost { background: var(--surface2); color: var(--muted); }
+    .btn-ghost:hover { color: var(--text); }
+
+    /* ── Completion page ── */
+    .ob-complete { text-align: center; padding: 2rem 1.25rem; }
+    .ob-complete-icon { font-size: 3.5rem; margin-bottom: 1rem; }
+    .ob-complete h2 { font-family: 'Rajdhani', sans-serif; font-size: 1.8rem;
+      font-weight: 700; margin-bottom: 0.5rem; }
+    .ob-complete p { color: var(--muted); font-size: 0.9rem; line-height: 1.6; }
+    .ob-spinner { display: none; flex-direction: column; align-items: center;
+      gap: 1rem; padding: 2.5rem 1.25rem; text-align: center; }
+    .ob-spinner.show { display: flex; }
+    .spinner-ring { width: 48px; height: 48px; border: 3px solid var(--border);
+      border-top-color: var(--accent2); border-radius: 50%;
+      animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .ob-profile-summary { background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.25rem; margin-top: 1.5rem; text-align: left; }
+    .summary-row { display: flex; justify-content: space-between; align-items: baseline;
+      padding: 0.45rem 0; border-bottom: 1px solid var(--surface2); font-size: 0.88rem; }
+    .summary-row:last-child { border-bottom: none; }
+    .summary-row .k { color: var(--muted); }
+    .summary-row .v { font-weight: 600; color: var(--accent2); }
+
+    .card { background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.1rem; margin-bottom: 1rem; }
+    .card-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .07em;
+      font-weight: 700; color: var(--muted); margin-bottom: 0.85rem; }
+    .error-msg { color: var(--danger); font-size: 0.82rem; margin-top: 0.5rem; display: none; }
+  </style>
+</head>
+<body>
+<div class="ob-wrap">
+
+  <div class="ob-progress">
+    <div class="ob-progress-fill" id="ob-progress-fill" style="width:10%"></div>
+  </div>
+
+  <div class="ob-header">
+    <div class="ob-logo">
+      <img src="/static/apex-logo.png" alt="Apex Fitness">
+      <div class="ob-logo-name">APEX</div>
+    </div>
+    <div class="ob-step-label" id="ob-step-label">Step 1 of 9</div>
+    <div class="ob-page-title" id="ob-page-title">Welcome</div>
+    <div class="ob-page-sub" id="ob-page-sub">Let's build your personal profile.</div>
+  </div>
+
+  <div class="ob-pages">
+
+    <!-- ══ PAGE 1: Identity ══ -->
+    <div class="ob-page active" id="page-1">
+      <div class="field">
+        <label>What should we call you?</label>
+        <input type="text" id="ob-first-name" placeholder="First name" autocomplete="given-name">
+      </div>
+      <div class="input-row">
+        <div class="field" style="margin-bottom:0">
+          <label>Date of birth</label>
+          <input type="date" id="ob-dob">
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label>Age</label>
+          <input type="number" id="ob-age" min="13" max="100" placeholder="28">
+        </div>
+      </div>
+      <div class="field" style="margin-top:1.1rem">
+        <label>Gender</label>
+        <div class="chips" id="ob-gender-chips">
+          <div class="chip" data-val="male">Male</div>
+          <div class="chip" data-val="female">Female</div>
+          <div class="chip" data-val="non-binary">Non-binary</div>
+          <div class="chip" data-val="prefer_not_to_say">Prefer not to say</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Relationship status <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+        <div class="chips" id="ob-rel-chips">
+          <div class="chip" data-val="single">Single</div>
+          <div class="chip" data-val="relationship">In a relationship</div>
+          <div class="chip" data-val="married">Married</div>
+          <div class="chip" data-val="prefer_not">Rather not say</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Living situation</label>
+        <div class="chips" id="ob-living-chips">
+          <div class="chip" data-val="alone">Live alone</div>
+          <div class="chip" data-val="partner">With partner</div>
+          <div class="chip" data-val="family">With family</div>
+          <div class="chip" data-val="roommates">Roommates</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ PAGE 2: Body ══ -->
+    <div class="ob-page" id="page-2">
+      <div class="input-row-3">
+        <div class="field" style="margin-bottom:0">
+          <label>Height (ft)</label>
+          <input type="number" id="ob-height-ft" min="4" max="7" placeholder="5">
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label>Height (in)</label>
+          <input type="number" id="ob-height-in" min="0" max="11" placeholder="10">
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label>Body fat %</label>
+          <input type="number" id="ob-bf" min="3" max="60" step="0.5" placeholder="optional">
+        </div>
+      </div>
+      <div class="input-row" style="margin-top:1.1rem">
+        <div class="field" style="margin-bottom:0">
+          <label>Current weight (lbs)</label>
+          <input type="number" id="ob-cur-weight" min="80" max="500" placeholder="185">
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label>Target weight (lbs)</label>
+          <input type="number" id="ob-tgt-weight" min="80" max="500" placeholder="170">
+        </div>
+      </div>
+      <div id="ob-bmi-preview" style="display:none;margin-top:1rem;padding:0.75rem 1rem;
+        background:var(--surface2);border-radius:10px;font-size:0.85rem;color:var(--muted)"></div>
+    </div>
+
+    <!-- ══ PAGE 3: Goals ══ -->
+    <div class="ob-page" id="page-3">
+      <div class="field">
+        <label>Primary goal</label>
+        <div class="chips" id="ob-goal-chips">
+          <div class="chip" data-val="lose_weight">Lose weight</div>
+          <div class="chip" data-val="build_muscle">Build muscle</div>
+          <div class="chip" data-val="recomp">Body recomp</div>
+          <div class="chip" data-val="maintain">Maintain</div>
+          <div class="chip" data-val="improve_health">Improve health</div>
+          <div class="chip" data-val="performance">Athletic performance</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Timeline</label>
+        <div class="chips" id="ob-timeline-chips">
+          <div class="chip" data-val="3_months">3 months</div>
+          <div class="chip" data-val="6_months">6 months</div>
+          <div class="chip" data-val="1_year">1 year</div>
+          <div class="chip" data-val="2_years">2+ years</div>
+          <div class="chip" data-val="no_deadline">No deadline</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Why is this goal important to you? <span style="color:var(--accent2);font-weight:400;font-size:0.74rem">✦ Claude will analyze this</span></label>
+        <textarea id="ob-goal-why" placeholder="Be honest — the more real you are, the better insights you'll get. What's the real reason behind this goal?"></textarea>
+      </div>
+      <div class="field">
+        <label>What have you tried before?</label>
+        <textarea id="ob-prev-attempts" placeholder="What approaches have you tried? What worked, what didn't?" style="min-height:70px"></textarea>
+      </div>
+      <div class="field">
+        <label>What typically gets in your way?</label>
+        <textarea id="ob-obstacles" placeholder="Be specific — time, motivation, social situations, travel, stress..." style="min-height:70px"></textarea>
+      </div>
+    </div>
+
+    <!-- ══ PAGE 4: Lifestyle ══ -->
+    <div class="ob-page" id="page-4">
+      <div class="field">
+        <label>What do you do for work?</label>
+        <input type="text" id="ob-occupation" placeholder="e.g. Software engineer, nurse, student, freelancer…">
+      </div>
+      <div class="field">
+        <label>Work style</label>
+        <div class="chips" id="ob-work-style-chips">
+          <div class="chip" data-val="desk">Desk / seated</div>
+          <div class="chip" data-val="standing">Standing / moving</div>
+          <div class="chip" data-val="physical">Physically demanding</div>
+          <div class="chip" data-val="remote">Remote / home</div>
+          <div class="chip" data-val="mixed">Mixed</div>
+        </div>
+      </div>
+      <div class="slider-field">
+        <label>Work hours per week <span id="ob-work-hrs-val">40h</span></label>
+        <input type="range" id="ob-work-hrs" min="0" max="80" step="5" value="40">
+        <div class="slider-endpoints"><span>0h</span><span>80h</span></div>
+      </div>
+      <div class="slider-field">
+        <label>Sleep hours per night <span id="ob-sleep-val">7h</span></label>
+        <input type="range" id="ob-sleep" min="3" max="12" step="0.5" value="7">
+        <div class="slider-endpoints"><span>3h</span><span>12h</span></div>
+      </div>
+      <div class="slider-field">
+        <label>Typical stress level <span id="ob-stress-val">5 / 10</span></label>
+        <input type="range" id="ob-stress" min="1" max="10" step="1" value="5">
+        <div class="slider-endpoints"><span>Very low</span><span>Very high</span></div>
+      </div>
+      <div class="field">
+        <label>Main source of stress <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+        <div class="chips" id="ob-stress-src-chips">
+          <div class="chip" data-val="work">Work</div>
+          <div class="chip" data-val="financial">Financial</div>
+          <div class="chip" data-val="relationships">Relationships</div>
+          <div class="chip" data-val="health">Health</div>
+          <div class="chip" data-val="family">Family</div>
+          <div class="chip" data-val="other">Other</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ PAGE 5: Nutrition ══ -->
+    <div class="ob-page" id="page-5">
+      <div class="field">
+        <label>How do you eat?</label>
+        <div class="chips" id="ob-diet-chips">
+          <div class="chip" data-val="omnivore">Omnivore</div>
+          <div class="chip" data-val="vegetarian">Vegetarian</div>
+          <div class="chip" data-val="vegan">Vegan</div>
+          <div class="chip" data-val="keto">Keto / Low-carb</div>
+          <div class="chip" data-val="paleo">Paleo</div>
+          <div class="chip" data-val="mediterranean">Mediterranean</div>
+          <div class="chip" data-val="other">Other</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Dietary restrictions or allergies</label>
+        <input type="text" id="ob-allergies" placeholder="e.g. gluten-free, nut allergy, lactose intolerant, none">
+      </div>
+      <div class="field">
+        <label>Foods you love <span style="color:var(--accent2);font-weight:400;font-size:0.74rem">✦ Claude uses this for meal suggestions</span></label>
+        <textarea id="ob-foods-loved" placeholder="List your favourite foods, cuisines, or dishes…" style="min-height:70px"></textarea>
+      </div>
+      <div class="field">
+        <label>Foods you dislike or avoid</label>
+        <textarea id="ob-foods-disliked" placeholder="Anything you won't eat…" style="min-height:60px"></textarea>
+      </div>
+      <div class="slider-field">
+        <label>Cooking vs. eating out <span id="ob-cook-val">Mostly cook</span></label>
+        <input type="range" id="ob-cook" min="0" max="10" step="1" value="4">
+        <div class="slider-endpoints"><span>Always cook</span><span>Always eat out</span></div>
+      </div>
+      <div class="field">
+        <label>Alcohol</label>
+        <div class="chips" id="ob-alcohol-chips">
+          <div class="chip" data-val="none">None</div>
+          <div class="chip" data-val="occasional">Occasional</div>
+          <div class="chip" data-val="weekly">A few times / week</div>
+          <div class="chip" data-val="daily">Daily</div>
+        </div>
+      </div>
+      <div class="slider-field">
+        <label>Caffeine intake <span id="ob-caffeine-val">2 cups/day</span></label>
+        <input type="range" id="ob-caffeine" min="0" max="6" step="1" value="2">
+        <div class="slider-endpoints"><span>None</span><span>6+ cups</span></div>
+      </div>
+    </div>
+
+    <!-- ══ PAGE 6: Fitness ══ -->
+    <div class="ob-page" id="page-6">
+      <div class="field">
+        <label>Fitness experience</label>
+        <div class="chips" id="ob-exp-chips">
+          <div class="chip" data-val="beginner">Beginner</div>
+          <div class="chip" data-val="intermediate">Intermediate</div>
+          <div class="chip" data-val="advanced">Advanced</div>
+          <div class="chip" data-val="athlete">Athlete</div>
+        </div>
+      </div>
+      <div class="slider-field">
+        <label>Current workout days per week <span id="ob-workout-days-val">3 days</span></label>
+        <input type="range" id="ob-workout-days" min="0" max="7" step="1" value="3">
+        <div class="slider-endpoints"><span>None</span><span>Every day</span></div>
+      </div>
+      <div class="field">
+        <label>Types of exercise you enjoy <span style="color:var(--muted);font-weight:400">(pick all that apply)</span></label>
+        <div class="chips" id="ob-ex-type-chips">
+          <div class="chip chip-multi" data-val="weights">Weights</div>
+          <div class="chip chip-multi" data-val="running">Running</div>
+          <div class="chip chip-multi" data-val="cycling">Cycling</div>
+          <div class="chip chip-multi" data-val="hiit">HIIT</div>
+          <div class="chip chip-multi" data-val="swimming">Swimming</div>
+          <div class="chip chip-multi" data-val="yoga">Yoga / Pilates</div>
+          <div class="chip chip-multi" data-val="sports">Team sports</div>
+          <div class="chip chip-multi" data-val="martial_arts">Martial arts</div>
+          <div class="chip chip-multi" data-val="hiking">Hiking</div>
+          <div class="chip chip-multi" data-val="other">Other</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Activity level outside workouts</label>
+        <div class="chips" id="ob-activity-chips">
+          <div class="chip" data-val="sedentary">Mostly sitting</div>
+          <div class="chip" data-val="light">Light movement</div>
+          <div class="chip" data-val="moderate">Moderately active</div>
+          <div class="chip" data-val="active">Very active</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Any injuries or physical limitations?</label>
+        <input type="text" id="ob-injuries" placeholder="e.g. bad knees, lower back pain, none">
+      </div>
+      <div class="field">
+        <label>Wearable device <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+        <div class="chips" id="ob-wearable-chips">
+          <div class="chip" data-val="none">None</div>
+          <div class="chip" data-val="garmin">Garmin</div>
+          <div class="chip" data-val="apple_watch">Apple Watch</div>
+          <div class="chip" data-val="fitbit">Fitbit</div>
+          <div class="chip" data-val="whoop">WHOOP</div>
+          <div class="chip" data-val="oura">Oura Ring</div>
+          <div class="chip" data-val="other">Other</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ PAGE 7: Mind ══ -->
+    <div class="ob-page" id="page-7">
+      <div class="slider-field">
+        <label>Typical daily energy level <span id="ob-energy-val">6 / 10</span></label>
+        <input type="range" id="ob-energy" min="1" max="10" step="1" value="6">
+        <div class="slider-endpoints"><span>Exhausted</span><span>Full of energy</span></div>
+      </div>
+      <div class="slider-field">
+        <label>Baseline mood / outlook <span id="ob-mood-val">6 / 10</span></label>
+        <input type="range" id="ob-mood" min="1" max="10" step="1" value="6">
+        <div class="slider-endpoints"><span>Very low</span><span>Thriving</span></div>
+      </div>
+      <div class="slider-field">
+        <label>Screen time per day <span id="ob-screen-val">4h</span></label>
+        <input type="range" id="ob-screen" min="0" max="12" step="0.5" value="4">
+        <div class="slider-endpoints"><span>Almost none</span><span>12h+</span></div>
+      </div>
+      <div class="field">
+        <label>Mindfulness or mental health practice</label>
+        <div class="chips" id="ob-mindfulness-chips">
+          <div class="chip chip-multi" data-val="meditation">Meditation</div>
+          <div class="chip chip-multi" data-val="journaling">Journaling</div>
+          <div class="chip chip-multi" data-val="therapy">Therapy</div>
+          <div class="chip chip-multi" data-val="breathing">Breathing exercises</div>
+          <div class="chip chip-multi" data-val="none">None currently</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>How do you prefer to be held accountable?</label>
+        <div class="chips" id="ob-accountability-chips">
+          <div class="chip" data-val="solo">Just me</div>
+          <div class="chip" data-val="app">App reminders</div>
+          <div class="chip" data-val="friend">Friend / partner</div>
+          <div class="chip" data-val="coach">Coach / trainer</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Describe yourself in one sentence — personality, energy, how you approach challenges</label>
+        <textarea id="ob-self-describe" placeholder="There's no right answer — this is for the AI to understand who you are…" style="min-height:70px"></textarea>
+      </div>
+    </div>
+
+    <!-- ══ PAGE 8: Story & Vision ══ -->
+    <div class="ob-page" id="page-8">
+      <div class="field">
+        <label>What does your life look like 1 year from now if this all goes right? <span style="color:var(--accent2);font-weight:400;font-size:0.74rem">✦ Claude will analyze this</span></label>
+        <textarea id="ob-success-vision" placeholder="Paint the picture — how do you look, feel, what are you doing differently?" style="min-height:100px"></textarea>
+      </div>
+      <div class="field">
+        <label>What are your top life priorities right now? <span style="color:var(--muted);font-weight:400">(pick up to 3)</span></label>
+        <div class="chips" id="ob-priorities-chips">
+          <div class="chip chip-multi" data-val="career">Career</div>
+          <div class="chip chip-multi" data-val="family">Family</div>
+          <div class="chip chip-multi" data-val="health">Health</div>
+          <div class="chip chip-multi" data-val="relationships">Relationships</div>
+          <div class="chip chip-multi" data-val="financial">Financial</div>
+          <div class="chip chip-multi" data-val="personal_growth">Personal growth</div>
+          <div class="chip chip-multi" data-val="creative">Creative pursuits</div>
+          <div class="chip chip-multi" data-val="travel">Travel / experiences</div>
+          <div class="chip chip-multi" data-val="spiritual">Spiritual / purpose</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Anything else you want Apex to know about you?</label>
+        <textarea id="ob-extra" placeholder="Context that doesn't fit anywhere else — health history, specific circumstances, anything…" style="min-height:70px"></textarea>
+      </div>
+    </div>
+
+    <!-- ══ PAGE 9: Connections ══ -->
+    <div class="ob-page" id="page-9">
+      <p style="font-size:0.88rem;color:var(--muted);line-height:1.6;margin-bottom:1.25rem">
+        Apex will eventually connect to these data sources to give you a complete picture of your life. Nothing is connected yet — this tells us what you're open to.
+      </p>
+      <div class="field">
+        <label>Data you'd be open to connecting <span style="color:var(--muted);font-weight:400">(pick all that apply)</span></label>
+        <div class="chips" id="ob-connect-chips">
+          <div class="chip chip-multi" data-val="gmail">Gmail (health, purchases)</div>
+          <div class="chip chip-multi" data-val="banking">Banking / spending (Plaid)</div>
+          <div class="chip chip-multi" data-val="sms">SMS patterns</div>
+          <div class="chip chip-multi" data-val="wearable">Wearable data</div>
+          <div class="chip chip-multi" data-val="calendar">Calendar / schedule</div>
+          <div class="chip chip-multi" data-val="none">None right now</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Financial goals <span style="color:var(--muted);font-weight:400">(optional — for holistic life insights)</span></label>
+        <textarea id="ob-financial-goals" placeholder="e.g. Pay off debt, save 6-month emergency fund, invest more, buy a home — or skip this…" style="min-height:70px"></textarea>
+      </div>
+      <div class="slider-field">
+        <label>Financial stress level <span id="ob-fin-stress-val">4 / 10</span></label>
+        <input type="range" id="ob-fin-stress" min="1" max="10" step="1" value="4">
+        <div class="slider-endpoints"><span>Comfortable</span><span>Very stressed</span></div>
+      </div>
+    </div>
+
+    <!-- ══ PAGE 10: Processing ══ -->
+    <div class="ob-page" id="page-10">
+      <div class="ob-spinner" id="ob-spinner">
+        <div class="spinner-ring"></div>
+        <div>
+          <strong style="color:var(--text)">Building your profile…</strong>
+          <p style="font-size:0.82rem;color:var(--muted);margin-top:0.4rem">Claude is analysing your responses and generating your 200-variable personal profile. This takes about 15 seconds.</p>
+        </div>
+      </div>
+      <div class="ob-complete" id="ob-complete" style="display:none">
+        <div class="ob-complete-icon">✦</div>
+        <h2>Your Profile is Ready</h2>
+        <p>Apex now understands who you are. Your dashboard is calibrated to your goals, lifestyle, and motivations.</p>
+        <div class="ob-profile-summary" id="ob-profile-summary"></div>
+        <div class="error-msg" id="ob-error" style="display:none;margin-top:1rem"></div>
+        <button class="btn btn-primary" id="ob-enter-btn" style="width:100%;margin-top:1.5rem;padding:0.9rem;font-size:1rem" onclick="window.location.href='/'">
+          Enter Apex ›
+        </button>
+      </div>
+    </div>
+
+  </div><!-- /ob-pages -->
+
+  <div class="ob-footer" id="ob-footer">
+    <button class="btn btn-ghost" id="ob-back-btn" style="display:none" onclick="obBack()">← Back</button>
+    <button class="btn btn-primary" id="ob-next-btn" onclick="obNext()">Continue →</button>
+  </div>
+
+</div><!-- /ob-wrap -->
+
+<script>
+(function() {
+  const TOTAL_PAGES = 9; // page 10 is processing — no nav buttons
+  let currentPage = 1;
+
+  const PAGE_META = [
+    { title: "Let's get to know you",  sub: "Basic identity — helps us personalise everything." },
+    { title: "Your body right now",    sub: "Physical stats used to calculate your metabolism and goals." },
+    { title: "What you're after",      sub: "Your goals and the real reason behind them." },
+    { title: "Your daily life",        sub: "Lifestyle factors have a huge impact on health." },
+    { title: "Food & nutrition",       sub: "Your relationship with food shapes every recommendation." },
+    { title: "Fitness & movement",     sub: "Where you are now and what you enjoy." },
+    { title: "Mind & wellbeing",       sub: "Mental state matters as much as physical." },
+    { title: "Your story & vision",    sub: "The big picture — where you're headed." },
+    { title: "Future connections",     sub: "What data sources you'd be open to connecting." },
+  ];
+
+  // ── Single-select chip groups ──────────────────────────────────
+  document.querySelectorAll(".chips:not(#ob-ex-type-chips):not(#ob-mindfulness-chips):not(#ob-connect-chips):not(#ob-priorities-chips)").forEach(group => {
+    group.querySelectorAll(".chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        group.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+        chip.classList.toggle("active");
+      });
+    });
+  });
+
+  // ── Multi-select chip groups ───────────────────────────────────
+  document.querySelectorAll("#ob-ex-type-chips, #ob-mindfulness-chips, #ob-connect-chips, #ob-priorities-chips").forEach(group => {
+    const isLimited = group.id === "ob-priorities-chips";
+    group.querySelectorAll(".chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        if (isLimited) {
+          const active = group.querySelectorAll(".chip.active");
+          if (!chip.classList.contains("active") && active.length >= 3) return;
+        }
+        chip.classList.toggle("active");
+      });
+    });
+  });
+
+  // ── Sliders ────────────────────────────────────────────────────
+  function bindSlider(id, labelId, fmt) {
+    const el = document.getElementById(id);
+    const lbl = document.getElementById(labelId);
+    if (!el || !lbl) return;
+    el.addEventListener("input", () => { lbl.textContent = fmt(el.value); });
+    lbl.textContent = fmt(el.value);
+  }
+  bindSlider("ob-work-hrs",      "ob-work-hrs-val",    v => v + "h");
+  bindSlider("ob-sleep",         "ob-sleep-val",        v => v + "h");
+  bindSlider("ob-stress",        "ob-stress-val",       v => v + " / 10");
+  bindSlider("ob-energy",        "ob-energy-val",       v => v + " / 10");
+  bindSlider("ob-mood",          "ob-mood-val",         v => v + " / 10");
+  bindSlider("ob-screen",        "ob-screen-val",       v => v + "h");
+  bindSlider("ob-workout-days",  "ob-workout-days-val", v => v + " day" + (v == 1 ? "" : "s"));
+  bindSlider("ob-caffeine",      "ob-caffeine-val",     v => v == 0 ? "None" : v + " cup" + (v == 1 ? "" : "s") + "/day");
+  bindSlider("ob-fin-stress",    "ob-fin-stress-val",   v => v + " / 10");
+  bindSlider("ob-cook", "ob-cook-val", v => {
+    const labels = ["Always cook","Mostly cook","Usually cook","Cook often","Half & half",
+                    "Eat out often","Usually eat out","Mostly eat out","Rarely cook","Almost never cook","Always eat out"];
+    return labels[parseInt(v)] || "Half & half";
+  });
+
+  // ── BMI preview on page 2 ──────────────────────────────────────
+  function updateBMI() {
+    const ft = parseFloat(document.getElementById("ob-height-ft").value) || 0;
+    const inch = parseFloat(document.getElementById("ob-height-in").value) || 0;
+    const wt  = parseFloat(document.getElementById("ob-cur-weight").value) || 0;
+    const totalIn = ft * 12 + inch;
+    const el = document.getElementById("ob-bmi-preview");
+    if (!el) return;
+    if (totalIn > 0 && wt > 0) {
+      const bmi = (wt / (totalIn * totalIn) * 703).toFixed(1);
+      let cat = bmi < 18.5 ? "Underweight" : bmi < 25 ? "Healthy weight" : bmi < 30 ? "Overweight" : "Obese";
+      el.style.display = "";
+      el.textContent = `BMI: ${bmi} — ${cat}`;
+    } else {
+      el.style.display = "none";
+    }
+  }
+  ["ob-height-ft","ob-height-in","ob-cur-weight"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("input", updateBMI);
+  });
+
+  // ── DOB → auto-fill age ────────────────────────────────────────
+  document.getElementById("ob-dob").addEventListener("change", function() {
+    if (!this.value) return;
+    const age = Math.floor((Date.now() - new Date(this.value)) / 31557600000);
+    document.getElementById("ob-age").value = age;
+  });
+
+  // ── Collect page data ──────────────────────────────────────────
+  function chipVal(groupId) {
+    const group = document.getElementById(groupId);
+    if (!group) return null;
+    const active = [...group.querySelectorAll(".chip.active")].map(c => c.dataset.val);
+    return active.length === 0 ? null : active.length === 1 ? active[0] : active;
+  }
+
+  function collectAll() {
+    return {
+      // Page 1
+      first_name:        document.getElementById("ob-first-name").value.trim() || null,
+      date_of_birth:     document.getElementById("ob-dob").value || null,
+      age:               parseInt(document.getElementById("ob-age").value) || null,
+      gender:            chipVal("ob-gender-chips"),
+      relationship_status: chipVal("ob-rel-chips"),
+      living_situation:  chipVal("ob-living-chips"),
+      // Page 2
+      height_ft:         parseFloat(document.getElementById("ob-height-ft").value) || null,
+      height_in:         parseFloat(document.getElementById("ob-height-in").value) || null,
+      body_fat_pct:      parseFloat(document.getElementById("ob-bf").value) || null,
+      current_weight_lbs: parseFloat(document.getElementById("ob-cur-weight").value) || null,
+      target_weight_lbs: parseFloat(document.getElementById("ob-tgt-weight").value) || null,
+      // Page 3
+      primary_goal:      chipVal("ob-goal-chips"),
+      goal_timeline:     chipVal("ob-timeline-chips"),
+      goal_why_raw:      document.getElementById("ob-goal-why").value.trim() || null,
+      previous_attempts: document.getElementById("ob-prev-attempts").value.trim() || null,
+      typical_obstacles: document.getElementById("ob-obstacles").value.trim() || null,
+      // Page 4
+      occupation_description: document.getElementById("ob-occupation").value.trim() || null,
+      work_style:        chipVal("ob-work-style-chips"),
+      work_hours_per_week: parseInt(document.getElementById("ob-work-hrs").value),
+      sleep_hours_per_night: parseFloat(document.getElementById("ob-sleep").value),
+      stress_level_1_10: parseInt(document.getElementById("ob-stress").value),
+      stress_main_source: chipVal("ob-stress-src-chips"),
+      // Page 5
+      diet_type:         chipVal("ob-diet-chips"),
+      dietary_restrictions: document.getElementById("ob-allergies").value.trim() || null,
+      foods_loved_raw:   document.getElementById("ob-foods-loved").value.trim() || null,
+      foods_disliked_raw: document.getElementById("ob-foods-disliked").value.trim() || null,
+      cook_vs_eat_out:   parseInt(document.getElementById("ob-cook").value),
+      alcohol_frequency: chipVal("ob-alcohol-chips"),
+      caffeine_cups_per_day: parseInt(document.getElementById("ob-caffeine").value),
+      // Page 6
+      fitness_experience_level: chipVal("ob-exp-chips"),
+      workout_days_per_week: parseInt(document.getElementById("ob-workout-days").value),
+      workout_types_enjoyed: chipVal("ob-ex-type-chips"),
+      activity_level_outside_gym: chipVal("ob-activity-chips"),
+      injuries_limitations: document.getElementById("ob-injuries").value.trim() || null,
+      current_wearable:  chipVal("ob-wearable-chips"),
+      // Page 7
+      energy_level_1_10: parseInt(document.getElementById("ob-energy").value),
+      mood_baseline_1_10: parseInt(document.getElementById("ob-mood").value),
+      screen_time_hours: parseFloat(document.getElementById("ob-screen").value),
+      mindfulness_practices: chipVal("ob-mindfulness-chips"),
+      accountability_preference: chipVal("ob-accountability-chips"),
+      self_description:  document.getElementById("ob-self-describe").value.trim() || null,
+      // Page 8
+      success_vision_1yr: document.getElementById("ob-success-vision").value.trim() || null,
+      life_priorities:   chipVal("ob-priorities-chips"),
+      extra_context:     document.getElementById("ob-extra").value.trim() || null,
+      // Page 9
+      willing_to_connect: chipVal("ob-connect-chips"),
+      financial_goals_raw: document.getElementById("ob-financial-goals").value.trim() || null,
+      financial_stress_1_10: parseInt(document.getElementById("ob-fin-stress").value),
+    };
+  }
+
+  // ── Navigation ─────────────────────────────────────────────────
+  function updateUI() {
+    for (let i = 1; i <= 10; i++) {
+      document.getElementById("page-" + i).classList.toggle("active", i === currentPage);
+    }
+    const pct = Math.round((currentPage / (TOTAL_PAGES + 1)) * 100);
+    document.getElementById("ob-progress-fill").style.width = pct + "%";
+    document.getElementById("ob-back-btn").style.display = currentPage > 1 ? "" : "none";
+    const footer = document.getElementById("ob-footer");
+    const nextBtn = document.getElementById("ob-next-btn");
+
+    if (currentPage === 10) {
+      footer.style.display = "none";
+    } else {
+      footer.style.display = "flex";
+      nextBtn.textContent = currentPage === TOTAL_PAGES ? "Build My Profile →" : "Continue →";
+    }
+
+    const meta = PAGE_META[currentPage - 1];
+    if (meta) {
+      document.getElementById("ob-page-title").textContent = meta.title;
+      document.getElementById("ob-page-sub").textContent   = meta.sub;
+    }
+    document.getElementById("ob-step-label").textContent = currentPage <= TOTAL_PAGES
+      ? `Step ${currentPage} of ${TOTAL_PAGES}`
+      : "One moment…";
+    document.getElementById("content")?.scrollTo(0, 0);
+    window.scrollTo(0, 0);
+  }
+
+  window.obBack = function() {
+    if (currentPage > 1) { currentPage--; updateUI(); }
+  };
+
+  window.obNext = async function() {
+    if (currentPage < TOTAL_PAGES) {
+      // Save current progress silently
+      try {
+        await fetch("/api/onboarding/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(collectAll()),
+        });
+      } catch (_) {}
+      currentPage++;
+      updateUI();
+    } else {
+      // Final page — run Claude
+      currentPage = 10;
+      updateUI();
+      runCompletion();
+    }
+  };
+
+  async function runCompletion() {
+    document.getElementById("ob-spinner").classList.add("show");
+    document.getElementById("ob-complete").style.display = "none";
+
+    // Save final data first
+    try {
+      await fetch("/api/onboarding/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(collectAll()),
+      });
+    } catch (_) {}
+
+    // Now generate profile
+    try {
+      const res = await fetch("/api/onboarding/complete", { method: "POST" });
+      const data = await res.json();
+      document.getElementById("ob-spinner").classList.remove("show");
+      document.getElementById("ob-complete").style.display = "block";
+
+      if (!res.ok || data.error) {
+        document.getElementById("ob-error").textContent = data.error || "Something went wrong.";
+        document.getElementById("ob-error").style.display = "";
+        return;
+      }
+
+      buildSummary(data.profile || {});
+    } catch (err) {
+      document.getElementById("ob-spinner").classList.remove("show");
+      document.getElementById("ob-complete").style.display = "block";
+      document.getElementById("ob-error").textContent = "Network error — please try again.";
+      document.getElementById("ob-error").style.display = "";
+    }
+  }
+
+  function buildSummary(p) {
+    const rows = [
+      ["Name",        p.first_name || "—"],
+      ["BMI",         p.bmi ? p.bmi.toFixed(1) : "—"],
+      ["RMR",         p.rmr_kcal ? p.rmr_kcal + " kcal" : "—"],
+      ["Calorie goal",p.daily_calorie_goal ? p.daily_calorie_goal + " kcal / day" : "—"],
+      ["Protein goal",p.daily_protein_goal_g ? p.daily_protein_goal_g + "g / day" : "—"],
+      ["To goal",     p.lbs_to_goal ? p.lbs_to_goal + " lbs · ~" + (p.weeks_to_goal || "?") + " weeks" : "—"],
+      ["Archetype",   p.behavioral_archetype || "—"],
+      ["Readiness",   p.readiness_score_0_100 != null ? p.readiness_score_0_100 + " / 100" : "—"],
+    ];
+    if (p.personalized_insight) {
+      rows.push(["Insight", p.personalized_insight]);
+    }
+    document.getElementById("ob-profile-summary").innerHTML = rows.map(([k, v]) =>
+      `<div class="summary-row"><span class="k">${k}</span><span class="v">${v}</span></div>`
+    ).join("");
+  }
+
+  // Load saved data if returning to onboarding
+  const saved = {{ saved | tojson }};
+  if (saved && Object.keys(saved).length) {
+    const s = saved;
+    function setVal(id, val) {
+      const el = document.getElementById(id);
+      if (el && val != null) el.value = val;
+    }
+    function setChip(groupId, val) {
+      if (val == null) return;
+      const vals = Array.isArray(val) ? val : [val];
+      const group = document.getElementById(groupId);
+      if (!group) return;
+      group.querySelectorAll(".chip").forEach(c => {
+        c.classList.toggle("active", vals.includes(c.dataset.val));
+      });
+    }
+    setVal("ob-first-name", s.first_name); setVal("ob-dob", s.date_of_birth);
+    setVal("ob-age", s.age); setChip("ob-gender-chips", s.gender);
+    setChip("ob-rel-chips", s.relationship_status); setChip("ob-living-chips", s.living_situation);
+    setVal("ob-height-ft", s.height_ft); setVal("ob-height-in", s.height_in);
+    setVal("ob-bf", s.body_fat_pct); setVal("ob-cur-weight", s.current_weight_lbs);
+    setVal("ob-tgt-weight", s.target_weight_lbs);
+    setChip("ob-goal-chips", s.primary_goal); setChip("ob-timeline-chips", s.goal_timeline);
+    setVal("ob-goal-why", s.goal_why_raw); setVal("ob-prev-attempts", s.previous_attempts);
+    setVal("ob-obstacles", s.typical_obstacles);
+    setVal("ob-occupation", s.occupation_description); setChip("ob-work-style-chips", s.work_style);
+    setVal("ob-work-hrs", s.work_hours_per_week); setVal("ob-sleep", s.sleep_hours_per_night);
+    setVal("ob-stress", s.stress_level_1_10); setChip("ob-stress-src-chips", s.stress_main_source);
+    setChip("ob-diet-chips", s.diet_type); setVal("ob-allergies", s.dietary_restrictions);
+    setVal("ob-foods-loved", s.foods_loved_raw); setVal("ob-foods-disliked", s.foods_disliked_raw);
+    setVal("ob-cook", s.cook_vs_eat_out); setChip("ob-alcohol-chips", s.alcohol_frequency);
+    setVal("ob-caffeine", s.caffeine_cups_per_day);
+    setChip("ob-exp-chips", s.fitness_experience_level);
+    setVal("ob-workout-days", s.workout_days_per_week);
+    setChip("ob-ex-type-chips", s.workout_types_enjoyed);
+    setChip("ob-activity-chips", s.activity_level_outside_gym);
+    setVal("ob-injuries", s.injuries_limitations); setChip("ob-wearable-chips", s.current_wearable);
+    setVal("ob-energy", s.energy_level_1_10); setVal("ob-mood", s.mood_baseline_1_10);
+    setVal("ob-screen", s.screen_time_hours);
+    setChip("ob-mindfulness-chips", s.mindfulness_practices);
+    setChip("ob-accountability-chips", s.accountability_preference);
+    setVal("ob-self-describe", s.self_description);
+    setVal("ob-success-vision", s.success_vision_1yr);
+    setChip("ob-priorities-chips", s.life_priorities);
+    setVal("ob-extra", s.extra_context);
+    setChip("ob-connect-chips", s.willing_to_connect);
+    setVal("ob-financial-goals", s.financial_goals_raw);
+    setVal("ob-fin-stress", s.financial_stress_1_10);
+    // Re-fire slider labels
+    ["ob-work-hrs","ob-sleep","ob-stress","ob-energy","ob-mood","ob-screen",
+     "ob-workout-days","ob-caffeine","ob-fin-stress","ob-cook"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.dispatchEvent(new Event("input"));
+    });
+    updateBMI();
+  }
+
+  updateUI();
+})();
+</script>
+</body>
+</html>
