@@ -595,6 +595,48 @@
       color: var(--muted); font-size: 0.88rem; cursor: pointer; margin-top: 0.25rem;
     }
 
+    /* ══ EDIT MEAL MODAL ════════════════════════ */
+    #edit-meal-modal {
+      position: fixed; inset: 0; z-index: 400;
+      display: none; align-items: center; justify-content: center; padding: 1.5rem;
+    }
+    #edit-meal-modal.active { display: flex; }
+    #edit-meal-backdrop {
+      position: absolute; inset: 0; background: rgba(0,0,0,0.68);
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    }
+    #edit-meal-box {
+      position: relative; z-index: 1; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 18px;
+      padding: 1.5rem 1.25rem; width: 100%; max-width: 360px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    }
+    #edit-meal-box textarea {
+      width: 100%; box-sizing: border-box; resize: none;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text); font-size: 0.9rem;
+      padding: 0.6rem 0.75rem; margin-bottom: 0.75rem; font-family: inherit;
+    }
+    .edit-meal-macros {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .edit-meal-macros label {
+      display: block; font-size: 0.65rem; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .03em; margin-bottom: 0.2rem;
+    }
+    .edit-meal-macros input {
+      width: 100%; box-sizing: border-box; background: var(--surface2);
+      border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); font-size: 0.9rem; padding: 0.5rem 0.4rem; text-align: center;
+    }
+    .btn-edit-meal {
+      padding: 0.2rem 0.45rem; font-size: 0.78rem; line-height: 1.2;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--muted); cursor: pointer;
+    }
+    .btn-edit-meal:hover { border-color: var(--accent); color: var(--accent); }
+
     /* ══ SAVE FLASH ══════════════════════════════ */
     #save-flash {
       position: fixed; inset: 0; z-index: 9999; pointer-events: none;
@@ -813,7 +855,10 @@
               <td class="td-pro">{{ "%.0f"|format(meal.protein_g) }}g</td>
               <td class="td-carb">{{ "%.0f"|format(meal.carbs_g) }}g</td>
               <td class="td-fat">{{ "%.0f"|format(meal.fat_g) }}g</td>
-              <td><button type="button" class="btn btn-danger" onclick="deleteMeal({{ meal.id }})">✕</button></td>
+              <td style="white-space:nowrap">
+                <button type="button" class="btn-edit-meal" onclick="editMeal({{ meal.id }}, {{ meal.description|tojson }}, {{ meal.calories }}, {{ meal.protein_g }}, {{ meal.carbs_g }}, {{ meal.fat_g }})">✎</button>
+                <button type="button" class="btn btn-danger" onclick="deleteMeal({{ meal.id }})">✕</button>
+              </td>
             </tr>
             {% endfor %}
             <tr class="totals-row">
@@ -1400,6 +1445,26 @@
   </div>
 </div>
 
+<!-- Edit meal modal -->
+<div id="edit-meal-modal">
+  <div id="edit-meal-backdrop"></div>
+  <div id="edit-meal-box">
+    <div class="photo-source-title">Edit Meal</div>
+    <input type="hidden" id="edit-meal-id">
+    <textarea id="edit-meal-desc" rows="2" placeholder="Description"></textarea>
+    <div class="edit-meal-macros">
+      <div><label>Cal</label><input type="number" id="edit-meal-cal" min="0"></div>
+      <div><label>Pro (g)</label><input type="number" id="edit-meal-pro" min="0" step="0.1"></div>
+      <div><label>Carb (g)</label><input type="number" id="edit-meal-carb" min="0" step="0.1"></div>
+      <div><label>Fat (g)</label><input type="number" id="edit-meal-fat" min="0" step="0.1"></div>
+    </div>
+    <div style="display:flex;gap:0.5rem">
+      <button id="edit-meal-save-btn" class="btn btn-primary" style="flex:1">Save</button>
+      <button id="edit-meal-cancel-btn" class="btn btn-ghost">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════════════════════════════════════════════
      CHECKLIST OVERLAY (full-screen, above everything)
 ══════════════════════════════════════════════════════ -->
@@ -1727,13 +1792,17 @@ function renderMealTable(meals, totals) {
   if (meals && meals.length > 0) {
     html += '<table class="meal-table"><thead><tr><th>Meal</th><th>Cal</th><th>Pro</th><th>Carb</th><th>Fat</th><th></th></tr></thead><tbody>';
     meals.forEach(m => {
+      const ed = `editMeal(${m.id},${JSON.stringify(m.description)},${m.calories},${m.protein_g},${m.carbs_g},${m.fat_g})`;
       html += `<tr>
         <td>${m.description}</td>
         <td class="td-cal">${m.calories}</td>
         <td class="td-pro">${Math.round(m.protein_g)}g</td>
         <td class="td-carb">${Math.round(m.carbs_g)}g</td>
         <td class="td-fat">${Math.round(m.fat_g)}g</td>
-        <td><button type="button" class="btn btn-danger" onclick="deleteMeal(${m.id})">✕</button></td>
+        <td style="white-space:nowrap">
+          <button type="button" class="btn-edit-meal" onclick="${ed}">✎</button>
+          <button type="button" class="btn btn-danger" onclick="deleteMeal(${m.id})">✕</button>
+        </td>
       </tr>`;
     });
     html += `<tr class="totals-row">
@@ -1819,6 +1888,80 @@ function deleteMeal(id) {
       flashRed();
     });
 }
+
+// ── Edit meal ─────────────────────────────────────────────────────────────────
+
+const _editModal     = document.getElementById("edit-meal-modal");
+const _editIdField   = document.getElementById("edit-meal-id");
+const _editDesc      = document.getElementById("edit-meal-desc");
+const _editCal       = document.getElementById("edit-meal-cal");
+const _editPro       = document.getElementById("edit-meal-pro");
+const _editCarb      = document.getElementById("edit-meal-carb");
+const _editFat       = document.getElementById("edit-meal-fat");
+const _editSaveBtn   = document.getElementById("edit-meal-save-btn");
+const _editCancelBtn = document.getElementById("edit-meal-cancel-btn");
+const _editBackdrop  = document.getElementById("edit-meal-backdrop");
+
+function editMeal(id, description, calories, protein_g, carbs_g, fat_g) {
+  _editIdField.value = id;
+  _editDesc.value    = description;
+  _editCal.value     = calories;
+  _editPro.value     = protein_g;
+  _editCarb.value    = carbs_g;
+  _editFat.value     = fat_g;
+  _editModal.classList.add("active");
+  _editDesc.focus();
+}
+
+function _closeEditModal() {
+  _editModal.classList.remove("active");
+}
+
+_editCancelBtn.addEventListener("click", _closeEditModal);
+_editBackdrop.addEventListener("click", _closeEditModal);
+
+_editSaveBtn.addEventListener("click", () => {
+  const id = parseInt(_editIdField.value, 10);
+  const body = {
+    description: _editDesc.value.trim(),
+    calories:    parseInt(_editCal.value)   || 0,
+    protein_g:   parseFloat(_editPro.value) || 0,
+    carbs_g:     parseFloat(_editCarb.value)|| 0,
+    fat_g:       parseFloat(_editFat.value) || 0,
+  };
+  if (!body.description) return;
+  _editSaveBtn.disabled = true;
+  _editSaveBtn.textContent = "Saving…";
+  fetch(`/api/edit-meal/${id}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+    .then(r => r.json())
+    .then(data => {
+      _editSaveBtn.disabled = false;
+      _editSaveBtn.textContent = "Save";
+      if (data.error) return;
+      _closeEditModal();
+      CAL_CONSUMED     = data.totals.total_calories;
+      PROTEIN_CONSUMED = data.totals.total_protein;
+      CARBS_CONSUMED   = data.totals.total_carbs;
+      FAT_CONSUMED     = data.totals.total_fat;
+      renderMealTable(data.meals, data.totals);
+      try {
+        const p = localStorage.getItem("profileData");
+        if (p) applyProfileToMeals(JSON.parse(p));
+      } catch(e) {}
+      if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+      if (typeof window._patchTodayInCharts === "function") window._patchTodayInCharts(data.totals, null);
+      if (typeof window._rebuildHistory === "function") window._rebuildHistory();
+      flashGreen();
+    })
+    .catch(() => {
+      _editSaveBtn.disabled = false;
+      _editSaveBtn.textContent = "Save";
+    });
+});
 
 function deleteWorkout(id) {
   fetch(`/api/delete-workout/${id}`, { method: 'POST' })

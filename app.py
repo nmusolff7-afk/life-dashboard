@@ -7,7 +7,7 @@ from functools import wraps
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 from db import (
     init_db, create_user, verify_user,
-    insert_meal, get_today_meals, get_today_totals, delete_meal,
+    insert_meal, get_today_meals, get_today_totals, update_meal, delete_meal,
     insert_workout, get_today_workouts, delete_workout, get_today_workout_burn,
     get_meal_history, get_workout_history, get_day_detail,
     upsert_garmin_daily, get_garmin_daily, get_garmin_last_sync,
@@ -180,6 +180,25 @@ def api_log_meal():
         return jsonify({"meals": get_today_meals(uid(), cd), "totals": get_today_totals(uid(), cd)})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/edit-meal/<int:meal_id>", methods=["POST"])
+@login_required
+def api_edit_meal(meal_id):
+    data = request.get_json() or {}
+    description = data.get("description", "").strip()
+    if not description:
+        return jsonify({"error": "No description"}), 400
+    update_meal(
+        meal_id, uid(),
+        description=description,
+        calories=int(data.get("calories", 0)),
+        protein_g=float(data.get("protein_g", 0)),
+        carbs_g=float(data.get("carbs_g", 0)),
+        fat_g=float(data.get("fat_g", 0)),
+    )
+    cd = client_today()
+    return jsonify({"meals": get_today_meals(uid(), cd), "totals": get_today_totals(uid(), cd)})
 
 
 @app.route("/api/delete-meal/<int:meal_id>", methods=["POST"])

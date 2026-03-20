@@ -170,6 +170,15 @@ def get_today_totals(user_id, log_date=None):
     return dict(row)
 
 
+def update_meal(meal_id, user_id, description, calories, protein_g, carbs_g, fat_g):
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE meal_logs SET description=?, calories=?, protein_g=?, carbs_g=?, fat_g=? WHERE id=? AND user_id=?",
+            (description, calories, protein_g, carbs_g, fat_g, meal_id, user_id),
+        )
+        conn.commit()
+
+
 def delete_meal(meal_id, user_id):
     with get_conn() as conn:
         conn.execute("DELETE FROM meal_logs WHERE id = ? AND user_id = ?", (meal_id, user_id))
