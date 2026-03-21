@@ -152,54 +152,163 @@ def generate_profile_map(raw_inputs: dict) -> dict:
     return result
 
 
-MIND_INSIGHTS_PROMPT = """You are an analytical health intelligence system. Given a user's comprehensive profile map, generate a structured set of insights and metrics for their personal dashboard.
+def compute_mind_insights(profile_map: dict) -> dict:
+    """Derive Mind tab insights from the stored profile_map — no API call needed."""
+    p = profile_map or {}
 
-Return ONLY a valid JSON object with these exact keys:
+    def _num(key, default=5):
+        """Safely coerce a profile field to float, falling back to default."""
+        v = p.get(key)
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return float(default)
 
-{
-  "readiness_score": <0-100 integer>,
-  "readiness_label": "<Excellent|Good|Fair|Needs Work>",
-  "body": {
-    "bmi": <number or null>,
-    "bmi_category": "<string or null>",
-    "rmr": <integer or null>,
-    "tdee": <integer or null>,
-    "calorie_goal": <integer or null>,
-    "protein_goal_g": <integer or null>,
-    "lbs_to_goal": <number or null>,
-    "weeks_to_goal": <integer or null>,
-    "weight_loss_rate": <number or null>
-  },
-  "scores": [
-    {"label": "<label>", "value": <1-10>, "context": "<1 sentence>"},
-    ... (6-8 scores total covering energy, stress, sleep, motivation, consistency risk, etc.)
-  ],
-  "strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
-  "risks": ["<risk 1>", "<risk 2>", "<risk 3>"],
-  "top_actions": ["<action 1>", "<action 2>", "<action 3>"],
-  "behavioral_archetype": "<2-4 word archetype name>",
-  "archetype_description": "<1-2 sentences>",
-  "personalized_insight": "<2-3 sentences that feel deeply personal and accurate>",
-  "calorie_strategy": "<1 sentence>",
-  "macro_strategy": "<1 sentence>",
-  "sleep_priority": "<High|Medium|Low>",
-  "stress_priority": "<High|Medium|Low>",
-  "biggest_leverage_point": "<The single highest-impact change this person could make>"
-}"""
+    def _priority(score, high_thresh, low_thresh, inverted=False):
+        """Convert a 1-10 score to High/Medium/Low priority string."""
+        v = score if not inverted else (10 - score)
+        if v >= high_thresh:
+            return "High"
+        if v <= low_thresh:
+            return "Low"
+        return "Medium"
 
+    def _bmi_category(bmi):
+        if bmi is None:
+            return None
+        b = float(bmi)
+        if b < 18.5:
+            return "Underweight"
+        if b < 25:
+            return "Normal"
+        if b < 30:
+            return "Overweight"
+        return "Obese"
 
-def generate_mind_insights(profile_map: dict) -> dict:
-    """Generate Mind tab insights from the profile map using Claude Sonnet."""
-    response = _client().messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=2048,
-        system=MIND_INSIGHTS_PROMPT,
-        messages=[{"role": "user", "content": json.dumps(profile_map)}],
+    # ── Subscores (all normalised to 0-100) ───────────────────────────────────
+    energy     = _num("energy_level_typical_1_10") * 10          # higher = better
+    sleep      = _num("sleep_quality_1_10") * 10                  # higher = better
+    stress_inv = (10 - _num("stress_level_1_10")) * 10            # lower stress = better
+    motivation = (_num("goal_urgency_1_10") + _num("goal_confidence_1_10")) / 2 * 10
+    mindset    = (_num("growth_mindset_score_1_10") + _num("self_efficacy_score_1_10")) / 2 * 10
+    mood       = _num("mood_baseline_1_10") * 10                  # higher = better
+    anxiety_inv= (10 - _num("anxiety_level_1_10")) * 10           # lower anxiety = better
+
+    # Weighted readiness score
+    readiness = int(round(
+        energy     * 0.15 +
+        sleep      * 0.15 +
+        stress_inv * 0.15 +
+        motivation * 0.20 +
+        mindset    * 0.15 +
+        mood       * 0.10 +
+        anxiety_inv* 0.10
+    ))
+    readiness = max(0, min(100, readiness))
+
+    if readiness >= 80:
+        label = "Excellent"
+    elif readiness >= 60:
+        label = "Good"
+    elif readiness >= 40:
+        label = "Fair"
+    else:
+        label = "Needs Work"
+
+    # ── Body metrics ─────────────────────────────────────────────────────────
+    raw_bmi = p.get("bmi")
+    try:
+        bmi_val = round(float(raw_bmi), 1)
+    except (TypeError, ValueError):
+        bmi_val = None
+
+    body = {
+        "bmi":              bmi_val,
+        "bmi_category":     _bmi_category(bmi_val),
+        "rmr":              p.get("rmr_kcal"),
+        "tdee":             p.get("tdee_kcal"),
+        "calorie_goal":     p.get("daily_calorie_goal"),
+        "protein_goal_g":   p.get("daily_protein_goal_g"),
+        "lbs_to_goal":      p.get("lbs_to_goal"),
+        "weeks_to_goal":    p.get("weeks_to_goal"),
+        "weight_loss_rate": p.get("weight_loss_rate_lbs_per_week"),
+    }
+
+    # ── Wellness scores array ────────────────────────────────────────────────
+    def _score_context(label, val):
+        """Generate a one-line context string from a score value."""
+        if val >= 8:
+            return f"{label} is a clear strength — keep it up."
+        if val >= 6:
+            return f"{label} is solid with room to grow."
+        if val >= 4:
+            return f"{label} is moderate — worth attention."
+        return f"{label} is a priority area to address."
+
+    raw_consistency = 10 - (
+        (_num("perfectionism_tendency", 5) + _num("all_or_nothing_thinking", 5)) / 2
     )
-    text = next(b.text for b in response.content if b.type == "text").strip()
-    if text.startswith("```"):
-        text = text.split("```")[1]
-        if text.startswith("json"):
-            text = text[4:]
-        text = text.strip()
-    return json.loads(text)
+
+    scores = [
+        {"label": "Energy",       "value": round(_num("energy_level_typical_1_10")),   "context": _score_context("Energy", _num("energy_level_typical_1_10"))},
+        {"label": "Sleep",        "value": round(_num("sleep_quality_1_10")),           "context": _score_context("Sleep quality", _num("sleep_quality_1_10"))},
+        {"label": "Stress",       "value": round(10 - _num("stress_level_1_10")),       "context": _score_context("Stress resilience", 10 - _num("stress_level_1_10"))},
+        {"label": "Motivation",   "value": round((_num("goal_urgency_1_10") + _num("goal_confidence_1_10")) / 2), "context": _score_context("Motivation", (_num("goal_urgency_1_10") + _num("goal_confidence_1_10")) / 2)},
+        {"label": "Mindset",      "value": round((_num("growth_mindset_score_1_10") + _num("self_efficacy_score_1_10")) / 2), "context": _score_context("Mindset", (_num("growth_mindset_score_1_10") + _num("self_efficacy_score_1_10")) / 2)},
+        {"label": "Mood",         "value": round(_num("mood_baseline_1_10")),           "context": _score_context("Mood baseline", _num("mood_baseline_1_10"))},
+        {"label": "Consistency",  "value": round(raw_consistency),                      "context": _score_context("Consistency risk", raw_consistency)},
+    ]
+
+    # ── Priorities ────────────────────────────────────────────────────────────
+    sleep_priority  = _priority(_num("sleep_quality_1_10"),  high_thresh=7.5, low_thresh=5, inverted=True)  # low sleep quality = high priority
+    stress_priority = _priority(_num("stress_level_1_10"),   high_thresh=7,   low_thresh=4)                 # high stress = high priority
+
+    # ── Text fields — read directly from profile_map ──────────────────────────
+    strengths = p.get("key_strengths") or []
+    if isinstance(strengths, str):
+        try:
+            strengths = json.loads(strengths)
+        except Exception:
+            strengths = [strengths]
+
+    risks = p.get("key_risks") or []
+    if isinstance(risks, str):
+        try:
+            risks = json.loads(risks)
+        except Exception:
+            risks = [risks]
+
+    top_actions = p.get("top_3_action_items") or []
+    if isinstance(top_actions, str):
+        try:
+            top_actions = json.loads(top_actions)
+        except Exception:
+            top_actions = [top_actions]
+
+    # ── Calorie / macro strategy strings ─────────────────────────────────────
+    cal_goal  = body["calorie_goal"]
+    prot_goal = body["protein_goal_g"]
+    calorie_strategy = p.get("calorie_strategy") or (
+        f"Target {cal_goal} kcal/day to support your goal." if cal_goal else None
+    )
+    macro_strategy = p.get("macro_strategy") or (
+        f"Aim for {prot_goal}g protein daily to preserve lean mass." if prot_goal else None
+    )
+
+    return {
+        "readiness_score":      readiness,
+        "readiness_label":      label,
+        "body":                 body,
+        "scores":               scores,
+        "strengths":            strengths,
+        "risks":                risks,
+        "top_actions":          top_actions,
+        "behavioral_archetype": p.get("behavioral_archetype"),
+        "archetype_description":p.get("personalized_approach"),
+        "personalized_insight": p.get("personalized_insight"),
+        "calorie_strategy":     calorie_strategy,
+        "macro_strategy":       macro_strategy,
+        "sleep_priority":       sleep_priority,
+        "stress_priority":      stress_priority,
+        "biggest_leverage_point": p.get("biggest_leverage_point"),
+    }

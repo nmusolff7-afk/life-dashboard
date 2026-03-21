@@ -18,7 +18,7 @@ from db import (
     get_profile_map, is_onboarding_complete,
 )
 from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, shorten_label, scan_meal_image
-from claude_profile import generate_profile_map, generate_mind_insights
+from claude_profile import generate_profile_map, compute_mind_insights
 import garmin_sync
 import json
 
@@ -235,11 +235,7 @@ def api_mind_insights():
     profile = get_profile_map(uid())
     if not profile:
         return jsonify({"error": "no_profile"}), 404
-    try:
-        insights = generate_mind_insights(profile)
-        return jsonify(insights)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return jsonify(compute_mind_insights(profile))
 
 
 @app.route("/api/mind/profile")
