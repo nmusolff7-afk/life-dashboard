@@ -2439,6 +2439,7 @@ function deleteWorkout(id) {
   macrosBtn.addEventListener("click", () => {
     const val = mealInput.value.trim();
     if (!val) return;
+    if (typeof window._voiceStop === "function") window._voiceStop();
     macrosBtn.disabled = true; macrosBtn.textContent = "Estimating…";
     macroFields.classList.remove("visible");
     shortLabel = null;
@@ -5400,6 +5401,9 @@ if ("serviceWorker" in navigator) {
     }
     if (el) { el.classList.remove("voice-field-active"); }
   }
+
+  // Expose globally so other buttons can stop voice when they take focus
+  window._voiceStop = stopActive;
 
   // startSession: one short utterance per session, restarts on end
   // interimResults:true so live text shows + interim is committed on end
