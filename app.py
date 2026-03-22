@@ -17,6 +17,7 @@ from db import (
     get_onboarding, upsert_onboarding_inputs, complete_onboarding,
     get_profile_map, is_onboarding_complete,
     insert_mind_checkin, get_mind_today, get_mind_history,
+    insert_mind_task, get_mind_tasks, toggle_mind_task, delete_mind_task,
 )
 from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, shorten_label, scan_meal_image
 from claude_profile import generate_profile_map, compute_mind_insights, score_brief
@@ -233,25 +234,63 @@ def api_onboarding_poll():
 @app.route("/api/mind/today")
 @login_required
 def api_mind_today():
+    tasks    = get_mind_tasks(uid())
+    checkins = get_mind_today(uid())
+    total    = len(tasks)
+    done     = sum(1 for t in tasks if t["completed"])
     return jsonify({
-        "today":   get_mind_today(uid()),
-        "history": get_mind_history(uid(), days=14),
+        "tasks":      tasks,
+        "checkins":   checkins,
+        "history":    get_mind_history(uid(), days=14),
+        "completion": round(done / total * 100) if total else 0,
+        "total":      total,
+        "done":       done,
     })
 
 
 @app.route("/api/mind/checkin", methods=["POST"])
 @login_required
 def api_mind_checkin():
-    data = request.get_json()
+    data         = request.get_json()
     checkin_type = data.get("type", "morning")
-    goals = data.get("goals", "").strip()
-    notes = data.get("notes", "").strip()
+    goals        = data.get("goals", "").strip()
+    notes        = data.get("notes", "").strip()
     if not notes:
         return jsonify({"error": "notes required"}), 400
     scores = score_brief(checkin_type, notes, goals)
     insert_mind_checkin(uid(), checkin_type, goals, notes,
                         scores["focus"], scores["wellbeing"], scores["summary"])
-    return jsonify(scores)
+    tasks_added = []
+    for task_text in scores.get("tasks", []):
+        if task_text:
+            tid = insert_mind_task(uid(), task_text, source=checkin_type + "_brief")
+            tasks_added.append({"id": tid, "description": task_text})
+    return jsonify({**scores, "tasks_added": tasks_added})
+
+
+@app.route("/api/mind/task", methods=["POST"])
+@login_required
+def api_mind_add_task():
+    data = request.get_json()
+    desc = (data.get("description") or "").strip()
+    if not desc:
+        return jsonify({"error": "description required"}), 400
+    tid = insert_mind_task(uid(), desc)
+    return jsonify({"id": tid, "description": desc, "completed": 0, "source": "manual"})
+
+
+@app.route("/api/mind/task/<int:task_id>", methods=["PATCH"])
+@login_required
+def api_mind_toggle_task(task_id):
+    toggle_mind_task(task_id, uid())
+    return jsonify({"ok": True})
+
+
+@app.route("/api/mind/task/<int:task_id>", methods=["DELETE"])
+@login_required
+def api_mind_delete_task(task_id):
+    delete_mind_task(task_id, uid())
+    return jsonify({"ok": True})
 
 
 # ── Meals ───────────────────────────────────────────────

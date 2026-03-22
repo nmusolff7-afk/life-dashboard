@@ -98,6 +98,17 @@ def init_db():
                 created_at TIMESTAMP NOT NULL
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS mind_tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER REFERENCES users(id),
+                task_date DATE NOT NULL,
+                description TEXT NOT NULL,
+                completed INTEGER DEFAULT 0,
+                source TEXT DEFAULT 'manual',
+                created_at TIMESTAMP NOT NULL
+            )
+        """)
         conn.commit()
 
         # Migrate: add garmin_activity_id to workout_logs to prevent duplicate imports
@@ -485,3 +496,43 @@ def get_mind_history(user_id, days=14):
             ORDER BY created_at DESC
         """, (user_id, cutoff)).fetchall()
     return [dict(r) for r in rows]
+
+
+def insert_mind_task(user_id, description, source='manual', task_date=None):
+    td = task_date or date.today().isoformat()
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        cur = conn.execute("""
+            INSERT INTO mind_tasks (user_id, task_date, description, completed, source, created_at)
+            VALUES (?, ?, ?, 0, ?, ?)
+        """, (user_id, td, description, source, now))
+        conn.commit()
+        return cur.lastrowid
+
+
+def get_mind_tasks(user_id, task_date=None):
+    td = task_date or date.today().isoformat()
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM mind_tasks WHERE user_id = ? AND task_date = ? ORDER BY completed, created_at",
+            (user_id, td)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def toggle_mind_task(task_id, user_id):
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE mind_tasks SET completed = 1 - completed WHERE id = ? AND user_id = ?",
+            (task_id, user_id)
+        )
+        conn.commit()
+
+
+def delete_mind_task(task_id, user_id):
+    with get_conn() as conn:
+        conn.execute(
+            "DELETE FROM mind_tasks WHERE id = ? AND user_id = ?",
+            (task_id, user_id)
+        )
+        conn.commit()

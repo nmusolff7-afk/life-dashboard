@@ -317,31 +317,34 @@ def compute_mind_insights(profile_map: dict) -> dict:
 # ── Daily brief / debrief scoring ────────────────────────────────────────────
 
 def score_brief(brief_type: str, notes: str, goals: str) -> dict:
-    """Score a morning/evening brief with Claude Haiku. Returns focus, wellbeing, summary."""
+    """Score a brief and extract actionable tasks via Claude Haiku."""
     import re
     goals_line = f"Goals: {goals.strip()}\n" if goals.strip() else ""
     prompt = (
-        f"Score this {brief_type} check-in. Return ONLY JSON with these keys:\n"
-        f'- "focus": integer 1-10 (goal clarity/completion, motivation, mental sharpness)\n'
-        f'- "wellbeing": integer 1-10 (mood, energy, stress — higher means better)\n'
-        f'- "summary": string under 15 words capturing the key takeaway\n\n'
-        f"{goals_line}Notes: {notes.strip()}\n\nJSON only:"
+        f"Analyze this {brief_type} check-in. Return ONLY valid JSON with these exact keys:\n"
+        f'- "focus": integer 1-10 (goal clarity, motivation, mental sharpness)\n'
+        f'- "wellbeing": integer 1-10 (mood, energy, stress — higher is better)\n'
+        f'- "summary": string under 15 words capturing the key takeaway\n'
+        f'- "tasks": array of short, distinct, actionable task strings extracted from the text '
+        f'(things the person wants or needs to do — make them clear and checkable, max 10)\n\n'
+        f"{goals_line}Notes: {notes.strip()}\n\nReturn JSON only, no other text:"
     )
     try:
         msg = _client().messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=120,
+            max_tokens=400,
             messages=[{"role": "user", "content": prompt}],
         )
         text = msg.content[0].text.strip()
-        match = re.search(r'\{[^}]+\}', text, re.DOTALL)
+        match = re.search(r'\{.*\}', text, re.DOTALL)
         if match:
             data = json.loads(match.group())
             return {
                 "focus":     max(1, min(10, int(data.get("focus", 5)))),
                 "wellbeing": max(1, min(10, int(data.get("wellbeing", 5)))),
                 "summary":   str(data.get("summary", "Check-in recorded."))[:100],
+                "tasks":     [str(t).strip()[:120] for t in (data.get("tasks") or []) if str(t).strip()][:10],
             }
     except Exception:
         pass
-    return {"focus": 5, "wellbeing": 5, "summary": "Check-in recorded."}
+    return {"focus": 5, "wellbeing": 5, "summary": "Check-in recorded.", "tasks": []}

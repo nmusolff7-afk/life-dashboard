@@ -489,6 +489,19 @@
     .mind-score-big { font-family:'Rajdhani',sans-serif; font-size:2.5rem; font-weight:700; line-height:1; }
     .mind-checkin-row { padding:0.5rem 0; border-bottom:1px solid var(--surface2); font-size:0.85rem; }
     .mind-checkin-row:last-child { border-bottom:none; }
+    /* ── Mind tasks ── */
+    .mind-task-row { display:flex;align-items:center;gap:0.6rem;padding:0.55rem 0;border-bottom:1px solid var(--surface2); }
+    .mind-task-row:last-child { border-bottom:none; }
+    .mind-task-check { width:20px;height:20px;border-radius:5px;border:2px solid var(--border);
+      background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;
+      flex-shrink:0;padding:0;color:#fff; }
+    .mind-task-check.done { background:var(--green);border-color:var(--green); }
+    .mind-task-text { flex:1;font-size:0.88rem;color:var(--text);line-height:1.4;word-break:break-word; }
+    .mind-task-text.done { text-decoration:line-through;color:var(--muted); }
+    .mind-task-src { font-size:0.78rem;flex-shrink:0;width:1rem;text-align:center; }
+    .mind-task-del { color:var(--muted);font-size:0.8rem;cursor:pointer;background:none;border:none;
+      padding:0.15rem 0.3rem;line-height:1;flex-shrink:0;opacity:0.4;transition:opacity .15s; }
+    .mind-task-del:hover { color:var(--danger);opacity:1; }
     /* ── Voice input ── */
     .voice-mic-btn { position:absolute; bottom:0.4rem; right:0.4rem; width:26px; height:26px;
       border-radius:50%; background:var(--surface2); border:1px solid var(--border);
@@ -792,6 +805,68 @@
         <div class="card-title">Progress to Goal</div>
         <div id="dash-goal-content" style="color:var(--muted);font-size:0.85rem">
           Save your profile to see progress estimate.
+        </div>
+      </div>
+
+      <!-- Morning Brief -->
+      <div class="card" id="home-morning-card" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem">
+          <div class="card-title" style="margin:0">Morning Brief</div>
+          <div id="home-morning-badge" style="font-size:0.75rem;padding:0.2rem 0.65rem;border-radius:99px;background:var(--surface2);color:var(--muted)">Locked</div>
+        </div>
+        <div id="home-morning-locked" style="display:none;color:var(--muted);font-size:0.85rem">
+          Unlocks at <span id="home-morning-unlock-time"></span>
+        </div>
+        <div id="home-morning-done" style="display:none">
+          <div style="color:var(--green);font-size:0.9rem;font-weight:600">✓ Completed</div>
+          <div id="home-morning-summary" style="font-size:0.82rem;color:var(--muted);margin-top:0.25rem"></div>
+        </div>
+        <div id="home-morning-form" style="display:none">
+          <div style="margin-bottom:0.6rem">
+            <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.3rem">Goals for today</label>
+            <textarea id="home-morning-goals" rows="2"
+              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;resize:none;box-sizing:border-box"
+              placeholder="What do you want to accomplish today?"></textarea>
+          </div>
+          <div style="margin-bottom:0.6rem">
+            <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.3rem">How are you feeling?</label>
+            <textarea id="home-morning-notes" rows="3"
+              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;resize:none;box-sizing:border-box"
+              placeholder="Mood, energy, what's on your mind…"></textarea>
+          </div>
+          <button class="btn" id="home-morning-submit" style="background:var(--accent);width:100%">Submit Morning Brief</button>
+          <div id="home-morning-submitting" style="display:none;text-align:center;color:var(--muted);font-size:0.85rem;margin-top:0.5rem">Scoring and extracting tasks…</div>
+        </div>
+      </div>
+
+      <!-- Evening Debrief -->
+      <div class="card" id="home-evening-card" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem">
+          <div class="card-title" style="margin:0">Evening Debrief</div>
+          <div id="home-evening-badge" style="font-size:0.75rem;padding:0.2rem 0.65rem;border-radius:99px;background:var(--surface2);color:var(--muted)">Locked</div>
+        </div>
+        <div id="home-evening-locked" style="display:none;color:var(--muted);font-size:0.85rem">
+          Unlocks at <span id="home-evening-unlock-time"></span>
+        </div>
+        <div id="home-evening-done" style="display:none">
+          <div style="color:var(--green);font-size:0.9rem;font-weight:600">✓ Completed</div>
+          <div id="home-evening-summary" style="font-size:0.82rem;color:var(--muted);margin-top:0.25rem"></div>
+        </div>
+        <div id="home-evening-form" style="display:none">
+          <div style="margin-bottom:0.6rem">
+            <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.3rem">How did today go?</label>
+            <textarea id="home-evening-notes" rows="3"
+              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;resize:none;box-sizing:border-box"
+              placeholder="Reflect on your day — wins, challenges, how you feel…"></textarea>
+          </div>
+          <div style="margin-bottom:0.6rem">
+            <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.3rem">Tomorrow's goals (optional)</label>
+            <textarea id="home-evening-goals" rows="2"
+              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;resize:none;box-sizing:border-box"
+              placeholder="Anything you want to plan for tomorrow?"></textarea>
+          </div>
+          <button class="btn" id="home-evening-submit" style="background:var(--accent);width:100%">Submit Evening Debrief</button>
+          <div id="home-evening-submitting" style="display:none;text-align:center;color:var(--muted);font-size:0.85rem;margin-top:0.5rem">Scoring and extracting tasks…</div>
         </div>
       </div>
 
@@ -1410,6 +1485,40 @@
         <div id="tz-current-date" style="font-size:0.78rem;color:var(--muted)"></div>
       </div>
 
+      <!-- Brief Schedule -->
+      <div class="card">
+        <div class="card-title">Brief Schedule</div>
+        <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.5">
+          Set when your morning brief and evening debrief unlock on the home page.
+        </p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem">
+          <div>
+            <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.35rem">Morning opens</label>
+            <input type="time" id="brief-morning-start" value="06:00"
+              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.55rem 0.75rem;color:var(--text);font-size:0.9rem;box-sizing:border-box">
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.35rem">Duration (hours)</label>
+            <input type="number" id="brief-morning-dur" value="4" min="0.5" max="12" step="0.5"
+              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.55rem 0.75rem;color:var(--text);font-size:0.9rem;box-sizing:border-box">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem">
+          <div>
+            <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.35rem">Evening opens</label>
+            <input type="time" id="brief-evening-start" value="19:00"
+              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.55rem 0.75rem;color:var(--text);font-size:0.9rem;box-sizing:border-box">
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.35rem">Duration (hours)</label>
+            <input type="number" id="brief-evening-dur" value="3" min="0.5" max="12" step="0.5"
+              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.55rem 0.75rem;color:var(--text);font-size:0.9rem;box-sizing:border-box">
+          </div>
+        </div>
+        <button class="btn btn-primary btn-full" id="save-brief-schedule-btn">Save Schedule</button>
+        <span class="save-confirm" id="brief-save-confirm">✓ Saved</span>
+      </div>
+
       <!-- Delete Account -->
       <div class="card" style="border-color:rgba(248,81,73,0.25)">
         <div class="card-title" style="color:var(--danger)">Danger Zone</div>
@@ -1431,50 +1540,42 @@
     <div class="tab-panel" id="tab-mind">
       <div class="page-header">
         <h2>Mind</h2>
-        <p>Daily check-ins</p>
+        <p>Tasks &amp; goals</p>
       </div>
 
-      <!-- Today's scores -->
+      <!-- Completion score -->
       <div class="card">
-        <div class="card-title">Today</div>
-        <div id="mind-today-content">
-          <div style="color:var(--muted);font-size:0.85rem">No check-ins yet today.</div>
+        <div style="display:flex;align-items:center;gap:1rem">
+          <div style="text-align:center;min-width:3.5rem">
+            <div class="mind-score-big" id="mind-pct-val" style="color:var(--muted)">—</div>
+            <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:0.1rem">done</div>
+          </div>
+          <div style="flex:1">
+            <div style="height:8px;background:var(--surface2);border-radius:99px;overflow:hidden">
+              <div id="mind-progress-bar" style="height:100%;border-radius:99px;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0%;transition:width .5s ease"></div>
+            </div>
+            <div id="mind-score-label" style="font-size:0.78rem;color:var(--muted);margin-top:0.4rem">No tasks yet today</div>
+          </div>
         </div>
       </div>
 
-      <!-- Brief buttons -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem">
-        <button class="btn" id="mind-morning-btn" style="background:var(--accent)">Morning Brief</button>
-        <button class="btn" id="mind-evening-btn" style="background:var(--surface2);color:var(--text);border:1px solid var(--border)">Evening Debrief</button>
-      </div>
-
-      <!-- Brief form -->
-      <div class="card" id="mind-form-card" style="display:none">
-        <div class="card-title" id="mind-form-title">Morning Brief</div>
-        <input type="hidden" id="mind-form-type" value="morning">
-        <div style="margin-bottom:0.75rem">
-          <label id="mind-goals-label" style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.35rem">Goals for today</label>
-          <textarea id="mind-goals" rows="2"
-            style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;resize:none;box-sizing:border-box"
-            placeholder="What do you want to accomplish today?"></textarea>
+      <!-- Task list -->
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+          <div class="card-title" style="margin:0">Today's Tasks</div>
+          <button class="btn btn-ghost" id="mind-add-btn" style="font-size:0.8rem;padding:0.35rem 0.8rem">+ Add</button>
         </div>
-        <div style="margin-bottom:0.75rem">
-          <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.35rem">How are you feeling / what's on your mind?</label>
-          <textarea id="mind-notes" rows="4"
-            style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;resize:none;box-sizing:border-box"
-            placeholder="Write freely — mood, energy, wins, concerns..."></textarea>
+        <div id="mind-add-form" style="display:none;margin-bottom:0.75rem">
+          <div style="display:flex;gap:0.5rem">
+            <input type="text" id="mind-new-task" placeholder="Describe the task…"
+              style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.55rem 0.75rem;color:var(--text);font-size:0.9rem">
+            <button class="btn" id="mind-add-save" style="background:var(--accent)">Add</button>
+            <button class="btn btn-ghost" id="mind-add-cancel">✕</button>
+          </div>
         </div>
-        <div style="display:flex;gap:0.5rem">
-          <button class="btn" id="mind-submit-btn" style="background:var(--accent);flex:1">Submit</button>
-          <button class="btn btn-ghost" id="mind-cancel-btn">Cancel</button>
+        <div id="mind-task-list">
+          <div style="color:var(--muted);font-size:0.85rem;padding:0.5rem 0">No tasks yet — submit a brief or add one manually.</div>
         </div>
-        <div id="mind-submitting" style="display:none;text-align:center;color:var(--muted);font-size:0.85rem;margin-top:0.5rem">Scoring your check-in…</div>
-      </div>
-
-      <!-- History -->
-      <div class="card" id="mind-history-card" style="display:none">
-        <div class="card-title">Recent Check-ins</div>
-        <div id="mind-history-list"></div>
       </div>
 
     </div><!-- /tab-mind -->
@@ -4430,128 +4531,100 @@ try {
 })();
 
 // ══════════════════════════════════════════════════════
-//  MIND TAB
+//  MIND TAB — task list
 // ══════════════════════════════════════════════════════
+(function () {
+  let mindLoaded = false;
 
-(function() {
-  let loaded = false;
-
-  function scoreColor(v) {
-    if (v >= 8) return "var(--green)";
-    if (v >= 5) return "var(--amber)";
+  function scoreColor(pct) {
+    if (pct >= 80) return "var(--green)";
+    if (pct >= 40) return "var(--amber)";
     return "var(--danger)";
   }
 
-  function scoreCell(label, value) {
-    const color = value != null ? scoreColor(value) : "var(--muted)";
-    return `<div style="text-align:center;background:var(--surface2);border-radius:10px;padding:0.75rem 0.5rem">
-      <div class="mind-score-big" style="color:${color}">${value ?? "—"}</div>
-      <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.2rem">${label}</div>
-    </div>`;
+  function renderScore(done, total) {
+    const pct   = total > 0 ? Math.round(done / total * 100) : 0;
+    const color = total > 0 ? scoreColor(pct) : "var(--muted)";
+    const valEl = document.getElementById("mind-pct-val");
+    valEl.textContent  = total > 0 ? pct + "%" : "—";
+    valEl.style.color  = color;
+    document.getElementById("mind-progress-bar").style.width = pct + "%";
+    document.getElementById("mind-score-label").textContent  =
+      total > 0 ? done + " of " + total + " tasks done" : "No tasks yet today";
   }
 
-  function renderToday(checkins) {
-    const el = document.getElementById("mind-today-content");
-    if (!checkins.length) {
-      el.innerHTML = '<div style="color:var(--muted);font-size:0.85rem">No check-ins yet today.</div>';
+  function renderTasks(tasks) {
+    const list = document.getElementById("mind-task-list");
+    if (!tasks.length) {
+      list.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:0.5rem 0">No tasks yet — submit a brief or add one manually.</div>';
       return;
     }
-    const morning = [...checkins].filter(c => c.type === "morning").pop();
-    const evening = [...checkins].filter(c => c.type === "evening").pop();
-    const latest  = evening || morning;
-    let html = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem">
-      ${scoreCell("Focus", latest.focus)}
-      ${scoreCell("Wellbeing", latest.wellbeing)}
-    </div>`;
-    [morning, evening].filter(Boolean).forEach(c => {
-      html += `<div style="font-size:0.82rem;color:var(--muted);margin-top:0.2rem">
-        <strong style="color:var(--text)">${c.type === "morning" ? "Morning" : "Evening"}:</strong> ${c.summary}
-      </div>`;
-    });
-    el.innerHTML = html;
+    const CHECK_SVG = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    list.innerHTML = tasks.map(t => `
+      <div class="mind-task-row" data-id="${t.id}">
+        <button class="mind-task-check${t.completed ? " done" : ""}" data-id="${t.id}">${t.completed ? CHECK_SVG : ""}</button>
+        <span class="mind-task-text${t.completed ? " done" : ""}">${t.description}</span>
+        <span class="mind-task-src">${t.source === "morning_brief" ? "☀" : t.source === "evening_brief" ? "🌙" : ""}</span>
+        <button class="mind-task-del" data-id="${t.id}">✕</button>
+      </div>`).join("");
+
+    list.querySelectorAll(".mind-task-check").forEach(btn =>
+      btn.addEventListener("click", () => toggleTask(+btn.dataset.id)));
+    list.querySelectorAll(".mind-task-del").forEach(btn =>
+      btn.addEventListener("click", () => deleteTask(+btn.dataset.id)));
   }
 
-  function renderHistory(rows) {
-    const card = document.getElementById("mind-history-card");
-    const list = document.getElementById("mind-history-list");
-    if (!rows.length) { card.style.display = "none"; return; }
-    card.style.display = "";
-    list.innerHTML = rows.map(r => {
-      const fc = scoreColor(r.focus), wc = scoreColor(r.wellbeing);
-      const d = new Date(r.checkin_date + "T12:00:00");
-      const dateStr = d.toLocaleDateString("en-US", {weekday:"short", month:"short", day:"numeric"});
-      return `<div class="mind-checkin-row">
-        <div style="display:flex;align-items:center;gap:0.5rem">
-          <span style="flex:1;color:var(--muted);font-size:0.78rem">${dateStr} · ${r.type}</span>
-          <span style="color:${fc};font-weight:700;font-size:0.82rem">F:${r.focus}</span>
-          <span style="color:${wc};font-weight:700;font-size:0.82rem">W:${r.wellbeing}</span>
-        </div>
-        <div style="color:var(--muted);font-size:0.78rem;margin-top:0.15rem">${r.summary}</div>
-      </div>`;
-    }).join("");
+  function toggleTask(id) {
+    fetch("/api/mind/task/" + id, { method: "PATCH" }).then(() => loadMind());
   }
 
-  function loadToday() {
+  function deleteTask(id) {
+    fetch("/api/mind/task/" + id, { method: "DELETE" }).then(() => loadMind());
+  }
+
+  function loadMind() {
     fetch("/api/mind/today")
       .then(r => r.json())
       .then(data => {
-        loaded = true;
-        renderToday(data.today || []);
-        renderHistory(data.history || []);
+        mindLoaded = true;
+        renderScore(data.done || 0, data.total || 0);
+        renderTasks(data.tasks || []);
       })
       .catch(() => {});
   }
 
-  function openForm(type) {
-    document.getElementById("mind-form-type").value = type;
-    document.getElementById("mind-form-title").textContent = type === "morning" ? "Morning Brief" : "Evening Debrief";
-    const goalsLabel = document.getElementById("mind-goals-label");
-    const goalsTA    = document.getElementById("mind-goals");
-    if (type === "morning") {
-      goalsLabel.textContent = "Goals for today";
-      goalsTA.placeholder = "What do you want to accomplish today?";
-    } else {
-      goalsLabel.textContent = "Goals you set this morning (optional)";
-      goalsTA.placeholder = "Any goals from your morning brief?";
-    }
-    goalsTA.value = "";
-    document.getElementById("mind-notes").value = "";
-    document.getElementById("mind-submit-btn").disabled = false;
-    document.getElementById("mind-submitting").style.display = "none";
-    document.getElementById("mind-form-card").style.display = "";
-    document.getElementById("mind-notes").focus();
-  }
-
-  function closeForm() {
-    document.getElementById("mind-form-card").style.display = "none";
-  }
-
-  document.getElementById("mind-morning-btn").addEventListener("click", () => openForm("morning"));
-  document.getElementById("mind-evening-btn").addEventListener("click", () => openForm("evening"));
-  document.getElementById("mind-cancel-btn").addEventListener("click", closeForm);
-
-  document.getElementById("mind-submit-btn").addEventListener("click", () => {
-    const notes = document.getElementById("mind-notes").value.trim();
-    if (!notes) { document.getElementById("mind-notes").focus(); return; }
-    const type  = document.getElementById("mind-form-type").value;
-    const goals = document.getElementById("mind-goals").value.trim();
-    document.getElementById("mind-submit-btn").disabled = true;
-    document.getElementById("mind-submitting").style.display = "";
-    fetch("/api/mind/checkin", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({type, goals, notes}),
-    })
-      .then(r => r.json())
-      .then(() => { closeForm(); loadToday(); })
-      .catch(() => {
-        document.getElementById("mind-submit-btn").disabled = false;
-        document.getElementById("mind-submitting").style.display = "none";
-      });
+  // Add task controls
+  document.getElementById("mind-add-btn").addEventListener("click", () => {
+    document.getElementById("mind-add-form").style.display = "";
+    document.getElementById("mind-new-task").focus();
+  });
+  document.getElementById("mind-add-cancel").addEventListener("click", () => {
+    document.getElementById("mind-add-form").style.display = "none";
+    document.getElementById("mind-new-task").value = "";
   });
 
-  window._onMindActivate = () => { if (!loaded) loadToday(); };
-  if (document.getElementById("tab-mind").classList.contains("active")) loadToday();
+  function saveNewTask() {
+    const desc = document.getElementById("mind-new-task").value.trim();
+    if (!desc) return;
+    fetch("/api/mind/task", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description: desc }),
+    }).then(() => {
+      document.getElementById("mind-add-form").style.display = "none";
+      document.getElementById("mind-new-task").value = "";
+      loadMind();
+    });
+  }
+
+  document.getElementById("mind-add-save").addEventListener("click", saveNewTask);
+  document.getElementById("mind-new-task").addEventListener("keydown", e => {
+    if (e.key === "Enter") saveNewTask();
+  });
+
+  window._onMindActivate = () => { if (!mindLoaded) loadMind(); };
+  window._mindReload     = loadMind;
+  if (document.getElementById("tab-mind").classList.contains("active")) loadMind();
 })();
 
 // ══════════════════════════════════════════════════════
@@ -5000,6 +5073,166 @@ if ("serviceWorker" in navigator) {
         confirmBtn.textContent = "Yes, delete my account";
       });
   });
+})();
+
+// ══════════════════════════════════════════════════════
+//  HOME — MORNING BRIEF & EVENING DEBRIEF
+// ══════════════════════════════════════════════════════
+(function () {
+  function getBriefSettings() {
+    try { return JSON.parse(localStorage.getItem("briefSettings") || "{}"); }
+    catch (_) { return {}; }
+  }
+
+  function timeToMinutes(str) {
+    const [h, m] = (str || "00:00").split(":").map(Number);
+    return h * 60 + (m || 0);
+  }
+
+  function nowMinutes() {
+    const n = new Date();
+    return n.getHours() * 60 + n.getMinutes();
+  }
+
+  function fmtTime(str) {
+    const [h, m] = (str || "00:00").split(":").map(Number);
+    const d = new Date(); d.setHours(h, m || 0, 0, 0);
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+
+  function windowStatus(startStr, durationHrs) {
+    const start = timeToMinutes(startStr);
+    const end   = start + Math.round((parseFloat(durationHrs) || 2) * 60);
+    const now   = nowMinutes();
+    if (now < start) return "upcoming";
+    if (now <= end)  return "open";
+    return "closed";
+  }
+
+  function renderCard(type, checkins, settings) {
+    const isM    = type === "morning";
+    const ids    = isM
+      ? { card:"home-morning-card", badge:"home-morning-badge", locked:"home-morning-locked",
+          unlock:"home-morning-unlock-time", done:"home-morning-done", summary:"home-morning-summary",
+          form:"home-morning-form" }
+      : { card:"home-evening-card", badge:"home-evening-badge", locked:"home-evening-locked",
+          unlock:"home-evening-unlock-time", done:"home-evening-done", summary:"home-evening-summary",
+          form:"home-evening-form" };
+
+    const startStr  = settings[isM ? "morningStart" : "eveningStart"]   || (isM ? "06:00" : "19:00");
+    const durHrs    = settings[isM ? "morningDuration" : "eveningDuration"] || (isM ? 4 : 3);
+    const status    = windowStatus(startStr, durHrs);
+    const submitted = checkins.find(c => c.type === type);
+
+    const card  = document.getElementById(ids.card);
+    const badge = document.getElementById(ids.badge);
+    card.style.display = "";
+
+    // Reset sub-sections
+    ["locked","done","form"].forEach(k => document.getElementById(ids[k]).style.display = "none");
+
+    function setBadge(text, bg, color) {
+      badge.textContent = text;
+      badge.style.background = bg;
+      badge.style.color = color;
+    }
+
+    if (submitted) {
+      setBadge("Done", "rgba(34,197,94,.15)", "var(--green)");
+      document.getElementById(ids.done).style.display = "";
+      document.getElementById(ids.summary).textContent = submitted.summary || "";
+    } else if (status === "upcoming") {
+      setBadge("Upcoming", "var(--surface2)", "var(--muted)");
+      document.getElementById(ids.unlock).textContent = fmtTime(startStr);
+      document.getElementById(ids.locked).style.display = "";
+    } else if (status === "open") {
+      setBadge("Open now", "rgba(99,102,241,.15)", "var(--accent)");
+      document.getElementById(ids.form).style.display = "";
+    } else {
+      setBadge("Closed", "var(--surface2)", "var(--muted)");
+      document.getElementById(ids.unlock).textContent = "tomorrow";
+      document.getElementById(ids.locked).style.display = "";
+    }
+  }
+
+  function submitBrief(type) {
+    const isM   = type === "morning";
+    const notesEl    = document.getElementById(isM ? "home-morning-notes"      : "home-evening-notes");
+    const goalsEl    = document.getElementById(isM ? "home-morning-goals"      : "home-evening-goals");
+    const submitBtn  = document.getElementById(isM ? "home-morning-submit"     : "home-evening-submit");
+    const spinEl     = document.getElementById(isM ? "home-morning-submitting" : "home-evening-submitting");
+    const notes = notesEl.value.trim();
+    if (!notes) { notesEl.focus(); return; }
+    const goals = goalsEl ? goalsEl.value.trim() : "";
+    submitBtn.disabled = true;
+    spinEl.style.display = "";
+    fetch("/api/mind/checkin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type, notes, goals }),
+    })
+      .then(r => r.json())
+      .then(() => {
+        initBriefs();
+        if (typeof window._mindReload === "function") window._mindReload();
+      })
+      .catch(() => {
+        submitBtn.disabled = false;
+        spinEl.style.display = "none";
+      });
+  }
+
+  document.getElementById("home-morning-submit").addEventListener("click", () => submitBrief("morning"));
+  document.getElementById("home-evening-submit").addEventListener("click", () => submitBrief("evening"));
+
+  function initBriefs() {
+    const settings = getBriefSettings();
+    fetch("/api/mind/today")
+      .then(r => r.json())
+      .then(data => {
+        const checkins = data.checkins || [];
+        renderCard("morning", checkins, settings);
+        renderCard("evening", checkins, settings);
+      })
+      .catch(() => {});
+  }
+
+  initBriefs();
+  setInterval(initBriefs, 60000); // re-check every minute in case a window opens/closes
+})();
+
+// ══════════════════════════════════════════════════════
+//  PROFILE — BRIEF SCHEDULE SETTINGS
+// ══════════════════════════════════════════════════════
+(function () {
+  function getBriefSettings() {
+    try { return JSON.parse(localStorage.getItem("briefSettings") || "{}"); }
+    catch (_) { return {}; }
+  }
+
+  const s      = getBriefSettings();
+  const mStart = document.getElementById("brief-morning-start");
+  const mDur   = document.getElementById("brief-morning-dur");
+  const eStart = document.getElementById("brief-evening-start");
+  const eDur   = document.getElementById("brief-evening-dur");
+  if (mStart) mStart.value = s.morningStart    || "06:00";
+  if (mDur)   mDur.value   = s.morningDuration || 4;
+  if (eStart) eStart.value = s.eveningStart    || "19:00";
+  if (eDur)   eDur.value   = s.eveningDuration || 3;
+
+  const saveBtn = document.getElementById("save-brief-schedule-btn");
+  if (saveBtn) {
+    saveBtn.addEventListener("click", () => {
+      localStorage.setItem("briefSettings", JSON.stringify({
+        morningStart:    mStart ? mStart.value : "06:00",
+        morningDuration: mDur   ? parseFloat(mDur.value)   || 4 : 4,
+        eveningStart:    eStart ? eStart.value : "19:00",
+        eveningDuration: eDur   ? parseFloat(eDur.value)   || 3 : 3,
+      }));
+      const conf = document.getElementById("brief-save-confirm");
+      if (conf) { conf.classList.add("show"); setTimeout(() => conf.classList.remove("show"), 2000); }
+    });
+  }
 })();
 
 // ══════════════════════════════════════════════════════
