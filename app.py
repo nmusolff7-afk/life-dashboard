@@ -32,7 +32,10 @@ init_db()
 # In-memory store for async onboarding jobs: {user_id: {"status": "pending"|"done"|"error", "profile": {...}, "error": "..."}}
 _ob_jobs: dict = {}
 
-RMR = 1550
+def get_rmr() -> int:
+    """Return the user's RMR from their profile map, falling back to 1550."""
+    profile = get_profile_map(uid())
+    return int(profile.get("rmr_kcal") or 1550)
 
 
 # ── Auth helpers ────────────────────────────────────────
@@ -71,7 +74,7 @@ def client_today():
 # ── Rendering helper ────────────────────────────────────
 
 def compute_tdee(log_date=None):
-    return RMR + get_today_workout_burn(uid(), log_date)
+    return get_rmr() + get_today_workout_burn(uid(), log_date)
 
 
 def render_index(**kwargs):

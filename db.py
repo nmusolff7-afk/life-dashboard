@@ -1,3 +1,8 @@
+# MIGRATION TODO (before scaling to multi-user API):
+# 1. Replace SQLite with PostgreSQL — swap get_conn() to use psycopg2/SQLAlchemy, queries are already standard SQL
+# 2. Move Garmin tokens to per-user table: user_garmin_tokens(user_id, token_key, token_value)
+# 3. Replace background polling thread with Celery + Redis job queue, one job per user
+
 import os
 import sqlite3
 from datetime import date, datetime, timedelta
@@ -47,10 +52,12 @@ def init_db():
         """)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS daily_activity (
-                log_date DATE NOT NULL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                log_date DATE NOT NULL,
                 miles_run REAL DEFAULT 0,
                 gym_session INTEGER DEFAULT 0,
-                other_burn INTEGER DEFAULT 0
+                other_burn INTEGER DEFAULT 0,
+                PRIMARY KEY (user_id, log_date)
             )
         """)
         # Garmin daily stats (steps, calories, HR) — one row per user per date
@@ -126,9 +133,17 @@ def init_db():
             except Exception:
                 pass  # column already exists
 
+        # Migrate: add user_id to daily_activity if absent
+        try:
+            conn.execute("ALTER TABLE daily_activity ADD COLUMN user_id INTEGER REFERENCES users(id)")
+            conn.commit()
+        except Exception:
+            pass  # column already exists
+
         # Migrate: assign orphaned rows (no user_id) to user 1 if they exist
-        conn.execute("UPDATE meal_logs    SET user_id = 1 WHERE user_id IS NULL AND EXISTS (SELECT 1 FROM users WHERE id = 1)")
-        conn.execute("UPDATE workout_logs SET user_id = 1 WHERE user_id IS NULL AND EXISTS (SELECT 1 FROM users WHERE id = 1)")
+        conn.execute("UPDATE meal_logs      SET user_id = 1 WHERE user_id IS NULL AND EXISTS (SELECT 1 FROM users WHERE id = 1)")
+        conn.execute("UPDATE workout_logs   SET user_id = 1 WHERE user_id IS NULL AND EXISTS (SELECT 1 FROM users WHERE id = 1)")
+        conn.execute("UPDATE daily_activity SET user_id = 1 WHERE user_id IS NULL AND EXISTS (SELECT 1 FROM users WHERE id = 1)")
         conn.commit()
 
 

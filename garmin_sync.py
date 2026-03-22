@@ -1,3 +1,6 @@
+# SCALING TODO: credentials and token storage are currently single-user (env vars + ~/.garminconnect)
+# For multi-user: store tokens in user_garmin_tokens table, run one sync job per user via Celery
+
 """
 Garmin Connect sync using garminconnect + garth.
 """
