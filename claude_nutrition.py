@@ -30,12 +30,28 @@ def _parse_json(text: str) -> dict:
     return json.loads(text.strip())
 
 
-def estimate_nutrition(meal_description: str) -> dict:
+def estimate_nutrition(meal_description: str, profile_map: dict | None = None) -> dict:
+    user_content = meal_description
+    if profile_map:
+        fields = {
+            "diet_type":               profile_map.get("diet_type"),
+            "dietary_restrictions":    profile_map.get("dietary_restrictions"),
+            "foods_disliked_list":     profile_map.get("foods_disliked_list"),
+            "daily_calorie_goal":      profile_map.get("daily_calorie_goal"),
+            "daily_protein_goal_g":    profile_map.get("daily_protein_goal_g"),
+        }
+        # Only include fields that are actually set
+        populated = {k: v for k, v in fields.items() if v is not None}
+        if populated:
+            context = "\n\nUser profile context (use to calibrate portion and macro estimates):\n"
+            context += "\n".join(f"- {k}: {v}" for k, v in populated.items())
+            user_content = meal_description + context
+
     response = _client().messages.create(
         model="claude-opus-4-6",
         max_tokens=256,
         system=NUTRITION_PROMPT,
-        messages=[{"role": "user", "content": meal_description}],
+        messages=[{"role": "user", "content": user_content}],
     )
     text = next(b.text for b in response.content if b.type == "text")
     data = _parse_json(text)

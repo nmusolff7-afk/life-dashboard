@@ -2,8 +2,11 @@
 Claude Opus — user profile generation and Mind tab insights.
 """
 import json
+import logging
 import os
 import anthropic
+
+logger = logging.getLogger(__name__)
 
 
 def _client():
@@ -149,6 +152,20 @@ def generate_profile_map(raw_inputs: dict) -> dict:
     # Merge with schema defaults so all keys are always present
     result = dict(PROFILE_SCHEMA)
     result.update({k: v for k, v in data.items() if k in result})
+
+    # Warn if critical nutrition fields are missing — helps debug silently failing profiles
+    critical = ("rmr_kcal", "daily_calorie_goal", "daily_protein_goal_g")
+    missing = [f for f in critical if result.get(f) is None]
+    if missing:
+        logger.warning(
+            "generate_profile_map: critical fields are None after merge: %s "
+            "(rmr_kcal=%r, daily_calorie_goal=%r, daily_protein_goal_g=%r)",
+            missing,
+            result.get("rmr_kcal"),
+            result.get("daily_calorie_goal"),
+            result.get("daily_protein_goal_g"),
+        )
+
     return result
 
 
