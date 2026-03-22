@@ -509,12 +509,10 @@
       color:var(--muted); padding:0; flex-shrink:0; z-index:2;
       transition:background .15s,color .15s; }
     .voice-mic-btn:hover { color:var(--text); filter:brightness(1.15); }
-    .voice-mic-btn.voice-active { background:var(--danger); color:#fff; border-color:var(--danger);
-      animation:voice-pulse 1.2s ease-in-out infinite; }
-    @keyframes voice-pulse {
-      0%,100% { box-shadow:0 0 0 0 rgba(239,68,68,.45); }
-      50%      { box-shadow:0 0 0 6px rgba(239,68,68,0); }
-    }
+    .voice-mic-btn.voice-active { background:var(--danger); color:#fff; border-color:var(--danger); }
+    .voice-field-active { outline:2px solid var(--danger) !important;
+      box-shadow:0 0 0 4px rgba(239,68,68,.18) !important;
+      transition:outline .15s, box-shadow .15s; }
 
     /* ══ HISTORY ════════════════════════════════ */
     .hist-row { display: flex; align-items: center; gap: 0.75rem;
@@ -5347,13 +5345,47 @@ if ("serviceWorker" in navigator) {
 // ══════════════════════════════════════════════════════
 (function () {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) return; // not supported — silently do nothing
+  if (!SR) return;
 
-  let activeRec = null, activeBtn = null;
+  let activeRec = null, activeBtn = null, activeEl = null;
+  let micStream = null, audioCtx = null, analyser = null, rafId = null;
+
+  function stopVolumeAnimation() {
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    if (micStream) { micStream.getTracks().forEach(function (t) { t.stop(); }); micStream = null; }
+    analyser = null;
+  }
 
   function stopActive() {
     if (activeRec) { try { activeRec.stop(); } catch (_) {} activeRec = null; }
-    if (activeBtn) { activeBtn.classList.remove("voice-active"); activeBtn = null; }
+    if (activeBtn) {
+      activeBtn.classList.remove("voice-active");
+      activeBtn.style.transform = activeBtn._baseTransform || "";
+      activeBtn.style.boxShadow = "";
+      activeBtn = null;
+    }
+    if (activeEl) { activeEl.classList.remove("voice-field-active"); activeEl = null; }
+    stopVolumeAnimation();
+  }
+
+  function startVolumeAnimation(btn) {
+    if (!analyser) return;
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    const base = btn._baseTransform || "";
+
+    function tick() {
+      analyser.getByteFrequencyData(data);
+      let sum = 0;
+      for (let i = 0; i < data.length; i++) sum += data[i];
+      const vol   = sum / (data.length * 255);          // 0–1
+      const scale = 1 + vol * 0.9;                      // 1.0 → 1.9
+      const glow  = Math.round(vol * 16);                // 0 → 16 px
+      const alpha = (0.4 + vol * 0.6).toFixed(2);       // 0.4 → 1.0
+      btn.style.transform = base ? base + " scale(" + scale.toFixed(2) + ")" : "scale(" + scale.toFixed(2) + ")";
+      btn.style.boxShadow = "0 0 " + glow + "px rgba(239,68,68," + alpha + ")";
+      rafId = requestAnimationFrame(tick);
+    }
+    rafId = requestAnimationFrame(tick);
   }
 
   const MIC_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none"
@@ -5370,7 +5402,6 @@ if ("serviceWorker" in navigator) {
     if (["hidden","number","range","file","checkbox","radio","submit","button"].includes(t)) return;
     el._voiceMic = true;
 
-    // Wrap the element in a positioned container
     const wrap = document.createElement("div");
     wrap.style.cssText = "position:relative;display:block;width:100%;min-width:0;";
     el.parentNode.insertBefore(wrap, el);
@@ -5379,15 +5410,16 @@ if ("serviceWorker" in navigator) {
     el.style.boxSizing = "border-box";
     el.style.paddingRight = "2.4rem";
 
-    // Mic button
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "voice-mic-btn";
     btn.title = "Voice input";
     btn.innerHTML = MIC_SVG;
-    // For single-line inputs, center vertically instead of sitting at bottom
     if (el.tagName !== "TEXTAREA") {
       btn.style.cssText = "top:50%;bottom:auto;transform:translateY(-50%);";
+      btn._baseTransform = "translateY(-50%)";
+    } else {
+      btn._baseTransform = "";
     }
     wrap.appendChild(btn);
 
@@ -5417,23 +5449,36 @@ if ("serviceWorker" in navigator) {
       rec.start();
       activeRec = rec;
       activeBtn = btn;
+      activeEl  = el;
       btn.classList.add("voice-active");
+      el.classList.add("voice-field-active");
       el.focus();
+
+      // Volume-reactive animation via AudioContext
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+          .then(function (stream) {
+            if (activeBtn !== btn) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
+            micStream = stream;
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 256;
+            audioCtx.createMediaStreamSource(stream).connect(analyser);
+            startVolumeAnimation(btn);
+          })
+          .catch(function () {}); // permission denied — no animation, speech still works
+      }
     });
   }
 
-  // Attach to all existing textarea and text inputs
   document.querySelectorAll('textarea, input[type="text"], input:not([type])').forEach(attachMic);
 
-  // Attach to any dynamically created inputs (workout plan rows, etc.)
   new MutationObserver(function (muts) {
     muts.forEach(function (m) {
       m.addedNodes.forEach(function (node) {
         if (!node.querySelectorAll) return;
         node.querySelectorAll('textarea, input[type="text"], input:not([type])').forEach(attachMic);
-        if (node.matches && node.matches('textarea, input[type="text"], input:not([type])')) {
-          attachMic(node);
-        }
+        if (node.matches && node.matches('textarea, input[type="text"], input:not([type])')) attachMic(node);
       });
     });
   }).observe(document.body, { childList: true, subtree: true });
