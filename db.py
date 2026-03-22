@@ -140,6 +140,13 @@ def init_db():
         except Exception:
             pass  # column already exists
 
+        # Migrate: add weight_lbs to daily_activity if absent
+        try:
+            conn.execute("ALTER TABLE daily_activity ADD COLUMN weight_lbs REAL")
+            conn.commit()
+        except Exception:
+            pass  # column already exists
+
         # Migrate: assign orphaned rows (no user_id) to user 1 if they exist
         conn.execute("UPDATE meal_logs      SET user_id = 1 WHERE user_id IS NULL AND EXISTS (SELECT 1 FROM users WHERE id = 1)")
         conn.execute("UPDATE workout_logs   SET user_id = 1 WHERE user_id IS NULL AND EXISTS (SELECT 1 FROM users WHERE id = 1)")
@@ -476,6 +483,29 @@ def get_profile_map(user_id):
 def is_onboarding_complete(user_id):
     row = get_onboarding(user_id)
     return bool(row and row.get("completed"))
+
+
+# ── Daily body-weight ───────────────────────────────────
+
+def save_daily_weight(user_id: int, date_str: str, weight_lbs: float):
+    """Upsert today's body-weight into daily_activity."""
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO daily_activity (user_id, log_date, weight_lbs)
+            VALUES (?, ?, ?)
+            ON CONFLICT (user_id, log_date) DO UPDATE SET weight_lbs = excluded.weight_lbs
+        """, (user_id, date_str, weight_lbs))
+        conn.commit()
+
+
+def get_daily_weight(user_id: int, date_str: str):
+    """Return weight_lbs for a given date, or None."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT weight_lbs FROM daily_activity WHERE user_id = ? AND log_date = ?",
+            (user_id, date_str)
+        ).fetchone()
+    return row["weight_lbs"] if row else None
 
 
 # ── Mind check-ins ──────────────────────────────────────

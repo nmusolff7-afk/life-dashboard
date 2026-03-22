@@ -851,6 +851,12 @@
         </div>
         <div id="home-morning-form" style="display:none">
           <div style="margin-bottom:0.6rem">
+            <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.3rem">Today's bodyweight (lbs)</label>
+            <input type="number" id="home-morning-weight" min="50" max="500" step="0.1"
+              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;box-sizing:border-box"
+              placeholder="e.g. 185.5">
+          </div>
+          <div style="margin-bottom:0.6rem">
             <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.3rem">Goals for today</label>
             <textarea id="home-morning-goals" rows="2"
               style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;resize:none;box-sizing:border-box"
@@ -4872,14 +4878,26 @@ if ("serviceWorker" in navigator) {
     }
 
     // ── Stat cards ──
-    const weightEl = document.getElementById("dash-weight-val");
+    const weightEl   = document.getElementById("dash-weight-val");
+    const weightCard = document.getElementById("dash-weight-card");
+    // badge element — create once, reuse
+    let wBadge = weightCard ? weightCard.querySelector(".weight-unlogged-badge") : null;
+    if (weightCard && !wBadge) {
+      wBadge = document.createElement("div");
+      wBadge.className = "weight-unlogged-badge";
+      wBadge.textContent = "Log in morning brief";
+      wBadge.style.cssText = "font-size:0.6rem;color:var(--danger);background:rgba(239,68,68,.12);border-radius:99px;padding:0.15rem 0.5rem;margin-top:0.25rem;display:none";
+      weightCard.appendChild(wBadge);
+    }
     if (weightEl) {
-      if (entry.weight) {
+      if (entry && entry.weight) {
         weightEl.textContent = entry.weight + " lbs";
         weightEl.style.color = "var(--accent2)";
+        if (wBadge) wBadge.style.display = "none";
       } else {
         weightEl.textContent = "—";
         weightEl.style.color = "var(--muted)";
+        if (wBadge) wBadge.style.display = "";
       }
     }
 
@@ -5184,23 +5202,36 @@ if ("serviceWorker" in navigator) {
   }
 
   function submitBrief(type) {
-    const isM   = type === "morning";
-    const notesEl    = document.getElementById(isM ? "home-morning-notes"      : "home-evening-notes");
-    const goalsEl    = document.getElementById(isM ? "home-morning-goals"      : "home-evening-goals");
-    const submitBtn  = document.getElementById(isM ? "home-morning-submit"     : "home-evening-submit");
-    const spinEl     = document.getElementById(isM ? "home-morning-submitting" : "home-evening-submitting");
+    const isM       = type === "morning";
+    const notesEl   = document.getElementById(isM ? "home-morning-notes"      : "home-evening-notes");
+    const goalsEl   = document.getElementById(isM ? "home-morning-goals"      : "home-evening-goals");
+    const submitBtn = document.getElementById(isM ? "home-morning-submit"     : "home-evening-submit");
+    const spinEl    = document.getElementById(isM ? "home-morning-submitting" : "home-evening-submitting");
+    const weightEl  = isM ? document.getElementById("home-morning-weight") : null;
+
     const notes = notesEl.value.trim();
     if (!notes) { notesEl.focus(); return; }
     const goals = goalsEl ? goalsEl.value.trim() : "";
+    const bw    = weightEl ? parseFloat(weightEl.value) : null;
+
     submitBtn.disabled = true;
     spinEl.style.display = "";
+
+    const payload = { type, notes, goals };
+    if (isM && bw && bw > 0) payload.bodyweight_lbs = bw;
+
     fetch("/api/mind/checkin", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, notes, goals }),
+      body: JSON.stringify(payload),
     })
       .then(r => r.json())
       .then(() => {
+        // Persist bodyweight to localStorage immediately so dashboard updates
+        if (isM && bw && bw > 0) {
+          saveDayField(localToday(), { weight: bw });
+          if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+        }
         initBriefs();
         if (typeof window._mindReload === "function") window._mindReload();
       })

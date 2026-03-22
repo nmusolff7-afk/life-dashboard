@@ -18,6 +18,7 @@ from db import (
     get_profile_map, is_onboarding_complete,
     insert_mind_checkin, get_mind_today, get_mind_history,
     insert_mind_task, get_mind_tasks, toggle_mind_task, delete_mind_task,
+    save_daily_weight, get_daily_weight,
 )
 from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, shorten_label, scan_meal_image
 from claude_profile import generate_profile_map, compute_mind_insights, score_brief
@@ -260,6 +261,16 @@ def api_mind_checkin():
     notes        = data.get("notes", "").strip()
     if not notes:
         return jsonify({"error": "notes required"}), 400
+
+    # Persist bodyweight logged during morning brief
+    bodyweight_lbs = data.get("bodyweight_lbs")
+    today = date.today().isoformat()
+    if checkin_type == "morning" and bodyweight_lbs:
+        try:
+            save_daily_weight(uid(), today, float(bodyweight_lbs))
+        except (ValueError, TypeError):
+            pass
+
     scores = score_brief(checkin_type, notes, goals)
     insert_mind_checkin(uid(), checkin_type, goals, notes,
                         scores["focus"], scores["wellbeing"], scores["summary"])
@@ -268,7 +279,8 @@ def api_mind_checkin():
         if task_text:
             tid = insert_mind_task(uid(), task_text, source=checkin_type + "_brief")
             tasks_added.append({"id": tid, "description": task_text})
-    return jsonify({**scores, "tasks_added": tasks_added})
+    return jsonify({**scores, "tasks_added": tasks_added,
+                    "bodyweight_lbs": float(bodyweight_lbs) if bodyweight_lbs else None})
 
 
 @app.route("/api/mind/task", methods=["POST"])
