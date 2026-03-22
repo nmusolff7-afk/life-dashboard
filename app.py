@@ -513,6 +513,39 @@ def api_parse_workout_plan():
 
 # ── Garmin ──────────────────────────────────────────────
 
+def _garmin_save(user_id: int, date_str: str, result: dict) -> None:
+    """Callback used by the background poll thread to persist fetched data."""
+    upsert_garmin_daily(
+        user_id, date_str,
+        result["steps"],
+        result["active_calories"],
+        result["total_calories"],
+        result["resting_hr"],
+    )
+    for act in result.get("activities", []):
+        gid = act.get("garmin_activity_id", "")
+        if gid and garmin_activity_exists(user_id, gid):
+            continue
+        insert_garmin_workout(user_id, date_str, act["description"], act["calories"], gid)
+
+
+# Start background poll on app startup (user_id=1 for this personal app)
+garmin_sync.start_background_poll(_garmin_save, user_id=1)
+
+
+@app.route("/api/garmin")
+@login_required
+def api_garmin():
+    today    = client_today()
+    day_data = get_garmin_daily(uid(), today)
+    last_sync = get_garmin_last_sync(uid())
+    return jsonify({
+        "configured": garmin_sync.is_configured(),
+        "today":      day_data,
+        "last_sync":  last_sync,
+    })
+
+
 @app.route("/api/garmin/status")
 @login_required
 def api_garmin_status():
