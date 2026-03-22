@@ -819,13 +819,6 @@
         </div>
       </div>
 
-      <!-- Weeks to Goal -->
-      <div class="card" id="dash-goal-card" style="cursor:pointer">
-        <div class="card-title">Progress to Goal</div>
-        <div id="dash-goal-content" style="color:var(--muted);font-size:0.85rem">
-          Save your profile to see progress estimate.
-        </div>
-      </div>
 
       <!-- Garmin Status -->
       <div class="card" id="garmin-status-card" style="display:none">
@@ -1215,6 +1208,14 @@
       <div class="page-header">
         <h2>Progress</h2>
         <p>History, charts, and trends</p>
+      </div>
+
+      <!-- Progress to Goal -->
+      <div class="card" id="dash-goal-card">
+        <div class="card-title">Progress to Goal</div>
+        <div id="dash-goal-content" style="color:var(--muted);font-size:0.85rem">
+          Save your profile to see progress estimate.
+        </div>
       </div>
 
       <!-- History -->
@@ -5044,7 +5045,6 @@ if ("serviceWorker" in navigator) {
   document.getElementById("dash-weight-card").addEventListener("click", () => activateTab("workout"));
   document.getElementById("dash-steps-card").addEventListener("click", () => activateTab("workout"));
   document.getElementById("dash-burn-card").addEventListener("click", () => activateTab("workout"));
-  document.getElementById("dash-goal-card").addEventListener("click", () => activateTab("profile"));
 
   window._refreshDashboard = refresh;
 
