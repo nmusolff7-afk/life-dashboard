@@ -312,3 +312,36 @@ def compute_mind_insights(profile_map: dict) -> dict:
         "stress_priority":      stress_priority,
         "biggest_leverage_point": p.get("biggest_leverage_point"),
     }
+
+
+# ── Daily brief / debrief scoring ────────────────────────────────────────────
+
+def score_brief(brief_type: str, notes: str, goals: str) -> dict:
+    """Score a morning/evening brief with Claude Haiku. Returns focus, wellbeing, summary."""
+    import re
+    goals_line = f"Goals: {goals.strip()}\n" if goals.strip() else ""
+    prompt = (
+        f"Score this {brief_type} check-in. Return ONLY JSON with these keys:\n"
+        f'- "focus": integer 1-10 (goal clarity/completion, motivation, mental sharpness)\n'
+        f'- "wellbeing": integer 1-10 (mood, energy, stress — higher means better)\n'
+        f'- "summary": string under 15 words capturing the key takeaway\n\n'
+        f"{goals_line}Notes: {notes.strip()}\n\nJSON only:"
+    )
+    try:
+        msg = _client().messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=120,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = msg.content[0].text.strip()
+        match = re.search(r'\{[^}]+\}', text, re.DOTALL)
+        if match:
+            data = json.loads(match.group())
+            return {
+                "focus":     max(1, min(10, int(data.get("focus", 5)))),
+                "wellbeing": max(1, min(10, int(data.get("wellbeing", 5)))),
+                "summary":   str(data.get("summary", "Check-in recorded."))[:100],
+            }
+    except Exception:
+        pass
+    return {"focus": 5, "wellbeing": 5, "summary": "Check-in recorded."}

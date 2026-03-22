@@ -16,9 +16,10 @@ from db import (
     get_setting, set_setting,
     get_onboarding, upsert_onboarding_inputs, complete_onboarding,
     get_profile_map, is_onboarding_complete,
+    insert_mind_checkin, get_mind_today, get_mind_history,
 )
 from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, shorten_label, scan_meal_image
-from claude_profile import generate_profile_map, compute_mind_insights
+from claude_profile import generate_profile_map, compute_mind_insights, score_brief
 import garmin_sync
 import json
 
@@ -229,19 +230,28 @@ def api_onboarding_poll():
 
 # ── Mind tab ────────────────────────────────────────────
 
-@app.route("/api/mind/insights")
+@app.route("/api/mind/today")
 @login_required
-def api_mind_insights():
-    profile = get_profile_map(uid())
-    if not profile:
-        return jsonify({"error": "no_profile"}), 404
-    return jsonify(compute_mind_insights(profile))
+def api_mind_today():
+    return jsonify({
+        "today":   get_mind_today(uid()),
+        "history": get_mind_history(uid(), days=14),
+    })
 
 
-@app.route("/api/mind/profile")
+@app.route("/api/mind/checkin", methods=["POST"])
 @login_required
-def api_mind_profile():
-    return jsonify(get_profile_map(uid()))
+def api_mind_checkin():
+    data = request.get_json()
+    checkin_type = data.get("type", "morning")
+    goals = data.get("goals", "").strip()
+    notes = data.get("notes", "").strip()
+    if not notes:
+        return jsonify({"error": "notes required"}), 400
+    scores = score_brief(checkin_type, notes, goals)
+    insert_mind_checkin(uid(), checkin_type, goals, notes,
+                        scores["focus"], scores["wellbeing"], scores["summary"])
+    return jsonify(scores)
 
 
 # ── Meals ───────────────────────────────────────────────

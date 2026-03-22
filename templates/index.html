@@ -486,33 +486,9 @@
     .cal-popup-close { float: right; cursor: pointer; color: var(--muted);
       margin-left: 0.5rem; line-height: 1; }
     /* ── Mind tab ── */
-    .mind-metric { background: var(--surface2); border-radius: 10px; padding: 0.65rem 0.5rem;
-      text-align: center; }
-    .mind-metric-val { font-family: 'Rajdhani', sans-serif; font-size: 1.35rem;
-      font-weight: 700; color: var(--accent2); line-height: 1; }
-    .mind-metric-lbl { font-size: 0.65rem; color: var(--muted); margin-top: 0.2rem;
-      text-transform: uppercase; letter-spacing: .04em; }
-    .mind-score-row { display: flex; align-items: center; gap: 0.75rem;
-      padding: 0.55rem 0; border-bottom: 1px solid var(--surface2); }
-    .mind-score-row:last-child { border-bottom: none; }
-    .mind-score-label { font-size: 0.82rem; color: var(--muted); flex: 1; }
-    .mind-score-bar-wrap { width: 90px; height: 5px; background: var(--surface2);
-      border-radius: 99px; overflow: hidden; flex-shrink: 0; }
-    .mind-score-bar { height: 100%; border-radius: 99px; }
-    .mind-score-num { font-size: 0.82rem; font-weight: 700; color: var(--text);
-      width: 28px; text-align: right; flex-shrink: 0; }
-    .mind-score-ctx { font-size: 0.74rem; color: var(--muted); line-height: 1.4;
-      padding-left: 0; margin-top: 0.15rem; }
-    .mind-list-item { display: flex; align-items: flex-start; gap: 0.5rem;
-      padding: 0.45rem 0; border-bottom: 1px solid var(--surface2);
-      font-size: 0.85rem; color: var(--text); line-height: 1.5; }
-    .mind-list-item:last-child { border-bottom: none; }
-    .mind-list-dot { width: 6px; height: 6px; border-radius: 50%;
-      flex-shrink: 0; margin-top: 0.45em; }
-    .mind-strategy-row { padding: 0.5rem 0; border-bottom: 1px solid var(--surface2);
-      font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
-    .mind-strategy-row:last-child { border-bottom: none; }
-    .mind-strategy-row strong { color: var(--text); }
+    .mind-score-big { font-family:'Rajdhani',sans-serif; font-size:2.5rem; font-weight:700; line-height:1; }
+    .mind-checkin-row { padding:0.5rem 0; border-bottom:1px solid var(--surface2); font-size:0.85rem; }
+    .mind-checkin-row:last-child { border-bottom:none; }
 
     /* ══ HISTORY ════════════════════════════════ */
     .hist-row { display: flex; align-items: center; gap: 0.75rem;
@@ -1485,97 +1461,50 @@
     <div class="tab-panel" id="tab-mind">
       <div class="page-header">
         <h2>Mind</h2>
-        <p>Your personal intelligence profile</p>
+        <p>Daily check-ins</p>
       </div>
 
-      <div id="mind-loading" class="empty" style="display:none">
-        <div class="icon">⏳</div>Loading your profile…
-      </div>
-      <div id="mind-no-profile" class="empty" style="display:none">
-        <div class="icon">✦</div>
-        <div>Complete onboarding to unlock your Mind profile.</div>
-        <a href="/onboarding" class="btn" style="margin-top:1rem;background:var(--accent);color:#fff;text-decoration:none;padding:0.65rem 1.5rem;border-radius:10px;font-weight:600;display:inline-block">Begin Onboarding</a>
-      </div>
-      <div id="mind-error" class="empty" style="display:none">
-        <div class="icon">⚠️</div>Failed to load — tap to retry.
-      </div>
-
-      <!-- Readiness score -->
-      <div class="card" id="mind-readiness-card" style="display:none">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
-          <div class="card-title" style="margin:0">Readiness Score</div>
-          <div id="mind-readiness-label" style="font-size:0.78rem;color:var(--muted)"></div>
-        </div>
-        <div style="display:flex;align-items:center;gap:1rem">
-          <div id="mind-readiness-score" style="font-family:'Rajdhani',sans-serif;font-size:3.5rem;font-weight:700;color:var(--accent2);line-height:1"></div>
-          <div style="flex:1">
-            <div style="height:8px;background:var(--surface2);border-radius:99px;overflow:hidden">
-              <div id="mind-readiness-bar" style="height:100%;border-radius:99px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .6s ease"></div>
-            </div>
-            <div id="mind-readiness-insight" style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem;line-height:1.5"></div>
-          </div>
+      <!-- Today's scores -->
+      <div class="card">
+        <div class="card-title">Today</div>
+        <div id="mind-today-content">
+          <div style="color:var(--muted);font-size:0.85rem">No check-ins yet today.</div>
         </div>
       </div>
 
-      <!-- Body metrics -->
-      <div class="card" id="mind-body-card" style="display:none">
-        <div class="card-title">Body Metrics</div>
-        <div id="mind-body-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem"></div>
+      <!-- Brief buttons -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem">
+        <button class="btn" id="mind-morning-btn" style="background:var(--accent)">Morning Brief</button>
+        <button class="btn" id="mind-evening-btn" style="background:var(--surface2);color:var(--text);border:1px solid var(--border)">Evening Debrief</button>
       </div>
 
-      <!-- Scores -->
-      <div class="card" id="mind-scores-card" style="display:none">
-        <div class="card-title">Wellness Scores</div>
-        <div id="mind-scores-list"></div>
-      </div>
-
-      <!-- Archetype -->
-      <div class="card" id="mind-archetype-card" style="display:none">
-        <div class="card-title">Behavioral Profile</div>
-        <div id="mind-archetype-name" style="font-family:'Rajdhani',sans-serif;font-size:1.4rem;font-weight:700;color:var(--accent2);margin-bottom:0.4rem"></div>
-        <div id="mind-archetype-desc" style="font-size:0.85rem;color:var(--muted);line-height:1.6"></div>
-      </div>
-
-      <!-- Personal insight -->
-      <div class="card" id="mind-insight-card" style="display:none">
-        <div class="card-title">Your Profile Insight</div>
-        <div id="mind-insight-text" style="font-size:0.9rem;color:var(--text);line-height:1.7"></div>
-      </div>
-
-      <!-- Strengths & Risks -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem" id="mind-str-risk" style="display:none">
-        <div class="card" id="mind-strengths-card" style="display:none">
-          <div class="card-title" style="color:var(--green)">Strengths</div>
-          <div id="mind-strengths-list"></div>
+      <!-- Brief form -->
+      <div class="card" id="mind-form-card" style="display:none">
+        <div class="card-title" id="mind-form-title">Morning Brief</div>
+        <input type="hidden" id="mind-form-type" value="morning">
+        <div style="margin-bottom:0.75rem">
+          <label id="mind-goals-label" style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.35rem">Goals for today</label>
+          <textarea id="mind-goals" rows="2"
+            style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;resize:none;box-sizing:border-box"
+            placeholder="What do you want to accomplish today?"></textarea>
         </div>
-        <div class="card" id="mind-risks-card" style="display:none">
-          <div class="card-title" style="color:var(--danger)">Watch Points</div>
-          <div id="mind-risks-list"></div>
+        <div style="margin-bottom:0.75rem">
+          <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.35rem">How are you feeling / what's on your mind?</label>
+          <textarea id="mind-notes" rows="4"
+            style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;resize:none;box-sizing:border-box"
+            placeholder="Write freely — mood, energy, wins, concerns..."></textarea>
         </div>
+        <div style="display:flex;gap:0.5rem">
+          <button class="btn" id="mind-submit-btn" style="background:var(--accent);flex:1">Submit</button>
+          <button class="btn btn-ghost" id="mind-cancel-btn">Cancel</button>
+        </div>
+        <div id="mind-submitting" style="display:none;text-align:center;color:var(--muted);font-size:0.85rem;margin-top:0.5rem">Scoring your check-in…</div>
       </div>
 
-      <!-- Top actions -->
-      <div class="card" id="mind-actions-card" style="display:none">
-        <div class="card-title">Top 3 Actions</div>
-        <div id="mind-actions-list"></div>
-      </div>
-
-      <!-- Strategy -->
-      <div class="card" id="mind-strategy-card" style="display:none">
-        <div class="card-title">Your Strategy</div>
-        <div id="mind-strategy-list"></div>
-      </div>
-
-      <!-- Leverage point -->
-      <div class="card" id="mind-leverage-card" style="display:none">
-        <div class="card-title">Highest Leverage Point</div>
-        <div id="mind-leverage-text" style="font-size:0.9rem;color:var(--accent2);font-weight:600;line-height:1.5"></div>
-      </div>
-
-      <div style="text-align:center;margin-top:0.5rem;margin-bottom:1rem">
-        <button class="btn btn-ghost" id="mind-refresh-btn" style="font-size:0.8rem;padding:0.45rem 1.1rem">
-          Regenerate insights
-        </button>
+      <!-- History -->
+      <div class="card" id="mind-history-card" style="display:none">
+        <div class="card-title">Recent Check-ins</div>
+        <div id="mind-history-list"></div>
       </div>
 
     </div><!-- /tab-mind -->
@@ -4535,13 +4464,7 @@ try {
 // ══════════════════════════════════════════════════════
 
 (function() {
-  let mindData  = null;
-  let fetching  = false;
-
-  function show(id)  { const e = document.getElementById(id); if (e) e.style.display = ""; }
-  function hide(id)  { const e = document.getElementById(id); if (e) e.style.display = "none"; }
-  function setText(id, t) { const e = document.getElementById(id); if (e) e.textContent = t; }
-  function setHTML(id, h) { const e = document.getElementById(id); if (e) e.innerHTML = h; }
+  let loaded = false;
 
   function scoreColor(v) {
     if (v >= 8) return "var(--green)";
@@ -4549,160 +4472,116 @@ try {
     return "var(--danger)";
   }
 
-  function renderMind(d) {
-    mindData = d;
-
-    // Readiness
-    show("mind-readiness-card");
-    setText("mind-readiness-score", d.readiness_score ?? "—");
-    setText("mind-readiness-label", d.readiness_label || "");
-    setText("mind-readiness-insight", d.biggest_leverage_point || "");
-    const bar = document.getElementById("mind-readiness-bar");
-    if (bar) bar.style.width = (d.readiness_score || 0) + "%";
-
-    // Body metrics
-    if (d.body) {
-      show("mind-body-card");
-      const b = d.body;
-      const metrics = [
-        ["BMI",        b.bmi ? b.bmi.toFixed(1) : "—"],
-        ["RMR",        b.rmr ? b.rmr + " kcal" : "—"],
-        ["TDEE",       b.tdee ? b.tdee + " kcal" : "—"],
-        ["Cal Goal",   b.calorie_goal ? b.calorie_goal + " kcal" : "—"],
-        ["Protein",    b.protein_goal_g ? b.protein_goal_g + "g" : "—"],
-        ["To Goal",    b.lbs_to_goal != null ? b.lbs_to_goal + " lbs" : "—"],
-        ["Timeline",   b.weeks_to_goal ? "~" + b.weeks_to_goal + "w" : "—"],
-        ["Loss Rate",  b.weight_loss_rate ? b.weight_loss_rate.toFixed(1) + " lbs/wk" : "—"],
-        ["BMI Cat.",   b.bmi_category || "—"],
-      ];
-      setHTML("mind-body-grid", metrics.map(([l, v]) =>
-        `<div class="mind-metric">
-          <div class="mind-metric-val">${v}</div>
-          <div class="mind-metric-lbl">${l}</div>
-        </div>`
-      ).join(""));
-    }
-
-    // Wellness scores
-    if (d.scores && d.scores.length) {
-      show("mind-scores-card");
-      setHTML("mind-scores-list", d.scores.map(s => {
-        const clr = scoreColor(s.value);
-        return `<div class="mind-score-row">
-          <div style="flex:1">
-            <div style="display:flex;align-items:center;gap:0.75rem">
-              <span class="mind-score-label">${s.label}</span>
-              <div class="mind-score-bar-wrap">
-                <div class="mind-score-bar" style="width:${s.value * 10}%;background:${clr}"></div>
-              </div>
-              <span class="mind-score-num" style="color:${clr}">${s.value}</span>
-            </div>
-            ${s.context ? `<div class="mind-score-ctx">${s.context}</div>` : ""}
-          </div>
-        </div>`;
-      }).join(""));
-    }
-
-    // Archetype
-    if (d.behavioral_archetype) {
-      show("mind-archetype-card");
-      setText("mind-archetype-name", d.behavioral_archetype);
-      setText("mind-archetype-desc", d.archetype_description || "");
-    }
-
-    // Insight
-    if (d.personalized_insight) {
-      show("mind-insight-card");
-      setText("mind-insight-text", d.personalized_insight);
-    }
-
-    // Strengths & Risks
-    if (d.strengths || d.risks) {
-      if (d.strengths && d.strengths.length) {
-        show("mind-strengths-card");
-        setHTML("mind-strengths-list", d.strengths.map(s =>
-          `<div class="mind-list-item"><div class="mind-list-dot" style="background:var(--green)"></div>${s}</div>`
-        ).join(""));
-      }
-      if (d.risks && d.risks.length) {
-        show("mind-risks-card");
-        setHTML("mind-risks-list", d.risks.map(r =>
-          `<div class="mind-list-item"><div class="mind-list-dot" style="background:var(--danger)"></div>${r}</div>`
-        ).join(""));
-      }
-    }
-
-    // Top actions
-    if (d.top_actions && d.top_actions.length) {
-      show("mind-actions-card");
-      setHTML("mind-actions-list", d.top_actions.map((a, i) =>
-        `<div class="mind-list-item">
-          <div style="flex-shrink:0;width:20px;height:20px;border-radius:50%;
-            background:var(--accent);color:#fff;font-size:0.7rem;font-weight:700;
-            display:flex;align-items:center;justify-content:center">${i+1}</div>
-          ${a}
-        </div>`
-      ).join(""));
-    }
-
-    // Strategy
-    const strategies = [
-      d.calorie_strategy  ? ["Calorie Strategy", d.calorie_strategy]  : null,
-      d.macro_strategy    ? ["Macro Strategy",   d.macro_strategy]    : null,
-      d.sleep_priority    ? ["Sleep Priority",   d.sleep_priority]    : null,
-      d.stress_priority   ? ["Stress Priority",  d.stress_priority]   : null,
-    ].filter(Boolean);
-    if (strategies.length) {
-      show("mind-strategy-card");
-      setHTML("mind-strategy-list", strategies.map(([k, v]) =>
-        `<div class="mind-strategy-row"><strong>${k}:</strong> ${v}</div>`
-      ).join(""));
-    }
-
-    // Leverage
-    if (d.biggest_leverage_point) {
-      show("mind-leverage-card");
-      setText("mind-leverage-text", d.biggest_leverage_point);
-    }
+  function scoreCell(label, value) {
+    const color = value != null ? scoreColor(value) : "var(--muted)";
+    return `<div style="text-align:center;background:var(--surface2);border-radius:10px;padding:0.75rem 0.5rem">
+      <div class="mind-score-big" style="color:${color}">${value ?? "—"}</div>
+      <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.2rem">${label}</div>
+    </div>`;
   }
 
-  function initMind(force) {
-    if (fetching) return;
-    if (mindData && !force) return; // already loaded
-    fetching = true;
-    hide("mind-no-profile"); hide("mind-error");
-    show("mind-loading");
-    fetch("/api/mind/insights")
+  function renderToday(checkins) {
+    const el = document.getElementById("mind-today-content");
+    if (!checkins.length) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:0.85rem">No check-ins yet today.</div>';
+      return;
+    }
+    const morning = [...checkins].filter(c => c.type === "morning").pop();
+    const evening = [...checkins].filter(c => c.type === "evening").pop();
+    const latest  = evening || morning;
+    let html = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem">
+      ${scoreCell("Focus", latest.focus)}
+      ${scoreCell("Wellbeing", latest.wellbeing)}
+    </div>`;
+    [morning, evening].filter(Boolean).forEach(c => {
+      html += `<div style="font-size:0.82rem;color:var(--muted);margin-top:0.2rem">
+        <strong style="color:var(--text)">${c.type === "morning" ? "Morning" : "Evening"}:</strong> ${c.summary}
+      </div>`;
+    });
+    el.innerHTML = html;
+  }
+
+  function renderHistory(rows) {
+    const card = document.getElementById("mind-history-card");
+    const list = document.getElementById("mind-history-list");
+    if (!rows.length) { card.style.display = "none"; return; }
+    card.style.display = "";
+    list.innerHTML = rows.map(r => {
+      const fc = scoreColor(r.focus), wc = scoreColor(r.wellbeing);
+      const d = new Date(r.checkin_date + "T12:00:00");
+      const dateStr = d.toLocaleDateString("en-US", {weekday:"short", month:"short", day:"numeric"});
+      return `<div class="mind-checkin-row">
+        <div style="display:flex;align-items:center;gap:0.5rem">
+          <span style="flex:1;color:var(--muted);font-size:0.78rem">${dateStr} · ${r.type}</span>
+          <span style="color:${fc};font-weight:700;font-size:0.82rem">F:${r.focus}</span>
+          <span style="color:${wc};font-weight:700;font-size:0.82rem">W:${r.wellbeing}</span>
+        </div>
+        <div style="color:var(--muted);font-size:0.78rem;margin-top:0.15rem">${r.summary}</div>
+      </div>`;
+    }).join("");
+  }
+
+  function loadToday() {
+    fetch("/api/mind/today")
       .then(r => r.json())
       .then(data => {
-        fetching = false;
-        hide("mind-loading");
-        if (data.error === "no_profile") {
-          show("mind-no-profile");
-        } else {
-          renderMind(data);
-        }
+        loaded = true;
+        renderToday(data.today || []);
+        renderHistory(data.history || []);
       })
-      .catch(() => {
-        fetching = false;
-        hide("mind-loading");
-        show("mind-error");
-      });
+      .catch(() => {});
   }
 
-  document.getElementById("mind-refresh-btn").addEventListener("click", () => {
-    mindData = null;
-    // reset all cards
-    ["mind-readiness-card","mind-body-card","mind-scores-card","mind-archetype-card",
-     "mind-insight-card","mind-strengths-card","mind-risks-card","mind-actions-card",
-     "mind-strategy-card","mind-leverage-card"].forEach(id => hide(id));
-    initMind(true);
+  function openForm(type) {
+    document.getElementById("mind-form-type").value = type;
+    document.getElementById("mind-form-title").textContent = type === "morning" ? "Morning Brief" : "Evening Debrief";
+    const goalsLabel = document.getElementById("mind-goals-label");
+    const goalsTA    = document.getElementById("mind-goals");
+    if (type === "morning") {
+      goalsLabel.textContent = "Goals for today";
+      goalsTA.placeholder = "What do you want to accomplish today?";
+    } else {
+      goalsLabel.textContent = "Goals you set this morning (optional)";
+      goalsTA.placeholder = "Any goals from your morning brief?";
+    }
+    goalsTA.value = "";
+    document.getElementById("mind-notes").value = "";
+    document.getElementById("mind-submit-btn").disabled = false;
+    document.getElementById("mind-submitting").style.display = "none";
+    document.getElementById("mind-form-card").style.display = "";
+    document.getElementById("mind-notes").focus();
+  }
+
+  function closeForm() {
+    document.getElementById("mind-form-card").style.display = "none";
+  }
+
+  document.getElementById("mind-morning-btn").addEventListener("click", () => openForm("morning"));
+  document.getElementById("mind-evening-btn").addEventListener("click", () => openForm("evening"));
+  document.getElementById("mind-cancel-btn").addEventListener("click", closeForm);
+
+  document.getElementById("mind-submit-btn").addEventListener("click", () => {
+    const notes = document.getElementById("mind-notes").value.trim();
+    if (!notes) { document.getElementById("mind-notes").focus(); return; }
+    const type  = document.getElementById("mind-form-type").value;
+    const goals = document.getElementById("mind-goals").value.trim();
+    document.getElementById("mind-submit-btn").disabled = true;
+    document.getElementById("mind-submitting").style.display = "";
+    fetch("/api/mind/checkin", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({type, goals, notes}),
+    })
+      .then(r => r.json())
+      .then(() => { closeForm(); loadToday(); })
+      .catch(() => {
+        document.getElementById("mind-submit-btn").disabled = false;
+        document.getElementById("mind-submitting").style.display = "none";
+      });
   });
 
-  document.getElementById("mind-error").addEventListener("click", () => initMind(true));
-
-  window._onMindActivate = () => initMind(false);
-  if (document.getElementById("tab-mind").classList.contains("active")) initMind(false);
+  window._onMindActivate = () => { if (!loaded) loadToday(); };
+  if (document.getElementById("tab-mind").classList.contains("active")) loadToday();
 })();
 
 // ══════════════════════════════════════════════════════

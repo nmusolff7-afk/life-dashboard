@@ -84,6 +84,20 @@ def init_db():
                 updated_at TIMESTAMP NOT NULL
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS mind_checkins (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER REFERENCES users(id),
+                checkin_date DATE NOT NULL,
+                type TEXT NOT NULL,
+                goals TEXT DEFAULT '',
+                notes TEXT NOT NULL,
+                focus INTEGER NOT NULL,
+                wellbeing INTEGER NOT NULL,
+                summary TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL
+            )
+        """)
         conn.commit()
 
         # Migrate: add garmin_activity_id to workout_logs to prevent duplicate imports
@@ -436,3 +450,38 @@ def get_profile_map(user_id):
 def is_onboarding_complete(user_id):
     row = get_onboarding(user_id)
     return bool(row and row.get("completed"))
+
+
+# ── Mind check-ins ──────────────────────────────────────
+
+def insert_mind_checkin(user_id, checkin_type, goals, notes, focus, wellbeing, summary):
+    today = date.today().isoformat()
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO mind_checkins (user_id, checkin_date, type, goals, notes, focus, wellbeing, summary, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, today, checkin_type, goals, notes, focus, wellbeing, summary, now))
+        conn.commit()
+
+
+def get_mind_today(user_id):
+    today = date.today().isoformat()
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM mind_checkins WHERE user_id = ? AND checkin_date = ? ORDER BY created_at",
+            (user_id, today)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_mind_history(user_id, days=14):
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    with get_conn() as conn:
+        rows = conn.execute("""
+            SELECT checkin_date, type, focus, wellbeing, summary, created_at
+            FROM mind_checkins
+            WHERE user_id = ? AND checkin_date >= ?
+            ORDER BY created_at DESC
+        """, (user_id, cutoff)).fetchall()
+    return [dict(r) for r in rows]
