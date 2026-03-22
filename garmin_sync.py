@@ -1,6 +1,7 @@
 """
 Garmin Connect sync using garminconnect + garth.
 """
+import json
 import logging
 import os
 import shutil
@@ -27,11 +28,39 @@ _client_lock = threading.Lock()
 # ── Auth ─────────────────────────────────────────────────────────────────────
 
 def is_configured() -> bool:
-    return bool(os.getenv("GARMIN_EMAIL") and os.getenv("GARMIN_PASSWORD"))
+    """True if we have pre-generated tokens OR email+password credentials."""
+    return bool(
+        os.getenv("GARMIN_TOKENS")
+        or (os.getenv("GARMIN_EMAIL") and os.getenv("GARMIN_PASSWORD"))
+    )
+
+
+def _seed_tokens_from_env() -> bool:
+    """
+    Write GARMIN_TOKENS (JSON dict of filename→content) to TOKEN_DIR so
+    garth can load them. Returns True if tokens were written, False if the
+    env var is not set.
+    """
+    raw = os.getenv("GARMIN_TOKENS")
+    if not raw:
+        return False
+    try:
+        token_files = json.loads(raw)
+    except Exception as e:
+        logger.error("Garmin: GARMIN_TOKENS is not valid JSON: %s", e)
+        return False
+    TOKEN_DIR.mkdir(parents=True, exist_ok=True)
+    for filename, content in token_files.items():
+        (TOKEN_DIR / filename).write_text(content)
+    logger.info("Garmin: seeded %d token file(s) from GARMIN_TOKENS env var", len(token_files))
+    return True
 
 
 def _init_api() -> Garmin:
-    # Try stored tokens first
+    # Seed token files from env var on every fresh init (covers ephemeral filesystems)
+    _seed_tokens_from_env()
+
+    # Try stored tokens
     try:
         garmin = Garmin()
         garmin.login(str(TOKEN_DIR))
@@ -40,11 +69,11 @@ def _init_api() -> Garmin:
     except (FileNotFoundError, GarthHTTPError, GarminConnectAuthenticationError):
         pass
 
-    # Fall back to email/password
+    # Fall back to email/password (works locally; may be blocked on cloud IPs)
     email    = os.getenv("GARMIN_EMAIL")
     password = os.getenv("GARMIN_PASSWORD")
     if not email or not password:
-        raise RuntimeError("GARMIN_EMAIL and GARMIN_PASSWORD not set")
+        raise RuntimeError("Token auth failed and GARMIN_EMAIL/GARMIN_PASSWORD not set")
 
     garmin = Garmin(email=email, password=password, is_cn=False, return_on_mfa=True)
     result1, result2 = garmin.login()
@@ -67,12 +96,15 @@ def get_client() -> Garmin:
 
 
 def _invalidate_tokens() -> None:
+    """Clear cached client and re-seed from env so next get_client() starts fresh."""
     global _client
     with _client_lock:
         _client = None
     if TOKEN_DIR.exists():
         shutil.rmtree(TOKEN_DIR, ignore_errors=True)
-        logger.warning("Garmin: deleted token directory, will re-authenticate on next call")
+    # Re-seed immediately so the next _init_api() call has token files ready
+    _seed_tokens_from_env()
+    logger.warning("Garmin: token directory reset, will re-authenticate on next call")
 
 
 def invalidate() -> None:
