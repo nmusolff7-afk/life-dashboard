@@ -489,6 +489,19 @@
     .mind-score-big { font-family:'Rajdhani',sans-serif; font-size:2.5rem; font-weight:700; line-height:1; }
     .mind-checkin-row { padding:0.5rem 0; border-bottom:1px solid var(--surface2); font-size:0.85rem; }
     .mind-checkin-row:last-child { border-bottom:none; }
+    /* ── Voice input ── */
+    .voice-mic-btn { position:absolute; bottom:0.4rem; right:0.4rem; width:26px; height:26px;
+      border-radius:50%; background:var(--surface2); border:1px solid var(--border);
+      cursor:pointer; display:flex; align-items:center; justify-content:center;
+      color:var(--muted); padding:0; flex-shrink:0; z-index:2;
+      transition:background .15s,color .15s; }
+    .voice-mic-btn:hover { color:var(--text); filter:brightness(1.15); }
+    .voice-mic-btn.voice-active { background:var(--danger); color:#fff; border-color:var(--danger);
+      animation:voice-pulse 1.2s ease-in-out infinite; }
+    @keyframes voice-pulse {
+      0%,100% { box-shadow:0 0 0 0 rgba(239,68,68,.45); }
+      50%      { box-shadow:0 0 0 6px rgba(239,68,68,0); }
+    }
 
     /* ══ HISTORY ════════════════════════════════ */
     .hist-row { display: flex; align-items: center; gap: 0.75rem;
@@ -5157,6 +5170,103 @@ if ("serviceWorker" in navigator) {
         confirmBtn.textContent = "Yes, delete my account";
       });
   });
+})();
+
+// ══════════════════════════════════════════════════════
+//  VOICE INPUT  (Web Speech API — Chrome / Edge / Safari)
+// ══════════════════════════════════════════════════════
+(function () {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return; // not supported — silently do nothing
+
+  let activeRec = null, activeBtn = null;
+
+  function stopActive() {
+    if (activeRec) { try { activeRec.stop(); } catch (_) {} activeRec = null; }
+    if (activeBtn) { activeBtn.classList.remove("voice-active"); activeBtn = null; }
+  }
+
+  const MIC_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="9" y="2" width="6" height="11" rx="3"/>
+    <path d="M5 10a7 7 0 0 0 14 0"/>
+    <line x1="12" y1="19" x2="12" y2="22"/>
+    <line x1="8" y1="22" x2="16" y2="22"/>
+  </svg>`;
+
+  function attachMic(el) {
+    if (el._voiceMic) return;
+    const t = el.type || "";
+    if (["hidden","number","range","file","checkbox","radio","submit","button"].includes(t)) return;
+    el._voiceMic = true;
+
+    // Wrap the element in a positioned container
+    const wrap = document.createElement("div");
+    wrap.style.cssText = "position:relative;display:block;width:100%;min-width:0;";
+    el.parentNode.insertBefore(wrap, el);
+    wrap.appendChild(el);
+    el.style.width = "100%";
+    el.style.boxSizing = "border-box";
+    el.style.paddingRight = "2.4rem";
+
+    // Mic button
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "voice-mic-btn";
+    btn.title = "Voice input";
+    btn.innerHTML = MIC_SVG;
+    // For single-line inputs, center vertically instead of sitting at bottom
+    if (el.tagName !== "TEXTAREA") {
+      btn.style.cssText = "top:50%;bottom:auto;transform:translateY(-50%);";
+    }
+    wrap.appendChild(btn);
+
+    btn.addEventListener("click", function (e) {
+      e.preventDefault();
+      if (activeBtn === btn) { stopActive(); return; }
+      stopActive();
+
+      const rec = new SR();
+      rec.continuous = true;
+      rec.interimResults = false;
+      rec.lang = "en-US";
+
+      rec.onresult = function (ev) {
+        const transcript = Array.from(ev.results)
+          .slice(ev.resultIndex)
+          .map(function (r) { return r[0].transcript; })
+          .join("");
+        const cur = el.value;
+        el.value = cur + (cur && !/\s$/.test(cur) ? " " : "") + transcript;
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+      };
+
+      rec.onerror = stopActive;
+      rec.onend = function () { if (activeRec === rec) stopActive(); };
+
+      rec.start();
+      activeRec = rec;
+      activeBtn = btn;
+      btn.classList.add("voice-active");
+      el.focus();
+    });
+  }
+
+  // Attach to all existing textarea and text inputs
+  document.querySelectorAll('textarea, input[type="text"], input:not([type])').forEach(attachMic);
+
+  // Attach to any dynamically created inputs (workout plan rows, etc.)
+  new MutationObserver(function (muts) {
+    muts.forEach(function (m) {
+      m.addedNodes.forEach(function (node) {
+        if (!node.querySelectorAll) return;
+        node.querySelectorAll('textarea, input[type="text"], input:not([type])').forEach(attachMic);
+        if (node.matches && node.matches('textarea, input[type="text"], input:not([type])')) {
+          attachMic(node);
+        }
+      });
+    });
+  }).observe(document.body, { childList: true, subtree: true });
 })();
 </script>
 </body>
