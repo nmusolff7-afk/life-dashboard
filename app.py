@@ -507,9 +507,16 @@ def api_day(date_str):
 @app.route("/api/history")
 @login_required
 def api_history():
+    # Build briefs map: {date: ["morning", "evening", ...]}
+    briefs_raw = get_mind_history(uid(), 90)
+    briefs: dict = {}
+    for row in briefs_raw:
+        d = row["checkin_date"]
+        briefs.setdefault(d, []).append(row["type"])
     return jsonify({
         "meals":    get_meal_history(uid(), 90),
         "workouts": get_workout_history(uid(), 90),
+        "briefs":   briefs,
     })
 
 

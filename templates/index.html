@@ -474,6 +474,16 @@
     .cal-cell { aspect-ratio: 1; border-radius: 3px; cursor: pointer; transition: filter .1s; }
     .cal-cell:hover { filter: brightness(1.25); }
     .cal-cell.no-cursor { cursor: default; }
+    /* Brief indicators — classy thin gold borders */
+    .cal-cell.brief-both {
+      box-shadow: inset 0 0 0 1.5px #c9a227,
+                  inset 0 1px 0 rgba(255,230,80,.45),
+                  0 0 6px rgba(201,162,39,.22);
+    }
+    .cal-cell.brief-one {
+      outline: 1.5px dashed rgba(201,162,39,.65);
+      outline-offset: -1px;
+    }
     .cal-legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin-top: 0.85rem;
       padding-top: 0.75rem; border-top: 1px solid var(--border); font-size: 0.75rem;
       color: var(--muted); align-items: center; }
@@ -502,6 +512,12 @@
     .mind-task-del { color:var(--muted);font-size:0.8rem;cursor:pointer;background:none;border:none;
       padding:0.15rem 0.3rem;line-height:1;flex-shrink:0;opacity:0.4;transition:opacity .15s; }
     .mind-task-del:hover { color:var(--danger);opacity:1; }
+    /* ── Brief cards ── */
+    .brief-card { border-left: 3px solid var(--border); transition: border-color .2s; }
+    .brief-card.brief-open { border-left-color: var(--accent); }
+    .brief-card.brief-done { border-left-color: var(--green); }
+    .brief-card .brief-title { font-size: 0.95rem; font-weight: 700; letter-spacing: 0.02em; color: var(--text); }
+    .brief-card .brief-emoji { font-size: 1.1rem; margin-right: 0.35rem; }
     /* ── Voice input ── */
     .voice-mic-btn { position:absolute; bottom:0.4rem; right:0.4rem; width:26px; height:26px;
       border-radius:50%; background:var(--surface2); border:1px solid var(--border);
@@ -837,17 +853,17 @@
       </div>
 
       <!-- Morning Brief -->
-      <div class="card" id="home-morning-card" style="display:none">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem">
-          <div class="card-title" style="margin:0">Morning Brief</div>
+      <div class="card brief-card" id="home-morning-card" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.7rem">
+          <div class="brief-title"><span class="brief-emoji">☀️</span>Morning Brief</div>
           <div id="home-morning-badge" style="font-size:0.75rem;padding:0.2rem 0.65rem;border-radius:99px;background:var(--surface2);color:var(--muted)">Locked</div>
         </div>
         <div id="home-morning-locked" style="display:none;color:var(--muted);font-size:0.85rem">
           Unlocks at <span id="home-morning-unlock-time"></span>
         </div>
         <div id="home-morning-done" style="display:none">
-          <div style="color:var(--green);font-size:0.9rem;font-weight:600">✓ Completed</div>
-          <div id="home-morning-summary" style="font-size:0.82rem;color:var(--muted);margin-top:0.25rem"></div>
+          <div style="color:var(--green);font-size:0.92rem;font-weight:700">✓ Completed</div>
+          <div id="home-morning-summary" style="font-size:0.84rem;color:var(--muted);margin-top:0.3rem;line-height:1.45"></div>
         </div>
         <div id="home-morning-form" style="display:none">
           <div style="margin-bottom:0.6rem">
@@ -874,17 +890,17 @@
       </div>
 
       <!-- Evening Debrief -->
-      <div class="card" id="home-evening-card" style="display:none">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem">
-          <div class="card-title" style="margin:0">Evening Debrief</div>
+      <div class="card brief-card" id="home-evening-card" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.7rem">
+          <div class="brief-title"><span class="brief-emoji">🌙</span>Evening Debrief</div>
           <div id="home-evening-badge" style="font-size:0.75rem;padding:0.2rem 0.65rem;border-radius:99px;background:var(--surface2);color:var(--muted)">Locked</div>
         </div>
         <div id="home-evening-locked" style="display:none;color:var(--muted);font-size:0.85rem">
           Unlocks at <span id="home-evening-unlock-time"></span>
         </div>
         <div id="home-evening-done" style="display:none">
-          <div style="color:var(--green);font-size:0.9rem;font-weight:600">✓ Completed</div>
-          <div id="home-evening-summary" style="font-size:0.82rem;color:var(--muted);margin-top:0.25rem"></div>
+          <div style="color:var(--green);font-size:0.92rem;font-weight:700">✓ Completed</div>
+          <div id="home-evening-summary" style="font-size:0.84rem;color:var(--muted);margin-top:0.3rem;line-height:1.45"></div>
         </div>
         <div id="home-evening-form" style="display:none">
           <div style="margin-bottom:0.6rem">
@@ -1291,6 +1307,8 @@
             <span><span class="cal-dot" style="background:#3dcfbf"></span>Both</span>
             <span><span class="cal-dot" style="background:#484f58"></span>Rest</span>
             <span><span class="cal-dot" style="border:1px solid var(--border);background:var(--surface2)"></span>No data</span>
+            <span><span class="cal-dot" style="background:transparent;box-shadow:inset 0 0 0 1.5px #c9a227,inset 0 1px 0 rgba(255,230,80,.45)"></span>Both briefs</span>
+            <span><span class="cal-dot" style="background:transparent;outline:1.5px dashed rgba(201,162,39,.65);outline-offset:-1px"></span>One brief</span>
           </div>
         </div>
 
@@ -4125,8 +4143,17 @@ try {
         else if (hasCardio)                bg = "#58a6ff";
         else                               bg = "#6e7681";
 
+        const briefTypes = (histData.briefs && histData.briefs[ds]) || [];
+        const hasBothBriefs = briefTypes.includes("morning") && briefTypes.includes("evening");
+        const hasOneBrief   = briefTypes.length > 0 && !hasBothBriefs;
+
         const cell = document.createElement("div");
-        cell.className = "cal-cell" + (isFuture ? " no-cursor" : "");
+        let cellClass = "cal-cell" + (isFuture ? " no-cursor" : "");
+        if (!isFuture) {
+          if (hasBothBriefs) cellClass += " brief-both";
+          else if (hasOneBrief) cellClass += " brief-one";
+        }
+        cell.className = cellClass;
         cell.style.background = bg;
         cell.style.border = (!hasAnyData && !isFuture) ? "1px solid var(--border)" : "";
         cell.dataset.date     = ds;
@@ -5174,6 +5201,7 @@ if ("serviceWorker" in navigator) {
     const card  = document.getElementById(ids.card);
     const badge = document.getElementById(ids.badge);
     card.style.display = "";
+    card.classList.remove("brief-open", "brief-done");
 
     // Reset sub-sections
     ["locked","done","form"].forEach(k => document.getElementById(ids[k]).style.display = "none");
@@ -5185,6 +5213,7 @@ if ("serviceWorker" in navigator) {
     }
 
     if (submitted) {
+      card.classList.add("brief-done");
       setBadge("Done", "rgba(34,197,94,.15)", "var(--green)");
       document.getElementById(ids.done).style.display = "";
       document.getElementById(ids.summary).textContent = submitted.summary || "";
@@ -5193,6 +5222,7 @@ if ("serviceWorker" in navigator) {
       document.getElementById(ids.unlock).textContent = fmtTime(startStr);
       document.getElementById(ids.locked).style.display = "";
     } else if (status === "open") {
+      card.classList.add("brief-open");
       setBadge("Open now", "rgba(99,102,241,.15)", "var(--accent)");
       document.getElementById(ids.form).style.display = "";
     } else {
