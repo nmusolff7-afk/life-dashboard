@@ -808,6 +808,31 @@
         </div>
       </div>
 
+      <!-- Garmin Status -->
+      <div class="card" id="garmin-status-card" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem">
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <div class="card-title" style="margin:0">Garmin</div>
+            <div id="garmin-dot" style="width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0"></div>
+          </div>
+          <button id="garmin-sync-btn" class="btn btn-ghost" style="font-size:0.78rem;padding:0.3rem 0.75rem">Sync Now</button>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:1.5rem">
+          <div>
+            <div id="garmin-steps-val" style="font-family:'Rajdhani',sans-serif;font-size:1.6rem;font-weight:700;color:var(--muted);line-height:1">—</div>
+            <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.15rem">Steps</div>
+          </div>
+          <div>
+            <div id="garmin-hr-val" style="font-family:'Rajdhani',sans-serif;font-size:1.6rem;font-weight:700;color:var(--muted);line-height:1">—</div>
+            <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.15rem">Resting HR</div>
+          </div>
+          <div style="flex:1;text-align:right">
+            <div id="garmin-sync-time" style="font-size:0.72rem;color:var(--muted)"></div>
+            <div id="garmin-sync-msg" style="font-size:0.72rem;margin-top:0.1rem"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- Morning Brief -->
       <div class="card" id="home-morning-card" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem">
@@ -5199,6 +5224,88 @@ if ("serviceWorker" in navigator) {
 
   initBriefs();
   setInterval(initBriefs, 60000); // re-check every minute in case a window opens/closes
+})();
+
+// ══════════════════════════════════════════════════════
+//  GARMIN STATUS CARD
+// ══════════════════════════════════════════════════════
+(function () {
+  const card    = document.getElementById("garmin-status-card");
+  const dot     = document.getElementById("garmin-dot");
+  const stepsEl = document.getElementById("garmin-steps-val");
+  const hrEl    = document.getElementById("garmin-hr-val");
+  const timeEl  = document.getElementById("garmin-sync-time");
+  const msgEl   = document.getElementById("garmin-sync-msg");
+  const syncBtn = document.getElementById("garmin-sync-btn");
+
+  function fmtTime(ts) {
+    if (!ts) return "";
+    const d = new Date(ts);
+    return "Synced " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+
+  function applyData(steps, resting_hr, last_sync) {
+    dot.style.background   = steps ? "var(--green)" : "var(--muted)";
+    stepsEl.textContent    = steps ? steps.toLocaleString() : "—";
+    stepsEl.style.color    = steps ? "var(--text)" : "var(--muted)";
+    hrEl.textContent       = resting_hr ? resting_hr + " bpm" : "—";
+    hrEl.style.color       = resting_hr ? "var(--accent2)" : "var(--muted)";
+    timeEl.textContent     = fmtTime(last_sync);
+    // Keep the existing stats-grid steps card in sync
+    const dashSteps = document.getElementById("dash-steps-val");
+    if (dashSteps && steps) {
+      dashSteps.textContent = steps.toLocaleString();
+      dashSteps.style.color = "var(--text)";
+    }
+  }
+
+  function loadStatus() {
+    fetch("/api/garmin/status")
+      .then(r => r.json())
+      .then(data => {
+        if (!data.configured) return;
+        card.style.display = "";
+        const t = data.today;
+        applyData(t && t.steps, t && t.resting_hr, data.last_sync);
+      })
+      .catch(() => {});
+  }
+
+  syncBtn.addEventListener("click", () => {
+    syncBtn.disabled    = true;
+    syncBtn.textContent = "Syncing…";
+    msgEl.style.color   = "var(--muted)";
+    msgEl.textContent   = "";
+    fetch("/api/garmin/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: localToday() }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        syncBtn.disabled    = false;
+        syncBtn.textContent = "Sync Now";
+        if (data.error) {
+          msgEl.style.color = "var(--danger)";
+          msgEl.textContent = "⚠ " + data.error;
+          return;
+        }
+        msgEl.style.color = "var(--green)";
+        msgEl.textContent = "✓ " + (data.activities_imported > 0
+          ? data.activities_imported + " workout" + (data.activities_imported > 1 ? "s" : "") + " imported"
+          : "Up to date");
+        applyData(data.steps, data.resting_hr, new Date().toISOString());
+        if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+      })
+      .catch(() => {
+        syncBtn.disabled    = false;
+        syncBtn.textContent = "Sync Now";
+        msgEl.style.color   = "var(--danger)";
+        msgEl.textContent   = "⚠ Connection error";
+      });
+  });
+
+  loadStatus();
 })();
 
 // ══════════════════════════════════════════════════════
