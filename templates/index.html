@@ -509,7 +509,12 @@
       color:var(--muted); padding:0; flex-shrink:0; z-index:2;
       transition:background .15s,color .15s; }
     .voice-mic-btn:hover { color:var(--text); filter:brightness(1.15); }
-    .voice-mic-btn.voice-active { background:var(--danger); color:#fff; border-color:var(--danger); }
+    .voice-mic-btn.voice-active { background:var(--danger); color:#fff; border-color:var(--danger);
+      animation:voice-pulse 1s ease-in-out infinite; }
+    @keyframes voice-pulse {
+      0%,100% { box-shadow:0 0 0   0   rgba(239,68,68,.6); }
+      50%      { box-shadow:0 0 10px 5px rgba(239,68,68,.35); }
+    }
     .voice-field-active { outline:2px solid var(--danger) !important;
       box-shadow:0 0 0 4px rgba(239,68,68,.18) !important;
       transition:outline .15s, box-shadow .15s; }
@@ -5249,11 +5254,15 @@ if ("serviceWorker" in navigator) {
     hrEl.textContent       = resting_hr ? resting_hr + " bpm" : "—";
     hrEl.style.color       = resting_hr ? "var(--accent2)" : "var(--muted)";
     timeEl.textContent     = fmtTime(last_sync);
-    // Keep the existing stats-grid steps card in sync
-    const dashSteps = document.getElementById("dash-steps-val");
-    if (dashSteps && steps) {
-      dashSteps.textContent = steps.toLocaleString();
-      dashSteps.style.color = "var(--text)";
+    // Keep the existing stats-grid steps card in sync and persist to localStorage
+    // so _refreshDashboard() picks it up on every subsequent tab switch
+    if (steps) {
+      saveDayField(localToday(), { steps: steps });
+      const dashSteps = document.getElementById("dash-steps-val");
+      if (dashSteps) {
+        dashSteps.textContent = steps.toLocaleString();
+        dashSteps.style.color = "var(--text)";
+      }
     }
   }
 
@@ -5348,44 +5357,77 @@ if ("serviceWorker" in navigator) {
   if (!SR) return;
 
   let activeRec = null, activeBtn = null, activeEl = null;
-  let micStream = null, audioCtx = null, analyser = null, rafId = null;
-
-  function stopVolumeAnimation() {
-    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-    if (micStream) { micStream.getTracks().forEach(function (t) { t.stop(); }); micStream = null; }
-    analyser = null;
-  }
 
   function stopActive() {
-    if (activeRec) { try { activeRec.stop(); } catch (_) {} activeRec = null; }
-    if (activeBtn) {
-      activeBtn.classList.remove("voice-active");
-      activeBtn.style.transform = activeBtn._baseTransform || "";
-      activeBtn.style.boxShadow = "";
-      activeBtn = null;
+    var rec = activeRec, btn = activeBtn, el = activeEl;
+    activeRec = null; activeBtn = null; activeEl = null;
+    if (rec) { try { rec.stop(); } catch (_) {} }
+    if (btn) {
+      btn.classList.remove("voice-active");
+      btn.style.transform = btn._baseTransform || "";
+      btn.style.boxShadow = "";
     }
-    if (activeEl) { activeEl.classList.remove("voice-field-active"); activeEl = null; }
-    stopVolumeAnimation();
+    if (el) { el.classList.remove("voice-field-active"); }
   }
 
-  function startVolumeAnimation(btn) {
-    if (!analyser) return;
-    const data = new Uint8Array(analyser.frequencyBinCount);
-    const base = btn._baseTransform || "";
+  // startSession: one short utterance per session, restarts on end
+  // interimResults:true so live text shows + interim is committed on end
+  // No getUserMedia — avoids mic-ownership conflict with SR
+  function startSession(el, btn) {
+    var rec = new SR();
+    rec.continuous      = false;
+    rec.interimResults  = true;
+    rec.lang            = "en-US";
+    rec.maxAlternatives = 1;
 
-    function tick() {
-      analyser.getByteFrequencyData(data);
-      let sum = 0;
-      for (let i = 0; i < data.length; i++) sum += data[i];
-      const vol   = sum / (data.length * 255);          // 0–1
-      const scale = 1 + vol * 0.9;                      // 1.0 → 1.9
-      const glow  = Math.round(vol * 16);                // 0 → 16 px
-      const alpha = (0.4 + vol * 0.6).toFixed(2);       // 0.4 → 1.0
-      btn.style.transform = base ? base + " scale(" + scale.toFixed(2) + ")" : "scale(" + scale.toFixed(2) + ")";
-      btn.style.boxShadow = "0 0 " + glow + "px rgba(239,68,68," + alpha + ")";
-      rafId = requestAnimationFrame(tick);
-    }
-    rafId = requestAnimationFrame(tick);
+    var committed   = el.value; // start from current field value
+    var lastInterim = "";
+
+    rec.onresult = function (ev) {
+      var finals = "", interim = "";
+      for (var i = 0; i < ev.results.length; i++) {
+        if (ev.results[i].isFinal) finals += ev.results[i][0].transcript;
+        else                        interim += ev.results[i][0].transcript;
+      }
+      if (finals) {
+        // Add spacing between committed and new final text
+        var sep = (committed && !/\s$/.test(committed)) ? " " : "";
+        committed += sep + finals;
+        lastInterim = "";
+        el.value = committed;
+      } else if (interim) {
+        var sep = (committed && !/\s$/.test(committed)) ? " " : "";
+        el.value = committed + sep + interim;
+        lastInterim = interim;
+      }
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+
+    rec.onerror = function (ev) {
+      if (ev.error === "not-allowed" || ev.error === "service-not-allowed") stopActive();
+      // no-speech / network / audio-capture: let onend restart
+    };
+
+    rec.onend = function () {
+      if (activeRec !== rec) return;
+      // Commit any pending interim before restarting
+      if (lastInterim) {
+        var sep = (committed && !/\s$/.test(committed)) ? " " : "";
+        committed += sep + lastInterim;
+        el.value = committed;
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        lastInterim = "";
+      }
+      // Restart for next utterance
+      setTimeout(function () {
+        if (activeRec !== rec) return;
+        var next = startSession(el, btn);
+        if (next) { activeRec = next; } else { stopActive(); }
+      }, 100);
+    };
+
+    try { rec.start(); } catch (_) { return null; }
+    return rec;
   }
 
   const MIC_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none"
@@ -5428,37 +5470,8 @@ if ("serviceWorker" in navigator) {
       if (activeBtn === btn) { stopActive(); return; }
       stopActive();
 
-      const rec = new SR();
-      rec.continuous      = true;
-      rec.interimResults  = false;
-      rec.lang            = "en-US";
-      rec.maxAlternatives = 1;
-
-      // Only append final results; loop instead of slice for cross-browser safety
-      rec.onresult = function (ev) {
-        let transcript = "";
-        for (let i = ev.resultIndex; i < ev.results.length; i++) {
-          if (ev.results[i].isFinal) transcript += ev.results[i][0].transcript;
-        }
-        if (!transcript) return;
-        const cur = el.value;
-        el.value = cur + (cur && !/\s$/.test(cur) ? " " : "") + transcript;
-        el.dispatchEvent(new Event("input", { bubbles: true }));
-      };
-
-      // Only kill session on hard permission errors; ignore no-speech / network blips
-      rec.onerror = function (ev) {
-        if (ev.error === "not-allowed" || ev.error === "service-not-allowed") stopActive();
-      };
-
-      // Chrome/mobile fires onend after silence even with continuous:true — restart it
-      rec.onend = function () {
-        if (activeRec !== rec) return;
-        setTimeout(function () {
-          if (activeRec !== rec) return;
-          try { rec.start(); } catch (_) { stopActive(); }
-        }, 150);
-      };
+      var rec = startSession(el, btn);
+      if (!rec) return;
 
       activeRec = rec;
       activeBtn = btn;
@@ -5466,25 +5479,6 @@ if ("serviceWorker" in navigator) {
       btn.classList.add("voice-active");
       el.classList.add("voice-field-active");
       el.focus();
-
-      try { rec.start(); } catch (_) { stopActive(); return; }
-
-      // Start volume animation 300 ms after recognition so they don't race for the mic
-      setTimeout(function () {
-        if (activeBtn !== btn) return;
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
-        navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-          .then(function (stream) {
-            if (activeBtn !== btn) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
-            micStream = stream;
-            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            analyser = audioCtx.createAnalyser();
-            analyser.fftSize = 256;
-            audioCtx.createMediaStreamSource(stream).connect(analyser);
-            startVolumeAnimation(btn);
-          })
-          .catch(function () {});
-      }, 300);
     });
   }
 
