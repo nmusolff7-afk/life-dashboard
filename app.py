@@ -30,6 +30,20 @@ app.secret_key = os.environ.get("SECRET_KEY", "life-dashboard-default-secret-v1"
 app.permanent_session_lifetime = timedelta(days=90)
 init_db()
 
+
+@app.template_filter("fmt_time_12h")
+def fmt_time_12h(ts: str) -> str:
+    """Convert 'YYYY-MM-DD HH:MM:SS' (or bare 'HH:MM') to 12-hour AM/PM string."""
+    try:
+        s = str(ts or "")
+        # Extract HH:MM — timestamps are 'YYYY-MM-DD HH:MM:SS', bare times are 'HH:MM'
+        time_part = s[11:16] if len(s) > 8 else s[:5]
+        h, m = int(time_part[:2]), int(time_part[3:5])
+        period = "AM" if h < 12 else "PM"
+        return f"{h % 12 or 12}:{m:02d} {period}"
+    except Exception:
+        return str(ts or "")[11:16]
+
 # In-memory store for async onboarding jobs: {user_id: {"status": "pending"|"done"|"error", "profile": {...}, "error": "..."}}
 _ob_jobs: dict = {}
 
@@ -548,7 +562,11 @@ def _garmin_save(user_id: int, date_str: str, result: dict) -> None:
         gid = act.get("garmin_activity_id", "")
         if gid and garmin_activity_exists(user_id, gid):
             continue
-        insert_garmin_workout(user_id, date_str, act["description"], act["calories"], gid)
+        # Use the activity's own local start time so logged_at reflects when
+        # the activity happened, not when the sync ran
+        logged_at = act.get("start_time_local") or None
+        insert_garmin_workout(user_id, date_str, act["description"], act["calories"], gid,
+                              logged_at=logged_at)
 
 
 # Start background poll on app startup (user_id=1 for this personal app)

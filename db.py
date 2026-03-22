@@ -398,15 +398,15 @@ def garmin_activity_exists(user_id, garmin_activity_id):
     return row is not None
 
 
-def insert_garmin_workout(user_id, log_date, description, calories_burned, garmin_activity_id):
+def insert_garmin_workout(user_id, log_date, description, calories_burned, garmin_activity_id, logged_at=None):
     """Insert a Garmin-sourced workout, tagged with its Garmin activity ID."""
+    ts = logged_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with get_conn() as conn:
         conn.execute("""
             INSERT INTO workout_logs
                 (user_id, logged_at, log_date, description, calories_burned, garmin_activity_id)
             VALUES (?, ?, ?, ?, ?, ?)
-        """, (user_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-              log_date, description, calories_burned, garmin_activity_id))
+        """, (user_id, ts, log_date, description, calories_burned, garmin_activity_id))
         conn.commit()
 
 

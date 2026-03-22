@@ -153,6 +153,7 @@ def fetch_day(date_str: str) -> dict:
             "garmin_activity_id": str(act.get("activityId", "")),
             "description":        desc,
             "calories":           calories,
+            "start_time_local":   act.get("startTimeLocal") or "",  # "YYYY-MM-DD HH:MM:SS" local
         })
 
     return {

@@ -1155,7 +1155,7 @@
           <div class="done-check">✅</div>
           <div class="done-body">
             <div class="done-title">Workout logged today{% if ns.strength_log.calories_burned %} · ~{{ ns.strength_log.calories_burned }} kcal{% endif %}</div>
-            <div class="done-meta">{{ ns.strength_log.logged_at[11:16] }} · {{ ns.strength_log.description[:120] }}{% if ns.strength_log.description|length > 120 %}…{% endif %}</div>
+            <div class="done-meta">{{ ns.strength_log.logged_at | fmt_time_12h }} · {{ ns.strength_log.description[:120] }}{% if ns.strength_log.description|length > 120 %}…{% endif %}</div>
             <div class="done-action-row">
               <button class="done-edit-btn" id="edit-workout-btn">Edit</button>
               <button class="done-delete-btn" id="delete-workout-status-btn">Delete</button>
@@ -1194,7 +1194,7 @@
             <div class="w-icon">{% if 'run' in w.description|lower or 'mile' in w.description|lower or 'cardio' in w.description|lower %}🏃{% else %}🏋️{% endif %}</div>
             <div class="w-body">
               <div class="w-desc">{{ w.description }}</div>
-              <div class="w-meta">{{ w.logged_at[11:16] }}</div>
+              <div class="w-meta">{{ w.logged_at | fmt_time_12h }}</div>
             </div>
             {% if w.calories_burned %}<div class="w-cal">~{{ w.calories_burned }} kcal</div>{% endif %}
             <button type="button" class="btn btn-danger" onclick="deleteWorkout({{ w.id }})">✕</button>
@@ -1860,6 +1860,17 @@ function calcTEF(cal, proteinG, carbG, fatG) {
   return Math.round((cal || 0) * 0.10);
 }
 
+// 12-hour AM/PM formatter — accepts "HH:MM" or a full "YYYY-MM-DD HH:MM:SS" timestamp
+function fmt12h(ts) {
+  if (!ts) return "";
+  var s = String(ts);
+  var hhmm = s.length > 8 ? s.slice(11, 16) : s.slice(0, 5);
+  var parts = hhmm.split(":");
+  var h = parseInt(parts[0], 10), m = parseInt(parts[1], 10) || 0;
+  var period = h < 12 ? "AM" : "PM";
+  return (h % 12 || 12) + ":" + String(m).padStart(2, "0") + " " + period;
+}
+
 // Use local date everywhere — toISOString() is UTC and rolls over at 6-7pm Mountain Time.
 // Respects a manually chosen timezone stored in localStorage ("userTimezone").
 function localToday() {
@@ -2117,7 +2128,7 @@ function renderWorkoutList(workouts, burn) {
     workouts.forEach(w => {
       const isRun = /run|mile|cardio/i.test(w.description);
       const icon  = isRun ? '🏃' : '🏋️';
-      const time  = (w.logged_at || '').slice(11, 16);
+      const time  = fmt12h(w.logged_at || '');
       html += `<div class="workout-item">
         <div class="w-icon">${icon}</div>
         <div class="w-body">
@@ -2142,7 +2153,7 @@ function renderStrengthStatus(workouts) {
   const strengthLog = (workouts || []).find(w => w.description.startsWith('Strength workout'));
   if (strengthLog) {
     const kcalStr = strengthLog.calories_burned ? ` · ~${strengthLog.calories_burned} kcal` : '';
-    const time    = (strengthLog.logged_at || '').slice(11, 16);
+    const time    = fmt12h(strengthLog.logged_at || '');
     const desc    = strengthLog.description.length > 120
       ? strengthLog.description.slice(0, 120) + '…'
       : strengthLog.description;
@@ -2920,7 +2931,7 @@ function deleteWorkout(id) {
     const strengthLog = (workouts || []).find(w => w.description.startsWith('Strength workout'));
     if (strengthLog) {
       const kcalStr = strengthLog.calories_burned ? ` · ~${strengthLog.calories_burned} kcal` : '';
-      const time    = (strengthLog.logged_at || '').slice(11, 16);
+      const time    = fmt12h(strengthLog.logged_at || '');
       const desc    = strengthLog.description.length > 120
         ? strengthLog.description.slice(0, 120) + '…'
         : strengthLog.description;
@@ -5171,7 +5182,7 @@ if ("serviceWorker" in navigator) {
   function fmtTime(str) {
     const [h, m] = (str || "00:00").split(":").map(Number);
     const d = new Date(); d.setHours(h, m || 0, 0, 0);
-    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
   }
 
   function windowStatus(startStr, durationHrs) {
@@ -5306,7 +5317,7 @@ if ("serviceWorker" in navigator) {
   function fmtTime(ts) {
     if (!ts) return "";
     const d = new Date(ts);
-    return "Synced " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    return "Synced " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
   }
 
   function applyData(steps, resting_hr, last_sync) {
