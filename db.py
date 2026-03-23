@@ -179,6 +179,14 @@ def init_db():
         except Exception:
             pass  # column already exists
 
+        # Migrate: add energy_level and stress_level to mind_checkins if absent
+        for col in ("energy_level INTEGER", "stress_level INTEGER"):
+            try:
+                conn.execute(f"ALTER TABLE mind_checkins ADD COLUMN {col}")
+                conn.commit()
+            except Exception:
+                pass
+
         # Migrate: assign orphaned rows (no user_id) to user 1 if they exist
         conn.execute("UPDATE meal_logs      SET user_id = 1 WHERE user_id IS NULL AND EXISTS (SELECT 1 FROM users WHERE id = 1)")
         conn.execute("UPDATE workout_logs   SET user_id = 1 WHERE user_id IS NULL AND EXISTS (SELECT 1 FROM users WHERE id = 1)")
@@ -593,14 +601,18 @@ def get_daily_weight(user_id: int, date_str: str):
 
 # ── Mind check-ins ──────────────────────────────────────
 
-def insert_mind_checkin(user_id, checkin_type, goals, notes, focus, wellbeing, summary):
+def insert_mind_checkin(user_id, checkin_type, goals, notes, focus, wellbeing, summary,
+                        energy_level=None, stress_level=None):
     today = date.today().isoformat()
     now = datetime.now().isoformat()
     with get_conn() as conn:
         conn.execute("""
-            INSERT INTO mind_checkins (user_id, checkin_date, type, goals, notes, focus, wellbeing, summary, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (user_id, today, checkin_type, goals, notes, focus, wellbeing, summary, now))
+            INSERT INTO mind_checkins
+                (user_id, checkin_date, type, goals, notes, focus, wellbeing, summary,
+                 energy_level, stress_level, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, today, checkin_type, goals, notes, focus, wellbeing, summary,
+              energy_level, stress_level, now))
         conn.commit()
 
 
@@ -746,14 +758,20 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
     completed_tasks = sum(1 for t in tasks if t["completed"])
     task_rate       = (completed_tasks / total_tasks) if total_tasks > 0 else 0.0
 
-    # Wellbeing: today's avg (scale 1–10) normalised to 0–1; delta vs prior 7 days
-    wb_scores = [c["wellbeing"] for c in checkins if c.get("wellbeing") is not None]
-    if wb_scores:
-        avg_wellbeing = sum(wb_scores) / len(wb_scores)
-        wellbeing_pct = avg_wellbeing / 10.0
-    else:
-        avg_wellbeing = None
-        wellbeing_pct = 0.0
+    # Wellbeing: combine mood/wellbeing, energy (higher=better), stress inverted (lower=better)
+    wb_scores     = [c["wellbeing"]    for c in checkins if c.get("wellbeing")     is not None]
+    energy_scores = [c["energy_level"] for c in checkins if c.get("energy_level")  is not None]
+    stress_scores = [c["stress_level"] for c in checkins if c.get("stress_level")  is not None]
+
+    avg_wellbeing = sum(wb_scores)     / len(wb_scores)     if wb_scores     else None
+    avg_energy    = sum(energy_scores) / len(energy_scores) if energy_scores else None
+    avg_stress    = sum(stress_scores) / len(stress_scores) if stress_scores else None
+
+    norm_scores = []
+    if avg_wellbeing is not None: norm_scores.append(avg_wellbeing / 10.0)
+    if avg_energy    is not None: norm_scores.append(avg_energy    / 10.0)
+    if avg_stress    is not None: norm_scores.append((10 - avg_stress) / 10.0)
+    wellbeing_pct = sum(norm_scores) / len(norm_scores) if norm_scores else 0.0
 
     cutoff_7d = (date.today() - timedelta(days=7)).isoformat()
     with get_conn() as conn:
@@ -815,6 +833,8 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
             },
             "wellbeing": {
                 "avg_today":    round(avg_wellbeing, 2) if avg_wellbeing is not None else None,
+                "avg_energy":   round(avg_energy, 2)    if avg_energy    is not None else None,
+                "avg_stress":   round(avg_stress, 2)    if avg_stress    is not None else None,
                 "past_7d_avg":  past_avg,
                 "delta":        wellbeing_delta,
                 "pct":          round(wellbeing_pct, 4),

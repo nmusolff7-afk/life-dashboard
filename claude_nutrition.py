@@ -326,6 +326,8 @@ Today's Momentum score: {breakdown.get('momentum_score')}/100
 - Check-in: morning={'yes' if c.get('morning_done') else 'no'}, evening={'yes' if c.get('evening_done') else 'no'}
 - Tasks: {t.get('completed', 0)} of {t.get('total', 0)} done
 - Wellbeing: {w.get('avg_today')}/10 (7-day avg: {w.get('past_7d_avg')})
+- Energy level today: {w.get('avg_energy')}/10
+- Stress level today: {w.get('avg_stress')}/10
 
 --- USER PROFILE ---
 - Goal: {primary_goal}

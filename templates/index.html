@@ -899,6 +899,14 @@
               placeholder="e.g. 185.5">
           </div>
           <div style="margin-bottom:0.6rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem">
+              <label style="font-size:0.8rem;color:var(--muted)">Energy level</label>
+              <span id="home-morning-energy-val" style="font-size:0.85rem;font-weight:600;color:var(--text)">7</span>
+            </div>
+            <input type="range" id="home-morning-energy" min="1" max="10" value="7"
+              style="width:100%;accent-color:var(--accent)">
+          </div>
+          <div style="margin-bottom:0.6rem">
             <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.3rem">Goals for today</label>
             <textarea id="home-morning-goals" rows="2"
               style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;resize:none;box-sizing:border-box"
@@ -934,6 +942,14 @@
             <textarea id="home-evening-notes" rows="3"
               style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;resize:none;box-sizing:border-box"
               placeholder="Reflect on your day — wins, challenges, how you feel…"></textarea>
+          </div>
+          <div style="margin-bottom:0.6rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem">
+              <label style="font-size:0.8rem;color:var(--muted)">Stress level today</label>
+              <span id="home-evening-stress-val" style="font-size:0.85rem;font-weight:600;color:var(--text)">5</span>
+            </div>
+            <input type="range" id="home-evening-stress" min="1" max="10" value="5"
+              style="width:100%;accent-color:var(--accent)">
           </div>
           <div style="margin-bottom:0.6rem">
             <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.3rem">Tomorrow's goals (optional)</label>
@@ -1605,6 +1621,20 @@
         <span class="save-confirm" id="brief-save-confirm">✓ Saved</span>
       </div>
 
+      <!-- Edit Profile -->
+      <div class="card">
+        <div class="card-title">My Profile</div>
+        <div id="profile-summary-line" style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.5">
+          Loading profile summary…
+        </div>
+        <a href="/onboarding?edit=1" class="btn btn-ghost btn-full" style="text-decoration:none;display:flex;align-items:center;justify-content:center;gap:0.5rem">
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+          Edit My Profile
+        </a>
+      </div>
+
       <!-- Delete Account -->
       <div class="card" style="border-color:rgba(248,81,73,0.25)">
         <div class="card-title" style="color:var(--danger)">Danger Zone</div>
@@ -2069,6 +2099,76 @@ function getWorkoutPlan() {
 // ══════════════════════════════════════════════════════
 //  HEADER DATE
 // ══════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════
+//  PROFILE PRE-FILL + INSIGHT CACHE RESET ON PAGE LOAD
+// ══════════════════════════════════════════════════════
+
+// Always clear cached insight on page load so it regenerates fresh
+try { sessionStorage.removeItem("momentum_insight"); } catch(e) {}
+
+// Wire brief range sliders to their value displays
+(function() {
+  const energyEl = document.getElementById("home-morning-energy");
+  const energyValEl = document.getElementById("home-morning-energy-val");
+  if (energyEl && energyValEl) {
+    energyEl.addEventListener("input", () => { energyValEl.textContent = energyEl.value; });
+  }
+  const stressEl = document.getElementById("home-evening-stress");
+  const stressValEl = document.getElementById("home-evening-stress-val");
+  if (stressEl && stressValEl) {
+    stressEl.addEventListener("input", () => { stressValEl.textContent = stressEl.value; });
+  }
+})();
+
+// Fetch profile on load: pre-fill slider defaults + populate profile summary card
+fetch("/api/profile")
+  .then(r => r.json())
+  .then(p => {
+    // Pre-fill energy slider with typical baseline
+    if (p.energy_level_typical_1_10) {
+      const el = document.getElementById("home-morning-energy");
+      const vl = document.getElementById("home-morning-energy-val");
+      if (el) { el.value = p.energy_level_typical_1_10; }
+      if (vl) { vl.textContent = p.energy_level_typical_1_10; }
+    }
+    // Pre-fill stress slider with typical baseline
+    if (p.stress_level_1_10) {
+      const el = document.getElementById("home-evening-stress");
+      const vl = document.getElementById("home-evening-stress-val");
+      if (el) { el.value = p.stress_level_1_10; }
+      if (vl) { vl.textContent = p.stress_level_1_10; }
+    }
+    // Update profile summary line in Profile tab
+    const sumEl = document.getElementById("profile-summary-line");
+    if (sumEl) {
+      const parts = [];
+      if (p.one_sentence_summary) {
+        sumEl.textContent = p.one_sentence_summary;
+      } else if (p.primary_goal || p.behavioral_archetype) {
+        if (p.primary_goal)        parts.push("Goal: " + p.primary_goal);
+        if (p.behavioral_archetype) parts.push("Archetype: " + p.behavioral_archetype);
+        if (p.biggest_leverage_point) parts.push("Leverage: " + p.biggest_leverage_point);
+        sumEl.textContent = parts.join("  ·  ");
+      } else {
+        sumEl.textContent = "No profile generated yet. Complete onboarding to enable personalized scoring.";
+      }
+    }
+    // Cache RMR for momentum payload if present and not already in localStorage
+    if (p.rmr_kcal) {
+      try {
+        const saved = JSON.parse(localStorage.getItem("profileData") || "{}");
+        if (!saved.rmr) {
+          saved.rmr = p.rmr_kcal;
+          localStorage.setItem("profileData", JSON.stringify(saved));
+        }
+      } catch(e) {}
+    }
+  })
+  .catch(() => {
+    const sumEl = document.getElementById("profile-summary-line");
+    if (sumEl) sumEl.textContent = "Complete onboarding to enable personalized scoring.";
+  });
 
 (function () {
   const dateEl = document.getElementById("header-date");
@@ -5470,6 +5570,8 @@ if ("serviceWorker" in navigator) {
     const submitBtn = document.getElementById(isM ? "home-morning-submit"     : "home-evening-submit");
     const spinEl    = document.getElementById(isM ? "home-morning-submitting" : "home-evening-submitting");
     const weightEl  = isM ? document.getElementById("home-morning-weight") : null;
+    const energyEl  = isM ? document.getElementById("home-morning-energy") : null;
+    const stressEl  = !isM ? document.getElementById("home-evening-stress") : null;
 
     const notes = notesEl.value.trim();
     if (!notes) { notesEl.focus(); return; }
@@ -5481,6 +5583,8 @@ if ("serviceWorker" in navigator) {
 
     const payload = { type, notes, goals };
     if (isM && bw && bw > 0) payload.bodyweight_lbs = bw;
+    if (energyEl) payload.energy_level = parseInt(energyEl.value);
+    if (stressEl) payload.stress_level = parseInt(stressEl.value);
 
     fetch("/api/mind/checkin", {
       method: "POST",

@@ -172,7 +172,9 @@ def index():
 @app.route("/onboarding")
 @login_required
 def onboarding():
-    if is_onboarding_complete(uid()):
+    # Allow re-entry with ?edit=1 even when onboarding is already complete
+    editing = request.args.get("edit") == "1"
+    if is_onboarding_complete(uid()) and not editing:
         return redirect(url_for("index"))
     row = get_onboarding(uid())
     raw = {}
@@ -207,6 +209,27 @@ def api_onboarding_save():
 @login_required
 def api_onboarding_status():
     return jsonify({"complete": is_onboarding_complete(uid())})
+
+
+@app.route("/api/profile")
+@login_required
+def api_profile():
+    """Return key profile fields for client-side pre-filling and display."""
+    p = get_profile_map(uid())
+    return jsonify({
+        "energy_level_typical_1_10":  p.get("energy_level_typical_1_10"),
+        "mood_baseline_1_10":         p.get("mood_baseline_1_10"),
+        "stress_level_1_10":          p.get("stress_level_1_10"),
+        "daily_calorie_goal":         p.get("daily_calorie_goal"),
+        "daily_protein_goal_g":       p.get("daily_protein_goal_g"),
+        "rmr_kcal":                   p.get("rmr_kcal"),
+        "primary_goal":               p.get("primary_goal"),
+        "steps_per_day_estimated":    p.get("steps_per_day_estimated"),
+        "behavioral_archetype":       p.get("behavioral_archetype"),
+        "first_name":                 p.get("first_name"),
+        "one_sentence_summary":       p.get("one_sentence_summary"),
+        "biggest_leverage_point":     p.get("biggest_leverage_point"),
+    })
 
 
 def _run_profile_generation(user_id: int, raw: dict):
@@ -287,9 +310,18 @@ def api_mind_checkin():
         except (ValueError, TypeError):
             pass
 
+    energy_level = data.get("energy_level")
+    stress_level = data.get("stress_level")
+    try:
+        energy_level = max(1, min(10, int(energy_level))) if energy_level is not None else None
+        stress_level = max(1, min(10, int(stress_level))) if stress_level is not None else None
+    except (ValueError, TypeError):
+        energy_level = stress_level = None
+
     scores = score_brief(checkin_type, notes, goals)
     insert_mind_checkin(uid(), checkin_type, goals, notes,
-                        scores["focus"], scores["wellbeing"], scores["summary"])
+                        scores["focus"], scores["wellbeing"], scores["summary"],
+                        energy_level=energy_level, stress_level=stress_level)
     tasks_added = []
     for task_text in scores.get("tasks", []):
         if task_text:
