@@ -309,12 +309,12 @@ SLEEP     | {sleep_text.strip()}
 MOVEMENT  | steps={garmin.get('steps', 0) if garmin else 'N/A'}, active_kcal={garmin.get('active_calories', 0) if garmin else 'N/A'}, resting_hr={garmin.get('resting_hr') or 'N/A'}, workouts={len(workouts)} logged
 NUTRITION | {n.get('calories_logged', 0)}/{n.get('calorie_goal')} kcal ({round(n.get('pct', 0) * 100)}%), protein={round(sum(m.get('protein_g',0) for m in meals),1)}g, meals={len(meals)}
 HABITS    | checkin=morning:{'Y' if c.get('morning_done') else 'N'}/evening:{'Y' if c.get('evening_done') else 'N'}, tasks={t.get('completed', 0)}/{t.get('total', 0)} done
-WELLBEING | today={w.get('avg_today')}/10 (7d avg={w.get('past_7d_avg')}), energy={w.get('avg_energy')}/10, stress={w.get('avg_stress')}/10
+WELLBEING | today={w.get('avg_today')}/10, 7d_avg={w.get('past_7d_avg')}/10, energy={w.get('avg_energy')}/10
 
 7-DAY TREND (score | nutrition% | activity% | checkin | tasks%):
 {history_text}
 
-Identify one specific cross-domain pattern visible in sleep, movement, nutrition, habits, or wellbeing. Reference actual numbers. No advice, no filler."""
+Identify one specific cross-domain pattern visible in sleep, movement, nutrition, habits, or wellbeing. Reference actual numbers. No advice, no filler. Do not mention wellbeing unless it is the single strongest signal in the data. Prioritize patterns that cross domains — e.g. low sleep correlating with low activity."""
 
     response = _client().messages.create(
         model="claude-haiku-4-5-20251001",
