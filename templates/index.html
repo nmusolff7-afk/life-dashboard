@@ -2070,8 +2070,20 @@ function getWorkoutPlan() {
 //  HEADER DATE
 // ══════════════════════════════════════════════════════
 
-document.getElementById("header-date").textContent =
-  new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+(function () {
+  const dateEl = document.getElementById("header-date");
+  const dateStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  function tick() {
+    const now = new Date();
+    const h = now.getHours(), m = now.getMinutes(), s = now.getSeconds();
+    const period = h < 12 ? "AM" : "PM";
+    const h12 = (h % 12) || 12;
+    const timeStr = h12 + ":" + String(m).padStart(2,"0") + ":" + String(s).padStart(2,"0") + " " + period;
+    dateEl.textContent = dateStr + "  \u00b7  " + timeStr;
+  }
+  tick();
+  setInterval(tick, 1000);
+})();
 
 // ══════════════════════════════════════════════════════
 //  TAB SWITCHING
@@ -4839,7 +4851,10 @@ try {
     try {
       const p = JSON.parse(localStorage.getItem("profileData") || "{}");
       const goal = p.rmr ? Math.round(p.rmr) : null;
-      return goal ? { calorie_goal: goal } : {};
+      const now  = new Date();
+      const payload = { hour: now.getHours() };
+      if (goal) payload.calorie_goal = goal;
+      return payload;
     } catch(e) { return {}; }
   }
 

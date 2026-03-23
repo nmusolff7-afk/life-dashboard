@@ -710,11 +710,23 @@ def api_momentum_insight():
             calorie_goal = int(calorie_goal)
         except (TypeError, ValueError):
             calorie_goal = None
+    hour = body.get("hour")
+    try:
+        hour = int(hour) if hour is not None else None
+    except (TypeError, ValueError):
+        hour = None
     try:
         breakdown = compute_momentum(uid(), today, calorie_goal_override=calorie_goal)
         history   = get_momentum_history(uid(), 7)
         profile   = get_profile_map(uid())
-        result    = generate_momentum_insight(breakdown, history, profile)
+        meals     = get_today_meals(uid(), today)
+        workouts  = get_today_workouts(uid(), today)
+        garmin    = get_garmin_daily(uid(), today)
+        from db import get_sleep
+        sleep     = get_sleep(uid(), today)
+        result    = generate_momentum_insight(
+            breakdown, history, profile, meals, workouts, garmin, sleep, hour
+        )
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500

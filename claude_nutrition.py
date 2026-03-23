@@ -199,14 +199,37 @@ _MOMENTUM_INSIGHT_SYSTEM = (
 )
 
 
-def generate_momentum_insight(breakdown: dict, history: list, profile: dict) -> dict:
+def generate_momentum_insight(
+    breakdown: dict,
+    history: list,
+    profile: dict,
+    meals: list | None = None,
+    workouts: list | None = None,
+    garmin: dict | None = None,
+    sleep: dict | None = None,
+    hour: int | None = None,
+) -> dict:
     """
-    Generate a 2-3 sentence pattern insight from Momentum data using Claude Haiku.
-    Returns {"insight": str, "data_used": [str, ...], "generated_at": str}.
+    Generate a 1-2 sentence pattern insight using Claude Haiku.
+    Returns {"insight": str, "generated_at": str}.
     """
     from datetime import datetime
 
-    # Build 7-day history lines
+    meals    = meals    or []
+    workouts = workouts or []
+
+    # ── time of day ──
+    if hour is not None:
+        if hour < 12:
+            time_label = f"{hour}:00 AM"
+        elif hour == 12:
+            time_label = "12:00 PM"
+        else:
+            time_label = f"{hour - 12}:00 PM"
+    else:
+        time_label = "unknown"
+
+    # ── 7-day history ──
     history_lines = []
     for row in history:
         history_lines.append(
@@ -218,81 +241,111 @@ def generate_momentum_insight(breakdown: dict, history: list, profile: dict) -> 
         )
     history_text = "\n".join(history_lines) if history_lines else "  No history yet."
 
-    comps   = breakdown.get("components", {})
-    n       = comps.get("nutrition", {})
-    p       = comps.get("protein", {})
-    a       = comps.get("activity", {})
-    c       = comps.get("checkin", {})
-    t       = comps.get("tasks", {})
-    w       = comps.get("wellbeing", {})
+    # ── today's meals ──
+    if meals:
+        meal_lines = []
+        for m in meals:
+            parts = [m["description"]]
+            if m.get("calories"):   parts.append(f"{m['calories']} kcal")
+            if m.get("protein_g"):  parts.append(f"{round(m['protein_g'],1)}g protein")
+            if m.get("carbs_g"):    parts.append(f"{round(m['carbs_g'],1)}g carbs")
+            if m.get("fat_g"):      parts.append(f"{round(m['fat_g'],1)}g fat")
+            meal_lines.append("  - " + " · ".join(parts))
+        meals_text = "\n".join(meal_lines)
+    else:
+        meals_text = "  No meals logged yet today."
 
-    primary_goal        = profile.get("primary_goal") or profile.get("goals_raw")
-    behavioral_archetype= profile.get("behavioral_archetype")
-    biggest_leverage    = profile.get("biggest_leverage_point")
-    obstacles           = profile.get("typical_obstacles_raw")
-    wellbeing_baseline  = profile.get("mood_baseline_1_10")
+    # ── today's workouts ──
+    if workouts:
+        workout_lines = ["  - " + w["description"] + (f" ({w['calories_burned']} kcal burned)" if w.get("calories_burned") else "") for w in workouts]
+        workouts_text = "\n".join(workout_lines)
+    else:
+        workouts_text = "  None logged."
 
-    user_msg = f"""Here is the user's Momentum data for the last 7 days:
+    # ── Garmin ──
+    if garmin:
+        garmin_text = (
+            f"  Steps: {garmin.get('steps', 0)}, "
+            f"Active calories: {garmin.get('active_calories', 0)}, "
+            f"Resting HR: {garmin.get('resting_hr') or 'N/A'}"
+        )
+    else:
+        garmin_text = "  No Garmin data today."
+
+    # ── sleep ──
+    if sleep and sleep.get("total_seconds"):
+        total_h = sleep["total_seconds"] // 3600
+        total_m = (sleep["total_seconds"] % 3600) // 60
+        rem_m   = (sleep.get("rem_seconds") or 0) // 60
+        deep_m  = (sleep.get("deep_seconds") or 0) // 60
+        score   = sleep.get("sleep_score")
+        sleep_text = (
+            f"  Duration: {total_h}h {total_m}m, "
+            f"REM: {rem_m}m, Deep: {deep_m}m"
+            + (f", Score: {score}/100" if score else "")
+        )
+    else:
+        sleep_text = "  No sleep data."
+
+    # ── component breakdown ──
+    comps = breakdown.get("components", {})
+    n = comps.get("nutrition", {})
+    a = comps.get("activity",  {})
+    c = comps.get("checkin",   {})
+    t = comps.get("tasks",     {})
+    w = comps.get("wellbeing", {})
+
+    # ── profile ──
+    primary_goal = profile.get("primary_goal") or profile.get("goals_raw")
+    archetype    = profile.get("behavioral_archetype")
+    leverage     = profile.get("biggest_leverage_point")
+    obstacles    = profile.get("typical_obstacles_raw")
+    wb_baseline  = profile.get("mood_baseline_1_10")
+
+    user_msg = f"""Current time: {time_label}
+Today's Momentum score: {breakdown.get('momentum_score')}/100
+
+--- 7-DAY HISTORY ---
 {history_text}
 
-Today's component breakdown:
-- Nutrition: {round(n.get('pct', 0) * 100)}% of {n.get('calorie_goal')} kcal goal ({n.get('calories_logged')} logged)
-- Protein: {round(p.get('pct', 0) * 100)}% of {p.get('protein_goal_g')}g goal ({p.get('protein_logged_g')}g logged)
-- Activity: {round(a.get('pct', 0) * 100)}% (active calories: {a.get('active_calories')}, target: {a.get('target_calories')})
-- Check-in completed: {"yes" if c.get('morning_done') or c.get('evening_done') else "no"}
-- Tasks: {t.get('completed')} of {t.get('total')} completed
-- Wellbeing: {w.get('avg_today')}/10 vs personal baseline of {wellbeing_baseline}/10
+--- TODAY'S MEALS ---
+{meals_text}
 
-User profile context:
-- Primary goal: {primary_goal}
-- Behavioral archetype: {behavioral_archetype}
-- Biggest leverage point: {biggest_leverage}
-- Self-reported main obstacle: {obstacles}
+--- TODAY'S WORKOUTS ---
+{workouts_text}
 
-In 1-2 sentences, state one specific pattern from the numbers. Do not end with a data citation."""
+--- GARMIN ACTIVITY ---
+{garmin_text}
+
+--- LAST NIGHT'S SLEEP ---
+{sleep_text}
+
+--- MOMENTUM COMPONENTS ---
+- Nutrition: {n.get('calories_logged', 0)} kcal logged of {n.get('calorie_goal')} kcal goal ({round(n.get('pct', 0) * 100)}%)
+- Activity: {a.get('active_calories')} active kcal ({round(a.get('pct', 0) * 100)}% of {a.get('target_calories')} target)
+- Check-in: morning={'yes' if c.get('morning_done') else 'no'}, evening={'yes' if c.get('evening_done') else 'no'}
+- Tasks: {t.get('completed', 0)} of {t.get('total', 0)} done
+- Wellbeing: {w.get('avg_today')}/10 (7-day avg: {w.get('past_7d_avg')})
+
+--- USER PROFILE ---
+- Goal: {primary_goal}
+- Archetype: {archetype}
+- Biggest leverage: {leverage}
+- Main obstacle: {obstacles}
+- Wellbeing baseline: {wb_baseline}/10
+
+In 1-2 sentences, name one specific pattern visible in this data. Reference the actual numbers. No advice."""
 
     response = _client().messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=256,
+        max_tokens=160,
         system=_MOMENTUM_INSIGHT_SYSTEM,
         messages=[{"role": "user", "content": user_msg}],
     )
     insight_text = next(b.text for b in response.content if b.type == "text").strip()
 
-    # Build data_used from non-null inputs
-    data_used = []
-    if history_lines:
-        data_used.append("7-day momentum history")
-    if n.get("calorie_goal"):
-        data_used.append(f"calorie goal ({n['calorie_goal']} kcal)")
-    if n.get("calories_logged"):
-        data_used.append(f"calories logged ({n['calories_logged']})")
-    if p.get("protein_goal_g"):
-        data_used.append(f"protein goal ({p['protein_goal_g']}g)")
-    if p.get("protein_logged_g"):
-        data_used.append(f"protein logged ({p['protein_logged_g']}g)")
-    if a.get("active_calories") is not None:
-        data_used.append(f"active calories ({a['active_calories']})")
-    if c.get("morning_done") or c.get("evening_done"):
-        data_used.append("check-in completion")
-    if t.get("total"):
-        data_used.append(f"tasks ({t.get('completed', 0)}/{t['total']})")
-    if w.get("avg_today") is not None:
-        data_used.append(f"wellbeing score ({w['avg_today']}/10)")
-    if wellbeing_baseline:
-        data_used.append(f"wellbeing baseline ({wellbeing_baseline}/10)")
-    if primary_goal:
-        data_used.append("primary goal")
-    if behavioral_archetype:
-        data_used.append("behavioral archetype")
-    if biggest_leverage:
-        data_used.append("leverage point")
-    if obstacles:
-        data_used.append("self-reported obstacles")
-
     return {
         "insight":      insight_text,
-        "data_used":    data_used,
         "generated_at": datetime.now().isoformat(),
     }
 
