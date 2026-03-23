@@ -5759,7 +5759,15 @@ if ("serviceWorker" in navigator) {
   }
 
   initBriefs();
-  setInterval(initBriefs, 60000); // re-check every minute in case a window opens/closes
+  let _lastBriefDate = localToday();
+  setInterval(() => {
+    const today = localToday();
+    if (today !== _lastBriefDate) {
+      _lastBriefDate = today;
+      _syncDateCookie();  // ensure cookie is fresh for midnight crossover
+    }
+    initBriefs();
+  }, 60000); // re-check every minute in case a window opens/closes or date rolls over
 })();
 
 // ══════════════════════════════════════════════════════

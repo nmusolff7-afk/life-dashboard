@@ -282,7 +282,7 @@ def api_mind_today():
     checkins = get_mind_today(uid(), today)
     total    = len(tasks)
     done     = sum(1 for t in tasks if t["completed"])
-    return jsonify({
+    resp = jsonify({
         "tasks":      tasks,
         "checkins":   checkins,
         "history":    get_mind_history(uid(), days=14),
@@ -290,6 +290,8 @@ def api_mind_today():
         "total":      total,
         "done":       done,
     })
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    return resp
 
 
 @app.route("/api/mind/checkin", methods=["POST"])
