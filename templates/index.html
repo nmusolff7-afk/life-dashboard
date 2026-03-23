@@ -110,19 +110,10 @@
 
     /* ── Layout editing ── */
     #home-layout-container.layout-editing > * {
-      position: relative; cursor: grab; touch-action: none; }
-    #home-layout-container.layout-editing > *:active { cursor: grabbing; }
-    #home-layout-container.layout-editing > *::after {
-      content: '⠿'; position: absolute; top: 0.7rem; right: 0.85rem;
-      font-size: 1.1rem; color: var(--muted); pointer-events: none;
-      z-index: 5; line-height: 1; }
-    .layout-dragging { opacity: 0.3; }
-    .layout-ghost {
-      position: fixed; pointer-events: none; z-index: 500; opacity: 0.9;
-      transform: scale(1.025) rotate(0.5deg);
-      box-shadow: 0 16px 40px rgba(0,0,0,0.55); border-radius: 12px;
-      overflow: hidden; }
-    body.layout-active #content { padding-bottom: 70px; }
+      cursor: grab; opacity: 0.75; user-select: none; }
+    #home-layout-container.layout-editing > * * { pointer-events: none; }
+    #home-layout-container.layout-editing > *.layout-over { outline: 2px dashed var(--accent); opacity: 1; }
+    #home-layout-container.layout-editing > *.layout-src  { opacity: 0.35; }
 
     /* ── Cards ── */
     .card { background: var(--surface); border: 1px solid var(--border);
@@ -6083,54 +6074,69 @@ if ("serviceWorker" in navigator) {
   const CARD_IDS = ['dash-cal-card','home-morning-card','home-evening-card',
                     'dash-stat-grid','dash-macro-card','garmin-status-card','sleep-card'];
   const LS_KEY = 'homeLayoutOrder_v1';
+  const c = () => document.getElementById('home-layout-container');
 
-  function getContainer() { return document.getElementById('home-layout-container'); }
-
+  // Apply saved order on load
   function applyLayout() {
     try {
       const order = JSON.parse(localStorage.getItem(LS_KEY));
       if (!Array.isArray(order) || !order.length) return;
-      const c = getContainer();
-      if (!c) return;
+      const ct = c(); if (!ct) return;
       order.forEach(id => {
         const el = document.getElementById(id);
-        if (el && el.parentElement === c) c.appendChild(el);
+        if (el && el.parentElement === ct) ct.appendChild(el);
       });
     } catch(e) {}
   }
 
-  let _savedOrder = [], _savedDisplay = {};
+  let _savedOrder = [], _savedDisplay = {}, _dragSrc = null;
 
   window.enterLayoutMode = function() {
-    const c = getContainer();
-    _savedOrder    = [...c.children].map(el => el.id);
-    _savedDisplay  = {};
+    const ct = c();
+    _savedOrder   = [...ct.children].map(el => el.id);
+    _savedDisplay = {};
+    // Show all cards as shells
     CARD_IDS.forEach(id => {
       const el = document.getElementById(id);
       if (!el) return;
       _savedDisplay[id] = el.style.display;
       el.style.removeProperty('display');
+      el.setAttribute('draggable', 'true');
     });
-    c.classList.add('layout-editing');
-    document.body.classList.add('layout-active');
+    ct.classList.add('layout-editing');
     document.getElementById('layout-edit-bar').style.display = 'flex';
     document.getElementById('layout-change-link').style.visibility = 'hidden';
-    initDrag(c);
+    // Desktop drag
+    ct.addEventListener('dragstart',  _onDragStart);
+    ct.addEventListener('dragover',   _onDragOver);
+    ct.addEventListener('dragleave',  _onDragLeave);
+    ct.addEventListener('drop',       _onDrop);
+    ct.addEventListener('dragend',    _onDragEnd);
+    // Touch drag
+    ct.addEventListener('touchstart', _onTouchStart, {passive: false});
+    ct.addEventListener('touchmove',  _onTouchMove,  {passive: false});
+    ct.addEventListener('touchend',   _onTouchEnd);
   };
 
   function exitLayoutMode(save) {
-    const c = getContainer();
-    destroyDrag(c);
+    const ct = c();
+    ct.removeEventListener('dragstart',  _onDragStart);
+    ct.removeEventListener('dragover',   _onDragOver);
+    ct.removeEventListener('dragleave',  _onDragLeave);
+    ct.removeEventListener('drop',       _onDrop);
+    ct.removeEventListener('dragend',    _onDragEnd);
+    ct.removeEventListener('touchstart', _onTouchStart);
+    ct.removeEventListener('touchmove',  _onTouchMove);
+    ct.removeEventListener('touchend',   _onTouchEnd);
+
     if (!save) {
+      // Restore original order
       _savedOrder.forEach(id => {
         const el = document.getElementById(id);
-        if (el && el.parentElement === c) c.appendChild(el);
+        if (el) ct.appendChild(el);
       });
-      // restore exact order by reinserting according to snapshot index
-      const snap = _savedOrder.map(id => document.getElementById(id)).filter(Boolean);
-      snap.forEach(el => c.appendChild(el));
     } else {
-      const order = [...c.children].map(el => el.id).filter(id => CARD_IDS.includes(id));
+      const order = [...ct.children].map(el => el.id).filter(id => CARD_IDS.includes(id));
       localStorage.setItem(LS_KEY, JSON.stringify(order));
     }
     CARD_IDS.forEach(id => {
@@ -6138,76 +6144,64 @@ if ("serviceWorker" in navigator) {
       if (!el) return;
       const d = _savedDisplay[id];
       if (d) el.style.display = d; else el.style.removeProperty('display');
+      el.removeAttribute('draggable');
+      el.classList.remove('layout-src', 'layout-over');
     });
-    c.classList.remove('layout-editing');
-    document.body.classList.remove('layout-active');
+    ct.classList.remove('layout-editing');
     document.getElementById('layout-edit-bar').style.display = 'none';
     document.getElementById('layout-change-link').style.visibility = 'visible';
+    _dragSrc = null;
   }
 
-  // ── Drag engine ──────────────────────────────────────────
-  let _drag = null, _ghost = null, _offY = 0, _offX = 0;
-
-  function initDrag(c) {
-    c._layoutPD = e => onPD(c, e);
-    c.addEventListener('pointerdown', c._layoutPD);
+  // ── Desktop drag events ───────────────────────────────────
+  function _onDragStart(e) {
+    _dragSrc = e.target.closest('#home-layout-container > *');
+    if (!_dragSrc) return;
+    e.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => _dragSrc && _dragSrc.classList.add('layout-src'), 0);
   }
-  function destroyDrag(c) {
-    c.removeEventListener('pointerdown', c._layoutPD);
-    _cleanGhost();
-    if (_drag) { _drag.classList.remove('layout-dragging'); _drag = null; }
-  }
-
-  function onPD(c, e) {
-    const item = e.target.closest('#home-layout-container > *');
-    if (!item) return;
+  function _onDragOver(e) {
     e.preventDefault();
-    const r = item.getBoundingClientRect();
-    _offY = e.clientY - r.top;
-    _offX = e.clientX - r.left;
-    _drag = item;
-
-    _ghost = item.cloneNode(true);
-    _ghost.className = 'layout-ghost';
-    _ghost.style.cssText += `;width:${r.width}px;height:${r.height}px;top:${r.top}px;left:${r.left}px;`;
-    document.body.appendChild(_ghost);
-
-    item.classList.add('layout-dragging');
-    item.setPointerCapture(e.pointerId);
-    item.addEventListener('pointermove', _onPM = ev => onPM(c, ev), {passive: false});
-    item.addEventListener('pointerup',     _onPU = ev => onPU(c, ev));
-    item.addEventListener('pointercancel', _onPU);
+    const target = e.target.closest('#home-layout-container > *');
+    if (!target || target === _dragSrc) return;
+    // Live reorder
+    const ct = c(), r = target.getBoundingClientRect();
+    if (e.clientY < r.top + r.height / 2) ct.insertBefore(_dragSrc, target);
+    else ct.insertBefore(_dragSrc, target.nextSibling);
+  }
+  function _onDragLeave(e) {
+    const target = e.target.closest('#home-layout-container > *');
+    if (target) target.classList.remove('layout-over');
+  }
+  function _onDrop(e) { e.preventDefault(); }
+  function _onDragEnd() {
+    if (_dragSrc) { _dragSrc.classList.remove('layout-src'); _dragSrc = null; }
   }
 
-  let _onPM, _onPU;
-
-  function onPM(c, e) {
+  // ── Touch drag events ─────────────────────────────────────
+  let _touchSrc = null, _touchOffY = 0;
+  function _onTouchStart(e) {
+    _touchSrc = e.target.closest('#home-layout-container > *');
+    if (!_touchSrc) return;
     e.preventDefault();
-    _ghost.style.top  = (e.clientY - _offY) + 'px';
-    _ghost.style.left = (e.clientX - _offX) + 'px';
-    // Reorder: find where to insert _drag
-    const items = [...c.children].filter(el => el !== _drag);
+    _touchOffY = e.touches[0].clientY - _touchSrc.getBoundingClientRect().top;
+    _touchSrc.classList.add('layout-src');
+  }
+  function _onTouchMove(e) {
+    if (!_touchSrc) return;
+    e.preventDefault();
+    const ct = c(), ty = e.touches[0].clientY;
+    const items = [...ct.children].filter(el => el !== _touchSrc);
     let before = null;
     for (const it of items) {
       const r = it.getBoundingClientRect();
-      if (e.clientY < r.top + r.height * 0.5) { before = it; break; }
+      if (ty < r.top + r.height * 0.5) { before = it; break; }
     }
-    if (before) c.insertBefore(_drag, before);
-    else         c.appendChild(_drag);
+    if (before) ct.insertBefore(_touchSrc, before);
+    else        ct.appendChild(_touchSrc);
   }
-
-  function onPU(c, e) {
-    if (!_drag) return;
-    _drag.removeEventListener('pointermove', _onPM);
-    _drag.removeEventListener('pointerup',   _onPU);
-    _drag.removeEventListener('pointercancel', _onPU);
-    _drag.classList.remove('layout-dragging');
-    _cleanGhost();
-    _drag = null;
-  }
-
-  function _cleanGhost() {
-    if (_ghost) { _ghost.remove(); _ghost = null; }
+  function _onTouchEnd() {
+    if (_touchSrc) { _touchSrc.classList.remove('layout-src'); _touchSrc = null; }
   }
 
   // ── Init ─────────────────────────────────────────────────
