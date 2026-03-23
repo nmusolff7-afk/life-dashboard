@@ -16,14 +16,14 @@ from db import (
     get_setting, set_setting,
     get_onboarding, upsert_onboarding_inputs, complete_onboarding,
     get_profile_map, is_onboarding_complete,
-    insert_mind_checkin, get_mind_today, get_mind_history,
+    insert_mind_checkin, get_mind_today, get_mind_history, get_evening_prompt,
     insert_mind_task, get_mind_tasks, toggle_mind_task, delete_mind_task,
     save_daily_weight, get_daily_weight,
     upsert_sleep, get_sleep, get_sleep_history,
     compute_momentum, get_momentum_history,
 )
 from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, shorten_label, scan_meal_image, generate_momentum_insight
-from claude_profile import generate_profile_map, compute_mind_insights, score_brief
+from claude_profile import generate_profile_map, compute_mind_insights, score_brief, generate_evening_prompt
 import garmin_sync
 import json
 
@@ -325,12 +325,20 @@ def api_mind_checkin():
 
     today_str = client_today()
     scores = score_brief(checkin_type, notes, goals)
+
+    evening_prompt = None
+    if checkin_type == "morning":
+        try:
+            evening_prompt = generate_evening_prompt(goals, notes, scores["summary"])
+        except Exception:
+            pass
+
     insert_mind_checkin(uid(), checkin_type, goals, notes,
                         scores["focus"], scores["wellbeing"], scores["summary"],
                         energy_level=energy_level, stress_level=stress_level,
                         checkin_date=today_str,
                         sleep_quality=sleep_quality, mood_level=mood_level,
-                        focus_level=focus_level)
+                        focus_level=focus_level, evening_prompt=evening_prompt)
     tasks_added = []
     for task_text in scores.get("tasks", []):
         if task_text:
@@ -350,6 +358,13 @@ def api_mind_add_task():
         return jsonify({"error": "description required"}), 400
     tid = insert_mind_task(uid(), desc, task_date=client_today())
     return jsonify({"id": tid, "description": desc, "completed": 0, "source": "manual"})
+
+
+@app.route("/api/mind/evening-prompt")
+@login_required
+def api_evening_prompt():
+    prompt = get_evening_prompt(uid(), client_today())
+    return jsonify({"prompt": prompt})
 
 
 @app.route("/api/mind/task/<int:task_id>", methods=["PATCH"])
