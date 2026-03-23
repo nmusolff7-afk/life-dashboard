@@ -1629,6 +1629,14 @@
         <p>Tasks &amp; goals</p>
       </div>
 
+      <!-- Momentum card -->
+      <div class="card" id="momentum-card">
+        <div class="card-title">Momentum</div>
+        <div id="momentum-content">
+          <div style="color:var(--muted);font-size:0.85rem;padding:0.25rem 0">Loading...</div>
+        </div>
+      </div>
+
       <!-- Completion score -->
       <div class="card">
         <div style="display:flex;align-items:center;gap:1rem">
@@ -4718,6 +4726,130 @@ try {
     fetch("/api/mind/task/" + id, { method: "DELETE" }).then(() => loadMind());
   }
 
+  // ── Momentum card ────────────────────────────────────
+  let insightCache    = null;
+  let insightCacheTs  = 0;
+  const INSIGHT_TTL   = 30 * 60 * 1000;
+
+  function _momentumColor(score) {
+    if (score >= 80) return "var(--green)";
+    if (score >= 50) return "var(--amber)";
+    return "var(--danger)";
+  }
+
+  function renderInsight(ins) {
+    const textEl  = document.getElementById("momentum-insight-text");
+    const basedEl = document.getElementById("momentum-insight-based");
+    if (!textEl) return;
+    if (!ins || ins.error) { textEl.textContent = "Insight unavailable."; return; }
+    textEl.textContent = ins.insight || "Insight unavailable.";
+    if (basedEl && ins.data_used && ins.data_used.length) {
+      basedEl.textContent = "Based on: " + ins.data_used.join(", ");
+    }
+  }
+
+  function loadInsight() {
+    const now = Date.now();
+    if (insightCache && (now - insightCacheTs) < INSIGHT_TTL) { renderInsight(insightCache); return; }
+    try {
+      const raw = sessionStorage.getItem("momentum_insight");
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (p.ts && (now - p.ts) < INSIGHT_TTL) {
+          insightCache = p.data; insightCacheTs = p.ts;
+          renderInsight(insightCache); return;
+        }
+      }
+    } catch(e) {}
+    fetch("/api/momentum/insight", { method: "POST" })
+      .then(r => r.json())
+      .then(data => {
+        insightCache   = data;
+        insightCacheTs = Date.now();
+        try { sessionStorage.setItem("momentum_insight", JSON.stringify({ data, ts: insightCacheTs })); } catch(e) {}
+        renderInsight(data);
+      })
+      .catch(() => {
+        const el = document.getElementById("momentum-insight-text");
+        if (el) el.textContent = "Insight unavailable.";
+      });
+  }
+
+  function renderMomentum(data) {
+    const el = document.getElementById("momentum-content");
+    if (!data || data.error) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:0.25rem 0">Complete your profile to enable Momentum tracking.</div>';
+      return;
+    }
+    const score      = data.momentum_score;
+    const scoreColor = _momentumColor(score);
+    const COMP_DEFS  = [
+      { key: "nutrition", label: "Nutrition", max: 25 },
+      { key: "protein",   label: "Protein",   max: 15 },
+      { key: "activity",  label: "Activity",  max: 25 },
+      { key: "checkin",   label: "Check-in",  max: 15 },
+      { key: "tasks",     label: "Tasks",     max: 10 },
+      { key: "wellbeing", label: "Wellbeing", max: 10 },
+    ];
+    const comps   = data.components || {};
+    const contrib = data.weighted_contributions || {};
+    const rows = COMP_DEFS.map(c => {
+      const pct      = (comps[c.key] && comps[c.key].pct != null) ? comps[c.key].pct : 0;
+      const weighted = (contrib[c.key] != null) ? contrib[c.key] : 0;
+      const barPct   = Math.round(pct * 100);
+      const barColor = pct >= 0.8 ? "var(--green)" : pct >= 0.4 ? "var(--amber)" : "var(--danger)";
+      const missing  = (comps[c.key] && comps[c.key].missing)
+        ? ' <span style="color:var(--muted);font-size:0.7rem">(no goal set)</span>' : "";
+      return `<div style="margin-bottom:0.55rem">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:0.22rem">
+          <span style="font-size:0.82rem;color:var(--text)">${c.label}${missing}</span>
+          <span style="font-family:monospace;font-size:0.78rem;color:var(--muted)">${weighted.toFixed(1)} / ${c.max}</span>
+        </div>
+        <div style="height:5px;background:var(--surface2);border-radius:99px;overflow:hidden">
+          <div style="height:100%;border-radius:99px;background:${barColor};width:${barPct}%;transition:width .4s ease"></div>
+        </div>
+      </div>`;
+    }).join("");
+
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:1.25rem;margin-bottom:1.1rem">
+        <div style="text-align:center;min-width:4.5rem">
+          <div class="mind-score-big" style="font-size:3rem;color:${scoreColor}">${score}</div>
+          <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:0.1rem">/ 100</div>
+        </div>
+        <div style="flex:1">${rows}</div>
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:0.85rem">
+        <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:0.5rem">Pattern Insight</div>
+        <div id="momentum-insight-text" style="font-size:0.85rem;color:var(--text);line-height:1.5">Loading insight...</div>
+        <div id="momentum-insight-based" style="font-size:0.75rem;color:var(--muted);font-style:italic;margin-top:0.4rem"></div>
+      </div>
+      <div style="margin-top:0.85rem;text-align:right">
+        <button class="btn btn-ghost" id="momentum-recalc" style="font-size:0.8rem;padding:0.35rem 0.8rem">Recalculate</button>
+      </div>`;
+
+    document.getElementById("momentum-recalc").addEventListener("click", () => {
+      insightCache = null; insightCacheTs = 0;
+      try { sessionStorage.removeItem("momentum_insight"); } catch(e) {}
+      loadMomentum();
+    });
+
+    loadInsight();
+  }
+
+  function loadMomentum() {
+    fetch("/api/momentum/today")
+      .then(r => r.json())
+      .then(data => renderMomentum(data))
+      .catch(() => {
+        const el = document.getElementById("momentum-content");
+        if (el) el.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:0.25rem 0">Could not load Momentum data.</div>';
+      });
+  }
+
+  window._momentumRefresh = loadMomentum;
+  // ── end Momentum card ─────────────────────────────────
+
   function loadMind() {
     fetch("/api/mind/today")
       .then(r => r.json())
@@ -4725,6 +4857,7 @@ try {
         mindLoaded = true;
         renderScore(data.done || 0, data.total || 0);
         renderTasks(data.tasks || []);
+        loadMomentum();
       })
       .catch(() => {});
   }
@@ -5338,6 +5471,7 @@ if ("serviceWorker" in navigator) {
         }
         initBriefs();
         if (typeof window._mindReload === "function") window._mindReload();
+        if (typeof window._momentumRefresh === "function") window._momentumRefresh();
       })
       .catch(() => {
         submitBtn.disabled = false;

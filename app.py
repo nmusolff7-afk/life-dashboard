@@ -20,8 +20,9 @@ from db import (
     insert_mind_task, get_mind_tasks, toggle_mind_task, delete_mind_task,
     save_daily_weight, get_daily_weight,
     upsert_sleep, get_sleep, get_sleep_history,
+    compute_momentum, get_momentum_history,
 )
-from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, shorten_label, scan_meal_image
+from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, shorten_label, scan_meal_image, generate_momentum_insight
 from claude_profile import generate_profile_map, compute_mind_insights, score_brief
 import garmin_sync
 import json
@@ -669,6 +670,40 @@ def api_garmin_sync():
         "workouts":        get_today_workouts(uid(), sync_date),
         "burn":            get_today_workout_burn(uid(), sync_date),
     })
+
+
+# ── Momentum ─────────────────────────────────────────────
+
+@app.route("/api/momentum/today")
+@login_required
+def api_momentum_today():
+    today = client_today()
+    try:
+        breakdown = compute_momentum(uid(), today)
+        return jsonify(breakdown)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/momentum/history")
+@login_required
+def api_momentum_history():
+    days = int(request.args.get("days", 14))
+    return jsonify(get_momentum_history(uid(), days))
+
+
+@app.route("/api/momentum/insight", methods=["POST"])
+@login_required
+def api_momentum_insight():
+    today = client_today()
+    try:
+        breakdown = compute_momentum(uid(), today)
+        history   = get_momentum_history(uid(), 7)
+        profile   = get_profile_map(uid())
+        result    = generate_momentum_insight(breakdown, history, profile)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":

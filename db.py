@@ -133,6 +133,21 @@ def init_db():
                 created_at TIMESTAMP NOT NULL
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS daily_momentum (
+                user_id         INTEGER REFERENCES users(id),
+                score_date      DATE NOT NULL,
+                momentum_score  INTEGER NOT NULL,
+                nutrition_pct   REAL DEFAULT 0,
+                protein_pct     REAL DEFAULT 0,
+                activity_pct    REAL DEFAULT 0,
+                checkin_done    INTEGER DEFAULT 0,
+                task_rate       REAL DEFAULT 0,
+                wellbeing_delta REAL DEFAULT 0,
+                computed_at     TIMESTAMP NOT NULL,
+                PRIMARY KEY (user_id, score_date)
+            )
+        """)
         conn.commit()
 
         # Migrate: add garmin_activity_id to workout_logs to prevent duplicate imports
@@ -649,3 +664,217 @@ def delete_mind_task(task_id, user_id):
             (task_id, user_id)
         )
         conn.commit()
+
+
+# ── Momentum scoring ────────────────────────────────────
+
+import logging as _logging
+_momentum_logger = _logging.getLogger(__name__)
+
+MOMENTUM_WEIGHTS = {
+    "nutrition": 25,
+    "protein":   15,
+    "activity":  25,
+    "checkin":   15,
+    "tasks":     10,
+    "wellbeing": 10,
+}
+assert sum(MOMENTUM_WEIGHTS.values()) == 100
+
+_ACTIVITY_CAL_TARGET = 500  # kcal of active burn considered "full credit"
+
+
+def compute_momentum(user_id: int, date_str: str) -> dict:
+    """
+    Compute a 0–100 momentum score for user_id on date_str.
+    Upserts the result into daily_momentum and returns a full debug_breakdown dict.
+    """
+    # ── gather inputs ────────────────────────────────────
+    totals  = get_today_totals(user_id, date_str)
+    profile = get_profile_map(user_id)
+    garmin  = get_garmin_daily(user_id, date_str)
+
+    with get_conn() as conn:
+        checkin_rows = conn.execute(
+            "SELECT type, wellbeing, focus FROM mind_checkins "
+            "WHERE user_id = ? AND checkin_date = ?",
+            (user_id, date_str)
+        ).fetchall()
+        checkins = [dict(r) for r in checkin_rows]
+
+        task_rows = conn.execute(
+            "SELECT completed FROM mind_tasks WHERE user_id = ? AND task_date = ?",
+            (user_id, date_str)
+        ).fetchall()
+        tasks = [dict(r) for r in task_rows]
+
+    # ── component scoring ────────────────────────────────
+
+    # Nutrition: calories logged vs daily goal
+    cal_goal  = profile.get("daily_calorie_goal")
+    cal_today = totals["total_calories"]
+    if cal_goal and cal_goal > 0:
+        nutrition_pct = min(1.0, cal_today / cal_goal)
+    else:
+        nutrition_pct = 0.0
+
+    # Protein: grams logged vs daily goal
+    prot_goal  = profile.get("daily_protein_goal_g")
+    prot_today = totals["total_protein"]
+    if prot_goal and prot_goal > 0:
+        protein_pct = min(1.0, prot_today / prot_goal)
+    else:
+        protein_pct = 0.0
+
+    # Activity: Garmin active calories vs target; fallback to logged workout burn
+    if garmin:
+        active_cal   = garmin.get("active_calories") or 0
+        activity_pct = min(1.0, active_cal / _ACTIVITY_CAL_TARGET)
+    else:
+        active_cal   = None
+        workout_burn = get_today_workout_burn(user_id, date_str)
+        activity_pct = min(1.0, workout_burn / _ACTIVITY_CAL_TARGET) if workout_burn > 0 else 0.0
+
+    # Checkin: morning counts for 0.6, evening for 0.4
+    types_done  = {c["type"] for c in checkins}
+    has_morning = "morning" in types_done
+    has_evening = "evening" in types_done
+    if has_morning and has_evening:
+        checkin_score = 1.0
+    elif has_morning:
+        checkin_score = 0.6
+    elif has_evening:
+        checkin_score = 0.4
+    else:
+        checkin_score = 0.0
+    checkin_done = 1 if types_done else 0
+
+    # Tasks: completed / total
+    total_tasks     = len(tasks)
+    completed_tasks = sum(1 for t in tasks if t["completed"])
+    task_rate       = (completed_tasks / total_tasks) if total_tasks > 0 else 0.0
+
+    # Wellbeing: today's avg (scale 1–10) normalised to 0–1; delta vs prior 7 days
+    wb_scores = [c["wellbeing"] for c in checkins if c.get("wellbeing") is not None]
+    if wb_scores:
+        avg_wellbeing = sum(wb_scores) / len(wb_scores)
+        wellbeing_pct = avg_wellbeing / 10.0
+    else:
+        avg_wellbeing = None
+        wellbeing_pct = 0.0
+
+    cutoff_7d = (date.today() - timedelta(days=7)).isoformat()
+    with get_conn() as conn:
+        past_rows = conn.execute(
+            "SELECT wellbeing FROM mind_checkins "
+            "WHERE user_id = ? AND checkin_date > ? AND checkin_date < ?",
+            (user_id, cutoff_7d, date_str)
+        ).fetchall()
+    past_scores = [r["wellbeing"] for r in past_rows if r["wellbeing"] is not None]
+    if past_scores and avg_wellbeing is not None:
+        past_avg        = round(sum(past_scores) / len(past_scores), 2)
+        wellbeing_delta = round(avg_wellbeing - past_avg, 2)
+    else:
+        past_avg        = None
+        wellbeing_delta = 0.0
+
+    # ── weighted contributions ───────────────────────────
+    weighted = {
+        "nutrition": round(nutrition_pct  * MOMENTUM_WEIGHTS["nutrition"], 2),
+        "protein":   round(protein_pct    * MOMENTUM_WEIGHTS["protein"],   2),
+        "activity":  round(activity_pct   * MOMENTUM_WEIGHTS["activity"],  2),
+        "checkin":   round(checkin_score  * MOMENTUM_WEIGHTS["checkin"],   2),
+        "tasks":     round(task_rate      * MOMENTUM_WEIGHTS["tasks"],     2),
+        "wellbeing": round(wellbeing_pct  * MOMENTUM_WEIGHTS["wellbeing"], 2),
+    }
+
+    momentum_score = int(round(sum(weighted.values())))
+
+    # ── debug breakdown ──────────────────────────────────
+    debug_breakdown = {
+        "date":           date_str,
+        "momentum_score": momentum_score,
+        "weights":        MOMENTUM_WEIGHTS,
+        "components": {
+            "nutrition": {
+                "calories_logged": cal_today,
+                "calorie_goal":    cal_goal,
+                "pct":             round(nutrition_pct, 4),
+                "weighted":        weighted["nutrition"],
+                "missing":         cal_goal is None,
+            },
+            "protein": {
+                "protein_logged_g": round(float(prot_today), 1),
+                "protein_goal_g":   prot_goal,
+                "pct":              round(protein_pct, 4),
+                "weighted":         weighted["protein"],
+                "missing":          prot_goal is None,
+            },
+            "activity": {
+                "active_calories":  active_cal,
+                "target_calories":  _ACTIVITY_CAL_TARGET,
+                "garmin_available": garmin is not None,
+                "pct":              round(activity_pct, 4),
+                "weighted":         weighted["activity"],
+            },
+            "checkin": {
+                "morning_done": has_morning,
+                "evening_done": has_evening,
+                "score":        round(checkin_score, 4),
+                "weighted":     weighted["checkin"],
+            },
+            "tasks": {
+                "total":     total_tasks,
+                "completed": completed_tasks,
+                "rate":      round(task_rate, 4),
+                "weighted":  weighted["tasks"],
+            },
+            "wellbeing": {
+                "avg_today":    round(avg_wellbeing, 2) if avg_wellbeing is not None else None,
+                "past_7d_avg":  past_avg,
+                "delta":        wellbeing_delta,
+                "pct":          round(wellbeing_pct, 4),
+                "weighted":     weighted["wellbeing"],
+            },
+        },
+        "weighted_contributions": weighted,
+    }
+
+    _momentum_logger.debug("Momentum %s uid=%s score=%s", date_str, user_id, momentum_score)
+
+    # ── upsert result ─────────────────────────────────────
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO daily_momentum
+                (user_id, score_date, momentum_score, nutrition_pct, protein_pct,
+                 activity_pct, checkin_done, task_rate, wellbeing_delta, computed_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, score_date) DO UPDATE SET
+                momentum_score  = excluded.momentum_score,
+                nutrition_pct   = excluded.nutrition_pct,
+                protein_pct     = excluded.protein_pct,
+                activity_pct    = excluded.activity_pct,
+                checkin_done    = excluded.checkin_done,
+                task_rate       = excluded.task_rate,
+                wellbeing_delta = excluded.wellbeing_delta,
+                computed_at     = excluded.computed_at
+        """, (user_id, date_str, momentum_score, nutrition_pct, protein_pct,
+              activity_pct, checkin_done, task_rate, wellbeing_delta, now))
+        conn.commit()
+
+    return debug_breakdown
+
+
+def get_momentum_history(user_id: int, days: int = 14) -> list:
+    """Return list of daily_momentum rows for the last N days, oldest first."""
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    with get_conn() as conn:
+        rows = conn.execute("""
+            SELECT score_date, momentum_score, nutrition_pct, protein_pct,
+                   activity_pct, checkin_done, task_rate, wellbeing_delta, computed_at
+            FROM daily_momentum
+            WHERE user_id = ? AND score_date >= ?
+            ORDER BY score_date
+        """, (user_id, cutoff)).fetchall()
+    return [dict(r) for r in rows]

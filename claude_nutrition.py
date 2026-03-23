@@ -190,6 +190,116 @@ Rules:
 _DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
+# ── Momentum pattern insight ──────────────────────────
+
+_MOMENTUM_INSIGHT_SYSTEM = (
+    "You are an analytical assistant reviewing a user's health and habit data. "
+    "Your job is to identify one specific, non-obvious pattern from the numbers. "
+    "Do not give generic advice. Do not be encouraging or preachy. "
+    "State only what the data shows. "
+    "If the data is insufficient to identify a pattern, say so plainly."
+)
+
+
+def generate_momentum_insight(breakdown: dict, history: list, profile: dict) -> dict:
+    """
+    Generate a 2-3 sentence pattern insight from Momentum data using Claude Haiku.
+    Returns {"insight": str, "data_used": [str, ...], "generated_at": str}.
+    """
+    from datetime import datetime
+
+    # Build 7-day history lines
+    history_lines = []
+    for row in history:
+        history_lines.append(
+            f"  {row['score_date']}: score={row['momentum_score']}, "
+            f"nutrition={round(row['nutrition_pct'] * 100)}%, "
+            f"protein={round(row['protein_pct'] * 100)}%, "
+            f"activity={round(row['activity_pct'] * 100)}%, "
+            f"checkin={'yes' if row['checkin_done'] else 'no'}, "
+            f"tasks={round(row['task_rate'] * 100)}%"
+        )
+    history_text = "\n".join(history_lines) if history_lines else "  No history yet."
+
+    comps   = breakdown.get("components", {})
+    n       = comps.get("nutrition", {})
+    p       = comps.get("protein", {})
+    a       = comps.get("activity", {})
+    c       = comps.get("checkin", {})
+    t       = comps.get("tasks", {})
+    w       = comps.get("wellbeing", {})
+
+    primary_goal        = profile.get("primary_goal") or profile.get("goals_raw")
+    behavioral_archetype= profile.get("behavioral_archetype")
+    biggest_leverage    = profile.get("biggest_leverage_point")
+    obstacles           = profile.get("typical_obstacles_raw")
+    wellbeing_baseline  = profile.get("mood_baseline_1_10")
+
+    user_msg = f"""Here is the user's Momentum data for the last 7 days:
+{history_text}
+
+Today's component breakdown:
+- Nutrition: {round(n.get('pct', 0) * 100)}% of {n.get('calorie_goal')} kcal goal ({n.get('calories_logged')} logged)
+- Protein: {round(p.get('pct', 0) * 100)}% of {p.get('protein_goal_g')}g goal ({p.get('protein_logged_g')}g logged)
+- Activity: {round(a.get('pct', 0) * 100)}% (active calories: {a.get('active_calories')}, target: {a.get('target_calories')})
+- Check-in completed: {"yes" if c.get('morning_done') or c.get('evening_done') else "no"}
+- Tasks: {t.get('completed')} of {t.get('total')} completed
+- Wellbeing: {w.get('avg_today')}/10 vs personal baseline of {wellbeing_baseline}/10
+
+User profile context:
+- Primary goal: {primary_goal}
+- Behavioral archetype: {behavioral_archetype}
+- Biggest leverage point: {biggest_leverage}
+- Self-reported main obstacle: {obstacles}
+
+Write exactly 2-3 sentences identifying a specific pattern or notable data point. End with one sentence stating exactly what data you used to reach this conclusion, starting with 'This is based on:'"""
+
+    response = _client().messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=256,
+        system=_MOMENTUM_INSIGHT_SYSTEM,
+        messages=[{"role": "user", "content": user_msg}],
+    )
+    insight_text = next(b.text for b in response.content if b.type == "text").strip()
+
+    # Build data_used from non-null inputs
+    data_used = []
+    if history_lines:
+        data_used.append("7-day momentum history")
+    if n.get("calorie_goal"):
+        data_used.append(f"calorie goal ({n['calorie_goal']} kcal)")
+    if n.get("calories_logged"):
+        data_used.append(f"calories logged ({n['calories_logged']})")
+    if p.get("protein_goal_g"):
+        data_used.append(f"protein goal ({p['protein_goal_g']}g)")
+    if p.get("protein_logged_g"):
+        data_used.append(f"protein logged ({p['protein_logged_g']}g)")
+    if a.get("active_calories") is not None:
+        data_used.append(f"active calories ({a['active_calories']})")
+    if c.get("morning_done") or c.get("evening_done"):
+        data_used.append("check-in completion")
+    if t.get("total"):
+        data_used.append(f"tasks ({t.get('completed', 0)}/{t['total']})")
+    if w.get("avg_today") is not None:
+        data_used.append(f"wellbeing score ({w['avg_today']}/10)")
+    if wellbeing_baseline:
+        data_used.append(f"wellbeing baseline ({wellbeing_baseline}/10)")
+    if primary_goal:
+        data_used.append("primary goal")
+    if behavioral_archetype:
+        data_used.append("behavioral archetype")
+    if biggest_leverage:
+        data_used.append("leverage point")
+    if obstacles:
+        data_used.append("self-reported obstacles")
+
+    return {
+        "insight":      insight_text,
+        "data_used":    data_used,
+        "generated_at": datetime.now().isoformat(),
+    }
+
+
 def parse_workout_plan(text: str) -> dict:
     response = _client().messages.create(
         model="claude-opus-4-6",
