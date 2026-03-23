@@ -831,19 +831,18 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
     with get_conn() as conn:
         conn.execute("""
             INSERT INTO daily_momentum
-                (user_id, score_date, momentum_score, nutrition_pct, protein_pct,
+                (user_id, score_date, momentum_score, nutrition_pct,
                  activity_pct, checkin_done, task_rate, wellbeing_delta, computed_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(user_id, score_date) DO UPDATE SET
                 momentum_score  = excluded.momentum_score,
                 nutrition_pct   = excluded.nutrition_pct,
-                protein_pct     = excluded.protein_pct,
                 activity_pct    = excluded.activity_pct,
                 checkin_done    = excluded.checkin_done,
                 task_rate       = excluded.task_rate,
                 wellbeing_delta = excluded.wellbeing_delta,
                 computed_at     = excluded.computed_at
-        """, (user_id, date_str, momentum_score, nutrition_pct, protein_pct,
+        """, (user_id, date_str, momentum_score, nutrition_pct,
               activity_pct, checkin_done, task_rate, wellbeing_delta, now))
         conn.commit()
 
@@ -855,7 +854,7 @@ def get_momentum_history(user_id: int, days: int = 14) -> list:
     cutoff = (date.today() - timedelta(days=days)).isoformat()
     with get_conn() as conn:
         rows = conn.execute("""
-            SELECT score_date, momentum_score, nutrition_pct, protein_pct,
+            SELECT score_date, momentum_score, nutrition_pct,
                    activity_pct, checkin_done, task_rate, wellbeing_delta, computed_at
             FROM daily_momentum
             WHERE user_id = ? AND score_date >= ?
