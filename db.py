@@ -602,8 +602,8 @@ def get_daily_weight(user_id: int, date_str: str):
 # ── Mind check-ins ──────────────────────────────────────
 
 def insert_mind_checkin(user_id, checkin_type, goals, notes, focus, wellbeing, summary,
-                        energy_level=None, stress_level=None):
-    today = date.today().isoformat()
+                        energy_level=None, stress_level=None, checkin_date=None):
+    today = checkin_date or date.today().isoformat()
     now = datetime.now().isoformat()
     with get_conn() as conn:
         conn.execute("""
@@ -616,8 +616,8 @@ def insert_mind_checkin(user_id, checkin_type, goals, notes, focus, wellbeing, s
         conn.commit()
 
 
-def get_mind_today(user_id):
-    today = date.today().isoformat()
+def get_mind_today(user_id, checkin_date=None):
+    today = checkin_date or date.today().isoformat()
     with get_conn() as conn:
         rows = conn.execute(
             "SELECT * FROM mind_checkins WHERE user_id = ? AND checkin_date = ? ORDER BY created_at",
@@ -739,19 +739,12 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
         workout_burn = get_today_workout_burn(user_id, date_str)
         activity_pct = min(1.0, workout_burn / _ACTIVITY_CAL_TARGET) if workout_burn > 0 else 0.0
 
-    # Checkin: morning counts for 0.6, evening for 0.4
+    # Checkin: each brief worth 10 pts independently (morning 0.5 + evening 0.5 = 1.0 max)
     types_done  = {c["type"] for c in checkins}
     has_morning = "morning" in types_done
     has_evening = "evening" in types_done
-    if has_morning and has_evening:
-        checkin_score = 1.0
-    elif has_morning:
-        checkin_score = 0.6
-    elif has_evening:
-        checkin_score = 0.4
-    else:
-        checkin_score = 0.0
-    checkin_done = 1 if types_done else 0
+    checkin_score = (0.5 if has_morning else 0.0) + (0.5 if has_evening else 0.0)
+    checkin_done  = 1 if types_done else 0
 
     # Tasks: completed / total
     total_tasks     = len(tasks)

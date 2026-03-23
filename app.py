@@ -277,8 +277,9 @@ def api_onboarding_poll():
 @app.route("/api/mind/today")
 @login_required
 def api_mind_today():
-    tasks    = get_mind_tasks(uid())
-    checkins = get_mind_today(uid())
+    today    = client_today()
+    tasks    = get_mind_tasks(uid(), today)
+    checkins = get_mind_today(uid(), today)
     total    = len(tasks)
     done     = sum(1 for t in tasks if t["completed"])
     return jsonify({
@@ -321,7 +322,8 @@ def api_mind_checkin():
     scores = score_brief(checkin_type, notes, goals)
     insert_mind_checkin(uid(), checkin_type, goals, notes,
                         scores["focus"], scores["wellbeing"], scores["summary"],
-                        energy_level=energy_level, stress_level=stress_level)
+                        energy_level=energy_level, stress_level=stress_level,
+                        checkin_date=client_today())
     tasks_added = []
     for task_text in scores.get("tasks", []):
         if task_text:
@@ -563,11 +565,14 @@ def api_history():
     for row in briefs_raw:
         d = row["checkin_date"]
         briefs.setdefault(d, []).append(row["type"])
+    momentum_rows = get_momentum_history(uid(), 90)
+    momentum = {r["score_date"]: r["momentum_score"] for r in momentum_rows}
     return jsonify({
         "meals":    get_meal_history(uid(), 90),
         "workouts": get_workout_history(uid(), 90),
         "briefs":   briefs,
         "sleep":    get_sleep_history(uid(), 90),
+        "momentum": momentum,
     })
 
 

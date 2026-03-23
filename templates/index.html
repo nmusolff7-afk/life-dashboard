@@ -4321,6 +4321,8 @@ try {
         const hasBothBriefs = briefTypes.includes("morning") && briefTypes.includes("evening");
         const hasOneBrief   = briefTypes.length > 0 && !hasBothBriefs;
 
+        const momentumScore = (!isFuture && histData.momentum) ? (histData.momentum[ds] ?? null) : null;
+
         const cell = document.createElement("div");
         let cellClass = "cal-cell" + (isFuture ? " no-cursor" : "");
         if (!isFuture) {
@@ -4330,6 +4332,17 @@ try {
         cell.className = cellClass;
         cell.style.background = bg;
         cell.style.border = (!hasAnyData && !isFuture) ? "1px solid var(--border)" : "";
+        cell.style.display = "flex";
+        cell.style.alignItems = "center";
+        cell.style.justifyContent = "center";
+        if (momentumScore !== null) {
+          cell.textContent = momentumScore;
+          cell.style.fontFamily = "'Rajdhani',sans-serif";
+          cell.style.fontSize = "0.72rem";
+          cell.style.fontWeight = "700";
+          cell.style.color = "rgba(255,255,255,0.92)";
+          cell.style.textShadow = "0 1px 2px rgba(0,0,0,0.6)";
+        }
         cell.dataset.date     = ds;
         cell.dataset.burn     = ws.reduce((s, w) => s + (w.calories_burned || 0), 0);
         cell.dataset.calories = meals ? meals.calories : "";
