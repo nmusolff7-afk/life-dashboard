@@ -858,33 +858,31 @@
       </div>
 
       <!-- Sleep Card (populated from Garmin sync) -->
-      <div class="card" id="sleep-card" style="display:none">
-        <!-- Header row: title left, score right -->
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:0.65rem">
+      <div class="card" id="sleep-card" style="display:none;padding-bottom:0.85rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
           <div class="card-title" style="margin:0">Last Night's Sleep</div>
           <div id="sleep-score-wrap" style="display:none;text-align:center;line-height:1">
-            <div id="sleep-score-val" style="font-family:'Rajdhani',sans-serif;font-size:1.9rem;font-weight:800;line-height:1"></div>
-            <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:0.15rem">Score</div>
+            <div id="sleep-score-val" style="font-family:'Rajdhani',sans-serif;font-size:1.6rem;font-weight:800;line-height:1"></div>
+            <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:0.1rem">Score</div>
           </div>
         </div>
-        <!-- Body: duration left, stage breakdown right -->
-        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem">
           <div>
-            <div id="sleep-duration-val" style="font-family:'Rajdhani',sans-serif;font-size:2.4rem;font-weight:800;line-height:1;color:var(--accent2)">—</div>
-            <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.2rem">Duration</div>
+            <div id="sleep-duration-val" style="font-family:'Rajdhani',sans-serif;font-size:2rem;font-weight:800;line-height:1;color:var(--accent2)">—</div>
+            <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.15rem">Duration</div>
           </div>
-          <div style="display:flex;gap:1.4rem;padding-bottom:0.05rem" id="sleep-breakdown">
+          <div style="display:flex;gap:1.2rem" id="sleep-breakdown">
             <div style="text-align:center">
-              <div id="sleep-rem-val" style="font-family:'Rajdhani',sans-serif;font-size:1.25rem;font-weight:700;color:var(--accent);line-height:1">—</div>
-              <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">REM</div>
+              <div id="sleep-rem-val" style="font-family:'Rajdhani',sans-serif;font-size:1.1rem;font-weight:700;color:var(--accent);line-height:1">—</div>
+              <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">REM</div>
             </div>
             <div style="text-align:center">
-              <div id="sleep-deep-val" style="font-family:'Rajdhani',sans-serif;font-size:1.25rem;font-weight:700;color:var(--green);line-height:1">—</div>
-              <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">Deep</div>
+              <div id="sleep-deep-val" style="font-family:'Rajdhani',sans-serif;font-size:1.1rem;font-weight:700;color:var(--green);line-height:1">—</div>
+              <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">Deep</div>
             </div>
             <div style="text-align:center">
-              <div id="sleep-light-val" style="font-family:'Rajdhani',sans-serif;font-size:1.25rem;font-weight:700;color:var(--muted);line-height:1">—</div>
-              <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">Light</div>
+              <div id="sleep-light-val" style="font-family:'Rajdhani',sans-serif;font-size:1.1rem;font-weight:700;color:var(--muted);line-height:1">—</div>
+              <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">Light</div>
             </div>
           </div>
         </div>
@@ -1257,8 +1255,8 @@
         </div>
       </div>
 
-      <!-- Daily Steps -->
-      <div class="card">
+      <!-- Daily Steps (hidden when Garmin is configured) -->
+      <div class="card" id="manual-steps-card">
         <div class="section-label">Daily Steps</div>
         <div class="field" style="margin-bottom:0.6rem">
           <input type="number" id="steps-input" min="0" max="60000" step="100"
@@ -5040,7 +5038,8 @@ try {
   function _getMomentumPayload() {
     try {
       const p = JSON.parse(localStorage.getItem("profileData") || "{}");
-      const goal = p.rmr ? Math.round(p.rmr) : null;
+      // calorie goal = RMR minus deficit (not RMR alone)
+      const goal = p.rmr ? Math.round(p.rmr - (p.deficit || 0)) : null;
       const now  = new Date();
       const payload = { hour: now.getHours() };
       if (goal) payload.calorie_goal = goal;
@@ -5737,7 +5736,9 @@ if ("serviceWorker" in navigator) {
 
   function fmtTime(ts) {
     if (!ts) return "";
-    const d = new Date(ts);
+    // Server stores UTC timestamps without 'Z' — append it so JS parses as UTC
+    const utc = ts.includes("T") && !ts.endsWith("Z") ? ts + "Z" : ts;
+    const d = new Date(utc);
     return "Synced " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
   }
 
@@ -5793,6 +5794,9 @@ if ("serviceWorker" in navigator) {
       .then(data => {
         if (!data.configured) return;
         card.style.display = "";
+        // Garmin handles steps — hide the manual entry card
+        const manualSteps = document.getElementById("manual-steps-card");
+        if (manualSteps) manualSteps.style.display = "none";
         const t = data.today;
         applyData(t && t.steps, t && t.resting_hr, data.last_sync);
         applySleep(data.sleep);
