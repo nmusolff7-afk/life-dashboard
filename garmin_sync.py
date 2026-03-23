@@ -116,12 +116,43 @@ def invalidate() -> None:
 
 # ── Data fetching ─────────────────────────────────────────────────────────────
 
+def _parse_sleep(raw: dict) -> dict | None:
+    """
+    Extract device-agnostic sleep fields from a Garmin get_sleep_data response.
+    Returns None if no usable sleep data is present.
+    """
+    try:
+        dto    = (raw or {}).get("dailySleepDTO") or {}
+        total  = int(dto.get("sleepTimeSeconds")  or 0)
+        if total == 0:
+            return None
+        deep   = int(dto.get("deepSleepSeconds")  or 0)
+        light  = int(dto.get("lightSleepSeconds") or 0)
+        rem    = int(dto.get("remSleepSeconds")    or 0)
+        awake  = int(dto.get("awakeSleepSeconds")  or 0)
+        scores = dto.get("sleepScores") or {}
+        overall = scores.get("overall") or {}
+        score  = overall.get("value") if isinstance(overall, dict) else None
+        return {
+            "total_seconds": total,
+            "deep_seconds":  deep,
+            "light_seconds": light,
+            "rem_seconds":   rem,
+            "awake_seconds": awake,
+            "sleep_score":   score,
+        }
+    except Exception as e:
+        logger.warning("Garmin: failed to parse sleep data: %s", e)
+        return None
+
+
 def fetch_day(date_str: str) -> dict:
     """
     Fetch Garmin data for a given date string (YYYY-MM-DD).
     Returns:
         steps, active_calories, total_calories, resting_hr,
-        activities: [{garmin_activity_id, description, calories}]
+        sleep: {total_seconds, deep_seconds, light_seconds, rem_seconds, awake_seconds, sleep_score} | None,
+        activities: [{garmin_activity_id, description, calories, start_time_local}]
     """
     client = get_client()
 
@@ -133,6 +164,14 @@ def fetch_day(date_str: str) -> dict:
     active_calories = int(summary.get("activeKilocalories")  or 0)
     total_calories  = int(summary.get("totalKilocalories")   or 0)
     resting_hr      = hr_data.get("restingHeartRate") if hr_data else None
+
+    # Sleep data — non-fatal if unavailable
+    sleep = None
+    try:
+        sleep_raw = client.get_sleep_data(date_str)
+        sleep = _parse_sleep(sleep_raw)
+    except Exception as e:
+        logger.warning("Garmin: could not fetch sleep data for %s: %s", date_str, e)
 
     day_activities = []
     for act in (activities or []):
@@ -153,7 +192,7 @@ def fetch_day(date_str: str) -> dict:
             "garmin_activity_id": str(act.get("activityId", "")),
             "description":        desc,
             "calories":           calories,
-            "start_time_local":   act.get("startTimeLocal") or "",  # "YYYY-MM-DD HH:MM:SS" local
+            "start_time_local":   act.get("startTimeLocal") or "",
         })
 
     return {
@@ -161,6 +200,7 @@ def fetch_day(date_str: str) -> dict:
         "active_calories": active_calories,
         "total_calories":  total_calories,
         "resting_hr":      resting_hr,
+        "sleep":           sleep,
         "activities":      day_activities,
     }
 

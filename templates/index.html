@@ -845,6 +845,35 @@
         </div>
       </div>
 
+      <!-- Sleep Card (populated from Garmin sync) -->
+      <div class="card" id="sleep-card" style="display:none">
+        <div class="card-title" style="margin-bottom:0.55rem">Last Night's Sleep</div>
+        <div style="display:flex;align-items:flex-end;gap:1.75rem;flex-wrap:wrap">
+          <div>
+            <div id="sleep-duration-val" style="font-family:'Rajdhani',sans-serif;font-size:2rem;font-weight:800;line-height:1;color:var(--accent2)">—</div>
+            <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.15rem">Duration</div>
+          </div>
+          <div style="display:flex;gap:1.25rem" id="sleep-breakdown">
+            <div>
+              <div id="sleep-rem-val" style="font-family:'Rajdhani',sans-serif;font-size:1.2rem;font-weight:700;color:var(--accent);line-height:1">—</div>
+              <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">REM</div>
+            </div>
+            <div>
+              <div id="sleep-deep-val" style="font-family:'Rajdhani',sans-serif;font-size:1.2rem;font-weight:700;color:var(--green);line-height:1">—</div>
+              <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">Deep</div>
+            </div>
+            <div>
+              <div id="sleep-light-val" style="font-family:'Rajdhani',sans-serif;font-size:1.2rem;font-weight:700;color:var(--muted);line-height:1">—</div>
+              <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">Light</div>
+            </div>
+          </div>
+          <div id="sleep-score-wrap" style="display:none;margin-left:auto;text-align:center">
+            <div id="sleep-score-val" style="font-family:'Rajdhani',sans-serif;font-size:1.6rem;font-weight:800;line-height:1"></div>
+            <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">Score</div>
+          </div>
+        </div>
+      </div>
+
       <!-- Morning Brief -->
       <div class="card brief-card" id="home-morning-card" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.7rem">
@@ -1859,6 +1888,15 @@ function calcTEF(cal, proteinG, carbG, fatG) {
     return Math.round(proteinG * 4 * 0.25 + carbG * 4 * 0.08 + fatG * 9 * 0.03);
   }
   return Math.round((cal || 0) * 0.10);
+}
+
+// Sleep duration formatter — converts seconds to "7h 23m" (or "45m" if < 1 hour)
+function fmtSleep(seconds) {
+  if (!seconds || seconds <= 0) return "—";
+  var h = Math.floor(seconds / 3600);
+  var m = Math.round((seconds % 3600) / 60);
+  if (h === 0) return m + "m";
+  return h + "h " + (m > 0 ? m + "m" : "");
 }
 
 // 12-hour AM/PM formatter — accepts "HH:MM" or a full "YYYY-MM-DD HH:MM:SS" timestamp
@@ -4375,6 +4413,7 @@ try {
     const allDates = new Set([
       ...Object.keys(serverData.meals),
       ...Object.keys(serverData.workouts),
+      ...Object.keys(serverData.sleep || {}),
       ...Object.keys(dailyLog),
     ]);
 
@@ -4410,8 +4449,9 @@ try {
       const dayData  = dailyLog[d] || null;
       const weight   = dayData ? (dayData.weight || null) : null;
       const steps    = dayData ? (dayData.steps  || null) : null;
-      const ws       = serverData.workouts[d] || [];
-      const meals    = serverData.meals[d]    || null;
+      const ws       = serverData.workouts[d]       || [];
+      const meals    = serverData.meals[d]          || null;
+      const sleep    = (serverData.sleep || {})[d]  || null;
 
       // Deficit/calories — prefer dailyLog (has full TDEE), fall back to server totals
       const calories = dayData ? dayData.calories : (meals ? meals.calories : null);
@@ -4440,7 +4480,8 @@ try {
 
       const calStr   = calories !== null ? `${calories} kcal` : "";
       const stepsStr = steps    !== null ? `${steps.toLocaleString()} steps` : "";
-      const midMeta  = [calStr, stepsStr].filter(Boolean).join(" · ");
+      const sleepStr = sleep    ? `🌙 ${fmtSleep(sleep.total_seconds)}` : "";
+      const midMeta  = [calStr, stepsStr, sleepStr].filter(Boolean).join(" · ");
 
       return `<div class="hist-row" data-date="${d}">
         <div class="hist-date">
@@ -4567,6 +4608,23 @@ try {
       html += '</div>';
     } else {
       html += '<div style="color:var(--muted);font-size:0.85rem;padding:0.25rem 0">No workouts logged.</div>';
+    }
+
+    // ── Sleep ──
+    const sleep = serverDay.sleep;
+    if (sleep && sleep.total_seconds) {
+      html += '<div class="hd-section">Sleep</div>';
+      html += '<div class="hd-stat-grid">';
+      html += `<div class="hd-stat"><div class="v" style="color:var(--accent2)">${fmtSleep(sleep.total_seconds)}</div><div class="l">Duration</div></div>`;
+      if (sleep.rem_seconds)   html += `<div class="hd-stat"><div class="v" style="color:var(--accent)">${fmtSleep(sleep.rem_seconds)}</div><div class="l">REM</div></div>`;
+      if (sleep.deep_seconds)  html += `<div class="hd-stat"><div class="v" style="color:var(--green)">${fmtSleep(sleep.deep_seconds)}</div><div class="l">Deep</div></div>`;
+      if (sleep.light_seconds) html += `<div class="hd-stat"><div class="v" style="color:var(--muted)">${fmtSleep(sleep.light_seconds)}</div><div class="l">Light</div></div>`;
+      if (sleep.sleep_score != null) {
+        const sc = sleep.sleep_score;
+        const sc_color = sc >= 80 ? "var(--green)" : sc >= 60 ? "var(--accent2)" : "var(--danger)";
+        html += `<div class="hd-stat"><div class="v" style="color:${sc_color}">${sc}</div><div class="l">Score</div></div>`;
+      }
+      html += '</div>';
     }
 
     content.innerHTML = html;
@@ -5320,6 +5378,31 @@ if ("serviceWorker" in navigator) {
     return "Synced " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
   }
 
+  const sleepCard     = document.getElementById("sleep-card");
+  const sleepDurEl   = document.getElementById("sleep-duration-val");
+  const sleepRemEl   = document.getElementById("sleep-rem-val");
+  const sleepDeepEl  = document.getElementById("sleep-deep-val");
+  const sleepLightEl = document.getElementById("sleep-light-val");
+  const sleepScoreWrap = document.getElementById("sleep-score-wrap");
+  const sleepScoreEl = document.getElementById("sleep-score-val");
+
+  function applySleep(sleep) {
+    if (!sleep || !sleep.total_seconds) return;
+    sleepCard.style.display  = "";
+    sleepDurEl.textContent   = fmtSleep(sleep.total_seconds);
+    sleepRemEl.textContent   = fmtSleep(sleep.rem_seconds);
+    sleepDeepEl.textContent  = fmtSleep(sleep.deep_seconds);
+    sleepLightEl.textContent = fmtSleep(sleep.light_seconds);
+    if (sleep.sleep_score != null) {
+      sleepScoreEl.textContent = sleep.sleep_score;
+      // Colour-code the score
+      sleepScoreEl.style.color = sleep.sleep_score >= 80 ? "var(--green)"
+                               : sleep.sleep_score >= 60 ? "var(--accent2)"
+                               : "var(--danger)";
+      sleepScoreWrap.style.display = "";
+    }
+  }
+
   function applyData(steps, resting_hr, last_sync) {
     dot.style.background   = steps ? "var(--green)" : "var(--muted)";
     stepsEl.textContent    = steps ? steps.toLocaleString() : "—";
@@ -5347,6 +5430,7 @@ if ("serviceWorker" in navigator) {
         card.style.display = "";
         const t = data.today;
         applyData(t && t.steps, t && t.resting_hr, data.last_sync);
+        applySleep(data.sleep);
       })
       .catch(() => {});
   }
@@ -5375,6 +5459,7 @@ if ("serviceWorker" in navigator) {
           ? data.activities_imported + " workout" + (data.activities_imported > 1 ? "s" : "") + " imported"
           : "Up to date");
         applyData(data.steps, data.resting_hr, new Date().toISOString());
+        applySleep(data.sleep);
         if (typeof window._refreshDashboard === "function") window._refreshDashboard();
       })
       .catch(() => {

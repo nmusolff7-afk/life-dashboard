@@ -73,6 +73,23 @@ def init_db():
                 PRIMARY KEY (user_id, stat_date)
             )
         """)
+        # Sleep logs — one row per user per date (device-agnostic universal fields)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS sleep_logs (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id       INTEGER REFERENCES users(id),
+                sleep_date    DATE NOT NULL,
+                total_seconds INTEGER DEFAULT 0,
+                deep_seconds  INTEGER DEFAULT 0,
+                light_seconds INTEGER DEFAULT 0,
+                rem_seconds   INTEGER DEFAULT 0,
+                awake_seconds INTEGER DEFAULT 0,
+                sleep_score   INTEGER,
+                source        TEXT DEFAULT 'garmin',
+                synced_at     TIMESTAMP NOT NULL,
+                UNIQUE(user_id, sleep_date)
+            )
+        """)
         # Key-value store for app-level settings (e.g. garth OAuth tokens)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS app_settings (
@@ -386,6 +403,57 @@ def get_garmin_last_sync(user_id):
             (user_id,)
         ).fetchone()
     return row["last"] if row else None
+
+
+# ── Sleep ─────────────────────────────────────────────
+
+def upsert_sleep(user_id: int, sleep_date: str, total_seconds: int,
+                 deep_seconds: int, light_seconds: int, rem_seconds: int,
+                 awake_seconds: int, sleep_score=None, source: str = "garmin"):
+    """Insert or update a sleep record for a user/date."""
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO sleep_logs
+                (user_id, sleep_date, total_seconds, deep_seconds, light_seconds,
+                 rem_seconds, awake_seconds, sleep_score, source, synced_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, sleep_date) DO UPDATE SET
+                total_seconds = excluded.total_seconds,
+                deep_seconds  = excluded.deep_seconds,
+                light_seconds = excluded.light_seconds,
+                rem_seconds   = excluded.rem_seconds,
+                awake_seconds = excluded.awake_seconds,
+                sleep_score   = excluded.sleep_score,
+                source        = excluded.source,
+                synced_at     = excluded.synced_at
+        """, (user_id, sleep_date, total_seconds, deep_seconds, light_seconds,
+              rem_seconds, awake_seconds, sleep_score, source,
+              datetime.now().isoformat()))
+        conn.commit()
+
+
+def get_sleep(user_id: int, sleep_date: str):
+    """Return sleep row for a user/date as dict, or None."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM sleep_logs WHERE user_id = ? AND sleep_date = ?",
+            (user_id, sleep_date)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def get_sleep_history(user_id: int, days: int = 90) -> dict:
+    """Return {date: sleep_dict} for the last N days."""
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    with get_conn() as conn:
+        rows = conn.execute("""
+            SELECT sleep_date, total_seconds, deep_seconds, light_seconds,
+                   rem_seconds, awake_seconds, sleep_score, source
+            FROM sleep_logs
+            WHERE user_id = ? AND sleep_date >= ?
+            ORDER BY sleep_date
+        """, (user_id, cutoff)).fetchall()
+    return {r["sleep_date"]: dict(r) for r in rows}
 
 
 def garmin_activity_exists(user_id, garmin_activity_id):

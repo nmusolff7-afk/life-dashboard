@@ -19,6 +19,7 @@ from db import (
     insert_mind_checkin, get_mind_today, get_mind_history,
     insert_mind_task, get_mind_tasks, toggle_mind_task, delete_mind_task,
     save_daily_weight, get_daily_weight,
+    upsert_sleep, get_sleep, get_sleep_history,
 )
 from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, shorten_label, scan_meal_image
 from claude_profile import generate_profile_map, compute_mind_insights, score_brief
@@ -515,7 +516,9 @@ def api_shorten():
 @app.route("/api/day/<date_str>")
 @login_required
 def api_day(date_str):
-    return jsonify(get_day_detail(uid(), date_str))
+    detail = get_day_detail(uid(), date_str)
+    detail["sleep"] = get_sleep(uid(), date_str)
+    return jsonify(detail)
 
 
 @app.route("/api/history")
@@ -531,6 +534,7 @@ def api_history():
         "meals":    get_meal_history(uid(), 90),
         "workouts": get_workout_history(uid(), 90),
         "briefs":   briefs,
+        "sleep":    get_sleep_history(uid(), 90),
     })
 
 
@@ -558,6 +562,12 @@ def _garmin_save(user_id: int, date_str: str, result: dict) -> None:
         result["total_calories"],
         result["resting_hr"],
     )
+    sleep = result.get("sleep")
+    if sleep:
+        upsert_sleep(user_id, date_str,
+                     sleep["total_seconds"], sleep["deep_seconds"],
+                     sleep["light_seconds"], sleep["rem_seconds"],
+                     sleep["awake_seconds"], sleep.get("sleep_score"))
     for act in result.get("activities", []):
         gid = act.get("garmin_activity_id", "")
         if gid and garmin_activity_exists(user_id, gid):
@@ -593,10 +603,12 @@ def api_garmin_status():
     today      = client_today()
     day_data   = get_garmin_daily(uid(), today) if configured else None
     last_sync  = get_garmin_last_sync(uid()) if configured else None
+    sleep      = get_sleep(uid(), today) if configured else None
     return jsonify({
         "configured": configured,
         "last_sync":  last_sync,
         "today":      day_data,
+        "sleep":      sleep,
     })
 
 
@@ -623,6 +635,14 @@ def api_garmin_sync():
         result["resting_hr"],
     )
 
+    # Save sleep if present
+    sleep = result.get("sleep")
+    if sleep:
+        upsert_sleep(uid(), sync_date,
+                     sleep["total_seconds"], sleep["deep_seconds"],
+                     sleep["light_seconds"], sleep["rem_seconds"],
+                     sleep["awake_seconds"], sleep.get("sleep_score"))
+
     # Import activities as workout_log entries (skip duplicates)
     imported = []
     for act in result["activities"]:
@@ -643,6 +663,7 @@ def api_garmin_sync():
         "active_calories": result["active_calories"],
         "total_calories":  result["total_calories"],
         "resting_hr":      result["resting_hr"],
+        "sleep":           get_sleep(uid(), sync_date),
         "activities_imported": len(imported),
         "activities":      imported,
         "workouts":        get_today_workouts(uid(), sync_date),
