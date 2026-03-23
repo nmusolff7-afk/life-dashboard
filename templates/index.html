@@ -903,10 +903,11 @@
         </div>
         <div id="home-morning-form" style="display:none">
           <div style="margin-bottom:0.6rem">
-            <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.3rem">Today's bodyweight (lbs)</label>
+            <label style="font-size:0.8rem;color:var(--text);font-weight:600;display:block;margin-bottom:0.3rem">Today's weight <span style="color:var(--muted);font-weight:400">(lbs)</span></label>
             <input type="number" id="home-morning-weight" min="50" max="500" step="0.1"
               style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;box-sizing:border-box"
               placeholder="e.g. 185.5">
+            <div id="home-morning-weight-err" style="display:none;font-size:0.75rem;color:var(--danger);margin-top:0.25rem">Enter your weight to continue</div>
           </div>
           <div style="margin-bottom:0.6rem">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem">
@@ -5669,6 +5670,19 @@ if ("serviceWorker" in navigator) {
     if (!notes) { notesEl.focus(); return; }
     const goals = goalsEl ? goalsEl.value.trim() : "";
     const bw    = weightEl ? parseFloat(weightEl.value) : null;
+
+    // Weight is required for morning brief
+    if (isM) {
+      const errEl = document.getElementById("home-morning-weight-err");
+      if (!bw || bw <= 0) {
+        weightEl.style.borderColor = "var(--danger)";
+        if (errEl) errEl.style.display = "";
+        weightEl.focus();
+        return;
+      }
+      weightEl.style.borderColor = "";
+      if (errEl) errEl.style.display = "none";
+    }
 
     submitBtn.disabled = true;
     spinEl.style.display = "";
