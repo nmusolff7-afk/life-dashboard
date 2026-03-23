@@ -193,11 +193,9 @@ _DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Su
 # ── Momentum pattern insight ──────────────────────────
 
 _MOMENTUM_INSIGHT_SYSTEM = (
-    "You are an analytical assistant reviewing a user's health and habit data. "
-    "Your job is to identify one specific, non-obvious pattern from the numbers. "
-    "Do not give generic advice. Do not be encouraging or preachy. "
-    "State only what the data shows. "
-    "If the data is insufficient to identify a pattern, say so plainly."
+    "You are an analytical assistant reviewing health and habit data. "
+    "Write exactly 1-2 short sentences identifying one specific pattern. "
+    "Be direct and factual. No encouragement, no advice, no filler."
 )
 
 
@@ -252,7 +250,7 @@ User profile context:
 - Biggest leverage point: {biggest_leverage}
 - Self-reported main obstacle: {obstacles}
 
-Write exactly 2-3 sentences identifying a specific pattern or notable data point. End with one sentence stating exactly what data you used to reach this conclusion, starting with 'This is based on:'"""
+In 1-2 sentences, state one specific pattern from the numbers. Do not end with a data citation."""
 
     response = _client().messages.create(
         model="claude-haiku-4-5-20251001",

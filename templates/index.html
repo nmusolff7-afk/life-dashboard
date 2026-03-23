@@ -4738,14 +4738,10 @@ try {
   }
 
   function renderInsight(ins) {
-    const textEl  = document.getElementById("momentum-insight-text");
-    const basedEl = document.getElementById("momentum-insight-based");
+    const textEl = document.getElementById("momentum-insight-text");
     if (!textEl) return;
     if (!ins || ins.error) { textEl.textContent = "Insight unavailable."; return; }
     textEl.textContent = ins.insight || "Insight unavailable.";
-    if (basedEl && ins.data_used && ins.data_used.length) {
-      basedEl.textContent = "Based on: " + ins.data_used.join(", ");
-    }
   }
 
   function loadInsight() {
@@ -4761,7 +4757,11 @@ try {
         }
       }
     } catch(e) {}
-    fetch("/api/momentum/insight", { method: "POST" })
+    fetch("/api/momentum/insight", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(_getMomentumPayload()),
+    })
       .then(r => r.json())
       .then(data => {
         insightCache   = data;
@@ -4784,10 +4784,9 @@ try {
     const score      = data.momentum_score;
     const scoreColor = _momentumColor(score);
     const COMP_DEFS  = [
-      { key: "nutrition", label: "Nutrition", max: 25 },
-      { key: "protein",   label: "Protein",   max: 15 },
-      { key: "activity",  label: "Activity",  max: 25 },
-      { key: "checkin",   label: "Check-in",  max: 15 },
+      { key: "nutrition", label: "Nutrition", max: 30 },
+      { key: "activity",  label: "Activity",  max: 30 },
+      { key: "checkin",   label: "Check-in",  max: 20 },
       { key: "tasks",     label: "Tasks",     max: 10 },
       { key: "wellbeing", label: "Wellbeing", max: 10 },
     ];
@@ -4821,8 +4820,7 @@ try {
       </div>
       <div style="border-top:1px solid var(--border);padding-top:0.85rem">
         <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:0.5rem">Pattern Insight</div>
-        <div id="momentum-insight-text" style="font-size:0.85rem;color:var(--text);line-height:1.5">Loading insight...</div>
-        <div id="momentum-insight-based" style="font-size:0.75rem;color:var(--muted);font-style:italic;margin-top:0.4rem"></div>
+        <div id="momentum-insight-text" style="font-size:0.85rem;color:var(--muted);line-height:1.5">Loading...</div>
       </div>
       <div style="margin-top:0.85rem;text-align:right">
         <button class="btn btn-ghost" id="momentum-recalc" style="font-size:0.8rem;padding:0.35rem 0.8rem">Recalculate</button>
@@ -4837,8 +4835,20 @@ try {
     loadInsight();
   }
 
+  function _getMomentumPayload() {
+    try {
+      const p = JSON.parse(localStorage.getItem("profileData") || "{}");
+      const goal = p.rmr ? Math.round(p.rmr) : null;
+      return goal ? { calorie_goal: goal } : {};
+    } catch(e) { return {}; }
+  }
+
   function loadMomentum() {
-    fetch("/api/momentum/today")
+    fetch("/api/momentum/today", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(_getMomentumPayload()),
+    })
       .then(r => r.json())
       .then(data => renderMomentum(data))
       .catch(() => {

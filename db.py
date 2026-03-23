@@ -672,10 +672,9 @@ import logging as _logging
 _momentum_logger = _logging.getLogger(__name__)
 
 MOMENTUM_WEIGHTS = {
-    "nutrition": 25,
-    "protein":   15,
-    "activity":  25,
-    "checkin":   15,
+    "nutrition": 30,
+    "activity":  30,
+    "checkin":   20,
     "tasks":     10,
     "wellbeing": 10,
 }
@@ -684,9 +683,10 @@ assert sum(MOMENTUM_WEIGHTS.values()) == 100
 _ACTIVITY_CAL_TARGET = 500  # kcal of active burn considered "full credit"
 
 
-def compute_momentum(user_id: int, date_str: str) -> dict:
+def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | None = None) -> dict:
     """
     Compute a 0–100 momentum score for user_id on date_str.
+    calorie_goal_override: when provided, takes precedence over profile map value.
     Upserts the result into daily_momentum and returns a full debug_breakdown dict.
     """
     # ── gather inputs ────────────────────────────────────
@@ -711,20 +711,12 @@ def compute_momentum(user_id: int, date_str: str) -> dict:
     # ── component scoring ────────────────────────────────
 
     # Nutrition: calories logged vs daily goal
-    cal_goal  = profile.get("daily_calorie_goal")
+    cal_goal  = calorie_goal_override or profile.get("daily_calorie_goal")
     cal_today = totals["total_calories"]
     if cal_goal and cal_goal > 0:
         nutrition_pct = min(1.0, cal_today / cal_goal)
     else:
         nutrition_pct = 0.0
-
-    # Protein: grams logged vs daily goal
-    prot_goal  = profile.get("daily_protein_goal_g")
-    prot_today = totals["total_protein"]
-    if prot_goal and prot_goal > 0:
-        protein_pct = min(1.0, prot_today / prot_goal)
-    else:
-        protein_pct = 0.0
 
     # Activity: Garmin active calories vs target; fallback to logged workout burn
     if garmin:
@@ -781,7 +773,6 @@ def compute_momentum(user_id: int, date_str: str) -> dict:
     # ── weighted contributions ───────────────────────────
     weighted = {
         "nutrition": round(nutrition_pct  * MOMENTUM_WEIGHTS["nutrition"], 2),
-        "protein":   round(protein_pct    * MOMENTUM_WEIGHTS["protein"],   2),
         "activity":  round(activity_pct   * MOMENTUM_WEIGHTS["activity"],  2),
         "checkin":   round(checkin_score  * MOMENTUM_WEIGHTS["checkin"],   2),
         "tasks":     round(task_rate      * MOMENTUM_WEIGHTS["tasks"],     2),
@@ -802,13 +793,6 @@ def compute_momentum(user_id: int, date_str: str) -> dict:
                 "pct":             round(nutrition_pct, 4),
                 "weighted":        weighted["nutrition"],
                 "missing":         cal_goal is None,
-            },
-            "protein": {
-                "protein_logged_g": round(float(prot_today), 1),
-                "protein_goal_g":   prot_goal,
-                "pct":              round(protein_pct, 4),
-                "weighted":         weighted["protein"],
-                "missing":          prot_goal is None,
             },
             "activity": {
                 "active_calories":  active_cal,

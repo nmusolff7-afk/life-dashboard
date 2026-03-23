@@ -674,12 +674,19 @@ def api_garmin_sync():
 
 # ── Momentum ─────────────────────────────────────────────
 
-@app.route("/api/momentum/today")
+@app.route("/api/momentum/today", methods=["GET", "POST"])
 @login_required
 def api_momentum_today():
     today = client_today()
+    body  = request.get_json(silent=True) or {}
+    calorie_goal = body.get("calorie_goal") or None
+    if calorie_goal:
+        try:
+            calorie_goal = int(calorie_goal)
+        except (TypeError, ValueError):
+            calorie_goal = None
     try:
-        breakdown = compute_momentum(uid(), today)
+        breakdown = compute_momentum(uid(), today, calorie_goal_override=calorie_goal)
         return jsonify(breakdown)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -696,8 +703,15 @@ def api_momentum_history():
 @login_required
 def api_momentum_insight():
     today = client_today()
+    body  = request.get_json(silent=True) or {}
+    calorie_goal = body.get("calorie_goal") or None
+    if calorie_goal:
+        try:
+            calorie_goal = int(calorie_goal)
+        except (TypeError, ValueError):
+            calorie_goal = None
     try:
-        breakdown = compute_momentum(uid(), today)
+        breakdown = compute_momentum(uid(), today, calorie_goal_override=calorie_goal)
         history   = get_momentum_history(uid(), 7)
         profile   = get_profile_map(uid())
         result    = generate_momentum_insight(breakdown, history, profile)
