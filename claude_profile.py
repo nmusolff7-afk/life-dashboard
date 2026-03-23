@@ -347,8 +347,10 @@ def score_brief(brief_type: str, notes: str, goals: str) -> dict:
         f'- "focus": integer 1-10 (goal clarity, motivation, mental sharpness)\n'
         f'- "wellbeing": integer 1-10 (mood, energy, stress — higher is better)\n'
         f'- "summary": string under 15 words capturing the key takeaway\n'
-        f'- "tasks": array of short, distinct, actionable task strings extracted from the text '
-        f'(things the person wants or needs to do — make them clear and checkable, max 10)\n\n'
+        f'- "tasks": array of short discrete to-do items extracted from the text. '
+        f'ONLY include specific, completable actions with a clear done state — e.g. "buy eggs", "call dentist", "send report to Mike". '
+        f'Do NOT include habits, lifestyle changes, or vague aspirations — e.g. do NOT add "stop drinking alcohol", "exercise more", "be more productive", "drink less coffee". '
+        f'Max 10 tasks.\n\n'
         f"{goals_line}Notes: {notes.strip()}\n\nReturn JSON only, no other text:"
     )
     try:

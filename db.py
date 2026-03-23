@@ -656,7 +656,9 @@ def get_mind_tasks(user_id, task_date=None):
     td = task_date or date.today().isoformat()
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT * FROM mind_tasks WHERE user_id = ? AND task_date = ? ORDER BY completed, created_at",
+            """SELECT * FROM mind_tasks WHERE user_id = ?
+               AND (completed = 0 OR task_date = ?)
+               ORDER BY completed, created_at""",
             (user_id, td)
         ).fetchall()
     return [dict(r) for r in rows]
@@ -726,7 +728,8 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
     # ── component scoring ────────────────────────────────
 
     # Nutrition: calories logged vs daily goal
-    cal_goal  = calorie_goal_override or profile.get("daily_calorie_goal")
+    # Prefer the profile's onboarding-calculated goal; fall back to client override (rmr - deficit)
+    cal_goal  = profile.get("daily_calorie_goal") or calorie_goal_override
     cal_today = totals["total_calories"]
     if cal_goal and cal_goal > 0:
         nutrition_pct = min(1.0, cal_today / cal_goal)

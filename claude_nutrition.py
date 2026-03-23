@@ -302,41 +302,19 @@ def generate_momentum_insight(
     obstacles    = profile.get("typical_obstacles_raw")
     wb_baseline  = profile.get("mood_baseline_1_10")
 
-    user_msg = f"""Current time: {time_label}
-Today's Momentum score: {breakdown.get('momentum_score')}/100
+    user_msg = f"""TIME: {time_label} | SCORE: {breakdown.get('momentum_score')}/100
+PROFILE: goal={primary_goal} | archetype={archetype} | leverage={leverage} | obstacle={obstacles} | wb_baseline={wb_baseline}/10
 
---- 7-DAY HISTORY ---
+SLEEP     | {sleep_text.strip()}
+MOVEMENT  | steps={garmin.get('steps', 0) if garmin else 'N/A'}, active_kcal={garmin.get('active_calories', 0) if garmin else 'N/A'}, resting_hr={garmin.get('resting_hr') or 'N/A'}, workouts={len(workouts)} logged
+NUTRITION | {n.get('calories_logged', 0)}/{n.get('calorie_goal')} kcal ({round(n.get('pct', 0) * 100)}%), protein={round(sum(m.get('protein_g',0) for m in meals),1)}g, meals={len(meals)}
+HABITS    | checkin=morning:{'Y' if c.get('morning_done') else 'N'}/evening:{'Y' if c.get('evening_done') else 'N'}, tasks={t.get('completed', 0)}/{t.get('total', 0)} done
+WELLBEING | today={w.get('avg_today')}/10 (7d avg={w.get('past_7d_avg')}), energy={w.get('avg_energy')}/10, stress={w.get('avg_stress')}/10
+
+7-DAY TREND (score | nutrition% | activity% | checkin | tasks%):
 {history_text}
 
---- TODAY'S MEALS ---
-{meals_text}
-
---- TODAY'S WORKOUTS ---
-{workouts_text}
-
---- GARMIN ACTIVITY ---
-{garmin_text}
-
---- LAST NIGHT'S SLEEP ---
-{sleep_text}
-
---- MOMENTUM COMPONENTS ---
-- Nutrition: {n.get('calories_logged', 0)} kcal logged of {n.get('calorie_goal')} kcal goal ({round(n.get('pct', 0) * 100)}%)
-- Activity: {a.get('active_calories')} active kcal ({round(a.get('pct', 0) * 100)}% of {a.get('target_calories')} target)
-- Check-in: morning={'yes' if c.get('morning_done') else 'no'}, evening={'yes' if c.get('evening_done') else 'no'}
-- Tasks: {t.get('completed', 0)} of {t.get('total', 0)} done
-- Wellbeing: {w.get('avg_today')}/10 (7-day avg: {w.get('past_7d_avg')})
-- Energy level today: {w.get('avg_energy')}/10
-- Stress level today: {w.get('avg_stress')}/10
-
---- USER PROFILE ---
-- Goal: {primary_goal}
-- Archetype: {archetype}
-- Biggest leverage: {leverage}
-- Main obstacle: {obstacles}
-- Wellbeing baseline: {wb_baseline}/10
-
-In 1-2 sentences, name one specific pattern visible in this data. Reference the actual numbers. No advice."""
+Identify one specific cross-domain pattern visible in sleep, movement, nutrition, habits, or wellbeing. Reference actual numbers. No advice, no filler."""
 
     response = _client().messages.create(
         model="claude-haiku-4-5-20251001",

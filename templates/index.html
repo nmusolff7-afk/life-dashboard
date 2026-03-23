@@ -111,8 +111,10 @@
     /* ── Cards ── */
     .card { background: var(--surface); border: 1px solid var(--border);
       border-radius: 12px; padding: 1.1rem 1.25rem; margin-bottom: 1rem; }
-    .card-title { font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
-      letter-spacing: .06em; color: var(--muted); margin-bottom: 0.9rem; }
+    .card-title { font-size: 0.8rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .08em; color: var(--text); margin-bottom: 0.9rem;
+      display: flex; align-items: center; gap: 0.5rem; }
+    .card-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
     .section-label { font-size: 0.8rem; font-weight: 700; color: var(--text);
       text-transform: uppercase; letter-spacing: .08em; margin-bottom: 0.75rem;
       display: flex; align-items: center; gap: 0.5rem; }
@@ -803,91 +805,6 @@
         <div class="dash-cal-meta" id="dash-cal-meta">Log meals to see balance</div>
       </div>
 
-      <!-- Stats Grid -->
-      <div class="dash-stat-grid">
-        <div class="dash-stat-card" id="dash-weight-card">
-          <div class="dash-stat-val" id="dash-weight-val" style="color:var(--muted)">—</div>
-          <div class="dash-stat-lbl">Weight</div>
-        </div>
-        <div class="dash-stat-card" id="dash-steps-card">
-          <div class="dash-stat-val" id="dash-steps-val" style="color:var(--muted)">—</div>
-          <div class="dash-stat-lbl">Steps</div>
-        </div>
-        <div class="dash-stat-card" id="dash-burn-card">
-          <div class="dash-stat-val" id="dash-burn-val" style="color:var(--muted)">—</div>
-          <div class="dash-stat-lbl">Burned</div>
-        </div>
-        <div class="dash-stat-card" id="dash-protein-card">
-          <div class="dash-stat-val" id="dash-protein-val" style="color:var(--muted)">—</div>
-          <div class="dash-stat-lbl">Protein</div>
-        </div>
-      </div>
-
-      <!-- Macros Card -->
-      <div class="card" id="dash-macro-card" style="cursor:pointer">
-        <div class="card-title">Macros</div>
-        <div id="dash-macro-bars">
-          <div style="color:var(--muted);font-size:0.85rem">Log meals to see macros.</div>
-        </div>
-      </div>
-
-
-      <!-- Garmin Status -->
-      <div class="card" id="garmin-status-card" style="display:none">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem">
-          <div style="display:flex;align-items:center;gap:0.5rem">
-            <div class="card-title" style="margin:0">Garmin</div>
-            <div id="garmin-dot" style="width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0"></div>
-          </div>
-          <button id="garmin-sync-btn" class="btn btn-ghost" style="font-size:0.78rem;padding:0.3rem 0.75rem">Sync Now</button>
-        </div>
-        <div style="display:flex;align-items:flex-end;gap:1.5rem">
-          <div>
-            <div id="garmin-steps-val" style="font-family:'Rajdhani',sans-serif;font-size:1.6rem;font-weight:700;color:var(--muted);line-height:1">—</div>
-            <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.15rem">Steps</div>
-          </div>
-          <div>
-            <div id="garmin-hr-val" style="font-family:'Rajdhani',sans-serif;font-size:1.6rem;font-weight:700;color:var(--muted);line-height:1">—</div>
-            <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.15rem">Resting HR</div>
-          </div>
-          <div style="flex:1;text-align:right">
-            <div id="garmin-sync-time" style="font-size:0.72rem;color:var(--muted)"></div>
-            <div id="garmin-sync-msg" style="font-size:0.72rem;margin-top:0.1rem"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Sleep Card (populated from Garmin sync) -->
-      <div class="card" id="sleep-card" style="display:none;padding-bottom:0.85rem">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
-          <div class="card-title" style="margin:0">Last Night's Sleep</div>
-          <div id="sleep-score-wrap" style="display:none;text-align:center;line-height:1">
-            <div id="sleep-score-val" style="font-family:'Rajdhani',sans-serif;font-size:1.6rem;font-weight:800;line-height:1"></div>
-            <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:0.1rem">Score</div>
-          </div>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem">
-          <div>
-            <div id="sleep-duration-val" style="font-family:'Rajdhani',sans-serif;font-size:2rem;font-weight:800;line-height:1;color:var(--accent2)">—</div>
-            <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.15rem">Duration</div>
-          </div>
-          <div style="display:flex;gap:1.2rem" id="sleep-breakdown">
-            <div style="text-align:center">
-              <div id="sleep-rem-val" style="font-family:'Rajdhani',sans-serif;font-size:1.1rem;font-weight:700;color:var(--accent);line-height:1">—</div>
-              <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">REM</div>
-            </div>
-            <div style="text-align:center">
-              <div id="sleep-deep-val" style="font-family:'Rajdhani',sans-serif;font-size:1.1rem;font-weight:700;color:var(--green);line-height:1">—</div>
-              <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">Deep</div>
-            </div>
-            <div style="text-align:center">
-              <div id="sleep-light-val" style="font-family:'Rajdhani',sans-serif;font-size:1.1rem;font-weight:700;color:var(--muted);line-height:1">—</div>
-              <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">Light</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- Morning Brief -->
       <div class="card brief-card" id="home-morning-card" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.7rem">
@@ -1005,6 +922,92 @@
         </div>
       </div>
 
+      <!-- Stats Grid -->
+      <div class="dash-stat-grid">
+        <div class="dash-stat-card" id="dash-weight-card">
+          <div class="dash-stat-val" id="dash-weight-val" style="color:var(--muted)">—</div>
+          <div class="dash-stat-lbl">Weight</div>
+        </div>
+        <div class="dash-stat-card" id="dash-steps-card">
+          <div class="dash-stat-val" id="dash-steps-val" style="color:var(--muted)">—</div>
+          <div class="dash-stat-lbl">Steps</div>
+        </div>
+        <div class="dash-stat-card" id="dash-burn-card">
+          <div class="dash-stat-val" id="dash-burn-val" style="color:var(--muted)">—</div>
+          <div class="dash-stat-lbl">Burned</div>
+        </div>
+        <div class="dash-stat-card" id="dash-protein-card">
+          <div class="dash-stat-val" id="dash-protein-val" style="color:var(--muted)">—</div>
+          <div class="dash-stat-lbl">Protein</div>
+        </div>
+      </div>
+
+      <!-- Macros Card -->
+      <div class="card" id="dash-macro-card" style="cursor:pointer">
+        <div class="card-title">Macros</div>
+        <div id="dash-macro-bars">
+          <div style="color:var(--muted);font-size:0.85rem">Log meals to see macros.</div>
+        </div>
+      </div>
+
+
+      <!-- Garmin Status -->
+      <div class="card" id="garmin-status-card" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem">
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <div class="card-title" style="margin:0">Garmin</div>
+            <div id="garmin-dot" style="width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0"></div>
+          </div>
+          <button id="garmin-sync-btn" class="btn btn-ghost" style="font-size:0.78rem;padding:0.3rem 0.75rem">Sync Now</button>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:1.5rem">
+          <div>
+            <div id="garmin-steps-val" style="font-family:'Rajdhani',sans-serif;font-size:1.6rem;font-weight:700;color:var(--muted);line-height:1">—</div>
+            <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.15rem">Steps</div>
+          </div>
+          <div>
+            <div id="garmin-hr-val" style="font-family:'Rajdhani',sans-serif;font-size:1.6rem;font-weight:700;color:var(--muted);line-height:1">—</div>
+            <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.15rem">Resting HR</div>
+          </div>
+          <div style="flex:1;text-align:right">
+            <div id="garmin-sync-time" style="font-size:0.72rem;color:var(--muted)"></div>
+            <div id="garmin-sync-msg" style="font-size:0.72rem;margin-top:0.1rem"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sleep Card (populated from Garmin sync) -->
+      <div class="card" id="sleep-card" style="display:none;padding-bottom:0.85rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
+          <div class="card-title" style="margin:0;flex:1">Last Night's Sleep</div>
+          <div id="sleep-score-wrap" style="display:none;text-align:center;line-height:1">
+            <div id="sleep-score-val" style="font-family:'Rajdhani',sans-serif;font-size:1.6rem;font-weight:800;line-height:1"></div>
+            <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:0.1rem">Score</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem">
+          <div>
+            <div id="sleep-duration-val" style="font-family:'Rajdhani',sans-serif;font-size:2rem;font-weight:800;line-height:1;color:var(--accent2)">—</div>
+            <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.15rem">Duration</div>
+          </div>
+          <div style="display:flex;gap:1.2rem" id="sleep-breakdown">
+            <div style="text-align:center">
+              <div id="sleep-rem-val" style="font-family:'Rajdhani',sans-serif;font-size:1.1rem;font-weight:700;color:var(--accent);line-height:1">—</div>
+              <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">REM</div>
+            </div>
+            <div style="text-align:center">
+              <div id="sleep-deep-val" style="font-family:'Rajdhani',sans-serif;font-size:1.1rem;font-weight:700;color:var(--green);line-height:1">—</div>
+              <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">Deep</div>
+            </div>
+            <div style="text-align:center">
+              <div id="sleep-light-val" style="font-family:'Rajdhani',sans-serif;font-size:1.1rem;font-weight:700;color:var(--muted);line-height:1">—</div>
+              <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">Light</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Morning Brief -->
     </div><!-- /tab-home -->
 
 
@@ -1315,10 +1318,7 @@
         <div id="hist-loading" class="empty" style="display:none"><div class="icon">⏳</div>Loading…</div>
         <div id="hist-error"   class="empty" style="display:none"><div class="icon">⚠️</div>Failed to load.</div>
         <div class="card" id="hist-list-card" style="display:none">
-          <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
-            History
-            <span id="hist-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0">Last 7 days</span>
-          </div>
+          <div class="card-title">History<span id="hist-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0;margin-left:auto">Last 7 days</span></div>
           <div id="hist-list"></div>
           <div style="display:flex;justify-content:center;gap:0.6rem;margin-top:0.85rem" id="hist-range-btns">
             <button id="hist-show-less" class="btn btn-ghost" style="display:none;font-size:0.8rem;padding:0.3rem 0.9rem">Show less</button>
@@ -1341,10 +1341,7 @@
 
         <!-- Body Weight Trend -->
         <div class="card">
-          <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
-            Body Weight Trend
-            <span id="weight-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0">7 days</span>
-          </div>
+          <div class="card-title">Body Weight Trend<span id="weight-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0;margin-left:auto">7 days</span></div>
           <div class="chart-wrap"><canvas id="chart-weight"></canvas></div>
           <div id="weight-nodata" style="display:none" class="empty">
             No weight entries yet — log today's weight in the Weight tab.
@@ -1359,10 +1356,7 @@
 
         <!-- Daily Deficit / Surplus -->
         <div class="card">
-          <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
-            Daily Deficit / Surplus
-            <span id="deficit-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0">7 days</span>
-          </div>
+          <div class="card-title">Daily Deficit / Surplus<span id="deficit-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0;margin-left:auto">7 days</span></div>
           <div class="chart-wrap"><canvas id="chart-deficit"></canvas></div>
           <div id="deficit-nodata" style="display:none" class="empty">
             No meal data yet.
@@ -1729,7 +1723,7 @@
       <!-- Task list -->
       <div class="card">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
-          <div class="card-title" style="margin:0">Today's Tasks</div>
+          <div class="card-title" style="margin:0;flex:1">Today's Tasks</div>
           <button class="btn btn-ghost" id="mind-add-btn" style="font-size:0.8rem;padding:0.35rem 0.8rem">+ Add</button>
         </div>
         <div id="mind-add-form" style="display:none;margin-bottom:0.75rem">
