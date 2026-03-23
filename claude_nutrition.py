@@ -212,7 +212,6 @@ def generate_momentum_insight(breakdown: dict, history: list, profile: dict) -> 
         history_lines.append(
             f"  {row['score_date']}: score={row['momentum_score']}, "
             f"nutrition={round(row['nutrition_pct'] * 100)}%, "
-            f"protein={round(row['protein_pct'] * 100)}%, "
             f"activity={round(row['activity_pct'] * 100)}%, "
             f"checkin={'yes' if row['checkin_done'] else 'no'}, "
             f"tasks={round(row['task_rate'] * 100)}%"
