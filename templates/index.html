@@ -847,29 +847,33 @@
 
       <!-- Sleep Card (populated from Garmin sync) -->
       <div class="card" id="sleep-card" style="display:none">
-        <div class="card-title" style="margin-bottom:0.55rem">Last Night's Sleep</div>
-        <div style="display:flex;align-items:flex-end;gap:1.75rem;flex-wrap:wrap">
-          <div>
-            <div id="sleep-duration-val" style="font-family:'Rajdhani',sans-serif;font-size:2rem;font-weight:800;line-height:1;color:var(--accent2)">—</div>
-            <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.15rem">Duration</div>
+        <!-- Header row: title left, score right -->
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:0.65rem">
+          <div class="card-title" style="margin:0">Last Night's Sleep</div>
+          <div id="sleep-score-wrap" style="display:none;text-align:center;line-height:1">
+            <div id="sleep-score-val" style="font-family:'Rajdhani',sans-serif;font-size:1.9rem;font-weight:800;line-height:1"></div>
+            <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:0.15rem">Score</div>
           </div>
-          <div style="display:flex;gap:1.25rem" id="sleep-breakdown">
-            <div>
-              <div id="sleep-rem-val" style="font-family:'Rajdhani',sans-serif;font-size:1.2rem;font-weight:700;color:var(--accent);line-height:1">—</div>
+        </div>
+        <!-- Body: duration left, stage breakdown right -->
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+          <div>
+            <div id="sleep-duration-val" style="font-family:'Rajdhani',sans-serif;font-size:2.4rem;font-weight:800;line-height:1;color:var(--accent2)">—</div>
+            <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.2rem">Duration</div>
+          </div>
+          <div style="display:flex;gap:1.4rem;padding-bottom:0.05rem" id="sleep-breakdown">
+            <div style="text-align:center">
+              <div id="sleep-rem-val" style="font-family:'Rajdhani',sans-serif;font-size:1.25rem;font-weight:700;color:var(--accent);line-height:1">—</div>
               <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">REM</div>
             </div>
-            <div>
-              <div id="sleep-deep-val" style="font-family:'Rajdhani',sans-serif;font-size:1.2rem;font-weight:700;color:var(--green);line-height:1">—</div>
+            <div style="text-align:center">
+              <div id="sleep-deep-val" style="font-family:'Rajdhani',sans-serif;font-size:1.25rem;font-weight:700;color:var(--green);line-height:1">—</div>
               <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">Deep</div>
             </div>
-            <div>
-              <div id="sleep-light-val" style="font-family:'Rajdhani',sans-serif;font-size:1.2rem;font-weight:700;color:var(--muted);line-height:1">—</div>
+            <div style="text-align:center">
+              <div id="sleep-light-val" style="font-family:'Rajdhani',sans-serif;font-size:1.25rem;font-weight:700;color:var(--muted);line-height:1">—</div>
               <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">Light</div>
             </div>
-          </div>
-          <div id="sleep-score-wrap" style="display:none;margin-left:auto;text-align:center">
-            <div id="sleep-score-val" style="font-family:'Rajdhani',sans-serif;font-size:1.6rem;font-weight:800;line-height:1"></div>
-            <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">Score</div>
           </div>
         </div>
       </div>
@@ -5395,10 +5399,12 @@ if ("serviceWorker" in navigator) {
     sleepLightEl.textContent = fmtSleep(sleep.light_seconds);
     if (sleep.sleep_score != null) {
       sleepScoreEl.textContent = sleep.sleep_score;
-      // Colour-code the score
-      sleepScoreEl.style.color = sleep.sleep_score >= 80 ? "var(--green)"
-                               : sleep.sleep_score >= 60 ? "var(--accent2)"
-                               : "var(--danger)";
+      var sc = sleep.sleep_score;
+      sleepScoreEl.style.color = sc >= 90 ? "#1a7a3a"   // dark green
+                               : sc >= 75 ? "#3fb950"   // light green
+                               : sc >= 50 ? "#e3b341"   // yellow
+                               : sc >= 25 ? "#f85149"   // red
+                               :            "#8b1a1a";  // dark red
       sleepScoreWrap.style.display = "";
     }
   }
