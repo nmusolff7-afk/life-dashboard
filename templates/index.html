@@ -884,6 +884,7 @@
           </div>
           <button class="btn" id="home-morning-submit" style="background:var(--accent);width:100%">Submit Morning Brief</button>
           <div id="home-morning-submitting" style="display:none;text-align:center;color:var(--muted);font-size:0.85rem;margin-top:0.5rem">Scoring and extracting tasks…</div>
+          <div id="home-morning-err" style="display:none;font-size:0.8rem;color:var(--danger);margin-top:0.4rem;padding:0.4rem 0.6rem;background:rgba(239,68,68,.1);border-radius:6px"></div>
         </div>
       </div>
 
@@ -5712,13 +5713,17 @@ if ("serviceWorker" in navigator) {
     if (stressEl) payload.stress_level  = parseInt(stressEl.value);
     if (focusEl)  payload.focus_level   = parseInt(focusEl.value);
 
+    const errEl = isM ? document.getElementById("home-morning-err") : null;
+    if (errEl) errEl.style.display = "none";
+
     fetch("/api/mind/checkin", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     })
-      .then(r => r.json())
-      .then(() => {
+      .then(r => r.ok ? r.json() : r.text().then(t => Promise.reject(t)))
+      .then(data => {
+        if (data && data.error) throw new Error(data.error);
         // Persist bodyweight to localStorage immediately so dashboard updates
         if (isM && bw && bw > 0) {
           saveDayField(localToday(), { weight: bw });
@@ -5728,9 +5733,13 @@ if ("serviceWorker" in navigator) {
         if (typeof window._mindReload === "function") window._mindReload();
         if (typeof window._momentumRefresh === "function") window._momentumRefresh();
       })
-      .catch(() => {
+      .catch(e => {
         submitBtn.disabled = false;
         spinEl.style.display = "none";
+        if (errEl) {
+          errEl.textContent = "Submission failed — " + (typeof e === "string" ? e.slice(0, 120) : (e.message || "please try again"));
+          errEl.style.display = "";
+        }
       });
   }
 

@@ -324,21 +324,25 @@ def api_mind_checkin():
     focus_level   = _clamp(data.get("focus_level"))
 
     today_str = client_today()
-    scores = score_brief(checkin_type, notes, goals)
-    insert_mind_checkin(uid(), checkin_type, goals, notes,
-                        scores["focus"], scores["wellbeing"], scores["summary"],
-                        energy_level=energy_level, stress_level=stress_level,
-                        checkin_date=today_str,
-                        sleep_quality=sleep_quality, mood_level=mood_level,
-                        focus_level=focus_level)
-    tasks_added = []
-    for task_text in scores.get("tasks", []):
-        if task_text:
-            tid = insert_mind_task(uid(), task_text, source=checkin_type + "_brief",
-                                   task_date=today_str)
-            tasks_added.append({"id": tid, "description": task_text})
-    return jsonify({**scores, "tasks_added": tasks_added,
-                    "bodyweight_lbs": float(bodyweight_lbs) if bodyweight_lbs else None})
+    try:
+        scores = score_brief(checkin_type, notes, goals)
+        insert_mind_checkin(uid(), checkin_type, goals, notes,
+                            scores["focus"], scores["wellbeing"], scores["summary"],
+                            energy_level=energy_level, stress_level=stress_level,
+                            checkin_date=today_str,
+                            sleep_quality=sleep_quality, mood_level=mood_level,
+                            focus_level=focus_level)
+        tasks_added = []
+        for task_text in scores.get("tasks", []):
+            if task_text:
+                tid = insert_mind_task(uid(), task_text, source=checkin_type + "_brief",
+                                       task_date=today_str)
+                tasks_added.append({"id": tid, "description": task_text})
+        return jsonify({**scores, "tasks_added": tasks_added,
+                        "bodyweight_lbs": float(bodyweight_lbs) if bodyweight_lbs else None})
+    except Exception as e:
+        import traceback
+        return jsonify({"error": str(e), "detail": traceback.format_exc()[-500:]}), 500
 
 
 @app.route("/api/mind/task", methods=["POST"])
