@@ -108,6 +108,22 @@
       stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     .nav-btn.active { color: var(--accent2); }
 
+    /* ── Layout editing ── */
+    #home-layout-container.layout-editing > * {
+      position: relative; cursor: grab; touch-action: none; }
+    #home-layout-container.layout-editing > *:active { cursor: grabbing; }
+    #home-layout-container.layout-editing > *::after {
+      content: '⠿'; position: absolute; top: 0.7rem; right: 0.85rem;
+      font-size: 1.1rem; color: var(--muted); pointer-events: none;
+      z-index: 5; line-height: 1; }
+    .layout-dragging { opacity: 0.3; }
+    .layout-ghost {
+      position: fixed; pointer-events: none; z-index: 500; opacity: 0.9;
+      transform: scale(1.025) rotate(0.5deg);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.55); border-radius: 12px;
+      overflow: hidden; }
+    body.layout-active #content { padding-bottom: 70px; }
+
     /* ── Cards ── */
     .card { background: var(--surface); border: 1px solid var(--border);
       border-radius: 12px; padding: 1.1rem 1.25rem; margin-bottom: 1rem; }
@@ -787,6 +803,8 @@
         <p>Your daily snapshot at a glance</p>
       </div>
 
+      <div id="home-layout-container">
+
       <!-- Calorie Balance Ring -->
       <div class="card" id="dash-cal-card" style="cursor:pointer">
         <div class="card-title">Today's Balance</div>
@@ -923,7 +941,7 @@
       </div>
 
       <!-- Stats Grid -->
-      <div class="dash-stat-grid">
+      <div class="dash-stat-grid" id="dash-stat-grid">
         <div class="dash-stat-card" id="dash-weight-card">
           <div class="dash-stat-val" id="dash-weight-val" style="color:var(--muted)">—</div>
           <div class="dash-stat-lbl">Weight</div>
@@ -1007,7 +1025,13 @@
         </div>
       </div>
 
-      <!-- Morning Brief -->
+
+      </div><!-- /home-layout-container -->
+
+      <div id="layout-change-link" style="text-align:center;padding:0.5rem 0 1rem">
+        <span onclick="enterLayoutMode()" style="font-size:0.72rem;color:var(--muted);cursor:pointer;user-select:none;letter-spacing:.02em">Change page layout</span>
+      </div>
+
     </div><!-- /tab-home -->
 
 
@@ -6053,6 +6077,151 @@ if ("serviceWorker" in navigator) {
     });
   }).observe(document.body, { childList: true, subtree: true });
 })();
+
+// ── Home layout drag-to-reorder ──────────────────────────────────────────────
+;(function() {
+  const CARD_IDS = ['dash-cal-card','home-morning-card','home-evening-card',
+                    'dash-stat-grid','dash-macro-card','garmin-status-card','sleep-card'];
+  const LS_KEY = 'homeLayoutOrder_v1';
+
+  function getContainer() { return document.getElementById('home-layout-container'); }
+
+  function applyLayout() {
+    try {
+      const order = JSON.parse(localStorage.getItem(LS_KEY));
+      if (!Array.isArray(order) || !order.length) return;
+      const c = getContainer();
+      if (!c) return;
+      order.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && el.parentElement === c) c.appendChild(el);
+      });
+    } catch(e) {}
+  }
+
+  let _savedOrder = [], _savedDisplay = {};
+
+  window.enterLayoutMode = function() {
+    const c = getContainer();
+    _savedOrder    = [...c.children].map(el => el.id);
+    _savedDisplay  = {};
+    CARD_IDS.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      _savedDisplay[id] = el.style.display;
+      el.style.removeProperty('display');
+    });
+    c.classList.add('layout-editing');
+    document.body.classList.add('layout-active');
+    document.getElementById('layout-edit-bar').style.display = 'flex';
+    document.getElementById('layout-change-link').style.visibility = 'hidden';
+    initDrag(c);
+  };
+
+  function exitLayoutMode(save) {
+    const c = getContainer();
+    destroyDrag(c);
+    if (!save) {
+      _savedOrder.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && el.parentElement === c) c.appendChild(el);
+      });
+      // restore exact order by reinserting according to snapshot index
+      const snap = _savedOrder.map(id => document.getElementById(id)).filter(Boolean);
+      snap.forEach(el => c.appendChild(el));
+    } else {
+      const order = [...c.children].map(el => el.id).filter(id => CARD_IDS.includes(id));
+      localStorage.setItem(LS_KEY, JSON.stringify(order));
+    }
+    CARD_IDS.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const d = _savedDisplay[id];
+      if (d) el.style.display = d; else el.style.removeProperty('display');
+    });
+    c.classList.remove('layout-editing');
+    document.body.classList.remove('layout-active');
+    document.getElementById('layout-edit-bar').style.display = 'none';
+    document.getElementById('layout-change-link').style.visibility = 'visible';
+  }
+
+  // ── Drag engine ──────────────────────────────────────────
+  let _drag = null, _ghost = null, _offY = 0, _offX = 0;
+
+  function initDrag(c) {
+    c._layoutPD = e => onPD(c, e);
+    c.addEventListener('pointerdown', c._layoutPD);
+  }
+  function destroyDrag(c) {
+    c.removeEventListener('pointerdown', c._layoutPD);
+    _cleanGhost();
+    if (_drag) { _drag.classList.remove('layout-dragging'); _drag = null; }
+  }
+
+  function onPD(c, e) {
+    const item = e.target.closest('#home-layout-container > *');
+    if (!item) return;
+    e.preventDefault();
+    const r = item.getBoundingClientRect();
+    _offY = e.clientY - r.top;
+    _offX = e.clientX - r.left;
+    _drag = item;
+
+    _ghost = item.cloneNode(true);
+    _ghost.className = 'layout-ghost';
+    _ghost.style.cssText += `;width:${r.width}px;height:${r.height}px;top:${r.top}px;left:${r.left}px;`;
+    document.body.appendChild(_ghost);
+
+    item.classList.add('layout-dragging');
+    item.setPointerCapture(e.pointerId);
+    item.addEventListener('pointermove', _onPM = ev => onPM(c, ev), {passive: false});
+    item.addEventListener('pointerup',     _onPU = ev => onPU(c, ev));
+    item.addEventListener('pointercancel', _onPU);
+  }
+
+  let _onPM, _onPU;
+
+  function onPM(c, e) {
+    e.preventDefault();
+    _ghost.style.top  = (e.clientY - _offY) + 'px';
+    _ghost.style.left = (e.clientX - _offX) + 'px';
+    // Reorder: find where to insert _drag
+    const items = [...c.children].filter(el => el !== _drag);
+    let before = null;
+    for (const it of items) {
+      const r = it.getBoundingClientRect();
+      if (e.clientY < r.top + r.height * 0.5) { before = it; break; }
+    }
+    if (before) c.insertBefore(_drag, before);
+    else         c.appendChild(_drag);
+  }
+
+  function onPU(c, e) {
+    if (!_drag) return;
+    _drag.removeEventListener('pointermove', _onPM);
+    _drag.removeEventListener('pointerup',   _onPU);
+    _drag.removeEventListener('pointercancel', _onPU);
+    _drag.classList.remove('layout-dragging');
+    _cleanGhost();
+    _drag = null;
+  }
+
+  function _cleanGhost() {
+    if (_ghost) { _ghost.remove(); _ghost = null; }
+  }
+
+  // ── Init ─────────────────────────────────────────────────
+  applyLayout();
+  document.getElementById('layout-save-btn').addEventListener('click',    () => exitLayoutMode(true));
+  document.getElementById('layout-discard-btn').addEventListener('click', () => exitLayoutMode(false));
+})();
 </script>
+
+<!-- Layout edit bar -->
+<div id="layout-edit-bar" style="display:none;position:fixed;bottom:var(--nav-h);left:0;right:0;z-index:300;background:var(--surface);border-top:2px solid var(--accent);padding:0.85rem 1rem;gap:0.75rem;align-items:center">
+  <button id="layout-discard-btn" class="btn btn-ghost" style="flex:1;font-size:0.9rem">Discard Changes</button>
+  <button id="layout-save-btn" class="btn" style="flex:1;background:var(--accent);font-size:0.9rem">Save Layout</button>
+</div>
+
 </body>
 </html>
