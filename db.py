@@ -583,11 +583,20 @@ def is_onboarding_complete(user_id):
 def save_daily_weight(user_id: int, date_str: str, weight_lbs: float):
     """Upsert today's body-weight into daily_activity."""
     with get_conn() as conn:
-        conn.execute("""
-            INSERT INTO daily_activity (user_id, log_date, weight_lbs)
-            VALUES (?, ?, ?)
-            ON CONFLICT (user_id, log_date) DO UPDATE SET weight_lbs = excluded.weight_lbs
-        """, (user_id, date_str, weight_lbs))
+        exists = conn.execute(
+            "SELECT 1 FROM daily_activity WHERE user_id = ? AND log_date = ?",
+            (user_id, date_str)
+        ).fetchone()
+        if exists:
+            conn.execute(
+                "UPDATE daily_activity SET weight_lbs = ? WHERE user_id = ? AND log_date = ?",
+                (weight_lbs, user_id, date_str)
+            )
+        else:
+            conn.execute(
+                "INSERT INTO daily_activity (user_id, log_date, weight_lbs) VALUES (?, ?, ?)",
+                (user_id, date_str, weight_lbs)
+            )
         conn.commit()
 
 
