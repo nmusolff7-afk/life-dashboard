@@ -302,12 +302,26 @@ def generate_momentum_insight(
     obstacles    = profile.get("typical_obstacles_raw")
     wb_baseline  = profile.get("mood_baseline_1_10")
 
+    # ── workout-adjusted calorie target ──
+    rmr           = profile.get("rmr_kcal") or 0
+    deficit       = profile.get("calorie_deficit_target") or 0
+    active_burned = (garmin.get("active_calories") or 0) if garmin else \
+                    sum(wk.get("calories_burned") or 0 for wk in workouts)
+    if rmr:
+        adj_target = int(rmr + active_burned - deficit)
+    else:
+        adj_target = n.get("calorie_goal")  # fallback to profile static goal
+    cal_logged  = n.get("calories_logged", 0)
+    remaining   = (adj_target - cal_logged) if adj_target else "unknown"
+    # Eating hours left: assume window closes around 9 pm (21:00)
+    hours_left  = max(0, 21 - hour) if hour is not None else "unknown"
+
     user_msg = f"""TIME: {time_label} | SCORE: {breakdown.get('momentum_score')}/100
-PROFILE: goal={primary_goal} | archetype={archetype} | leverage={leverage} | obstacle={obstacles} | wb_baseline={wb_baseline}/10
+PROFILE: goal={primary_goal} | archetype={archetype} | rmr={rmr} kcal | deficit_goal={deficit} kcal/day
 
 SLEEP     | {sleep_text.strip()}
-MOVEMENT  | steps={garmin.get('steps', 0) if garmin else 'N/A'}, active_kcal={garmin.get('active_calories', 0) if garmin else 'N/A'}, resting_hr={garmin.get('resting_hr') or 'N/A'}, workouts={len(workouts)} logged
-NUTRITION | {n.get('calories_logged', 0)}/{n.get('calorie_goal')} kcal ({round(n.get('pct', 0) * 100)}%), protein={round(sum(m.get('protein_g',0) for m in meals),1)}g, meals={len(meals)}
+MOVEMENT  | steps={garmin.get('steps', 0) if garmin else 'N/A'}, burned={active_burned} kcal, workouts={len(workouts)} logged
+NUTRITION | logged={cal_logged} kcal, target={adj_target} kcal (rmr {rmr} + {active_burned} burned - {deficit} deficit), remaining={remaining} kcal, ~{hours_left}h eating time left, protein={round(sum(m.get('protein_g',0) for m in meals),1)}g
 HABITS    | checkin=morning:{'Y' if c.get('morning_done') else 'N'}/evening:{'Y' if c.get('evening_done') else 'N'}, tasks={t.get('completed', 0)}/{t.get('total', 0)} done
 WELLBEING | today={w.get('avg_today')}/10, 7d_avg={w.get('past_7d_avg')}/10, energy={w.get('avg_energy')}/10
 
