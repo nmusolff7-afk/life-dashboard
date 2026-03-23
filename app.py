@@ -295,36 +295,37 @@ def api_mind_today():
 @app.route("/api/mind/checkin", methods=["POST"])
 @login_required
 def api_mind_checkin():
-    data         = request.get_json()
-    checkin_type = data.get("type", "morning")
-    goals        = data.get("goals", "").strip()
-    notes        = data.get("notes", "").strip()
-    if not notes:
-        return jsonify({"error": "notes required"}), 400
-
-    # Persist bodyweight logged during morning brief
-    bodyweight_lbs = data.get("bodyweight_lbs")
-    today = date.today().isoformat()
-    if checkin_type == "morning" and bodyweight_lbs:
-        try:
-            save_daily_weight(uid(), today, float(bodyweight_lbs))
-        except (ValueError, TypeError):
-            pass
-
-    def _clamp(v):
-        try:
-            return max(1, min(10, int(v))) if v is not None else None
-        except (ValueError, TypeError):
-            return None
-
-    energy_level  = _clamp(data.get("energy_level"))
-    stress_level  = _clamp(data.get("stress_level"))
-    sleep_quality = _clamp(data.get("sleep_quality"))
-    mood_level    = _clamp(data.get("mood_level"))
-    focus_level   = _clamp(data.get("focus_level"))
-
-    today_str = client_today()
+    import traceback
     try:
+        data         = request.get_json(force=True) or {}
+        checkin_type = data.get("type", "morning")
+        goals        = data.get("goals", "").strip()
+        notes        = data.get("notes", "").strip()
+        if not notes:
+            return jsonify({"error": "notes required"}), 400
+
+        # Persist bodyweight logged during morning brief
+        bodyweight_lbs = data.get("bodyweight_lbs")
+        today = date.today().isoformat()
+        if checkin_type == "morning" and bodyweight_lbs:
+            try:
+                save_daily_weight(uid(), today, float(bodyweight_lbs))
+            except (ValueError, TypeError):
+                pass
+
+        def _clamp(v):
+            try:
+                return max(1, min(10, int(v))) if v is not None else None
+            except (ValueError, TypeError):
+                return None
+
+        energy_level  = _clamp(data.get("energy_level"))
+        stress_level  = _clamp(data.get("stress_level"))
+        sleep_quality = _clamp(data.get("sleep_quality"))
+        mood_level    = _clamp(data.get("mood_level"))
+        focus_level   = _clamp(data.get("focus_level"))
+
+        today_str = client_today()
         scores = score_brief(checkin_type, notes, goals)
         insert_mind_checkin(uid(), checkin_type, goals, notes,
                             scores["focus"], scores["wellbeing"], scores["summary"],
@@ -341,8 +342,7 @@ def api_mind_checkin():
         return jsonify({**scores, "tasks_added": tasks_added,
                         "bodyweight_lbs": float(bodyweight_lbs) if bodyweight_lbs else None})
     except Exception as e:
-        import traceback
-        return jsonify({"error": str(e), "detail": traceback.format_exc()[-500:]}), 500
+        return jsonify({"error": str(e), "detail": traceback.format_exc()[-800:]}), 500
 
 
 @app.route("/api/mind/task", methods=["POST"])
