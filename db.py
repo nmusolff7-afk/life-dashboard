@@ -755,7 +755,7 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
     # Tasks: completed / total
     total_tasks     = len(tasks)
     completed_tasks = sum(1 for t in tasks if t["completed"])
-    task_rate       = (completed_tasks / total_tasks) if total_tasks > 0 else 0.0
+    task_rate       = (completed_tasks / total_tasks) if total_tasks > 0 else 0.5
 
     # Wellbeing: combine mood/wellbeing, energy, stress (inverted), sleep quality, mood slider, focus
     wb_scores      = [c["wellbeing"]     for c in checkins if c.get("wellbeing")     is not None]
