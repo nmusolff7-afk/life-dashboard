@@ -193,9 +193,13 @@ _DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Su
 # ── Momentum pattern insight ──────────────────────────
 
 _MOMENTUM_INSIGHT_SYSTEM = (
-    "You are an analytical assistant reviewing health and habit data. "
-    "Write exactly 1-2 short sentences identifying one specific pattern. "
-    "Be direct and factual. No encouragement, no advice, no filler."
+    "You are a data analyst reviewing a week of health and habit tracking. "
+    "Your job is to find one cross-domain pattern by comparing today against the 7-day trend — "
+    "for example: sleep duration tracking with next-day activity, calorie intake relative to burn, "
+    "or check-in consistency correlating with task completion. "
+    "Never report a single metric in isolation. Always connect at least two domains. "
+    "Write 1-2 tight sentences. Cite specific numbers from the data. "
+    "No advice, no encouragement, no filler."
 )
 
 
@@ -323,12 +327,12 @@ SLEEP     | {sleep_text.strip()}
 MOVEMENT  | steps={garmin.get('steps', 0) if garmin else 'N/A'}, burned={active_burned} kcal, workouts={len(workouts)} logged
 NUTRITION | logged={cal_logged} kcal, target={adj_target} kcal (rmr {rmr} + {active_burned} burned - {deficit} deficit), remaining={remaining} kcal, ~{hours_left}h eating time left, protein={round(sum(m.get('protein_g',0) for m in meals),1)}g
 HABITS    | checkin=morning:{'Y' if c.get('morning_done') else 'N'}/evening:{'Y' if c.get('evening_done') else 'N'}, tasks={t.get('completed', 0)}/{t.get('total', 0)} done
-WELLBEING | today={w.get('avg_today')}/10, 7d_avg={w.get('past_7d_avg')}/10, energy={w.get('avg_energy')}/10
+WELLBEING | today={round((w.get('pct') or 0) * 10, 1)}/10, 7d_avg={w.get('past_7d_avg')}/10, energy={w.get('avg_energy')}/10
 
 7-DAY TREND (score | nutrition% | activity% | checkin | tasks%):
 {history_text}
 
-Identify one specific cross-domain pattern visible in sleep, movement, nutrition, habits, or wellbeing. Reference actual numbers. No advice, no filler. Do not mention wellbeing unless it is the single strongest signal in the data. Prioritize patterns that cross domains — e.g. low sleep correlating with low activity."""
+Compare today's numbers against the 7-day trend. Find one pattern that connects at least two domains (sleep + movement, nutrition + activity, habits + score, etc.). Cite specific numbers. Do not describe a single metric in isolation. Do not mention wellbeing unless it is the clearest cross-domain signal."""
 
     response = _client().messages.create(
         model="claude-haiku-4-5-20251001",
