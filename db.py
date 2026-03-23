@@ -828,12 +828,14 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
                 "morning_done": has_morning,
                 "evening_done": has_evening,
                 "score":        round(checkin_score, 4),
+                "pct":          round(checkin_score, 4),
                 "weighted":     weighted["checkin"],
             },
             "tasks": {
                 "total":     total_tasks,
                 "completed": completed_tasks,
                 "rate":      round(task_rate, 4),
+                "pct":       round(task_rate, 4),
                 "weighted":  weighted["tasks"],
             },
             "wellbeing": {
