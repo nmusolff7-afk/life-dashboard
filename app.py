@@ -400,6 +400,13 @@ def delete(meal_id):
     return redirect(url_for("index"))
 
 
+@app.route("/api/today-nutrition")
+@login_required
+def api_today_nutrition():
+    cd = client_today()
+    return jsonify({"meals": get_today_meals(uid(), cd), "totals": get_today_totals(uid(), cd)})
+
+
 @app.route("/api/log-meal", methods=["POST"])
 @login_required
 def api_log_meal():

@@ -2249,6 +2249,7 @@ function activateTab(t) {
   document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.id === "tab-" + t));
   sessionStorage.setItem("activeTab", t);
   if (t === "home"     && typeof window._refreshDashboard  === "function") window._refreshDashboard();
+  if (t === "meals"    && typeof window._onMealsActivate   === "function") window._onMealsActivate();
   if (t === "progress" && typeof window._onChartsActivate  === "function") window._onChartsActivate();
   if (t === "progress" && typeof window._onHistoryActivate === "function") window._onHistoryActivate();
   if (t === "mind"     && typeof window._onMindActivate    === "function") window._onMindActivate();
@@ -2406,6 +2407,26 @@ function deleteMeal(id) {
       flashRed();
     });
 }
+
+function _loadMealsTab() {
+  fetch("/api/today-nutrition")
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) return;
+      CAL_CONSUMED     = data.totals.total_calories;
+      PROTEIN_CONSUMED = data.totals.total_protein;
+      CARBS_CONSUMED   = data.totals.total_carbs;
+      FAT_CONSUMED     = data.totals.total_fat;
+      renderMealTable(data.meals, data.totals);
+      try {
+        const p = localStorage.getItem("profileData");
+        if (p) applyProfileToMeals(JSON.parse(p));
+      } catch(e) {}
+      if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+    })
+    .catch(() => {});
+}
+window._onMealsActivate = _loadMealsTab;
 
 // ── Edit meal ─────────────────────────────────────────────────────────────────
 
