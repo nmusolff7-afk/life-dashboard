@@ -311,23 +311,31 @@ def api_mind_checkin():
         except (ValueError, TypeError):
             pass
 
-    energy_level = data.get("energy_level")
-    stress_level = data.get("stress_level")
-    try:
-        energy_level = max(1, min(10, int(energy_level))) if energy_level is not None else None
-        stress_level = max(1, min(10, int(stress_level))) if stress_level is not None else None
-    except (ValueError, TypeError):
-        energy_level = stress_level = None
+    def _clamp(v):
+        try:
+            return max(1, min(10, int(v))) if v is not None else None
+        except (ValueError, TypeError):
+            return None
 
+    energy_level  = _clamp(data.get("energy_level"))
+    stress_level  = _clamp(data.get("stress_level"))
+    sleep_quality = _clamp(data.get("sleep_quality"))
+    mood_level    = _clamp(data.get("mood_level"))
+    focus_level   = _clamp(data.get("focus_level"))
+
+    today_str = client_today()
     scores = score_brief(checkin_type, notes, goals)
     insert_mind_checkin(uid(), checkin_type, goals, notes,
                         scores["focus"], scores["wellbeing"], scores["summary"],
                         energy_level=energy_level, stress_level=stress_level,
-                        checkin_date=client_today())
+                        checkin_date=today_str,
+                        sleep_quality=sleep_quality, mood_level=mood_level,
+                        focus_level=focus_level)
     tasks_added = []
     for task_text in scores.get("tasks", []):
         if task_text:
-            tid = insert_mind_task(uid(), task_text, source=checkin_type + "_brief")
+            tid = insert_mind_task(uid(), task_text, source=checkin_type + "_brief",
+                                   task_date=today_str)
             tasks_added.append({"id": tid, "description": task_text})
     return jsonify({**scores, "tasks_added": tasks_added,
                     "bodyweight_lbs": float(bodyweight_lbs) if bodyweight_lbs else None})
@@ -340,7 +348,7 @@ def api_mind_add_task():
     desc = (data.get("description") or "").strip()
     if not desc:
         return jsonify({"error": "description required"}), 400
-    tid = insert_mind_task(uid(), desc)
+    tid = insert_mind_task(uid(), desc, task_date=client_today())
     return jsonify({"id": tid, "description": desc, "completed": 0, "source": "manual"})
 
 

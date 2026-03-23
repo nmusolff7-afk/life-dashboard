@@ -179,8 +179,9 @@ def init_db():
         except Exception:
             pass  # column already exists
 
-        # Migrate: add energy_level and stress_level to mind_checkins if absent
-        for col in ("energy_level INTEGER", "stress_level INTEGER"):
+        # Migrate: add energy_level, stress_level, sleep_quality, mood_level, focus_level to mind_checkins
+        for col in ("energy_level INTEGER", "stress_level INTEGER",
+                    "sleep_quality INTEGER", "mood_level INTEGER", "focus_level INTEGER"):
             try:
                 conn.execute(f"ALTER TABLE mind_checkins ADD COLUMN {col}")
                 conn.commit()
@@ -602,17 +603,18 @@ def get_daily_weight(user_id: int, date_str: str):
 # ── Mind check-ins ──────────────────────────────────────
 
 def insert_mind_checkin(user_id, checkin_type, goals, notes, focus, wellbeing, summary,
-                        energy_level=None, stress_level=None, checkin_date=None):
+                        energy_level=None, stress_level=None, checkin_date=None,
+                        sleep_quality=None, mood_level=None, focus_level=None):
     today = checkin_date or date.today().isoformat()
     now = datetime.now().isoformat()
     with get_conn() as conn:
         conn.execute("""
             INSERT INTO mind_checkins
                 (user_id, checkin_date, type, goals, notes, focus, wellbeing, summary,
-                 energy_level, stress_level, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 energy_level, stress_level, sleep_quality, mood_level, focus_level, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (user_id, today, checkin_type, goals, notes, focus, wellbeing, summary,
-              energy_level, stress_level, now))
+              energy_level, stress_level, sleep_quality, mood_level, focus_level, now))
         conn.commit()
 
 
@@ -708,7 +710,8 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
 
     with get_conn() as conn:
         checkin_rows = conn.execute(
-            "SELECT type, wellbeing, focus FROM mind_checkins "
+            "SELECT type, wellbeing, focus, energy_level, stress_level, "
+            "sleep_quality, mood_level, focus_level FROM mind_checkins "
             "WHERE user_id = ? AND checkin_date = ?",
             (user_id, date_str)
         ).fetchall()
@@ -751,19 +754,28 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
     completed_tasks = sum(1 for t in tasks if t["completed"])
     task_rate       = (completed_tasks / total_tasks) if total_tasks > 0 else 0.0
 
-    # Wellbeing: combine mood/wellbeing, energy (higher=better), stress inverted (lower=better)
-    wb_scores     = [c["wellbeing"]    for c in checkins if c.get("wellbeing")     is not None]
-    energy_scores = [c["energy_level"] for c in checkins if c.get("energy_level")  is not None]
-    stress_scores = [c["stress_level"] for c in checkins if c.get("stress_level")  is not None]
+    # Wellbeing: combine mood/wellbeing, energy, stress (inverted), sleep quality, mood slider, focus
+    wb_scores      = [c["wellbeing"]     for c in checkins if c.get("wellbeing")     is not None]
+    energy_scores  = [c["energy_level"]  for c in checkins if c.get("energy_level")  is not None]
+    stress_scores  = [c["stress_level"]  for c in checkins if c.get("stress_level")  is not None]
+    sleep_scores   = [c["sleep_quality"] for c in checkins if c.get("sleep_quality") is not None]
+    mood_scores    = [c["mood_level"]    for c in checkins if c.get("mood_level")    is not None]
+    focus_scores   = [c["focus_level"]   for c in checkins if c.get("focus_level")   is not None]
 
     avg_wellbeing = sum(wb_scores)     / len(wb_scores)     if wb_scores     else None
     avg_energy    = sum(energy_scores) / len(energy_scores) if energy_scores else None
     avg_stress    = sum(stress_scores) / len(stress_scores) if stress_scores else None
+    avg_sleep_q   = sum(sleep_scores)  / len(sleep_scores)  if sleep_scores  else None
+    avg_mood      = sum(mood_scores)   / len(mood_scores)   if mood_scores   else None
+    avg_focus     = sum(focus_scores)  / len(focus_scores)  if focus_scores  else None
 
     norm_scores = []
     if avg_wellbeing is not None: norm_scores.append(avg_wellbeing / 10.0)
     if avg_energy    is not None: norm_scores.append(avg_energy    / 10.0)
     if avg_stress    is not None: norm_scores.append((10 - avg_stress) / 10.0)
+    if avg_sleep_q   is not None: norm_scores.append(avg_sleep_q   / 10.0)
+    if avg_mood      is not None: norm_scores.append(avg_mood      / 10.0)
+    if avg_focus     is not None: norm_scores.append(avg_focus     / 10.0)
     wellbeing_pct = sum(norm_scores) / len(norm_scores) if norm_scores else 0.0
 
     cutoff_7d = (date.today() - timedelta(days=7)).isoformat()
@@ -828,6 +840,9 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
                 "avg_today":    round(avg_wellbeing, 2) if avg_wellbeing is not None else None,
                 "avg_energy":   round(avg_energy, 2)    if avg_energy    is not None else None,
                 "avg_stress":   round(avg_stress, 2)    if avg_stress    is not None else None,
+                "avg_sleep_q":  round(avg_sleep_q, 2)  if avg_sleep_q   is not None else None,
+                "avg_mood":     round(avg_mood, 2)      if avg_mood      is not None else None,
+                "avg_focus":    round(avg_focus, 2)     if avg_focus     is not None else None,
                 "past_7d_avg":  past_avg,
                 "delta":        wellbeing_delta,
                 "pct":          round(wellbeing_pct, 4),

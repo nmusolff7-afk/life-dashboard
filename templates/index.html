@@ -246,6 +246,18 @@
       font-size: 0.9rem; font-weight: 500; }
     .no-activity .icon { font-size: 1.75rem; margin-bottom: 0.4rem; }
 
+    /* ══ WORKOUT BANNER ════════════════════════ */
+    #workout-banner {
+      position: fixed; top: var(--header-h); left: 0; right: 0; z-index: 150;
+      height: 38px; background: var(--accent); color: #fff;
+      display: none; align-items: center; justify-content: space-between;
+      padding: 0 1rem; cursor: pointer; font-size: 0.82rem; font-weight: 600;
+      letter-spacing: 0.03em;
+    }
+    #workout-banner.active { display: flex; }
+    .banner-active #content { top: calc(var(--header-h) + 38px); }
+    .banner-active #ptr-indicator { top: calc(var(--header-h) + 38px); }
+
     /* ══ CHECKLIST OVERLAY ════════════════════ */
     #checklist-overlay {
       position: fixed; inset: 0; z-index: 200;
@@ -907,6 +919,22 @@
               style="width:100%;accent-color:var(--accent)">
           </div>
           <div style="margin-bottom:0.6rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem">
+              <label style="font-size:0.8rem;color:var(--muted)">Sleep quality</label>
+              <span id="home-morning-sleep-val" style="font-size:0.85rem;font-weight:600;color:var(--text)">7</span>
+            </div>
+            <input type="range" id="home-morning-sleep" min="1" max="10" value="7"
+              style="width:100%;accent-color:var(--accent)">
+          </div>
+          <div style="margin-bottom:0.6rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem">
+              <label style="font-size:0.8rem;color:var(--muted)">Morning mood</label>
+              <span id="home-morning-mood-val" style="font-size:0.85rem;font-weight:600;color:var(--text)">7</span>
+            </div>
+            <input type="range" id="home-morning-mood" min="1" max="10" value="7"
+              style="width:100%;accent-color:var(--accent)">
+          </div>
+          <div style="margin-bottom:0.6rem">
             <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.3rem">Goals for today</label>
             <textarea id="home-morning-goals" rows="2"
               style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;resize:none;box-sizing:border-box"
@@ -945,10 +973,26 @@
           </div>
           <div style="margin-bottom:0.6rem">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem">
+              <label style="font-size:0.8rem;color:var(--muted)">Overall mood today</label>
+              <span id="home-evening-mood-val" style="font-size:0.85rem;font-weight:600;color:var(--text)">7</span>
+            </div>
+            <input type="range" id="home-evening-mood" min="1" max="10" value="7"
+              style="width:100%;accent-color:var(--accent)">
+          </div>
+          <div style="margin-bottom:0.6rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem">
               <label style="font-size:0.8rem;color:var(--muted)">Stress level today</label>
               <span id="home-evening-stress-val" style="font-size:0.85rem;font-weight:600;color:var(--text)">5</span>
             </div>
             <input type="range" id="home-evening-stress" min="1" max="10" value="5"
+              style="width:100%;accent-color:var(--accent)">
+          </div>
+          <div style="margin-bottom:0.6rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem">
+              <label style="font-size:0.8rem;color:var(--muted)">Focus & productivity</label>
+              <span id="home-evening-focus-val" style="font-size:0.85rem;font-weight:600;color:var(--text)">7</span>
+            </div>
+            <input type="range" id="home-evening-focus" min="1" max="10" value="7"
               style="width:100%;accent-color:var(--accent)">
           </div>
           <div style="margin-bottom:0.6rem">
@@ -1801,6 +1845,13 @@
   </div>
 </div>
 
+<!-- Workout active banner (shown when workout is minimized) -->
+<div id="workout-banner" role="button" aria-label="Return to workout">
+  <span>▶ Workout Active</span>
+  <span id="workout-banner-timer" style="font-family:'Rajdhani',monospace;font-size:1rem;letter-spacing:0.05em">00:00</span>
+  <span style="opacity:0.85">Tap to return ›</span>
+</div>
+
 <!-- ══════════════════════════════════════════════════════
      CHECKLIST OVERLAY (full-screen, above everything)
 ══════════════════════════════════════════════════════ -->
@@ -1821,7 +1872,10 @@
           </div>
         </div>
       </div>
-      <button class="btn btn-green" id="finish-workout-btn" style="font-size:0.85rem;padding:0.45rem 0.75rem">Finish</button>
+      <div style="display:flex;gap:0.4rem;align-items:center">
+        <button class="btn btn-ghost" id="minimize-workout-btn" style="padding:0.45rem 0.6rem;font-size:0.85rem" title="Minimize">⬇</button>
+        <button class="btn btn-green" id="finish-workout-btn" style="font-size:0.85rem;padding:0.45rem 0.75rem">Finish</button>
+      </div>
     </div>
     <div class="cl-scroll" id="checklist-body"></div>
   </div>
@@ -2109,36 +2163,36 @@ try { sessionStorage.removeItem("momentum_insight"); } catch(e) {}
 
 // Wire brief range sliders to their value displays
 (function() {
-  const energyEl = document.getElementById("home-morning-energy");
-  const energyValEl = document.getElementById("home-morning-energy-val");
-  if (energyEl && energyValEl) {
-    energyEl.addEventListener("input", () => { energyValEl.textContent = energyEl.value; });
-  }
-  const stressEl = document.getElementById("home-evening-stress");
-  const stressValEl = document.getElementById("home-evening-stress-val");
-  if (stressEl && stressValEl) {
-    stressEl.addEventListener("input", () => { stressValEl.textContent = stressEl.value; });
-  }
+  const pairs = [
+    ["home-morning-energy",  "home-morning-energy-val"],
+    ["home-morning-sleep",   "home-morning-sleep-val"],
+    ["home-morning-mood",    "home-morning-mood-val"],
+    ["home-evening-mood",    "home-evening-mood-val"],
+    ["home-evening-stress",  "home-evening-stress-val"],
+    ["home-evening-focus",   "home-evening-focus-val"],
+  ];
+  pairs.forEach(([id, valId]) => {
+    const el = document.getElementById(id);
+    const vl = document.getElementById(valId);
+    if (el && vl) el.addEventListener("input", () => { vl.textContent = el.value; });
+  });
 })();
 
 // Fetch profile on load: pre-fill slider defaults + populate profile summary card
 fetch("/api/profile")
   .then(r => r.json())
   .then(p => {
-    // Pre-fill energy slider with typical baseline
-    if (p.energy_level_typical_1_10) {
-      const el = document.getElementById("home-morning-energy");
-      const vl = document.getElementById("home-morning-energy-val");
-      if (el) { el.value = p.energy_level_typical_1_10; }
-      if (vl) { vl.textContent = p.energy_level_typical_1_10; }
+    // Pre-fill brief sliders with profile baselines
+    function prefill(id, valId, val) {
+      if (!val) return;
+      const el = document.getElementById(id), vl = document.getElementById(valId);
+      if (el) el.value = val;
+      if (vl) vl.textContent = val;
     }
-    // Pre-fill stress slider with typical baseline
-    if (p.stress_level_1_10) {
-      const el = document.getElementById("home-evening-stress");
-      const vl = document.getElementById("home-evening-stress-val");
-      if (el) { el.value = p.stress_level_1_10; }
-      if (vl) { vl.textContent = p.stress_level_1_10; }
-    }
+    prefill("home-morning-energy", "home-morning-energy-val", p.energy_level_typical_1_10);
+    prefill("home-morning-mood",   "home-morning-mood-val",   p.mood_baseline_1_10);
+    prefill("home-evening-mood",   "home-evening-mood-val",   p.mood_baseline_1_10);
+    prefill("home-evening-stress", "home-evening-stress-val", p.stress_level_1_10);
     // Update profile summary line in Profile tab
     const sumEl = document.getElementById("profile-summary-line");
     if (sumEl) {
@@ -2790,15 +2844,18 @@ function deleteWorkout(id) {
 // ══════════════════════════════════════════════════════
 
 (function() {
-  const overlay    = document.getElementById("checklist-overlay");
-  const clBody     = document.getElementById("checklist-body");
-  const timerEl    = document.getElementById("workout-timer");
-  const restEl     = document.getElementById("rest-timer");
-  const cancelBtn  = document.getElementById("cancel-workout-btn");
-  const finishBtn  = document.getElementById("finish-workout-btn");
-  const exState    = document.getElementById("cl-exercise-state");
-  const finState   = document.getElementById("cl-finishing-state");
-  const statusTxt  = document.getElementById("cl-status-text");
+  const overlay      = document.getElementById("checklist-overlay");
+  const clBody       = document.getElementById("checklist-body");
+  const timerEl      = document.getElementById("workout-timer");
+  const restEl       = document.getElementById("rest-timer");
+  const cancelBtn    = document.getElementById("cancel-workout-btn");
+  const finishBtn    = document.getElementById("finish-workout-btn");
+  const minimizeBtn  = document.getElementById("minimize-workout-btn");
+  const bannerEl     = document.getElementById("workout-banner");
+  const bannerTimer  = document.getElementById("workout-banner-timer");
+  const exState      = document.getElementById("cl-exercise-state");
+  const finState     = document.getElementById("cl-finishing-state");
+  const statusTxt    = document.getElementById("cl-status-text");
 
   const DAYS_OF_WEEK = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 
@@ -2823,6 +2880,8 @@ function deleteWorkout(id) {
     timerInterval = null;
     localStorage.removeItem(LS_TIMER_KEY);
     _notifySW("workout-end");
+    bannerEl.classList.remove("active");
+    document.body.classList.remove("banner-active");
   }
 
   // When the app is foregrounded after being backgrounded on Android,
@@ -2924,7 +2983,21 @@ function deleteWorkout(id) {
     exState.style.display = "";
     finState.style.display = "none";
     overlay.classList.add("active");
+    // hide banner when overlay is open
+    bannerEl.classList.remove("active");
+    document.body.classList.remove("banner-active");
   }
+
+  function minimizeWorkout() {
+    overlay.classList.remove("active");
+    bannerEl.classList.add("active");
+    document.body.classList.add("banner-active");
+  }
+
+  minimizeBtn.addEventListener("click", minimizeWorkout);
+  bannerEl.addEventListener("click", () => {
+    if (workoutState) showOverlay();
+  });
 
   function startWorkoutSession(exercises, dayName) {
     activeDayName = dayName || null;
@@ -2954,8 +3027,10 @@ function deleteWorkout(id) {
     timerInterval = setInterval(() => {
       elapsed     = Math.floor((Date.now() - startTs) / 1000);
       restElapsed += 1;
-      timerEl.textContent = formatTime(elapsed);
-      restEl.textContent  = formatTime(restElapsed);
+      const t = formatTime(elapsed);
+      timerEl.textContent   = t;
+      bannerTimer.textContent = t;
+      restEl.textContent    = formatTime(restElapsed);
     }, 1000);
     showOverlay();
   }
@@ -3120,6 +3195,7 @@ function deleteWorkout(id) {
   cancelBtn.addEventListener("click", () => {
     _clearWorkoutTimer();
     elapsed = 0; restElapsed = 0;
+    workoutState = null;
     overlay.classList.remove("active");
   });
 
@@ -5585,7 +5661,10 @@ if ("serviceWorker" in navigator) {
     const spinEl    = document.getElementById(isM ? "home-morning-submitting" : "home-evening-submitting");
     const weightEl  = isM ? document.getElementById("home-morning-weight") : null;
     const energyEl  = isM ? document.getElementById("home-morning-energy") : null;
+    const sleepEl   = isM ? document.getElementById("home-morning-sleep")  : null;
+    const moodEl    = document.getElementById(isM ? "home-morning-mood" : "home-evening-mood");
     const stressEl  = !isM ? document.getElementById("home-evening-stress") : null;
+    const focusEl   = !isM ? document.getElementById("home-evening-focus")  : null;
 
     const notes = notesEl.value.trim();
     if (!notes) { notesEl.focus(); return; }
@@ -5597,8 +5676,11 @@ if ("serviceWorker" in navigator) {
 
     const payload = { type, notes, goals };
     if (isM && bw && bw > 0) payload.bodyweight_lbs = bw;
-    if (energyEl) payload.energy_level = parseInt(energyEl.value);
-    if (stressEl) payload.stress_level = parseInt(stressEl.value);
+    if (energyEl) payload.energy_level  = parseInt(energyEl.value);
+    if (sleepEl)  payload.sleep_quality = parseInt(sleepEl.value);
+    if (moodEl)   payload.mood_level    = parseInt(moodEl.value);
+    if (stressEl) payload.stress_level  = parseInt(stressEl.value);
+    if (focusEl)  payload.focus_level   = parseInt(focusEl.value);
 
     fetch("/api/mind/checkin", {
       method: "POST",
