@@ -901,12 +901,6 @@
           <div id="home-evening-summary" style="font-size:0.84rem;color:var(--muted);margin-top:0.3rem;line-height:1.45"></div>
         </div>
         <div id="home-evening-form" style="display:none">
-          <div id="home-evening-adaptive-wrap" style="display:none;margin-bottom:0.6rem;padding:0.65rem 0.75rem;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.25);border-radius:8px">
-            <label id="home-evening-adaptive-q" style="font-size:0.85rem;color:var(--text);font-weight:600;display:block;margin-bottom:0.4rem;line-height:1.4"></label>
-            <textarea id="home-evening-adaptive-a" rows="2"
-              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;resize:none;box-sizing:border-box"
-              placeholder="Your answer…"></textarea>
-          </div>
           <div style="margin-bottom:0.6rem">
             <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.3rem">How did today go?</label>
             <textarea id="home-evening-notes" rows="3"
@@ -5669,19 +5663,6 @@ if ("serviceWorker" in navigator) {
       card.classList.add("brief-open");
       setBadge("Open now", "rgba(99,102,241,.15)", "var(--accent)");
       document.getElementById(ids.form).style.display = "";
-      if (!isM) {
-        fetch("/api/mind/evening-prompt")
-          .then(r => r.json())
-          .then(d => {
-            const wrap = document.getElementById("home-evening-adaptive-wrap");
-            const qEl  = document.getElementById("home-evening-adaptive-q");
-            if (wrap && qEl && d.prompt) {
-              qEl.textContent = d.prompt;
-              wrap.style.display = "";
-            }
-          })
-          .catch(() => {});
-      }
     } else {
       setBadge("Closed", "var(--surface2)", "var(--muted)");
       document.getElementById(ids.unlock).textContent = "tomorrow";
@@ -5702,15 +5683,7 @@ if ("serviceWorker" in navigator) {
     const stressEl  = !isM ? document.getElementById("home-evening-stress") : null;
     const focusEl   = !isM ? document.getElementById("home-evening-focus")  : null;
 
-    let notes = notesEl.value.trim();
-    if (!isM) {
-      const adaptiveWrap = document.getElementById("home-evening-adaptive-wrap");
-      const adaptiveQ    = document.getElementById("home-evening-adaptive-q");
-      const adaptiveA    = document.getElementById("home-evening-adaptive-a");
-      if (adaptiveWrap && adaptiveWrap.style.display !== "none" && adaptiveQ && adaptiveA && adaptiveA.value.trim()) {
-        notes = adaptiveQ.textContent.trim() + "\n" + adaptiveA.value.trim() + (notes ? "\n\n" + notes : "");
-      }
-    }
+    const notes = notesEl.value.trim();
     if (!notes) { notesEl.focus(); return; }
     const goals = goalsEl ? goalsEl.value.trim() : "";
     const bw    = weightEl ? parseFloat(weightEl.value) : null;
