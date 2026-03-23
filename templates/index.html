@@ -4096,12 +4096,17 @@ try {
       .sort();
 
     const deficits = dates.map(d => {
+      // For today, prefer localStorage: it has full TDEE (RMR + NEAT + workout + TEF)
+      if (d === localToday()) {
+        const local = localLog[d];
+        if (local && typeof local === "object" && local.deficit != null) return -local.deficit;
+      }
       const mealRow = serverMeals[d];
       if (mealRow && mealRow.calories > 0) {
         const burn = (serverWorkouts[d] || []).reduce((s, w) => s + (w.calories_burned || 0), 0);
         return mealRow.calories - (rmr + burn);  // positive = surplus, negative = deficit
       }
-      // Today's running totals from localStorage
+      // Fallback: localStorage for any date
       const local = localLog[d];
       if (local && typeof local === "object" && local.deficit != null) return -local.deficit;
       if (local && typeof local === "number") return -local;
@@ -4477,6 +4482,9 @@ try {
     const cal       = cell.dataset.calories;
     const burn      = parseInt(cell.dataset.burn) || 0;
     const rmr       = parseInt(cell.dataset.rmr) || SERVER_RMR;
+    // For today, use the full stored TDEE (includes NEAT + TEF) if available
+    const localEntry = (ds === todayStr()) ? (getDayEntry(ds) || {}) : {};
+    const tdeeForPopup = localEntry.tdee || (rmr + burn);
 
     const [y, m, d] = ds.split("-").map(Number);
     const dateLabel = new Date(y, m-1, d).toLocaleDateString("en-US",
@@ -4492,7 +4500,7 @@ try {
       html += `<div style="color:var(--muted)">No workouts logged</div>`;
     }
     if (cal) {
-      const tdee    = rmr + burn;
+      const tdee    = tdeeForPopup;
       const deficit = tdee - parseInt(cal);
       const dc      = deficit >= 0 ? "var(--green)" : "var(--danger)";
       const dl      = deficit >= 0 ? "deficit" : "surplus";
@@ -5059,13 +5067,7 @@ try {
 
   function _getMomentumPayload() {
     try {
-      const p = JSON.parse(localStorage.getItem("profileData") || "{}");
-      // calorie goal = RMR minus deficit (not RMR alone)
-      const goal = p.rmr ? Math.round(p.rmr - (p.deficit || 0)) : null;
-      const now  = new Date();
-      const payload = { hour: now.getHours() };
-      if (goal) payload.calorie_goal = goal;
-      return payload;
+      return { hour: new Date().getHours() };
     } catch(e) { return {}; }
   }
 

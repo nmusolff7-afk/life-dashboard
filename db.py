@@ -181,7 +181,8 @@ def init_db():
 
         # Migrate: add energy_level, stress_level, sleep_quality, mood_level, focus_level to mind_checkins
         for col in ("energy_level INTEGER", "stress_level INTEGER",
-                    "sleep_quality INTEGER", "mood_level INTEGER", "focus_level INTEGER"):
+                    "sleep_quality INTEGER", "mood_level INTEGER", "focus_level INTEGER",
+                    "evening_prompt TEXT"):
             try:
                 conn.execute(f"ALTER TABLE mind_checkins ADD COLUMN {col}")
                 conn.commit()
@@ -604,18 +605,31 @@ def get_daily_weight(user_id: int, date_str: str):
 
 def insert_mind_checkin(user_id, checkin_type, goals, notes, focus, wellbeing, summary,
                         energy_level=None, stress_level=None, checkin_date=None,
-                        sleep_quality=None, mood_level=None, focus_level=None):
+                        sleep_quality=None, mood_level=None, focus_level=None,
+                        evening_prompt=None):
     today = checkin_date or date.today().isoformat()
     now = datetime.now().isoformat()
     with get_conn() as conn:
         conn.execute("""
             INSERT INTO mind_checkins
                 (user_id, checkin_date, type, goals, notes, focus, wellbeing, summary,
-                 energy_level, stress_level, sleep_quality, mood_level, focus_level, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 energy_level, stress_level, sleep_quality, mood_level, focus_level,
+                 evening_prompt, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (user_id, today, checkin_type, goals, notes, focus, wellbeing, summary,
-              energy_level, stress_level, sleep_quality, mood_level, focus_level, now))
+              energy_level, stress_level, sleep_quality, mood_level, focus_level,
+              evening_prompt, now))
         conn.commit()
+
+
+def get_evening_prompt(user_id, checkin_date):
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT evening_prompt FROM mind_checkins "
+            "WHERE user_id = ? AND checkin_date = ? AND type = 'morning'",
+            (user_id, checkin_date)
+        ).fetchone()
+    return row["evening_prompt"] if row else None
 
 
 def get_mind_today(user_id, checkin_date=None):
@@ -727,9 +741,17 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
 
     # ── component scoring ────────────────────────────────
 
-    # Nutrition: calories logged vs daily goal
-    # Prefer the profile's onboarding-calculated goal; fall back to client override (rmr - deficit)
-    cal_goal  = profile.get("daily_calorie_goal") or calorie_goal_override
+    # Nutrition: calories logged vs workout-adjusted daily calorie target
+    # Compute RMR + active_burn - deficit_target so workouts raise the goal dynamically.
+    # Fall back to the static onboarding goal or the client override when RMR is missing.
+    rmr_kcal       = profile.get("rmr_kcal") or 0
+    deficit_target = profile.get("calorie_deficit_target") or 0
+    if rmr_kcal:
+        active_burned_n = (garmin.get("active_calories") or 0) if garmin \
+                          else get_today_workout_burn(user_id, date_str)
+        cal_goal = int(rmr_kcal + active_burned_n - deficit_target)
+    else:
+        cal_goal = profile.get("daily_calorie_goal") or calorie_goal_override
     cal_today = totals["total_calories"]
     if cal_goal and cal_goal > 0:
         nutrition_pct = min(1.0, cal_today / cal_goal)
