@@ -108,13 +108,6 @@
       stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     .nav-btn.active { color: var(--accent2); }
 
-    /* ── Layout editing ── */
-    #home-layout-container.layout-editing > * {
-      cursor: grab; opacity: 0.75; user-select: none; }
-    #home-layout-container.layout-editing > * * { pointer-events: none; }
-    #home-layout-container.layout-editing > *.layout-over { outline: 2px dashed var(--accent); opacity: 1; }
-    #home-layout-container.layout-editing > *.layout-src  { opacity: 0.35; }
-
     /* ── Cards ── */
     .card { background: var(--surface); border: 1px solid var(--border);
       border-radius: 12px; padding: 1.1rem 1.25rem; margin-bottom: 1rem; }
@@ -794,8 +787,6 @@
         <p>Your daily snapshot at a glance</p>
       </div>
 
-      <div id="home-layout-container">
-
       <!-- Calorie Balance Ring -->
       <div class="card" id="dash-cal-card" style="cursor:pointer">
         <div class="card-title">Today's Balance</div>
@@ -812,26 +803,6 @@
           </div>
         </div>
         <div class="dash-cal-meta" id="dash-cal-meta">Log meals to see balance</div>
-      </div>
-
-      <!-- Stats Grid -->
-      <div class="dash-stat-grid" id="dash-stat-grid">
-        <div class="dash-stat-card" id="dash-weight-card">
-          <div class="dash-stat-val" id="dash-weight-val" style="color:var(--muted)">—</div>
-          <div class="dash-stat-lbl">Weight</div>
-        </div>
-        <div class="dash-stat-card" id="dash-steps-card">
-          <div class="dash-stat-val" id="dash-steps-val" style="color:var(--muted)">—</div>
-          <div class="dash-stat-lbl">Steps</div>
-        </div>
-        <div class="dash-stat-card" id="dash-burn-card">
-          <div class="dash-stat-val" id="dash-burn-val" style="color:var(--muted)">—</div>
-          <div class="dash-stat-lbl">Burned</div>
-        </div>
-        <div class="dash-stat-card" id="dash-protein-card">
-          <div class="dash-stat-val" id="dash-protein-val" style="color:var(--muted)">—</div>
-          <div class="dash-stat-lbl">Protein</div>
-        </div>
       </div>
 
       <!-- Morning Brief -->
@@ -951,6 +922,26 @@
         </div>
       </div>
 
+      <!-- Stats Grid -->
+      <div class="dash-stat-grid">
+        <div class="dash-stat-card" id="dash-weight-card">
+          <div class="dash-stat-val" id="dash-weight-val" style="color:var(--muted)">—</div>
+          <div class="dash-stat-lbl">Weight</div>
+        </div>
+        <div class="dash-stat-card" id="dash-steps-card">
+          <div class="dash-stat-val" id="dash-steps-val" style="color:var(--muted)">—</div>
+          <div class="dash-stat-lbl">Steps</div>
+        </div>
+        <div class="dash-stat-card" id="dash-burn-card">
+          <div class="dash-stat-val" id="dash-burn-val" style="color:var(--muted)">—</div>
+          <div class="dash-stat-lbl">Burned</div>
+        </div>
+        <div class="dash-stat-card" id="dash-protein-card">
+          <div class="dash-stat-val" id="dash-protein-val" style="color:var(--muted)">—</div>
+          <div class="dash-stat-lbl">Protein</div>
+        </div>
+      </div>
+
       <!-- Macros Card -->
       <div class="card" id="dash-macro-card" style="cursor:pointer">
         <div class="card-title">Macros</div>
@@ -1016,13 +1007,7 @@
         </div>
       </div>
 
-
-      </div><!-- /home-layout-container -->
-
-      <div id="layout-change-link" style="text-align:center;padding:0.5rem 0 1rem">
-        <span onclick="enterLayoutMode()" style="font-size:0.72rem;color:var(--muted);cursor:pointer;user-select:none;letter-spacing:.02em">Change page layout</span>
-      </div>
-
+      <!-- Morning Brief -->
     </div><!-- /tab-home -->
 
 
@@ -6068,157 +6053,6 @@ if ("serviceWorker" in navigator) {
     });
   }).observe(document.body, { childList: true, subtree: true });
 })();
-
-// ── Home layout drag-to-reorder ──────────────────────────────────────────────
-;(function() {
-  const CARD_IDS = ['dash-cal-card','home-morning-card','home-evening-card',
-                    'dash-stat-grid','dash-macro-card','garmin-status-card','sleep-card'];
-  const LS_KEY = 'homeLayoutOrder_v1';
-  const c = () => document.getElementById('home-layout-container');
-
-  // Apply saved order on load
-  function applyLayout() {
-    try {
-      const order = JSON.parse(localStorage.getItem(LS_KEY));
-      if (!Array.isArray(order) || !order.length) return;
-      const ct = c(); if (!ct) return;
-      order.forEach(id => {
-        const el = document.getElementById(id);
-        if (el && el.parentElement === ct) ct.appendChild(el);
-      });
-    } catch(e) {}
-  }
-
-  let _savedOrder = [], _savedDisplay = {}, _dragSrc = null;
-
-  window.enterLayoutMode = function() {
-    const ct = c();
-    _savedOrder   = [...ct.children].map(el => el.id);
-    _savedDisplay = {};
-    // Show all cards as shells
-    CARD_IDS.forEach(id => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      _savedDisplay[id] = el.style.display;
-      el.style.removeProperty('display');
-      el.setAttribute('draggable', 'true');
-    });
-    ct.classList.add('layout-editing');
-    document.getElementById('layout-edit-bar').style.display = 'flex';
-    document.getElementById('layout-change-link').style.visibility = 'hidden';
-    // Desktop drag
-    ct.addEventListener('dragstart',  _onDragStart);
-    ct.addEventListener('dragover',   _onDragOver);
-    ct.addEventListener('dragleave',  _onDragLeave);
-    ct.addEventListener('drop',       _onDrop);
-    ct.addEventListener('dragend',    _onDragEnd);
-    // Touch drag
-    ct.addEventListener('touchstart', _onTouchStart, {passive: false});
-    ct.addEventListener('touchmove',  _onTouchMove,  {passive: false});
-    ct.addEventListener('touchend',   _onTouchEnd);
-  };
-
-  function exitLayoutMode(save) {
-    const ct = c();
-    ct.removeEventListener('dragstart',  _onDragStart);
-    ct.removeEventListener('dragover',   _onDragOver);
-    ct.removeEventListener('dragleave',  _onDragLeave);
-    ct.removeEventListener('drop',       _onDrop);
-    ct.removeEventListener('dragend',    _onDragEnd);
-    ct.removeEventListener('touchstart', _onTouchStart);
-    ct.removeEventListener('touchmove',  _onTouchMove);
-    ct.removeEventListener('touchend',   _onTouchEnd);
-
-    if (!save) {
-      // Restore original order
-      _savedOrder.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) ct.appendChild(el);
-      });
-    } else {
-      const order = [...ct.children].map(el => el.id).filter(id => CARD_IDS.includes(id));
-      localStorage.setItem(LS_KEY, JSON.stringify(order));
-    }
-    CARD_IDS.forEach(id => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const d = _savedDisplay[id];
-      if (d) el.style.display = d; else el.style.removeProperty('display');
-      el.removeAttribute('draggable');
-      el.classList.remove('layout-src', 'layout-over');
-    });
-    ct.classList.remove('layout-editing');
-    document.getElementById('layout-edit-bar').style.display = 'none';
-    document.getElementById('layout-change-link').style.visibility = 'visible';
-    _dragSrc = null;
-  }
-
-  // ── Desktop drag events ───────────────────────────────────
-  function _onDragStart(e) {
-    _dragSrc = e.target.closest('#home-layout-container > *');
-    if (!_dragSrc) return;
-    e.dataTransfer.effectAllowed = 'move';
-    setTimeout(() => _dragSrc && _dragSrc.classList.add('layout-src'), 0);
-  }
-  function _onDragOver(e) {
-    e.preventDefault();
-    const target = e.target.closest('#home-layout-container > *');
-    if (!target || target === _dragSrc) return;
-    // Live reorder
-    const ct = c(), r = target.getBoundingClientRect();
-    if (e.clientY < r.top + r.height / 2) ct.insertBefore(_dragSrc, target);
-    else ct.insertBefore(_dragSrc, target.nextSibling);
-  }
-  function _onDragLeave(e) {
-    const target = e.target.closest('#home-layout-container > *');
-    if (target) target.classList.remove('layout-over');
-  }
-  function _onDrop(e) { e.preventDefault(); }
-  function _onDragEnd() {
-    if (_dragSrc) { _dragSrc.classList.remove('layout-src'); _dragSrc = null; }
-  }
-
-  // ── Touch drag events ─────────────────────────────────────
-  let _touchSrc = null, _touchOffY = 0;
-  function _onTouchStart(e) {
-    _touchSrc = e.target.closest('#home-layout-container > *');
-    if (!_touchSrc) return;
-    e.preventDefault();
-    _touchOffY = e.touches[0].clientY - _touchSrc.getBoundingClientRect().top;
-    _touchSrc.classList.add('layout-src');
-  }
-  function _onTouchMove(e) {
-    if (!_touchSrc) return;
-    e.preventDefault();
-    const ct = c(), ty = e.touches[0].clientY;
-    const items = [...ct.children].filter(el => el !== _touchSrc);
-    let before = null;
-    for (const it of items) {
-      const r = it.getBoundingClientRect();
-      if (ty < r.top + r.height * 0.5) { before = it; break; }
-    }
-    if (before) ct.insertBefore(_touchSrc, before);
-    else        ct.appendChild(_touchSrc);
-  }
-  function _onTouchEnd() {
-    if (_touchSrc) { _touchSrc.classList.remove('layout-src'); _touchSrc = null; }
-  }
-
-  // ── Init ─────────────────────────────────────────────────
-  applyLayout();
-  // Use delegation: layout bar HTML is after </script> so buttons don't exist yet
-  document.addEventListener('click', function(e) {
-    if (e.target.id === 'layout-save-btn')    exitLayoutMode(true);
-    if (e.target.id === 'layout-discard-btn') exitLayoutMode(false);
-  });
-})();
 </script>
-
-<!-- Layout edit bar -->
-<div id="layout-edit-bar" style="display:none;position:fixed;bottom:var(--nav-h);left:0;right:0;z-index:300;background:var(--surface);border-top:2px solid var(--accent);padding:0.85rem 1rem;gap:0.75rem;align-items:center">
-  <button id="layout-discard-btn" class="btn btn-ghost" style="flex:1;font-size:0.9rem">Discard Changes</button>
-  <button id="layout-save-btn" class="btn" style="flex:1;background:var(--accent);font-size:0.9rem">Save Layout</button>
-</div>
-
 </body>
 </html>
