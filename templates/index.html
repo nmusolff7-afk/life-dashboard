@@ -1857,7 +1857,10 @@
   <!-- Exercise state -->
   <div id="cl-exercise-state">
     <div class="cl-header">
-      <button class="btn btn-ghost" id="cancel-workout-btn" style="padding:0.45rem 0.75rem;font-size:0.85rem">Cancel</button>
+      <div style="display:flex;gap:0.4rem;align-items:center">
+        <button class="btn btn-ghost" id="minimize-workout-btn" style="padding:0.45rem 0.65rem;font-size:1rem;line-height:1" title="Back to app">&#8592;</button>
+        <button class="btn" id="cancel-workout-btn" style="padding:0.45rem 0.75rem;font-size:0.85rem;background:var(--danger);color:#fff;border:none">Discard</button>
+      </div>
       <div class="cl-timers">
         <div class="cl-timer-row">
           <div class="cl-timer-block">
@@ -1870,10 +1873,7 @@
           </div>
         </div>
       </div>
-      <div style="display:flex;gap:0.4rem;align-items:center">
-        <button class="btn btn-ghost" id="minimize-workout-btn" style="padding:0.45rem 0.6rem;font-size:0.85rem" title="Minimize">⬇</button>
-        <button class="btn btn-green" id="finish-workout-btn" style="font-size:0.85rem;padding:0.45rem 0.75rem">Finish</button>
-      </div>
+      <button class="btn btn-green" id="finish-workout-btn" style="font-size:0.85rem;padding:0.45rem 0.75rem">Finish</button>
     </div>
     <div class="cl-scroll" id="checklist-body"></div>
   </div>
