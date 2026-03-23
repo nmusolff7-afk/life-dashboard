@@ -4078,6 +4078,7 @@ try {
     // Primary: server histData; fallback: localStorage for today
     const serverMeals    = (histData && histData.meals)    || {};
     const serverWorkouts = (histData && histData.workouts) || {};
+    const serverGarmin   = (histData && histData.garmin)   || {};
     const localLog       = JSON.parse(localStorage.getItem("dailyLog") || "{}");
 
     // Build only dates that have actual data within the selected window
@@ -4098,8 +4099,11 @@ try {
       }
       const mealRow = serverMeals[d];
       if (mealRow && mealRow.calories > 0) {
-        const burn = (serverWorkouts[d] || []).reduce((s, w) => s + (w.calories_burned || 0), 0);
-        return mealRow.calories - (rmr + burn);  // positive = surplus, negative = deficit
+        const garminDay = serverGarmin[d];
+        const activeBurn = garminDay && garminDay.active_calories
+          ? garminDay.active_calories
+          : (serverWorkouts[d] || []).reduce((s, w) => s + (w.calories_burned || 0), 0);
+        return mealRow.calories - (rmr + activeBurn);  // positive = surplus, negative = deficit
       }
       // Fallback: localStorage for any date
       const local = localLog[d];
@@ -4440,8 +4444,12 @@ try {
           cell.style.color = "rgba(255,255,255,0.92)";
           cell.style.textShadow = "0 1px 2px rgba(0,0,0,0.6)";
         }
+        const garminDs = (histData.garmin && histData.garmin[ds]) || null;
+        const activeBurnDs = garminDs && garminDs.active_calories
+          ? garminDs.active_calories
+          : ws.reduce((s, w) => s + (w.calories_burned || 0), 0);
         cell.dataset.date     = ds;
-        cell.dataset.burn     = ws.reduce((s, w) => s + (w.calories_burned || 0), 0);
+        cell.dataset.burn     = activeBurnDs;
         cell.dataset.calories = meals ? meals.calories : "";
         cell.dataset.rmr      = rmr;
         cell.dataset.workouts = JSON.stringify(ws.slice(0, 4).map(w => w.description));

@@ -420,6 +420,20 @@ def get_garmin_daily(user_id, stat_date):
     return dict(row) if row else None
 
 
+def get_garmin_history(user_id, days=90):
+    """Per-date Garmin stats for the last N days. Returns {date: {steps, active_calories, ...}}."""
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT stat_date, steps, active_calories, total_calories, resting_hr "
+            "FROM garmin_daily WHERE user_id = ? AND stat_date >= ? ORDER BY stat_date",
+            (user_id, cutoff)
+        ).fetchall()
+    return {r["stat_date"]: {"steps": r["steps"], "active_calories": r["active_calories"],
+                              "total_calories": r["total_calories"], "resting_hr": r["resting_hr"]}
+            for r in rows}
+
+
 def get_garmin_last_sync(user_id):
     """Return the most recent synced_at timestamp for any date, or None."""
     with get_conn() as conn:

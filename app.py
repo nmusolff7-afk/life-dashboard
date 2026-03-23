@@ -16,7 +16,7 @@ from db import (
     get_setting, set_setting,
     get_onboarding, upsert_onboarding_inputs, complete_onboarding,
     get_profile_map, is_onboarding_complete,
-    insert_mind_checkin, get_mind_today, get_mind_history,
+    insert_mind_checkin, get_mind_today, get_mind_history, get_garmin_history,
     insert_mind_task, get_mind_tasks, toggle_mind_task, delete_mind_task,
     save_daily_weight, get_daily_weight,
     upsert_sleep, get_sleep, get_sleep_history,
@@ -594,6 +594,7 @@ def api_history():
         "briefs":   briefs,
         "sleep":    get_sleep_history(uid(), 90),
         "momentum": momentum,
+        "garmin":   get_garmin_history(uid(), 90),
     })
 
 
