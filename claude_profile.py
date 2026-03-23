@@ -134,7 +134,12 @@ Respond ONLY with a valid JSON object. No markdown, no explanation."""
 
 def generate_profile_map(raw_inputs: dict) -> dict:
     """Run Claude Sonnet on the collected onboarding data and return filled profile map."""
-    user_content = f"USER ONBOARDING RESPONSES:\n{json.dumps(raw_inputs)}\n\nGenerate the complete profile map JSON now."
+    schema_keys = json.dumps(list(PROFILE_SCHEMA.keys()), indent=2)
+    user_content = (
+        f"USER ONBOARDING RESPONSES:\n{json.dumps(raw_inputs)}\n\n"
+        f"EXACT JSON KEYS YOU MUST USE (use these exact key names, no others):\n{schema_keys}\n\n"
+        f"Generate the complete profile map JSON now using ONLY the keys listed above."
+    )
 
     response = _client().messages.create(
         model="claude-sonnet-4-6",

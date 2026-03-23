@@ -848,7 +848,6 @@
       ["Protein goal",p.daily_protein_goal_g ? p.daily_protein_goal_g + "g / day" : "—"],
       ["To goal",     p.lbs_to_goal ? p.lbs_to_goal + " lbs · ~" + (p.weeks_to_goal || "?") + " weeks" : "—"],
       ["Archetype",   p.behavioral_archetype || "—"],
-      ["Readiness",   p.readiness_score_0_100 != null ? p.readiness_score_0_100 + " / 100" : "—"],
     ];
     if (p.personalized_insight) {
       rows.push(["Insight", p.personalized_insight]);

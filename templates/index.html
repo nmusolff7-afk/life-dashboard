@@ -2145,11 +2145,12 @@ fetch("/api/profile")
       const parts = [];
       if (p.one_sentence_summary) {
         sumEl.textContent = p.one_sentence_summary;
-      } else if (p.primary_goal || p.behavioral_archetype) {
-        if (p.primary_goal)        parts.push("Goal: " + p.primary_goal);
+      } else if (p.primary_goal || p.behavioral_archetype || p.first_name || p.rmr_kcal) {
+        if (p.first_name)           parts.push(p.first_name);
+        if (p.primary_goal)         parts.push("Goal: " + p.primary_goal);
         if (p.behavioral_archetype) parts.push("Archetype: " + p.behavioral_archetype);
         if (p.biggest_leverage_point) parts.push("Leverage: " + p.biggest_leverage_point);
-        sumEl.textContent = parts.join("  ·  ");
+        sumEl.textContent = parts.join("  ·  ") || "Profile saved. Update your profile to add more detail.";
       } else {
         sumEl.textContent = "No profile generated yet. Complete onboarding to enable personalized scoring.";
       }
