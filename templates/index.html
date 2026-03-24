@@ -1855,7 +1855,7 @@
     <div class="cl-header">
       <div style="display:flex;gap:0.4rem;align-items:center">
         <button class="btn btn-ghost" id="minimize-workout-btn" style="padding:0.45rem 0.65rem;font-size:1rem;line-height:1" title="Back to app">&#8592;</button>
-        <button class="btn" id="cancel-workout-btn" style="padding:0.45rem 0.75rem;font-size:0.85rem;background:var(--danger);color:#fff;border:none">Discard</button>
+        <button class="btn" id="cancel-workout-btn" style="padding:0.45rem 0.75rem;font-size:0.85rem;background:var(--danger);color:#fff;border:none">Discard Workout</button>
       </div>
       <div class="cl-timers">
         <div class="cl-timer-row">
@@ -1869,7 +1869,7 @@
           </div>
         </div>
       </div>
-      <button class="btn btn-green" id="finish-workout-btn" style="font-size:0.85rem;padding:0.45rem 0.75rem">Finish</button>
+      <button class="btn btn-green" id="finish-workout-btn" style="font-size:0.85rem;padding:0.45rem 0.75rem">Save & Log</button>
     </div>
     <div class="cl-scroll" id="checklist-body"></div>
   </div>
@@ -2881,6 +2881,7 @@ function deleteWorkout(id) {
   let workoutState   = null;
   let lastFinished   = null; // saved state for Undo
   let activeDayName  = null; // which day's history to save to
+  let activeExercises = [];  // exercises in current session (for history key)
 
   const LS_TIMER_KEY = "workoutActiveStartTs";
 
@@ -2919,6 +2920,12 @@ function deleteWorkout(id) {
 
   // ── workout history in localStorage ──────────────────
 
+  function _historyKey(exercises, dayName) {
+    // prefer dayName (e.g. "Monday"); fall back to sorted exercise names for custom/default workouts
+    if (dayName) return dayName;
+    return exercises.map(e => e.name).sort().join("|");
+  }
+
   function loadDayHistory(dayName) {
     try {
       const h = JSON.parse(localStorage.getItem("workoutHistory") || "{}");
@@ -2926,11 +2933,18 @@ function deleteWorkout(id) {
     } catch(e) { return null; }
   }
 
-  function saveDayHistory(dayName, state) {
+  function loadHistory(exercises, dayName) {
+    try {
+      const h = JSON.parse(localStorage.getItem("workoutHistory") || "{}");
+      return h[_historyKey(exercises, dayName)] || null;
+    } catch(e) { return null; }
+  }
+
+  function saveDayHistory(exercises, dayName, state) {
     try {
       const h = JSON.parse(localStorage.getItem("workoutHistory") || "{}");
       // store per-exercise: [{name, sets:[{weight,reps}]}]
-      h[dayName] = state.map(ex => ({
+      h[_historyKey(exercises, dayName)] = state.map(ex => ({
         name: ex.name,
         sets: ex.sets.map(s => ({ weight: s.weight, reps: s.reps }))
       }));
@@ -3016,7 +3030,8 @@ function deleteWorkout(id) {
 
   function startWorkoutSession(exercises, dayName) {
     activeDayName = dayName || null;
-    const history = dayName ? loadDayHistory(dayName) : null;
+    activeExercises = exercises;
+    const history = loadHistory(exercises, dayName);
 
     workoutState = exercises.map(ex => {
       // find matching history entry by name
@@ -3230,8 +3245,8 @@ function deleteWorkout(id) {
       return;
     }
 
-    // Save history for next time this day comes up
-    if (activeDayName) saveDayHistory(activeDayName, workoutState);
+    // Save history for next time this workout comes up
+    saveDayHistory(activeExercises, activeDayName, workoutState);
     lastFinished = JSON.parse(JSON.stringify(workoutState)); // deep copy for Undo
 
     const testNote = elapsed < 90 ? " [NOTE: completed in under 90 seconds — this is likely a test run]" : "";
