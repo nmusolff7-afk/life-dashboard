@@ -1027,13 +1027,7 @@
         </div>
       </div>
 
-      <!-- Energy Breakdown -->
-      <div class="card">
-        <div class="card-title">Energy Breakdown</div>
-        <div class="profile-preview" id="weight-preview">Save your profile to see your energy breakdown here.</div>
-      </div>
-
-      <!-- Morning Brief -->
+      <!-- Morning Check-in -->
     </div><!-- /tab-home -->
 
 
@@ -3875,8 +3869,7 @@ try {
     const intake  = tdee - deficit;
     const weeks   = weeksToGoal(inp.curWeight, inp.tgtWeight, deficit);
     const previewEl = document.getElementById("profile-preview");
-    const weightPreviewEl = document.getElementById("weight-preview");
-    if (!previewEl && !weightPreviewEl) return;
+    if (!previewEl) return;
 
     const rmrMethod  = inp.bfPct > 0 ? "Katch-McArdle" : "Mifflin-St Jeor";
     const occKcal    = OCC_BASE[inp.occupation] || 200;
@@ -3899,7 +3892,6 @@ try {
     }
     html += `</div>`;
     if (previewEl) previewEl.innerHTML = html;
-    if (weightPreviewEl) weightPreviewEl.innerHTML = html;
   }
 
   function populateForm(profile) {
