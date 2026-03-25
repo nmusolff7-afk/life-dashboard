@@ -605,6 +605,14 @@
     .dash-ring-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase;
       letter-spacing: .06em; margin-top: 0.25rem; }
     .dash-cal-meta { text-align: center; font-size: 0.8rem; color: var(--muted); }
+    .bal-bk { width: 100%; max-width: 260px; margin: 0.75rem auto 0;
+      font-size: 0.78rem; border-collapse: collapse; }
+    .bal-bk td { padding: 0.18rem 0; }
+    .bal-bk td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+    .bal-bk .bk-dim { color: var(--muted); }
+    .bal-bk .bk-sep td { border-top: 1px solid var(--border); padding-top: 0.4rem; }
+    .bal-bk .bk-total td { font-weight: 700; }
+    .bal-bk .bk-result td { font-weight: 800; font-size: 0.85rem; }
     .dash-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem; }
     .dash-stat-card { background: var(--surface); border: 1px solid var(--border);
       border-radius: 12px; padding: 1rem; text-align: center;
@@ -803,6 +811,7 @@
           </div>
         </div>
         <div class="dash-cal-meta" id="dash-cal-meta">Log meals to see balance</div>
+        <div id="dash-balance-breakdown" style="display:none"></div>
       </div>
 
       <!-- Stats Grid -->
@@ -3729,6 +3738,10 @@ function applyProfileToMeals(profile) {
     deficit:  Math.round(balance),
     calories: CAL_CONSUMED,
     tdee:     Math.round(tdee),
+    rmr:      Math.round(rmr),
+    neat:     Math.round(neat),
+    eat:      Math.round(eat),
+    tef:      Math.round(tef),
     protein:  Math.round(PROTEIN_CONSUMED),
     carbs:    Math.round(CARBS_CONSUMED),
     fat:      Math.round(FAT_CONSUMED),
@@ -5409,12 +5422,42 @@ if ("serviceWorker" in navigator) {
     }
 
     const metaEl = document.getElementById("dash-cal-meta");
-    if (metaEl) {
-      if (calories > 0 || tdee > 0) {
-        metaEl.textContent = calories.toLocaleString() + " consumed / " + tdee.toLocaleString() + " TDEE";
-      } else {
-        metaEl.textContent = "Log meals to see balance";
+    const bkEl   = document.getElementById("dash-balance-breakdown");
+
+    const rmr  = entry.rmr  || 0;
+    const neat = entry.neat || 0;
+    const eat  = entry.eat  || 0;
+    const tef  = entry.tef  || 0;
+    const hasComponents = rmr > 0;
+
+    if (hasComponents && (calories > 0 || tdee > 0)) {
+      // Show compact math breakdown; hide flat meta
+      if (metaEl) metaEl.style.display = "none";
+      if (bkEl) {
+        const bal = tdee - calories;
+        const isPos = bal >= 0;
+        const balColor = isPos ? "var(--green)" : "var(--danger)";
+        let rows = `<table class="bal-bk">
+          <tr><td class="bk-dim">Base metabolism</td><td>${rmr.toLocaleString()}</td></tr>`;
+        if (neat) rows += `<tr><td class="bk-dim">+ Daily activity</td><td>+ ${neat.toLocaleString()}</td></tr>`;
+        if (eat)  rows += `<tr><td class="bk-dim">+ Workout burn</td><td>+ ${eat.toLocaleString()}</td></tr>`;
+        if (tef)  rows += `<tr><td class="bk-dim">+ Digestion</td><td>+ ${tef.toLocaleString()}</td></tr>`;
+        rows += `<tr class="bk-sep bk-total"><td>Calories burned</td><td>${tdee.toLocaleString()}</td></tr>
+          <tr><td class="bk-dim">− Eaten today</td><td>− ${calories.toLocaleString()}</td></tr>
+          <tr class="bk-sep bk-result"><td style="color:${balColor}">${isPos ? "Deficit" : "Surplus"}</td>
+            <td style="color:${balColor}">${Math.abs(bal).toLocaleString()} kcal</td></tr>
+        </table>`;
+        bkEl.innerHTML = rows;
+        bkEl.style.display = "";
       }
+    } else {
+      if (metaEl) {
+        metaEl.style.display = "";
+        metaEl.textContent = calories > 0 || tdee > 0
+          ? calories.toLocaleString() + " consumed / " + tdee.toLocaleString() + " TDEE"
+          : "Log meals to see balance";
+      }
+      if (bkEl) bkEl.style.display = "none";
     }
 
     // ── Stat cards ──
