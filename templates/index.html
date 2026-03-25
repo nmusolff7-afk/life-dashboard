@@ -3905,14 +3905,20 @@ try {
   });
 
   document.getElementById("save-profile-btn").addEventListener("click", () => {
-    const inp = readInputs();
+    const inp      = readInputs();
+    const existing = JSON.parse(localStorage.getItem("profileData") || "{}");
+    // Record when the weight goal was set — reset only when target weight changes
+    const goalSetDate = (!existing.goalSetDate || inp.tgtWeight !== existing.tgtWeight)
+      ? localToday()
+      : existing.goalSetDate;
     const profile = {
       ...inp,
-      rmr:     getSlider("rmr"),
-      deficit: getSlider("deficit"),
-      protein: getSlider("protein"),
-      carbs:   getSlider("carbs"),
-      fat:     getSlider("fat"),
+      rmr:         getSlider("rmr"),
+      deficit:     getSlider("deficit"),
+      protein:     getSlider("protein"),
+      carbs:       getSlider("carbs"),
+      fat:         getSlider("fat"),
+      goalSetDate,
     };
     localStorage.setItem("profileData", JSON.stringify(profile));
     applyProfileToMeals(profile);
@@ -3940,6 +3946,11 @@ try {
 //  CHARTS TAB
 // ══════════════════════════════════════════════════════
 
+function fmtDate(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 (function() {
   // ── Dark-theme Chart.js defaults ──────────────────
   Chart.defaults.color          = "#8b949e";
@@ -3965,10 +3976,6 @@ try {
   function todayStr() { return localDateStr(new Date()); }
   function daysAgoStr(n) {
     const d = new Date(); d.setDate(d.getDate() - n); return localDateStr(d);
-  }
-  function fmtDate(iso) {
-    const [y, m, d] = iso.split("-").map(Number);
-    return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
   }
 
   const TOOLTIP_STYLE = {
@@ -4074,6 +4081,7 @@ try {
 
     const chgColor = change <= 0 ? "var(--green)" : "var(--danger)";
     const chgStr   = (change >= 0 ? "+" : "") + change.toFixed(1);
+    const chgLbl   = `${weightDays}D Change`;
     let html = `
       <div class="chart-stat">
         <div class="chart-stat-val">${last} lbs</div>
@@ -4081,7 +4089,7 @@ try {
       </div>
       <div class="chart-stat">
         <div class="chart-stat-val" style="color:${chgColor}">${chgStr} lbs</div>
-        <div class="chart-stat-lbl">Change</div>
+        <div class="chart-stat-lbl">${chgLbl}</div>
       </div>`;
     if (targetWt) {
       html += `<div class="chart-stat">
@@ -5473,36 +5481,47 @@ if ("serviceWorker" in navigator) {
       }
     }
 
-    // ── Weeks to goal ──
-    const goalEl = document.getElementById("dash-goal-content");
-    if (goalEl && profile && profile.tgtWeight && profile.curWeight) {
-      const curW        = entry.weight || profile.curWeight;
-      const tgtW        = profile.tgtWeight;
-      const startW      = profile.curWeight;
-      const deficitKcal = profile.deficit || 500;
-      const lbsToGo     = curW - tgtW;
-
-      if (lbsToGo > 0 && deficitKcal > 0) {
-        const weeksLeft  = Math.ceil(lbsToGo / ((deficitKcal * 7) / 3500));
-        const totalLbs   = startW - tgtW;
-        const lbsLost    = startW - curW;
-        const progPct    = totalLbs > 0 ? Math.min(100, Math.max(0, Math.round((lbsLost / totalLbs) * 100))) : 0;
-        goalEl.innerHTML = `
-          <div class="dash-goal-row">
-            <div class="dash-goal-weeks">~${weeksLeft}w</div>
-            <div class="dash-goal-meta">
-              <div>${curW} → ${tgtW} lbs</div>
-              <div>${deficitKcal} kcal/day deficit</div>
-            </div>
-          </div>
-          <div class="progress-bar-track">
-            <div class="progress-bar-fill pro hit" style="width:${progPct}%"></div>
-          </div>
-          <div style="font-size:0.75rem;color:var(--muted);margin-top:0.35rem">${lbsLost > 0 ? lbsLost.toFixed(1) + " lbs lost" : "No loss recorded yet"}</div>`;
-      } else if (lbsToGo <= 0) {
-        goalEl.innerHTML = `<div style="color:var(--green);font-weight:600;font-size:1.1rem">At or below target weight! 🎉</div>`;
+    // ── Progress to goal ──
+    const goalCard = document.getElementById("dash-goal-card");
+    const goalEl   = document.getElementById("dash-goal-content");
+    if (goalCard && goalEl) {
+      if (!profile || !profile.tgtWeight || !profile.goalSetDate) {
+        // Hide card entirely until a goal has been set
+        goalCard.style.display = "none";
       } else {
-        goalEl.innerHTML = `<div style="color:var(--muted);font-size:0.85rem">Set a calorie deficit in Profile to see estimate.</div>`;
+        goalCard.style.display = "";
+        const curW        = entry.weight || null;
+        const tgtW        = profile.tgtWeight;
+        const deficitKcal = profile.deficit || 0;
+        const goalSetDate = profile.goalSetDate;
+
+        if (!curW) {
+          goalEl.innerHTML = `<div style="color:var(--muted);font-size:0.85rem">Log your weight to track progress.</div>`;
+        } else if (curW <= tgtW) {
+          goalEl.innerHTML = `<div style="color:var(--green);font-weight:600;font-size:1.1rem">Goal reached!</div>`;
+        } else {
+          // startW = weight on the day the goal was set (from dailyLog), else curW
+          const dailyLog = JSON.parse(localStorage.getItem("dailyLog") || "{}");
+          const goalEntry = dailyLog[goalSetDate];
+          const startW    = (goalEntry && goalEntry.weight) ? goalEntry.weight : curW;
+          const lbsToGo   = curW - tgtW;
+          const lbsLost   = startW - curW;
+          const totalLbs  = startW - tgtW;
+          const progPct   = totalLbs > 0 ? Math.min(100, Math.max(0, Math.round((lbsLost / totalLbs) * 100))) : 0;
+          const sinceLbl  = `since ${fmtDate(goalSetDate)}`;
+
+          let topRow = `<div class="dash-goal-row"><div class="dash-goal-meta" style="text-align:left">
+            <div>${curW} → ${tgtW} lbs</div>
+            <div style="color:var(--muted)">${sinceLbl}</div></div>`;
+          if (deficitKcal > 0) {
+            const weeksLeft = Math.ceil(lbsToGo / ((deficitKcal * 7) / 3500));
+            topRow += `<div class="dash-goal-weeks">~${weeksLeft}w</div>`;
+          }
+          topRow += `</div>`;
+          goalEl.innerHTML = topRow
+            + `<div class="progress-bar-track"><div class="progress-bar-fill pro${progPct >= 100 ? " hit" : ""}" style="width:${progPct}%"></div></div>`
+            + `<div style="font-size:0.75rem;color:var(--muted);margin-top:0.35rem">${lbsLost > 0 ? lbsLost.toFixed(1) + " lbs lost " + sinceLbl : "No change recorded " + sinceLbl}</div>`;
+        }
       }
     }
   }
