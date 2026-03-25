@@ -22,7 +22,7 @@ from db import (
     upsert_sleep, get_sleep, get_sleep_history,
     compute_momentum, get_momentum_history,
 )
-from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, shorten_label, scan_meal_image, generate_momentum_insight, suggest_meal
+from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, shorten_label, scan_meal_image, generate_momentum_insight, suggest_meal, identify_ingredients
 from claude_profile import generate_profile_map, compute_mind_insights, score_brief
 import garmin_sync
 import json
@@ -503,6 +503,20 @@ def api_scan_meal():
         return jsonify({"error": "No image provided"}), 400
     try:
         return jsonify(scan_meal_image(image_b64, media_type, context=context))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/meals/scan", methods=["POST"])
+@login_required
+def api_meals_scan():
+    data   = request.get_json() or {}
+    images = data.get("images", [])
+    if not images:
+        return jsonify({"error": "No images provided"}), 400
+    try:
+        ingredients = identify_ingredients(images)
+        return jsonify({"ingredients": ingredients})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

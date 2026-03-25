@@ -116,6 +116,39 @@ def scan_meal_image(image_b64: str, media_type: str, context: str = "") -> dict:
     }
 
 
+# ── Ingredient identification from photos ─────────────
+
+IDENTIFY_PROMPT = """Look at the provided image(s) and list every distinct food item, ingredient, condiment, or beverage you can identify.
+Be specific but concise (e.g. "Greek yogurt" not just "yogurt", "broccoli" not "vegetables").
+Return ONLY valid JSON with no markdown:
+{"ingredients": ["item1", "item2", ...]}
+If no food items are visible, return {"ingredients": []}."""
+
+
+def identify_ingredients(images: list) -> list[str]:
+    """Identify food ingredients from one or more images. Returns a list of ingredient strings."""
+    if not images:
+        return []
+    content = []
+    for img in images:
+        content.append({
+            "type": "image",
+            "source": {"type": "base64", "media_type": img["media_type"], "data": img["b64"]},
+        })
+    content.append({"type": "text", "text": IDENTIFY_PROMPT})
+    response = _client().messages.create(
+        model="claude-opus-4-6",
+        max_tokens=400,
+        messages=[{"role": "user", "content": content}],
+    )
+    text = next(b.text for b in response.content if b.type == "text").strip()
+    start, end = text.find("{"), text.rfind("}") + 1
+    if start == -1 or end == 0:
+        return []
+    data = json.loads(text[start:end])
+    return [str(i).strip() for i in (data.get("ingredients") or []) if i]
+
+
 # ── Meal suggestion ───────────────────────────────────
 
 SUGGEST_PROMPT = """You are a personal nutrition coach. The user has told you what ingredients they have available (and may have shared fridge photos). Suggest ONE specific meal that:

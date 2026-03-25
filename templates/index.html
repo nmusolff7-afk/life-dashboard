@@ -151,8 +151,21 @@
 
     /* ══ MEALS ════════════════════════════════ */
 
+    /* Meal suggestion */
+    .suggest-divider { border: none; border-top: 1px solid var(--border); margin: 0.85rem 0; }
+    .suggest-section-label { display: block; font-size: 0.72rem; color: var(--muted); text-transform: uppercase;
+      letter-spacing: .06em; font-weight: 700; margin-bottom: 0.35rem; }
+    .suggest-pantry-section { padding: 0.65rem 0.75rem; background: var(--surface2); border-radius: 10px;
+      border: 1px solid var(--border); margin-bottom: 0.75rem; }
+    .suggest-confirm-box { padding: 0.7rem 0.75rem; background: var(--surface2); border-radius: 10px;
+      border: 1px solid var(--border); margin-top: 0.6rem; }
+    .confirm-chip { display: inline-flex; align-items: center; padding: 0.22rem 0.65rem; border-radius: 99px;
+      font-size: 0.78rem; background: var(--accent2); color: #fff; cursor: pointer;
+      transition: opacity .15s, background .15s; user-select: none; }
+    .confirm-chip.deselected { background: var(--surface); color: var(--muted);
+      text-decoration: line-through; opacity: 0.5; }
     /* Meal suggestion photo slots */
-    .suggest-photos { display: flex; gap: 0.5rem; margin: 0.65rem 0; }
+    .suggest-photos { display: flex; gap: 0.5rem; margin: 0.5rem 0; flex-wrap: wrap; }
     .suggest-slot { width: 80px; height: 80px; border-radius: 10px; border: 1.5px dashed var(--border);
       background: var(--surface2); cursor: pointer; display: flex; align-items: center;
       justify-content: center; position: relative; flex-shrink: 0; transition: border-color .15s; }
@@ -1217,27 +1230,80 @@
       <!-- Meal Suggestion -->
       <div class="card" id="suggest-card">
         <div class="card-title">Meal Suggestion</div>
-        <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.5">
-          Describe what you have or snap up to 3 fridge photos. AI will suggest a meal that fits your calorie goal right now.
-        </p>
-        <!-- Pantry: learned ingredients -->
-        <div id="suggest-pantry-wrap" style="display:none;margin-bottom:0.65rem">
-          <div style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:0.35rem">Your pantry</div>
-          <div id="suggest-pantry-chips" style="display:flex;flex-wrap:wrap;gap:0.35rem"></div>
+
+        <!-- ── My Pantry ── -->
+        <div class="suggest-pantry-section">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.4rem">
+            <span class="suggest-section-label" style="margin-bottom:0">My Pantry</span>
+            <button type="button" id="pantry-manual-add-btn"
+              style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--accent2);
+                     font-size:0.75rem;padding:0.15rem 0.55rem;cursor:pointer;line-height:1.5">+ Add item</button>
+          </div>
+          <div id="pantry-empty-hint" style="font-size:0.8rem;color:var(--muted);padding:0.2rem 0">
+            No items yet — scan photos below or add manually.
+          </div>
+          <div id="suggest-pantry-chips" style="display:flex;flex-wrap:wrap;gap:0.3rem"></div>
+          <div id="pantry-add-row" style="display:none;margin-top:0.45rem;gap:0.4rem;align-items:center">
+            <input id="pantry-add-input" type="text" placeholder="e.g. eggs, spinach, chicken…"
+              style="flex:1;min-width:0;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;
+                     color:var(--text);font-size:0.85rem;padding:0.4rem 0.65rem;font-family:inherit;outline:none"
+              onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+            <button type="button" id="pantry-add-ok" class="btn btn-accent"
+              style="padding:0.4rem 0.85rem;font-size:0.82rem;flex-shrink:0">Add</button>
+          </div>
         </div>
-        <textarea id="suggest-ingredients" rows="2" placeholder="e.g. chicken breast, rice, broccoli, olive oil, eggs…"
+
+        <hr class="suggest-divider">
+
+        <!-- ── Scan Photos ── -->
+        <span class="suggest-section-label">Scan for Ingredients</span>
+        <p style="font-size:0.82rem;color:var(--muted);margin:0.2rem 0 0.55rem;line-height:1.5">
+          Take or upload photos of ingredients, groceries, or anything edible — AI will identify what you have.
+        </p>
+        <div class="suggest-photos" id="suggest-photos"></div>
+        <input type="file" id="suggest-camera-input" accept="image/*" capture="environment" style="display:none">
+        <input type="file" id="suggest-gallery-input" accept="image/*" style="display:none">
+
+        <div id="scan-loading" style="display:none;margin-top:0.5rem;font-size:0.85rem;color:var(--accent2);
+          align-items:center;gap:0.5rem">
+          <span style="animation:spin 1.2s linear infinite;display:inline-block">⚙️</span>
+          Scanning for ingredients…
+        </div>
+        <button type="button" class="btn btn-full" id="scan-ingredients-btn"
+          style="display:none;margin-top:0.5rem;background:var(--surface2);border:1px solid var(--border);
+                 color:var(--text);font-size:0.85rem">
+          Scan Photos for Ingredients
+        </button>
+
+        <!-- Confirmation box after scan -->
+        <div id="suggest-confirm-box" class="suggest-confirm-box" style="display:none">
+          <div style="font-size:0.82rem;font-weight:600;color:var(--text);margin-bottom:0.45rem">
+            Found in your photos — tap to deselect:
+          </div>
+          <div id="suggest-confirm-chips" style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-bottom:0.6rem"></div>
+          <div style="display:flex;gap:0.5rem">
+            <button type="button" id="suggest-confirm-add-btn" class="btn btn-green"
+              style="flex:1;font-size:0.85rem;padding:0.5rem">Add to Pantry</button>
+            <button type="button" id="suggest-confirm-cancel-btn" class="btn"
+              style="background:none;border:1px solid var(--border);color:var(--muted);
+                     font-size:0.85rem;padding:0.5rem 0.85rem">Dismiss</button>
+          </div>
+        </div>
+
+        <hr class="suggest-divider">
+
+        <!-- ── Get a Suggestion ── -->
+        <span class="suggest-section-label">Get a Suggestion</span>
+        <p style="font-size:0.82rem;color:var(--muted);margin:0.2rem 0 0.5rem;line-height:1.5">
+          AI will suggest a meal using your pantry items that fits your calorie goal right now.
+        </p>
+        <textarea id="suggest-ingredients" rows="2" placeholder="Any extra ingredients or notes (optional)…"
           style="width:100%;box-sizing:border-box;resize:none;background:var(--surface2);border:1.5px solid var(--border);
                  border-radius:8px;color:var(--text);font-size:0.9rem;padding:0.6rem 0.85rem;font-family:inherit;
                  line-height:1.5;outline:none;transition:border-color .15s"
           onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></textarea>
-        <div class="suggest-photos" id="suggest-photos">
-          <div class="suggest-slot" id="suggest-slot-0"><span class="slot-add">📷</span></div>
-          <div class="suggest-slot" id="suggest-slot-1"><span class="slot-add">📷</span></div>
-          <div class="suggest-slot" id="suggest-slot-2"><span class="slot-add">📷</span></div>
-        </div>
-        <input type="file" id="suggest-camera-input" accept="image/*" capture="environment" style="display:none">
-        <input type="file" id="suggest-gallery-input" accept="image/*" style="display:none">
-        <button class="btn btn-primary btn-full" id="suggest-btn">✦ Suggest a Meal</button>
+        <button class="btn btn-primary btn-full" id="suggest-btn" style="margin-top:0.55rem">✦ Suggest a Meal</button>
+
         <div id="suggest-loading" style="display:none;margin-top:0.75rem;font-size:0.85rem;color:var(--accent2);
           align-items:center;gap:0.5rem">
           <span style="animation:spin 1.2s linear infinite;display:inline-block">⚙️</span>
@@ -2641,24 +2707,35 @@ function deleteWorkout(id) {
 // ══════════════════════════════════════════════════════
 
 (function() {
-  const ingredientsEl  = document.getElementById("suggest-ingredients");
-  const suggestBtn     = document.getElementById("suggest-btn");
-  const loadingEl      = document.getElementById("suggest-loading");
-  const resultEl       = document.getElementById("suggest-result");
-  const cameraInput    = document.getElementById("suggest-camera-input");
-  const galleryInput2  = document.getElementById("suggest-gallery-input");
-  const logBtn         = document.getElementById("suggest-log-btn");
-  const pantryWrap     = document.getElementById("suggest-pantry-wrap");
-  const pantryChips    = document.getElementById("suggest-pantry-chips");
+  const ingredientsEl    = document.getElementById("suggest-ingredients");
+  const suggestBtn       = document.getElementById("suggest-btn");
+  const loadingEl        = document.getElementById("suggest-loading");
+  const resultEl         = document.getElementById("suggest-result");
+  const cameraInput      = document.getElementById("suggest-camera-input");
+  const galleryInput2    = document.getElementById("suggest-gallery-input");
+  const logBtn           = document.getElementById("suggest-log-btn");
+  const pantryChipsEl    = document.getElementById("suggest-pantry-chips");
+  const pantryEmptyHint  = document.getElementById("pantry-empty-hint");
+  const pantryAddRowEl   = document.getElementById("pantry-add-row");
+  const pantryAddInput   = document.getElementById("pantry-add-input");
+  const pantryAddOk      = document.getElementById("pantry-add-ok");
+  const pantryAddBtn     = document.getElementById("pantry-manual-add-btn");
+  const photosContainer  = document.getElementById("suggest-photos");
+  const scanBtn          = document.getElementById("scan-ingredients-btn");
+  const scanLoadingEl    = document.getElementById("scan-loading");
+  const confirmBox       = document.getElementById("suggest-confirm-box");
+  const confirmChipsEl   = document.getElementById("suggest-confirm-chips");
+  const confirmAddBtn    = document.getElementById("suggest-confirm-add-btn");
+  const confirmCancelBtn = document.getElementById("suggest-confirm-cancel-btn");
 
-  const slots  = [0, 1, 2].map(i => document.getElementById("suggest-slot-" + i));
-  const images = [null, null, null];
-  let activeSlot = 0;
-  let lastResult = null;
-
-  // ── Pantry: persisted ingredient list ──────────────────────────────
   const PANTRY_KEY = "apexPantry";
+  const MAX_IMAGES = 6;
 
+  let images         = [];
+  let lastResult     = null;
+  let pendingConfirm = [];
+
+  // \u2500\u2500 Pantry \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   function loadPantry() {
     try { return JSON.parse(localStorage.getItem(PANTRY_KEY) || "[]"); } catch(_) { return []; }
   }
@@ -2674,22 +2751,43 @@ function deleteWorkout(id) {
   }
   function renderPantry() {
     const items = loadPantry();
-    if (!items.length) { pantryWrap.style.display = "none"; return; }
-    pantryWrap.style.display = "";
-    pantryChips.innerHTML = items.map((item, i) =>
-      `<span style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.2rem 0.55rem;border-radius:99px;font-size:0.75rem;background:var(--surface2);border:1px solid var(--border);color:var(--text)">${item}<button type="button" data-idx="${i}" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.7rem;padding:0;line-height:1;margin-left:0.1rem" title="Remove">&#x2715;</button></span>`
+    if (!items.length) {
+      pantryEmptyHint.style.display = "";
+      pantryChipsEl.innerHTML = "";
+      return;
+    }
+    pantryEmptyHint.style.display = "none";
+    pantryChipsEl.innerHTML = items.map((item, i) =>
+      `<span style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.22rem 0.55rem;border-radius:99px;` +
+      `font-size:0.78rem;background:var(--surface);border:1px solid var(--border);color:var(--text)">${item}` +
+      `<button type="button" data-idx="${i}" style="background:none;border:none;color:var(--muted);cursor:pointer;` +
+      `font-size:0.68rem;padding:0;line-height:1;margin-left:0.15rem">&#x2715;</button></span>`
     ).join("");
-    pantryChips.querySelectorAll("button[data-idx]").forEach(btn => {
+    pantryChipsEl.querySelectorAll("button[data-idx]").forEach(btn => {
       btn.addEventListener("click", () => {
-        const items2 = loadPantry(); items2.splice(parseInt(btn.dataset.idx), 1);
-        savePantry(items2); renderPantry();
+        const its = loadPantry(); its.splice(parseInt(btn.dataset.idx), 1);
+        savePantry(its); renderPantry();
       });
     });
-    if (!ingredientsEl.value.trim()) ingredientsEl.value = items.join(", ");
   }
-  renderPantry();
 
-  // ── Image resize ────────────────────────────────────────────
+  // Pantry manual add
+  pantryAddBtn.addEventListener("click", () => {
+    const open = pantryAddRowEl.style.display !== "none";
+    pantryAddRowEl.style.display = open ? "none" : "flex";
+    if (!open) setTimeout(() => pantryAddInput.focus(), 50);
+  });
+  function commitPantryAdd() {
+    const vals = pantryAddInput.value.split(",").map(s => s.trim()).filter(Boolean);
+    if (!vals.length) return;
+    mergePantry(vals);
+    pantryAddInput.value = "";
+    pantryAddRowEl.style.display = "none";
+  }
+  pantryAddOk.addEventListener("click", commitPantryAdd);
+  pantryAddInput.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); commitPantryAdd(); } });
+
+  // \u2500\u2500 Image resize \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   function resizeAndEncode(file, cb) {
     const img = new Image(), url = URL.createObjectURL(file);
     img.onload = () => {
@@ -2704,44 +2802,106 @@ function deleteWorkout(id) {
     img.src = url;
   }
 
-  function renderSlot(i) {
-    const slot = slots[i]; slot.innerHTML = "";
-    if (images[i]) {
-      const img = document.createElement("img"); img.src = images[i].preview; slot.appendChild(img);
+  // \u2500\u2500 Photo slots \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  function renderSlots() {
+    photosContainer.innerHTML = "";
+    images.forEach((img, i) => {
+      const slot = document.createElement("div");
+      slot.className = "suggest-slot";
+      const imgEl = document.createElement("img"); imgEl.src = img.preview;
+      slot.appendChild(imgEl);
       const rm = document.createElement("button");
-      rm.className = "slot-rm"; rm.textContent = "\u2715"; rm.type = "button";
-      rm.addEventListener("click", e => { e.stopPropagation(); images[i] = null; renderSlot(i); });
+      rm.className = "slot-rm"; rm.type = "button"; rm.textContent = "\u2715";
+      rm.addEventListener("click", e => {
+        e.stopPropagation(); images.splice(i, 1); renderSlots(); updateScanBtn();
+      });
       slot.appendChild(rm);
-    } else {
-      const icon = document.createElement("span"); icon.className = "slot-add"; icon.textContent = "\uD83D\uDCF7";
-      slot.appendChild(icon);
+      photosContainer.appendChild(slot);
+    });
+    if (images.length < MAX_IMAGES) {
+      const addSlot = document.createElement("div");
+      addSlot.className = "suggest-slot";
+      addSlot.innerHTML = "<span class='slot-add'>\uD83D\uDCF7</span>";
+      addSlot.addEventListener("click", () => {
+        window._suggestPhotoCtx = true;
+        document.getElementById("photo-source-modal").classList.add("active");
+      });
+      photosContainer.appendChild(addSlot);
     }
   }
-
-  function handleSuggestFile(file) {
-    if (!file) return;
-    const preview = URL.createObjectURL(file);
-    resizeAndEncode(file, (b64, mediaType) => { images[activeSlot] = { b64, mediaType, preview }; renderSlot(activeSlot); });
+  function updateScanBtn() {
+    scanBtn.style.display = images.length > 0 ? "" : "none";
   }
 
-  // Slots open the shared photo-source-modal with a suggest context flag
   window._suggestPhotoCtx = false;
-  slots.forEach((slot, i) => {
-    slot.addEventListener("click", () => {
-      activeSlot = i;
-      window._suggestPhotoCtx = true;
-      document.getElementById("photo-source-modal").classList.add("active");
+  function handleSuggestFile(file) {
+    if (!file || images.length >= MAX_IMAGES) return;
+    const preview = URL.createObjectURL(file);
+    resizeAndEncode(file, (b64, mediaType) => {
+      images.push({ b64, mediaType, preview });
+      renderSlots();
+      updateScanBtn();
     });
+  }
+  cameraInput.addEventListener("change",   () => { handleSuggestFile(cameraInput.files[0]);  cameraInput.value   = ""; });
+  galleryInput2.addEventListener("change", () => { handleSuggestFile(galleryInput2.files[0]); galleryInput2.value = ""; });
+
+  // \u2500\u2500 Scan \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  scanBtn.addEventListener("click", async () => {
+    if (!images.length) return;
+    scanLoadingEl.style.display = "flex";
+    confirmBox.style.display    = "none";
+    scanBtn.disabled            = true;
+    try {
+      const res  = await fetch("/api/meals/scan", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ images: images.map(({ b64, mediaType }) => ({ b64, media_type: mediaType })) }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      pendingConfirm = (data.ingredients || []).filter(Boolean);
+      if (pendingConfirm.length) {
+        renderConfirmChips();
+        confirmBox.style.display = "";
+        confirmBox.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      } else {
+        alert("No food items found in the photos.");
+      }
+    } catch(err) {
+      alert("Scan failed: " + err.message);
+    } finally {
+      scanLoadingEl.style.display = "none";
+      scanBtn.disabled            = false;
+    }
   });
 
-  cameraInput.addEventListener("change",   () => { handleSuggestFile(cameraInput.files[0]);   cameraInput.value   = ""; });
-  galleryInput2.addEventListener("change", () => { handleSuggestFile(galleryInput2.files[0]);  galleryInput2.value = ""; });
+  function renderConfirmChips() {
+    confirmChipsEl.innerHTML = pendingConfirm.map((item, i) =>
+      `<span class="confirm-chip" data-idx="${i}">${item}</span>`
+    ).join("");
+    confirmChipsEl.querySelectorAll(".confirm-chip").forEach(chip => {
+      chip.addEventListener("click", () => chip.classList.toggle("deselected"));
+    });
+  }
+  confirmAddBtn.addEventListener("click", () => {
+    const selected = Array.from(confirmChipsEl.querySelectorAll(".confirm-chip:not(.deselected)"))
+      .map(c => c.textContent.trim());
+    if (selected.length) mergePantry(selected);
+    confirmBox.style.display = "none";
+    pendingConfirm = [];
+  });
+  confirmCancelBtn.addEventListener("click", () => {
+    confirmBox.style.display = "none";
+    pendingConfirm = [];
+  });
 
-  // ── Suggest ─────────────────────────────────────────────────────
+  // \u2500\u2500 Suggest \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   suggestBtn.addEventListener("click", async () => {
-    const ingredients = ingredientsEl.value.trim();
-    const imgPayload  = images.filter(Boolean).map(({ b64, mediaType }) => ({ b64, media_type: mediaType }));
-    if (!ingredients && imgPayload.length === 0) {
+    const pantryItems = loadPantry();
+    const extraText   = ingredientsEl.value.trim();
+    const ingredients = [...pantryItems, ...(extraText ? [extraText] : [])].join(", ");
+    const imgPayload  = images.map(({ b64, mediaType }) => ({ b64, media_type: mediaType }));
+    if (!ingredients && !imgPayload.length) {
       ingredientsEl.style.borderColor = "var(--danger)";
       setTimeout(() => ingredientsEl.style.borderColor = "var(--border)", 1500);
       return;
@@ -2754,7 +2914,7 @@ function deleteWorkout(id) {
     try {
       const today = new Date().toISOString().slice(0, 10);
       calConsumed = parseInt((JSON.parse(localStorage.getItem("dailyLog") || "{}")[today] || {}).calories || 0) || 0;
-    } catch (_) {}
+    } catch(_) {}
 
     try {
       const res  = await fetch("/api/meals/suggest", {
@@ -2776,11 +2936,7 @@ function deleteWorkout(id) {
         `<span class="mac-chip" style="color:#f48fb1">${data.fat_g}g fat</span>`,
       ].join("");
       resultEl.style.display = "";
-
-      if (data.identified_ingredients && data.identified_ingredients.length) {
-        mergePantry(data.identified_ingredients);
-      }
-    } catch (err) {
+    } catch(err) {
       alert("Suggestion failed: " + err.message);
     } finally {
       suggestBtn.disabled     = false;
@@ -2788,7 +2944,7 @@ function deleteWorkout(id) {
     }
   });
 
-  // ── Log this meal ─────────────────────────────────────────────
+  // \u2500\u2500 Log this meal \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   logBtn.addEventListener("click", () => {
     if (!lastResult) return;
     document.getElementById("meal-input").value    = lastResult.meal_name;
@@ -2805,6 +2961,10 @@ function deleteWorkout(id) {
     const lb = document.getElementById("log-btn"); if (lb) lb.style.display = "";
     document.getElementById("log-form").scrollIntoView({ behavior: "smooth", block: "start" });
   });
+
+  // Init
+  renderPantry();
+  renderSlots();
 })();
 
 // ══════════════════════════════════════════════════════
