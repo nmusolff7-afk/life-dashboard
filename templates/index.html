@@ -3997,16 +3997,22 @@ function fmtDate(iso) {
     const targetWt  = profile.tgtWeight || null;
     const cutoff    = daysAgoStr(weightDays - 1);
 
-    const entries = Object.entries(dailyLog)
-      .filter(([d, v]) => d >= cutoff && v && v.weight)
-      .map(([d, v]) => [d, v.weight])
-      .sort(([a], [b]) => a < b ? -1 : 1);
+    // Build every date in the window regardless of whether data exists
+    const allDates = [];
+    { const c = new Date(cutoff + "T00:00:00"), e = new Date(localToday() + "T00:00:00");
+      while (c <= e) { allDates.push(localDateStr(c)); c.setDate(c.getDate() + 1); } }
+
+    const weightMap = {};
+    Object.entries(dailyLog).forEach(([d, v]) => {
+      if (v && v.weight && d >= cutoff) weightMap[d] = v.weight;
+    });
 
     const nodataEl = document.getElementById("weight-nodata");
     const statsEl  = document.getElementById("weight-stats");
     const canvas   = document.getElementById("chart-weight");
 
-    if (entries.length === 0) {
+    const hasData = Object.keys(weightMap).length > 0;
+    if (!hasData) {
       canvas.style.display = "none";
       if (nodataEl) nodataEl.style.display = "";
       statsEl.innerHTML = "";
@@ -4015,10 +4021,11 @@ function fmtDate(iso) {
     canvas.style.display = "";
     if (nodataEl) nodataEl.style.display = "none";
 
-    const labels = entries.map(([d]) => fmtDate(d));
-    const data   = entries.map(([, w]) => w);
-    const first  = data[0], last = data[data.length - 1];
-    const change = last - first;
+    const labels   = allDates.map(fmtDate);
+    const data     = allDates.map(d => weightMap[d] ?? null);
+    const dataVals = data.filter(v => v !== null);
+    const first    = dataVals[0], last = dataVals[dataVals.length - 1];
+    const change   = last - first;
 
     let weeksLeft = null;
     if (targetWt && last > targetWt) {
@@ -4026,14 +4033,17 @@ function fmtDate(iso) {
       weeksLeft = Math.ceil((last - targetWt) / ((deficit * 7) / 3500));
     }
 
+    const ptRadius = allDates.map(d => weightMap[d] != null ? 4 : 0);
+
     const datasets = [{
       label: "Weight",
       data,
+      spanGaps: true,
       borderColor: "#7986cb",
       backgroundColor: "rgba(121,134,203,0.08)",
       fill: true,
-      tension: 0.3,
-      pointRadius: 4,
+      tension: 0,
+      pointRadius: ptRadius,
       pointBackgroundColor: "#7986cb",
       pointBorderColor: "#0d1117",
       pointBorderWidth: 2,
@@ -4042,7 +4052,7 @@ function fmtDate(iso) {
     if (targetWt) {
       datasets.push({
         label: "Target",
-        data: data.map(() => targetWt),
+        data: allDates.map(() => targetWt),
         borderColor: "#3fb950",
         borderDash: [6, 4],
         borderWidth: 1.5,
@@ -4063,6 +4073,7 @@ function fmtDate(iso) {
           legend: { display: false },
           tooltip: {
             ...TOOLTIP_STYLE,
+            filter: item => item.parsed.y !== null,
             callbacks: {
               label: ctx => ctx.datasetIndex === 0
                 ? ` ${ctx.parsed.y} lbs`
@@ -4075,8 +4086,8 @@ function fmtDate(iso) {
           y: {
             grid: { color: "#21262d" },
             ticks: { callback: v => v + " lbs" },
-            suggestedMin: Math.min(...data, targetWt || Infinity) - 3,
-            suggestedMax: Math.max(...data, targetWt || -Infinity) + 3,
+            suggestedMin: Math.min(...dataVals, targetWt || Infinity) - 3,
+            suggestedMax: Math.max(...dataVals, targetWt || -Infinity) + 3,
           },
         },
       },
@@ -4125,41 +4136,39 @@ function fmtDate(iso) {
     const serverGarmin   = (histData && histData.garmin)   || {};
     const localLog       = JSON.parse(localStorage.getItem("dailyLog") || "{}");
 
-    // Build only dates that have actual data within the selected window
+    // Build every date in the window; null where no data exists
     const cutoff = daysAgoStr(deficitDays - 1);
-    const allDates = new Set([
-      ...Object.keys(serverMeals),
-      ...Object.keys(localLog),
-    ]);
-    const dates = [...allDates]
-      .filter(d => d >= cutoff && d <= localToday())
-      .sort();
+    const allDates = [];
+    { const c = new Date(cutoff + "T00:00:00"), e = new Date(localToday() + "T00:00:00");
+      while (c <= e) { allDates.push(localDateStr(c)); c.setDate(c.getDate() + 1); } }
 
-    const deficits = dates.map(d => {
-      // For today, prefer localStorage: it has full TDEE (RMR + NEAT + workout + TEF)
+    const deficitMap = {};
+    allDates.forEach(d => {
+      let val = null;
       if (d === localToday()) {
         const local = localLog[d];
-        if (local && typeof local === "object" && local.deficit != null) return -local.deficit;
+        if (local && typeof local === "object" && local.deficit != null) val = -local.deficit;
       }
-      const mealRow = serverMeals[d];
-      if (mealRow && mealRow.calories > 0) {
-        const garminDay = serverGarmin[d];
-        const activeBurn = garminDay && garminDay.active_calories
-          ? garminDay.active_calories
-          : (serverWorkouts[d] || []).reduce((s, w) => s + (w.calories_burned || 0), 0);
-        return mealRow.calories - (rmr + activeBurn);  // positive = surplus, negative = deficit
+      if (val === null) {
+        const mealRow = serverMeals[d];
+        if (mealRow && mealRow.calories > 0) {
+          const garminDay  = serverGarmin[d];
+          const activeBurn = garminDay && garminDay.active_calories
+            ? garminDay.active_calories
+            : (serverWorkouts[d] || []).reduce((s, w) => s + (w.calories_burned || 0), 0);
+          val = mealRow.calories - (rmr + activeBurn);
+        }
       }
-      // Fallback: localStorage for any date
-      const local = localLog[d];
-      if (local && typeof local === "object" && local.deficit != null) return -local.deficit;
-      if (local && typeof local === "number") return -local;
-      return null;
+      if (val === null) {
+        const local = localLog[d];
+        if (local && typeof local === "object" && local.deficit != null) val = -local.deficit;
+        else if (local && typeof local === "number") val = -local;
+      }
+      if (val !== null) deficitMap[d] = val;
     });
 
-    // Only keep dates with actual values
-    const entries = dates.map((d, i) => [d, deficits[i]]).filter(([, v]) => v !== null);
-
-    if (entries.length === 0) {
+    const nonNull = Object.values(deficitMap);
+    if (nonNull.length === 0) {
       canvas.style.display = "none";
       if (nodataEl) nodataEl.style.display = "";
       statsEl.innerHTML = "";
@@ -4168,35 +4177,36 @@ function fmtDate(iso) {
     canvas.style.display = "";
     if (nodataEl) nodataEl.style.display = "none";
 
-    const filteredDates   = entries.map(([d]) => d);
-    const filteredDeficits = entries.map(([, v]) => v);
-    const nonNull   = filteredDeficits;
+    const deficits  = allDates.map(d => deficitMap[d] ?? null);
     const maxAbs    = Math.max(...nonNull.map(Math.abs), targetD ? Math.abs(targetD) : 0, 200);
     const yPad      = Math.ceil(maxAbs * 1.15 / 100) * 100;
-    const labels    = filteredDates.map(fmtDate);
+    const labels    = allDates.map(fmtDate);
     const tolerance = targetD ? Math.abs(targetD) * 0.30 : null;
-    const ptColors  = filteredDeficits.map(v => {
+    const ptColors  = deficits.map(v => {
+      if (v === null) return "transparent";
       if (tolerance !== null) return Math.abs(v - (-Math.abs(targetD))) <= tolerance ? "#3fb950" : "#f85149";
       return v <= 0 ? "#3fb950" : "#f85149";
     });
+    const ptRadius  = deficits.map(v => v !== null ? 3 : 0);
 
     const datasets = [{
       label: "Deficit / Surplus",
-      data: filteredDeficits,
+      data: deficits,
+      spanGaps: true,
       borderColor: "#7986cb",
       backgroundColor: "rgba(121,134,203,0.08)",
       borderWidth: 2,
-      pointRadius: 3,
+      pointRadius: ptRadius,
       pointBackgroundColor: ptColors,
       pointBorderColor: ptColors,
-      tension: 0.3,
+      tension: 0,
       fill: true,
     }];
 
     if (targetD) {
       datasets.push({
         label: "Target",
-        data: filteredDates.map(() => -Math.abs(targetD)),
+        data: allDates.map(() => -Math.abs(targetD)),
         borderColor: "#3fb950",
         borderDash: [6, 4],
         borderWidth: 1.5,
@@ -4238,10 +4248,10 @@ function fmtDate(iso) {
       },
     });
 
-    const last7  = filteredDeficits.slice(-7);
-    const avg7   = last7.length ? Math.round(last7.reduce((s, v) => s + v, 0) / last7.length) : 0;
-    const avgClr = avg7 <= 0 ? "var(--green)" : "var(--danger)";
-    const avgLbl = avg7 <= 0 ? "Avg Deficit" : "Avg Surplus";
+    const recent7  = deficits.filter(v => v !== null).slice(-7);
+    const avg7     = recent7.length ? Math.round(recent7.reduce((s, v) => s + v, 0) / recent7.length) : 0;
+    const avgClr   = avg7 <= 0 ? "var(--green)" : "var(--danger)";
+    const avgLbl   = avg7 <= 0 ? "Avg Deficit" : "Avg Surplus";
     let html = `
       <div class="chart-stat">
         <div class="chart-stat-val" style="color:${avgClr}">${Math.abs(avg7)}</div>
