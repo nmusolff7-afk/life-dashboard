@@ -786,16 +786,21 @@ def api_momentum_insight():
     except (TypeError, ValueError):
         hour = None
     try:
-        breakdown = compute_momentum(uid(), today, calorie_goal_override=calorie_goal)
-        history   = get_momentum_history(uid(), 7)
-        profile   = get_profile_map(uid())
-        meals     = get_today_meals(uid(), today)
-        workouts  = get_today_workouts(uid(), today)
-        garmin    = get_garmin_daily(uid(), today)
-        from db import get_sleep
-        sleep     = get_sleep(uid(), today)
-        result    = generate_momentum_insight(
-            breakdown, history, profile, meals, workouts, garmin, sleep, hour
+        breakdown    = compute_momentum(uid(), today, calorie_goal_override=calorie_goal)
+        history      = get_momentum_history(uid(), 14)
+        profile      = get_profile_map(uid())
+        meals        = get_today_meals(uid(), today)
+        workouts     = get_today_workouts(uid(), today)
+        garmin       = get_garmin_daily(uid(), today)
+        sleep        = get_sleep(uid(), today)
+        garmin_hist  = get_garmin_history(uid(), 14)
+        sleep_hist   = get_sleep_history(uid(), 14)
+        meal_hist    = get_meal_history(uid(), 14)
+        workout_hist = get_workout_history(uid(), 14)
+        result       = generate_momentum_insight(
+            breakdown, history, profile, meals, workouts, garmin, sleep, hour,
+            garmin_hist=garmin_hist, sleep_hist=sleep_hist,
+            meal_hist=meal_hist, workout_hist=workout_hist,
         )
         return jsonify(result)
     except Exception as e:

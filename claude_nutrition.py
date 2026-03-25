@@ -216,6 +216,10 @@ def generate_momentum_insight(
     garmin: dict | None = None,
     sleep: dict | None = None,
     hour: int | None = None,
+    garmin_hist: dict | None = None,
+    sleep_hist: dict | None = None,
+    meal_hist: dict | None = None,
+    workout_hist: dict | None = None,
 ) -> dict:
     """
     Generate a 1-2 sentence pattern insight using Claude Haiku.
@@ -223,8 +227,12 @@ def generate_momentum_insight(
     """
     from datetime import datetime
 
-    meals    = meals    or []
-    workouts = workouts or []
+    meals        = meals        or []
+    workouts     = workouts     or []
+    garmin_hist  = garmin_hist  or {}
+    sleep_hist   = sleep_hist   or {}
+    meal_hist    = meal_hist    or {}
+    workout_hist = workout_hist or {}
 
     # ── time of day ──
     if hour is not None:
@@ -237,78 +245,21 @@ def generate_momentum_insight(
     else:
         time_label = "unknown"
 
-    # ── 7-day history ──
-    history_lines = []
-    for row in history:
-        history_lines.append(
-            f"  {row['score_date']}: "
-            f"nutrition={round(row['nutrition_pct'] * 100)}%, "
-            f"activity={round(row['activity_pct'] * 100)}%, "
-            f"checkin={'yes' if row['checkin_done'] else 'no'}, "
-            f"tasks={round(row['task_rate'] * 100)}%"
-        )
-    history_text = "\n".join(history_lines) if history_lines else "  No history yet."
+    # ── today's sleep ──
+    def _fmt_sleep(s):
+        if not s or not s.get("total_seconds"):
+            return "no data"
+        h = s["total_seconds"] // 3600
+        m = (s["total_seconds"] % 3600) // 60
+        rem  = (s.get("rem_seconds")  or 0) // 60
+        deep = (s.get("deep_seconds") or 0) // 60
+        return f"{h}h{m}m (REM {rem}m, deep {deep}m)"
 
-    # ── today's meals ──
-    if meals:
-        meal_lines = []
-        for m in meals:
-            parts = [m["description"]]
-            if m.get("calories"):   parts.append(f"{m['calories']} kcal")
-            if m.get("protein_g"):  parts.append(f"{round(m['protein_g'],1)}g protein")
-            if m.get("carbs_g"):    parts.append(f"{round(m['carbs_g'],1)}g carbs")
-            if m.get("fat_g"):      parts.append(f"{round(m['fat_g'],1)}g fat")
-            meal_lines.append("  - " + " · ".join(parts))
-        meals_text = "\n".join(meal_lines)
-    else:
-        meals_text = "  No meals logged yet today."
-
-    # ── today's workouts ──
-    if workouts:
-        workout_lines = ["  - " + w["description"] + (f" ({w['calories_burned']} kcal burned)" if w.get("calories_burned") else "") for w in workouts]
-        workouts_text = "\n".join(workout_lines)
-    else:
-        workouts_text = "  None logged."
-
-    # ── Garmin ──
-    if garmin:
-        garmin_text = (
-            f"  Steps: {garmin.get('steps', 0)}, "
-            f"Active calories: {garmin.get('active_calories', 0)}, "
-            f"Resting HR: {garmin.get('resting_hr') or 'N/A'}"
-        )
-    else:
-        garmin_text = "  No Garmin data today."
-
-    # ── sleep ──
-    if sleep and sleep.get("total_seconds"):
-        total_h = sleep["total_seconds"] // 3600
-        total_m = (sleep["total_seconds"] % 3600) // 60
-        rem_m   = (sleep.get("rem_seconds") or 0) // 60
-        deep_m  = (sleep.get("deep_seconds") or 0) // 60
-        score   = sleep.get("sleep_score")
-        sleep_text = (
-            f"  Duration: {total_h}h {total_m}m, "
-            f"REM: {rem_m}m, Deep: {deep_m}m"
-            + (f", Score: {score}/100" if score else "")
-        )
-    else:
-        sleep_text = "  No sleep data."
-
-    # ── component breakdown ──
+    # ── component breakdown (for today's checkin/task status only) ──
     comps = breakdown.get("components", {})
+    c = comps.get("checkin", {})
+    t = comps.get("tasks",   {})
     n = comps.get("nutrition", {})
-    a = comps.get("activity",  {})
-    c = comps.get("checkin",   {})
-    t = comps.get("tasks",     {})
-    w = comps.get("wellbeing", {})
-
-    # ── profile ──
-    primary_goal = profile.get("primary_goal") or profile.get("goals_raw")
-    archetype    = profile.get("behavioral_archetype")
-    leverage     = profile.get("biggest_leverage_point")
-    obstacles    = profile.get("typical_obstacles_raw")
-    wb_baseline  = profile.get("mood_baseline_1_10")
 
     # ── workout-adjusted calorie target ──
     rmr           = profile.get("rmr_kcal") or 0
@@ -318,28 +269,63 @@ def generate_momentum_insight(
     if rmr:
         adj_target = int(rmr + active_burned - deficit)
     else:
-        adj_target = n.get("calorie_goal")  # fallback to profile static goal
-    cal_logged  = n.get("calories_logged", 0)
-    remaining   = (adj_target - cal_logged) if adj_target else "unknown"
-    # Eating hours left: assume window closes around 9 pm (21:00)
-    hours_left  = max(0, 21 - hour) if hour is not None else "unknown"
+        adj_target = n.get("calorie_goal")
+    cal_logged = n.get("calories_logged", 0)
+    remaining  = (adj_target - cal_logged) if adj_target else "unknown"
+    hours_left = max(0, 21 - hour) if hour is not None else "unknown"
+
+    # ── build per-day historical table ──
+    # Collect all dates seen across any data source
+    all_dates = sorted(set(
+        list(garmin_hist.keys()) +
+        list(sleep_hist.keys()) +
+        list(meal_hist.keys()) +
+        list(workout_hist.keys()) +
+        [row["score_date"] for row in history]
+    ))
+
+    # Build checkin/task lookup from momentum history rows (stripped of scores)
+    checkin_lookup = {row["score_date"]: row for row in history}
+
+    history_lines = []
+    for d in all_dates:
+        g  = garmin_hist.get(d, {})
+        s  = sleep_hist.get(d, {})
+        mn = meal_hist.get(d, {})
+        wh = workout_hist.get(d, {})
+        hr = checkin_lookup.get(d, {})
+
+        steps      = g.get("steps")        or "—"
+        burn       = g.get("active_calories") or sum(w.get("calories_burned", 0) for w in wh) or "—"
+        sleep_dur  = _fmt_sleep(s) if s else "—"
+        cals       = int(mn.get("calories", 0)) if mn.get("calories") else "—"
+        protein    = f"{round(mn.get('protein', 0))}g" if mn.get("protein") else "—"
+        checkin    = "yes" if hr.get("checkin_done") else ("no" if hr else "—")
+        task_r     = f"{round(hr['task_rate']*100)}%" if hr.get("task_rate") is not None else "—"
+
+        history_lines.append(
+            f"  {d} | sleep={sleep_dur} | steps={steps} | burn={burn} kcal"
+            f" | cals={cals} | protein={protein} | checkin={checkin} | tasks={task_r}"
+        )
+
+    history_text = "\n".join(history_lines) if history_lines else "  No history yet."
 
     user_msg = f"""CURRENT TIME: {time_label}
 
-TODAY'S DATA
-SLEEP     | {sleep_text.strip()}
+TODAY
+SLEEP     | {_fmt_sleep(sleep)}
 MOVEMENT  | steps={garmin.get('steps', 0) if garmin else 'N/A'}, burned={active_burned} kcal, workouts={len(workouts)} logged
 NUTRITION | logged={cal_logged} kcal, target={adj_target} kcal, remaining={remaining} kcal, ~{hours_left}h left in eating window, protein={round(sum(m.get('protein_g',0) for m in meals),1)}g
 HABITS    | morning_checkin={'done' if c.get('morning_done') else 'not done'}, evening_checkin={'done' if c.get('evening_done') else 'not done'}, tasks={t.get('completed', 0)}/{t.get('total', 0)} completed
 
-7-DAY TREND (date | nutrition% | activity% | checkin_done | task_completion%):
+RECENT HISTORY (date | sleep | steps | active burn | calories logged | protein | checkin | task completion):
 {history_text}
 
-Cross-check today's data against the 7-day trend. Report a genuine pattern only if the numbers clearly show one across two or more domains. Anchor your observation to the current time ({time_label}). Cite the specific numbers that show the pattern. If no real pattern is visible, say so."""
+Scan all of the above data — today and every historical row — for a genuine pattern across two or more domains (sleep, movement, nutrition, habits). Anchor any observation to the current time ({time_label}). Cite specific numbers. If no real pattern is visible in the data, say so."""
 
     response = _client().messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=160,
+        max_tokens=200,
         system=_MOMENTUM_INSIGHT_SYSTEM,
         messages=[{"role": "user", "content": user_msg}],
     )
