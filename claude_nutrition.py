@@ -241,7 +241,7 @@ def generate_momentum_insight(
     history_lines = []
     for row in history:
         history_lines.append(
-            f"  {row['score_date']}: score={row['momentum_score']}, "
+            f"  {row['score_date']}: "
             f"nutrition={round(row['nutrition_pct'] * 100)}%, "
             f"activity={round(row['activity_pct'] * 100)}%, "
             f"checkin={'yes' if row['checkin_done'] else 'no'}, "
@@ -325,7 +325,6 @@ def generate_momentum_insight(
     hours_left  = max(0, 21 - hour) if hour is not None else "unknown"
 
     user_msg = f"""CURRENT TIME: {time_label}
-TODAY'S SCORE: {breakdown.get('momentum_score')}/100
 
 TODAY'S DATA
 SLEEP     | {sleep_text.strip()}
@@ -334,7 +333,7 @@ NUTRITION | logged={cal_logged} kcal, target={adj_target} kcal, remaining={remai
 HABITS    | morning_checkin={'done' if c.get('morning_done') else 'not done'}, evening_checkin={'done' if c.get('evening_done') else 'not done'}, tasks={t.get('completed', 0)}/{t.get('total', 0)} completed
 WELLBEING | today={round((w.get('pct') or 0) * 10, 1)}/10, 7d_avg={w.get('past_7d_avg')}/10
 
-7-DAY TREND (date | score | nutrition% | activity% | checkin_done | task_completion%):
+7-DAY TREND (date | nutrition% | activity% | checkin_done | task_completion%):
 {history_text}
 
 Cross-check today's data against the 7-day trend. Report a genuine pattern only if the numbers clearly show one across two or more domains. Anchor your observation to the current time ({time_label}). Cite the specific numbers that show the pattern. If no real pattern is visible, say so."""
