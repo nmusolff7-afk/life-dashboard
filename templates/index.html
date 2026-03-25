@@ -3135,11 +3135,11 @@ function deleteWorkout(id) {
     const dayName  = DAYS_OF_WEEK[new Date().getDay()];
 
     if (todayExs === null || (todayExs.length === 0 && !getFullWeeklyPlan())) {
-      // No plan configured — quick workout is the primary action
+      // No plan configured — free-form workout is the only option
       idleEl.innerHTML = `
         <p style="font-size:0.82rem;color:var(--muted);text-align:center;max-width:260px">
-          No plan set for today. Start a quick workout and add exercises as you go.</p>
-        <button class="btn btn-green" id="start-workout-btn" style="min-width:200px">Start Quick Workout</button>`;
+          No plan loaded. Add exercises as you go.</p>
+        <button class="btn btn-green btn-full" id="start-workout-btn">Start Workout</button>`;
       document.getElementById("start-workout-btn").addEventListener("click", startQuickWorkout);
 
     } else if (todayExs.length === 0) {
@@ -3147,8 +3147,9 @@ function deleteWorkout(id) {
       idleEl.innerHTML = `
         <div class="rest-day-notice">
           <span>Rest day — no workout scheduled for ${dayName}.</span>
-          <button class="btn btn-green" id="start-workout-btn" style="min-width:200px">Start Quick Workout</button>
-          <button class="btn btn-ghost" id="change-workout-idle-btn" style="margin-top:0.4rem;min-width:200px">Start Another Saved Workout</button>
+          <button class="btn btn-green btn-full" id="start-workout-btn">Start Workout</button>
+          <button class="btn btn-ghost btn-full" id="change-workout-idle-btn"
+            style="margin-top:0.4rem">Use Saved Plan</button>
         </div>`;
       document.getElementById("start-workout-btn").addEventListener("click", startQuickWorkout);
       document.getElementById("change-workout-idle-btn").addEventListener("click", openChangeWorkout);
@@ -3169,12 +3170,12 @@ function deleteWorkout(id) {
       });
       planHtml += `</div>`;
       idleEl.innerHTML = planHtml
-        + `<div class="btn-row" style="width:100%;justify-content:center;gap:0.5rem;margin-top:0.25rem">
-             <button class="btn btn-green" id="start-workout-btn" style="flex:1">Start ${dayName}'s Workout</button>
-             <button class="btn btn-ghost" id="change-workout-idle-btn">Start Another Saved Workout</button>
-           </div>
-           <button class="btn btn-ghost btn-full" id="quick-workout-idle-btn"
-             style="margin-top:0.4rem;font-size:0.8rem;opacity:0.7">Quick Workout</button>`;
+        + `<button class="btn btn-green btn-full" id="start-workout-btn"
+             style="margin-top:0.25rem">Start ${dayName}'s Workout</button>
+           <div class="btn-row" style="width:100%;gap:0.5rem;margin-top:0.5rem">
+             <button class="btn btn-ghost" id="change-workout-idle-btn" style="flex:1">Different Day</button>
+             <button class="btn btn-ghost" id="quick-workout-idle-btn" style="flex:1">Custom</button>
+           </div>`;
       document.getElementById("start-workout-btn").addEventListener("click", () => startWorkoutSession(todayExs, dayName));
       document.getElementById("change-workout-idle-btn").addEventListener("click", openChangeWorkout);
       document.getElementById("quick-workout-idle-btn").addEventListener("click", startQuickWorkout);
