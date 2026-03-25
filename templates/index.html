@@ -5572,8 +5572,9 @@ if ("serviceWorker" in navigator) {
     // ── Macro bars ──
     const barsEl = document.getElementById("dash-macro-bars");
     if (barsEl) {
-      const goalCarb = profile ? (profile.carbs || 250) : 250;
-      const goalFat  = profile ? (profile.fat   || 75)  : 75;
+      const goalPro  = profile ? (profile.protein || 175) : 175;
+      const goalCarb = profile ? (profile.carbs   || 250) : 250;
+      const goalFat  = profile ? (profile.fat     || 75)  : 75;
       const macros = [
         { name: "Protein", val: Math.round(PROTEIN_CONSUMED), goal: goalPro,  cls: "pro",  color: "var(--protein)" },
         { name: "Carbs",   val: Math.round(CARBS_CONSUMED),   goal: goalCarb, cls: "carb", color: "var(--carbs)" },
