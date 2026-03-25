@@ -5431,35 +5431,47 @@ if ("serviceWorker" in navigator) {
     const profile = JSON.parse(localStorage.getItem("profileData") || "null");
 
     // ── Calorie ring ──
-    const tdee     = entry.tdee    || SERVER_TDEE;
-    const deficit  = (entry.deficit !== undefined) ? entry.deficit : null;
+    const tdee     = entry.tdee || SERVER_TDEE;
     const calories = CAL_CONSUMED;
+
+    // balance = eaten − burned  →  negative = deficit, positive = surplus
+    const balance = calories - tdee;
+
+    // Goal direction from profile (tgtWeight < curWeight → want deficit; > → want surplus)
+    let goalWantsDeficit = null;  // null = no goal set
+    if (profile && profile.tgtWeight && profile.curWeight) {
+      if (profile.tgtWeight < profile.curWeight) goalWantsDeficit = true;
+      else if (profile.tgtWeight > profile.curWeight) goalWantsDeficit = false;
+    }
+
+    // onGoal = user is on the correct side for their goal
+    function balanceColor(bal) {
+      if (goalWantsDeficit === null) return "var(--text)";
+      const onGoal = goalWantsDeficit ? bal <= 0 : bal >= 0;
+      return onGoal ? "var(--green)" : "var(--danger)";
+    }
 
     const pct  = tdee > 0 ? Math.min(1, calories / tdee) : 0;
     const fill = Math.round(pct * RING_CIRC);
-    const isDeficit = deficit !== null ? deficit >= 0 : tdee >= calories;
 
     const ringEl = document.getElementById("dash-ring-fill");
     if (ringEl) {
       ringEl.setAttribute("stroke-dasharray", fill + " " + RING_CIRC);
-      ringEl.setAttribute("stroke", isDeficit ? "var(--green)" : "var(--danger)");
+      ringEl.setAttribute("stroke", calories > 0 ? balanceColor(balance) : "var(--surface2)");
     }
 
     const valEl = document.getElementById("dash-deficit-val");
     const lblEl = document.getElementById("dash-deficit-lbl");
     if (valEl) {
-      if (deficit !== null) {
-        valEl.textContent = Math.abs(deficit).toLocaleString();
-        valEl.style.color = deficit >= 0 ? "var(--green)" : "var(--danger)";
-        if (lblEl) lblEl.textContent = deficit >= 0 ? "deficit" : "surplus";
-      } else if (calories > 0) {
-        const diff = tdee - calories;
-        valEl.textContent = Math.abs(diff).toLocaleString();
-        valEl.style.color = diff >= 0 ? "var(--green)" : "var(--danger)";
-        if (lblEl) lblEl.textContent = diff >= 0 ? "deficit" : "surplus";
+      if (calories > 0 || tdee > 0) {
+        const sign = balance <= 0 ? "−" : "+";
+        valEl.textContent = sign + Math.abs(balance).toLocaleString();
+        valEl.style.color = calories > 0 ? balanceColor(balance) : "var(--muted)";
+        if (lblEl) lblEl.textContent = balance <= 0 ? "deficit" : "surplus";
       } else {
         valEl.textContent = "—";
         valEl.style.color = "var(--muted)";
+        if (lblEl) lblEl.textContent = "balance";
       }
     }
 
@@ -5473,21 +5485,19 @@ if ("serviceWorker" in navigator) {
     const hasComponents = rmr > 0;
 
     if (hasComponents && (calories > 0 || tdee > 0)) {
-      // Show compact math breakdown; hide flat meta
       if (metaEl) metaEl.style.display = "none";
       if (bkEl) {
-        const bal = tdee - calories;
-        const isPos = bal >= 0;
-        const balColor = isPos ? "var(--green)" : "var(--danger)";
+        const bColor = calories > 0 ? balanceColor(balance) : "var(--text)";
+        const balSign = balance <= 0 ? "−" : "+";
         let rows = `<table class="bal-bk">
           <tr><td class="bk-dim">Base metabolism</td><td>${rmr.toLocaleString()}</td></tr>`;
-        if (neat) rows += `<tr><td class="bk-dim">+ Daily activity</td><td>+ ${neat.toLocaleString()}</td></tr>`;
-        if (eat)  rows += `<tr><td class="bk-dim">+ Workout burn</td><td>+ ${eat.toLocaleString()}</td></tr>`;
-        if (tef)  rows += `<tr><td class="bk-dim">+ Digestion</td><td>+ ${tef.toLocaleString()}</td></tr>`;
-        rows += `<tr class="bk-sep bk-total"><td>Calories burned</td><td>${tdee.toLocaleString()}</td></tr>
-          <tr><td class="bk-dim">− Eaten today</td><td>− ${calories.toLocaleString()}</td></tr>
-          <tr class="bk-sep bk-result"><td style="color:${balColor}">${isPos ? "Deficit" : "Surplus"}</td>
-            <td style="color:${balColor}">${Math.abs(bal).toLocaleString()} kcal</td></tr>
+        if (neat) rows += `<tr><td class="bk-dim">+ Daily activity</td><td>+${neat.toLocaleString()}</td></tr>`;
+        if (eat)  rows += `<tr><td class="bk-dim">+ Workout</td><td>+${eat.toLocaleString()}</td></tr>`;
+        if (tef)  rows += `<tr><td class="bk-dim">+ Digestion</td><td>+${tef.toLocaleString()}</td></tr>`;
+        rows += `<tr class="bk-sep bk-total"><td>Calories burned</td><td>−${tdee.toLocaleString()}</td></tr>
+          <tr class="bk-total"><td>Eaten today</td><td>+${calories.toLocaleString()}</td></tr>
+          <tr class="bk-sep bk-result"><td style="color:${bColor}">Balance</td>
+            <td style="color:${bColor}">${balSign}${Math.abs(balance).toLocaleString()} kcal</td></tr>
         </table>`;
         bkEl.innerHTML = rows;
         bkEl.style.display = "";
