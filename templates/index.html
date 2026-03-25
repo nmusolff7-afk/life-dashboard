@@ -3986,15 +3986,19 @@ function fmtDate(iso) {
     const targetWt  = profile.tgtWeight || null;
     const cutoff    = daysAgoStr(weightDays - 1);
 
-    // Build every date in the window regardless of whether data exists
-    const allDates = [];
-    { const c = new Date(cutoff + "T00:00:00"), e = new Date(localToday() + "T00:00:00");
-      while (c <= e) { allDates.push(localDateStr(c)); c.setDate(c.getDate() + 1); } }
-
     const weightMap = {};
     Object.entries(dailyLog).forEach(([d, v]) => {
       if (v && v.weight && d >= cutoff) weightMap[d] = v.weight;
     });
+
+    // Start axis from the first day that has data, not the range cutoff
+    const dataKeys  = Object.keys(weightMap).sort();
+    const axisStart = dataKeys.length ? dataKeys[0] : cutoff;
+
+    // Build every date from first data point to today
+    const allDates = [];
+    { const c = new Date(axisStart + "T00:00:00"), e = new Date(localToday() + "T00:00:00");
+      while (c <= e) { allDates.push(localDateStr(c)); c.setDate(c.getDate() + 1); } }
 
     const nodataEl = document.getElementById("weight-nodata");
     const statsEl  = document.getElementById("weight-stats");
@@ -4071,10 +4075,14 @@ function fmtDate(iso) {
           },
         },
         scales: {
-          x: { grid: { color: "#21262d" }, ticks: { maxTicksLimit: weightDays <= 7 ? 7 : weightDays <= 30 ? 8 : 10, maxRotation: 0 } },
+          x: { grid: { color: "#21262d" }, ticks: {
+            maxTicksLimit: weightDays <= 7 ? 7 : weightDays <= 30 ? 6 : 7,
+            maxRotation: 0, autoSkip: true, autoSkipPadding: 12,
+            font: { size: 10 },
+          }},
           y: {
             grid: { color: "#21262d" },
-            ticks: { callback: v => v + " lbs" },
+            ticks: { callback: v => v + " lbs", font: { size: 10 } },
             suggestedMin: Math.min(...dataVals, targetWt || Infinity) - 3,
             suggestedMax: Math.max(...dataVals, targetWt || -Infinity) + 3,
           },
@@ -4127,12 +4135,14 @@ function fmtDate(iso) {
 
     // Build every date in the window; null where no data exists
     const cutoff = daysAgoStr(deficitDays - 1);
-    const allDates = [];
+
+    // Compute deficit values for every candidate date first, then trim axis start
+    const candidateDates = [];
     { const c = new Date(cutoff + "T00:00:00"), e = new Date(localToday() + "T00:00:00");
-      while (c <= e) { allDates.push(localDateStr(c)); c.setDate(c.getDate() + 1); } }
+      while (c <= e) { candidateDates.push(localDateStr(c)); c.setDate(c.getDate() + 1); } }
 
     const deficitMap = {};
-    allDates.forEach(d => {
+    candidateDates.forEach(d => {
       let val = null;
       if (d === localToday()) {
         const local = localLog[d];
@@ -4165,6 +4175,12 @@ function fmtDate(iso) {
     }
     canvas.style.display = "";
     if (nodataEl) nodataEl.style.display = "none";
+
+    // Trim axis to start from first day with data
+    const firstDataDate = Object.keys(deficitMap).sort()[0];
+    const allDates = [];
+    { const c = new Date(firstDataDate + "T00:00:00"), e = new Date(localToday() + "T00:00:00");
+      while (c <= e) { allDates.push(localDateStr(c)); c.setDate(c.getDate() + 1); } }
 
     const deficits  = allDates.map(d => deficitMap[d] ?? null);
     const maxAbs    = Math.max(...nonNull.map(Math.abs), targetD ? Math.abs(targetD) : 0, 200);
@@ -4227,7 +4243,11 @@ function fmtDate(iso) {
           },
         },
         scales: {
-          x: { grid: { color: "#21262d" }, ticks: { maxTicksLimit: deficitDays <= 7 ? 7 : deficitDays <= 30 ? 8 : 10, maxRotation: 0 } },
+          x: { grid: { color: "#21262d" }, ticks: {
+            maxTicksLimit: deficitDays <= 7 ? 7 : deficitDays <= 30 ? 6 : 7,
+            maxRotation: 0, autoSkip: true, autoSkipPadding: 12,
+            font: { size: 10 },
+          }},
           y: {
             min: -yPad, max: yPad,
             grid: { color: ctx => ctx.tick.value === 0 ? "rgba(255,255,255,0.2)" : "#21262d" },
