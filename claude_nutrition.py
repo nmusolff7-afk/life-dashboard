@@ -116,6 +116,85 @@ def scan_meal_image(image_b64: str, media_type: str, context: str = "") -> dict:
     }
 
 
+# ── Meal suggestion ───────────────────────────────────
+
+SUGGEST_PROMPT = """You are a personal nutrition coach. The user has told you what ingredients they have available (and may have shared fridge photos). Suggest ONE specific meal that:
+1. Is appropriate for the stated meal time
+2. Uses ingredients they actually have
+3. Helps them hit their remaining calorie target for the day
+4. Respects their dietary preferences
+
+Respond ONLY with this exact JSON structure (no markdown, no explanation):
+{
+  "meal_name": "<2-5 word meal name>",
+  "why": "<1 sentence: why this fits their goal right now>",
+  "instructions": "<brief recipe: 2-4 steps separated by | >",
+  "calories": <integer>,
+  "protein_g": <number with one decimal>,
+  "carbs_g": <number with one decimal>,
+  "fat_g": <number with one decimal>
+}"""
+
+
+def suggest_meal(
+    ingredients: str,
+    images: list,           # [{b64: str, media_type: str}]
+    profile_map: dict | None,
+    calories_remaining: int | None,
+    meal_type: str,         # "breakfast", "lunch", "dinner", "snack"
+) -> dict:
+    # Build context string from profile
+    ctx_parts = [f"Meal time: {meal_type}"]
+    if calories_remaining is not None:
+        ctx_parts.append(f"Calories remaining today: {calories_remaining} kcal")
+    if profile_map:
+        for key, label in [
+            ("diet_type",            "Diet style"),
+            ("dietary_restrictions", "Restrictions/allergies"),
+            ("foods_disliked_list",  "Foods to avoid"),
+        ]:
+            val = profile_map.get(key)
+            if val:
+                ctx_parts.append(f"{label}: {val}")
+
+    context_text = "\n".join(ctx_parts)
+    if ingredients.strip():
+        context_text += f"\n\nAvailable ingredients: {ingredients.strip()}"
+    if images:
+        context_text += f"\n\n{len(images)} fridge photo(s) attached — use them to identify additional ingredients."
+
+    # Build message content
+    content = []
+    for img in images[:3]:
+        content.append({
+            "type": "image",
+            "source": {
+                "type":       "base64",
+                "media_type": img["media_type"],
+                "data":       img["b64"],
+            },
+        })
+    content.append({"type": "text", "text": context_text})
+
+    response = _client().messages.create(
+        model="claude-opus-4-6",
+        max_tokens=600,
+        system=SUGGEST_PROMPT,
+        messages=[{"role": "user", "content": content}],
+    )
+    text = next(b.text for b in response.content if b.type == "text")
+    data = _parse_json(text)
+    return {
+        "meal_name":    data.get("meal_name", "Suggested Meal"),
+        "why":          data.get("why", ""),
+        "instructions": data.get("instructions", ""),
+        "calories":     int(data["calories"]),
+        "protein_g":    float(data["protein_g"]),
+        "carbs_g":      float(data["carbs_g"]),
+        "fat_g":        float(data["fat_g"]),
+    }
+
+
 # ── Workout burn estimation ────────────────────────────
 
 BURN_PROMPT = """You are a fitness expert. Given a workout description in plain English,

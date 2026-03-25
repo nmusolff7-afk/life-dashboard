@@ -151,6 +151,26 @@
 
     /* ══ MEALS ════════════════════════════════ */
 
+    /* Meal suggestion photo slots */
+    .suggest-photos { display: flex; gap: 0.5rem; margin: 0.65rem 0; }
+    .suggest-slot { width: 80px; height: 80px; border-radius: 10px; border: 1.5px dashed var(--border);
+      background: var(--surface2); cursor: pointer; display: flex; align-items: center;
+      justify-content: center; position: relative; flex-shrink: 0; transition: border-color .15s; }
+    .suggest-slot:hover { border-color: var(--accent2); }
+    .suggest-slot img { width: 100%; height: 100%; object-fit: cover; border-radius: 9px; display: block; }
+    .suggest-slot .slot-rm { position: absolute; top: -7px; right: -7px; width: 18px; height: 18px;
+      border-radius: 50%; background: var(--danger); color: #fff; border: none; cursor: pointer;
+      font-size: 0.65rem; display: flex; align-items: center; justify-content: center; padding: 0; }
+    .suggest-slot .slot-add { font-size: 1.2rem; color: var(--muted); pointer-events: none; }
+    .suggest-result { margin-top: 0.85rem; border-top: 1px solid var(--border); padding-top: 0.85rem; }
+    .suggest-meal-name { font-family: 'Rajdhani', sans-serif; font-size: 1.25rem; font-weight: 700;
+      letter-spacing: 0.02em; margin-bottom: 0.25rem; }
+    .suggest-why { font-size: 0.82rem; color: var(--accent2); margin-bottom: 0.65rem; line-height: 1.4; }
+    .suggest-steps { font-size: 0.82rem; color: var(--muted); line-height: 1.6; margin-bottom: 0.65rem; }
+    .suggest-macros { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+    .suggest-macros .mac-chip { padding: 0.2rem 0.6rem; border-radius: 99px; font-size: 0.75rem;
+      font-weight: 600; background: var(--surface2); border: 1px solid var(--border); }
+
     /* Editable macro fields */
     #macro-fields { display: none; margin-top: 0.85rem; }
     #macro-fields.visible { display: block; }
@@ -1043,6 +1063,40 @@
       {% if error %}
       <div class="error-banner">⚠ {{ error }}</div>
       {% endif %}
+
+      <!-- Meal Suggestion -->
+      <div class="card" id="suggest-card">
+        <div class="card-title">What Should I Eat?</div>
+        <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.5">
+          Describe what ingredients you have, or snap up to 3 photos of your fridge. AI will suggest a meal to help you hit your calorie goal.
+        </p>
+        <textarea id="suggest-ingredients" rows="2" placeholder="e.g. chicken breast, rice, broccoli, olive oil, eggs…"
+          style="width:100%;box-sizing:border-box;resize:none;background:var(--surface2);border:1.5px solid var(--border);
+                 border-radius:8px;color:var(--text);font-size:0.9rem;padding:0.6rem 0.85rem;font-family:inherit;
+                 line-height:1.5;outline:none;transition:border-color .15s;min-height:0"
+          onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+        <div class="suggest-photos" id="suggest-photos">
+          <div class="suggest-slot" id="suggest-slot-0"><span class="slot-add">📷</span></div>
+          <div class="suggest-slot" id="suggest-slot-1"><span class="slot-add">📷</span></div>
+          <div class="suggest-slot" id="suggest-slot-2"><span class="slot-add">📷</span></div>
+        </div>
+        <input type="file" id="suggest-file-input" accept="image/*" style="display:none">
+        <button class="btn btn-primary btn-full" id="suggest-btn">✦ Suggest a Meal</button>
+        <div id="suggest-loading" style="display:none;margin-top:0.75rem;font-size:0.85rem;color:var(--accent2);
+          display:none;align-items:center;gap:0.5rem">
+          <span style="animation:spin 1.2s linear infinite;display:inline-block">⚙️</span>
+          Finding the best meal for right now…
+        </div>
+        <div id="suggest-result" style="display:none">
+          <div class="suggest-result">
+            <div class="suggest-meal-name" id="suggest-name"></div>
+            <div class="suggest-why" id="suggest-why"></div>
+            <div class="suggest-steps" id="suggest-steps"></div>
+            <div class="suggest-macros" id="suggest-macros"></div>
+            <button class="btn btn-green btn-full" id="suggest-log-btn">Log this meal</button>
+          </div>
+        </div>
+      </div>
 
       <div class="card">
         <div class="card-title">Log a meal</div>
@@ -2559,6 +2613,168 @@ function deleteWorkout(id) {
       flashRed();
     });
 }
+
+// ══════════════════════════════════════════════════════
+//  MEALS — Meal Suggestion
+// ══════════════════════════════════════════════════════
+
+(function() {
+  const ingredientsEl = document.getElementById("suggest-ingredients");
+  const suggestBtn    = document.getElementById("suggest-btn");
+  const loadingEl     = document.getElementById("suggest-loading");
+  const resultEl      = document.getElementById("suggest-result");
+  const fileInput     = document.getElementById("suggest-file-input");
+  const logBtn        = document.getElementById("suggest-log-btn");
+
+  const slots   = [0, 1, 2].map(i => document.getElementById("suggest-slot-" + i));
+  const images  = [null, null, null]; // {b64, mediaType} per slot
+  let activeSlot = 0;
+  let lastResult = null;
+
+  // ── Image resize helper (reuse same pattern as meal scan) ──────
+  function resizeAndEncode(file, cb) {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX = 1200;
+      let w = img.width, h = img.height;
+      if (w > MAX || h > MAX) { const r = Math.min(MAX/w, MAX/h); w = Math.round(w*r); h = Math.round(h*r); }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      cb(canvas.toDataURL("image/jpeg", 0.85).split(",")[1], "image/jpeg");
+    };
+    img.src = url;
+  }
+
+  function renderSlot(i) {
+    const slot = slots[i];
+    slot.innerHTML = "";
+    if (images[i]) {
+      const img = document.createElement("img");
+      img.src = images[i].preview;
+      slot.appendChild(img);
+      const rm = document.createElement("button");
+      rm.className = "slot-rm"; rm.textContent = "✕"; rm.type = "button";
+      rm.addEventListener("click", e => { e.stopPropagation(); images[i] = null; renderSlot(i); });
+      slot.appendChild(rm);
+    } else {
+      const icon = document.createElement("span");
+      icon.className = "slot-add"; icon.textContent = "📷";
+      slot.appendChild(icon);
+    }
+  }
+
+  slots.forEach((slot, i) => {
+    slot.addEventListener("click", () => {
+      activeSlot = i;
+      fileInput.value = "";
+      fileInput.click();
+    });
+  });
+
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const preview = URL.createObjectURL(file);
+    resizeAndEncode(file, (b64, mediaType) => {
+      images[activeSlot] = { b64, mediaType, preview };
+      renderSlot(activeSlot);
+    });
+  });
+
+  suggestBtn.addEventListener("click", async () => {
+    const ingredients = ingredientsEl.value.trim();
+    const imgPayload  = images.filter(Boolean).map(({ b64, mediaType }) => ({ b64, media_type: mediaType }));
+    if (!ingredients && imgPayload.length === 0) {
+      ingredientsEl.style.borderColor = "var(--danger)";
+      setTimeout(() => ingredientsEl.style.borderColor = "var(--border)", 1500);
+      return;
+    }
+
+    suggestBtn.disabled    = true;
+    loadingEl.style.display = "flex";
+    resultEl.style.display  = "none";
+
+    // Grab calories consumed from today's log (localStorage)
+    let calConsumed = 0;
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const log   = JSON.parse(localStorage.getItem("dailyLog") || "{}");
+      calConsumed = parseInt((log[today] || {}).calories || 0) || 0;
+    } catch (_) {}
+
+    try {
+      const res  = await fetch("/api/meals/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ingredients,
+          images:           imgPayload,
+          hour:             new Date().getHours(),
+          calories_consumed: calConsumed,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      lastResult = data;
+      document.getElementById("suggest-name").textContent  = data.meal_name;
+      document.getElementById("suggest-why").textContent   = data.why;
+
+      // Format instructions (pipe-separated steps)
+      const steps = (data.instructions || "").split("|").map(s => s.trim()).filter(Boolean);
+      document.getElementById("suggest-steps").innerHTML =
+        steps.map((s, i) => `<b>${i+1}.</b> ${s}`).join("<br>");
+
+      // Macro chips
+      document.getElementById("suggest-macros").innerHTML = [
+        `<span class="mac-chip" style="color:var(--amber)">${data.calories} kcal</span>`,
+        `<span class="mac-chip" style="color:#80cbc4">${data.protein_g}g protein</span>`,
+        `<span class="mac-chip" style="color:#9fa8da">${data.carbs_g}g carbs</span>`,
+        `<span class="mac-chip" style="color:#f48fb1">${data.fat_g}g fat</span>`,
+      ].join("");
+
+      resultEl.style.display = "";
+    } catch (err) {
+      alert("Suggestion failed: " + err.message);
+    } finally {
+      suggestBtn.disabled     = false;
+      loadingEl.style.display = "none";
+    }
+  });
+
+  // ── Log this meal — pre-fills the log form below ──────────────
+  logBtn.addEventListener("click", () => {
+    if (!lastResult) return;
+    const mealInput  = document.getElementById("meal-input");
+    const eCal       = document.getElementById("e-calories");
+    const ePro       = document.getElementById("e-protein");
+    const eCarb      = document.getElementById("e-carbs");
+    const eFat       = document.getElementById("e-fat");
+    const hDesc      = document.getElementById("h-description");
+    const hCal       = document.getElementById("h-calories");
+    const hPro       = document.getElementById("h-protein");
+    const hCarb      = document.getElementById("h-carbs");
+    const hFatEl     = document.getElementById("h-fat");
+    const macroFields = document.getElementById("macro-fields");
+    const logBtnMain  = document.getElementById("log-btn");
+
+    mealInput.value  = lastResult.meal_name;
+    hDesc.value      = lastResult.meal_name;
+    eCal.value       = lastResult.calories;   hCal.value  = lastResult.calories;
+    ePro.value       = lastResult.protein_g;  hPro.value  = lastResult.protein_g;
+    eCarb.value      = lastResult.carbs_g;    hCarb.value = lastResult.carbs_g;
+    eFat.value       = lastResult.fat_g;      hFatEl.value = lastResult.fat_g;
+
+    macroFields.classList.add("visible");
+    if (logBtnMain) logBtnMain.style.display = "";
+
+    // Scroll to log form
+    document.getElementById("log-form").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+})();
 
 // ══════════════════════════════════════════════════════
 //  MEALS — Get Macros

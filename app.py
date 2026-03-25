@@ -22,7 +22,7 @@ from db import (
     upsert_sleep, get_sleep, get_sleep_history,
     compute_momentum, get_momentum_history,
 )
-from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, shorten_label, scan_meal_image, generate_momentum_insight
+from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, shorten_label, scan_meal_image, generate_momentum_insight, suggest_meal
 from claude_profile import generate_profile_map, compute_mind_insights, score_brief
 import garmin_sync
 import json
@@ -503,6 +503,55 @@ def api_scan_meal():
         return jsonify({"error": "No image provided"}), 400
     try:
         return jsonify(scan_meal_image(image_b64, media_type, context=context))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/meals/suggest", methods=["POST"])
+@login_required
+def api_meals_suggest():
+    data        = request.get_json() or {}
+    ingredients = data.get("ingredients", "").strip()
+    images      = data.get("images", [])      # [{b64, media_type}]
+    hour        = data.get("hour")             # 0-23, client local hour
+    cal_consumed = data.get("calories_consumed", 0) or 0
+
+    # Determine meal type from hour
+    if hour is None:
+        from datetime import datetime
+        hour = datetime.now().hour
+    if hour < 10:
+        meal_type = "breakfast"
+    elif hour < 14:
+        meal_type = "lunch"
+    elif hour < 17:
+        meal_type = "snack"
+    else:
+        meal_type = "dinner"
+
+    profile = get_profile_map(uid())
+
+    # Calculate remaining calories
+    rmr     = int(profile.get("rmr_kcal") or 1550)
+    deficit = int(profile.get("calorie_deficit_target") or 0)
+    # Use client-provided consumed; fall back to DB
+    if not cal_consumed:
+        totals = get_today_totals(uid(), client_today())
+        cal_consumed = int((totals or {}).get("calories", 0) or 0)
+    cal_target      = rmr - deficit
+    cal_remaining   = max(0, cal_target - cal_consumed)
+
+    try:
+        result = suggest_meal(
+            ingredients=ingredients,
+            images=images[:3],
+            profile_map=profile,
+            calories_remaining=cal_remaining,
+            meal_type=meal_type,
+        )
+        result["meal_type"]      = meal_type
+        result["cal_remaining"]  = cal_remaining
+        return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
