@@ -176,6 +176,13 @@
       font-size: 0.65rem; display: flex; align-items: center; justify-content: center; padding: 0; }
     .suggest-slot .slot-add { font-size: 1.2rem; color: var(--muted); pointer-events: none; }
     .suggest-result { margin-top: 0.85rem; border-top: 1px solid var(--border); padding-top: 0.85rem; }
+    .suggest-option { padding: 0.65rem 0.75rem; background: var(--surface2); border-radius: 10px;
+      border: 1.5px solid var(--border); cursor: pointer; transition: border-color .15s; margin-bottom: 0.5rem; }
+    .suggest-option:last-child { margin-bottom: 0; }
+    .suggest-option:hover { border-color: var(--accent2); }
+    .suggest-option-name { font-family: 'Rajdhani', sans-serif; font-size: 1.05rem; font-weight: 700;
+      margin-bottom: 0.2rem; }
+    .suggest-option-why { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.4rem; line-height: 1.4; }
     .suggest-meal-name { font-family: 'Rajdhani', sans-serif; font-size: 1.25rem; font-weight: 700;
       letter-spacing: 0.02em; margin-bottom: 0.25rem; }
     .suggest-why { font-size: 0.82rem; color: var(--accent2); margin-bottom: 0.65rem; line-height: 1.4; }
@@ -1310,13 +1317,7 @@
           Finding the best meal for right now…
         </div>
         <div id="suggest-result" style="display:none">
-          <div class="suggest-result">
-            <div class="suggest-meal-name" id="suggest-name"></div>
-            <div class="suggest-why" id="suggest-why"></div>
-            <div class="suggest-steps" id="suggest-steps"></div>
-            <div class="suggest-macros" id="suggest-macros"></div>
-            <button class="btn btn-green btn-full" id="suggest-log-btn">Log this meal</button>
-          </div>
+          <div class="suggest-result" id="suggest-result-inner"></div>
         </div>
       </div>
 
@@ -2895,7 +2896,89 @@ function deleteWorkout(id) {
     pendingConfirm = [];
   });
 
-  // \u2500\u2500 Suggest \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  // ── Helpers ──────────────────────────────────────────────────────────
+  let lastOptions = [];
+
+  function macroChips(opt) {
+    return [
+      `<span class="mac-chip" style="color:var(--amber)">${opt.calories} kcal</span>`,
+      `<span class="mac-chip" style="color:#80cbc4">${opt.protein_g}g protein</span>`,
+      `<span class="mac-chip" style="color:#9fa8da">${opt.carbs_g}g carbs</span>`,
+      `<span class="mac-chip" style="color:#f48fb1">${opt.fat_g}g fat</span>`,
+    ].join("");
+  }
+
+  const _resetStyle = "background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;" +
+    "font-size:0.82rem;padding:0.2rem 0.55rem;border-radius:6px;line-height:1.5";
+
+  function resetSuggest() {
+    resultEl.style.display = "none";
+    lastResult = null;
+    lastOptions = [];
+  }
+
+  function logMeal(opt) {
+    document.getElementById("meal-input").value    = opt.meal_name;
+    document.getElementById("h-description").value = opt.meal_name;
+    document.getElementById("e-calories").value    = opt.calories;
+    document.getElementById("h-calories").value    = opt.calories;
+    document.getElementById("e-protein").value     = opt.protein_g;
+    document.getElementById("h-protein").value     = opt.protein_g;
+    document.getElementById("e-carbs").value       = opt.carbs_g;
+    document.getElementById("h-carbs").value       = opt.carbs_g;
+    document.getElementById("e-fat").value         = opt.fat_g;
+    document.getElementById("h-fat").value         = opt.fat_g;
+    document.getElementById("macro-fields").classList.add("visible");
+    const lb = document.getElementById("log-btn"); if (lb) lb.style.display = "";
+    document.getElementById("log-form").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function renderOptions(options) {
+    const inner = document.getElementById("suggest-result-inner");
+    inner.innerHTML =
+      `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.55rem">` +
+        `<div style="font-size:0.8rem;color:var(--muted)">Choose a meal:</div>` +
+        `<button type="button" id="suggest-reset-btn" style="${_resetStyle}">&#x2715; Start over</button>` +
+      `</div>` +
+      options.map((opt, i) =>
+        `<div class="suggest-option" data-idx="${i}">` +
+          `<div class="suggest-option-name">${opt.meal_name}</div>` +
+          `<div class="suggest-option-why">${opt.why}</div>` +
+          `<div class="suggest-macros">${macroChips(opt)}</div>` +
+        `</div>`
+      ).join("");
+    inner.querySelectorAll(".suggest-option").forEach(el => {
+      el.addEventListener("click", () => renderDetail(options[parseInt(el.dataset.idx)], options));
+    });
+    inner.querySelector("#suggest-reset-btn").addEventListener("click", resetSuggest);
+    resultEl.style.display = "";
+  }
+
+  function renderDetail(opt, options) {
+    lastResult = opt;
+    const inner = document.getElementById("suggest-result-inner");
+    const steps = (opt.instructions || "").split("|").map(s => s.trim()).filter(Boolean);
+    inner.innerHTML =
+      `<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.35rem">` +
+        `<div class="suggest-meal-name">${opt.meal_name}</div>` +
+        `<button type="button" id="suggest-reset-btn" style="${_resetStyle}">&#x2715; Start over</button>` +
+      `</div>` +
+      `<div class="suggest-why">${opt.why}</div>` +
+      `<div class="suggest-steps">${steps.map((s, i) => `<b>${i+1}.</b> ${s}`).join("<br>")}</div>` +
+      `<div class="suggest-macros">${macroChips(opt)}</div>` +
+      `<div style="display:flex;gap:0.5rem;margin-top:0.1rem">` +
+        `<button type="button" id="suggest-log-btn-dyn" class="btn btn-green" style="flex:1">Log this meal</button>` +
+        `<button type="button" id="suggest-back-btn" class="btn"` +
+          ` style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:0.55rem 0.85rem;font-size:0.85rem">` +
+          `&#8592; Back` +
+        `</button>` +
+      `</div>`;
+    inner.querySelector("#suggest-log-btn-dyn").addEventListener("click", () => logMeal(opt));
+    inner.querySelector("#suggest-back-btn").addEventListener("click", () => renderOptions(options));
+    inner.querySelector("#suggest-reset-btn").addEventListener("click", resetSuggest);
+  }
+
+  // ── Suggest ──────────────────────────────────────────────────────────
   suggestBtn.addEventListener("click", async () => {
     const pantryItems = loadPantry();
     const extraText   = ingredientsEl.value.trim();
@@ -2923,19 +3006,9 @@ function deleteWorkout(id) {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      lastResult = data;
-
-      document.getElementById("suggest-name").textContent = data.meal_name;
-      document.getElementById("suggest-why").textContent  = data.why;
-      const steps = (data.instructions || "").split("|").map(s => s.trim()).filter(Boolean);
-      document.getElementById("suggest-steps").innerHTML  = steps.map((s, idx) => `<b>${idx+1}.</b> ${s}`).join("<br>");
-      document.getElementById("suggest-macros").innerHTML = [
-        `<span class="mac-chip" style="color:var(--amber)">${data.calories} kcal</span>`,
-        `<span class="mac-chip" style="color:#80cbc4">${data.protein_g}g protein</span>`,
-        `<span class="mac-chip" style="color:#9fa8da">${data.carbs_g}g carbs</span>`,
-        `<span class="mac-chip" style="color:#f48fb1">${data.fat_g}g fat</span>`,
-      ].join("");
-      resultEl.style.display = "";
+      lastOptions = data.options || [];
+      if (!lastOptions.length) throw new Error("No options returned.");
+      renderOptions(lastOptions);
     } catch(err) {
       alert("Suggestion failed: " + err.message);
     } finally {
@@ -2944,23 +3017,6 @@ function deleteWorkout(id) {
     }
   });
 
-  // \u2500\u2500 Log this meal \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-  logBtn.addEventListener("click", () => {
-    if (!lastResult) return;
-    document.getElementById("meal-input").value    = lastResult.meal_name;
-    document.getElementById("h-description").value = lastResult.meal_name;
-    document.getElementById("e-calories").value    = lastResult.calories;
-    document.getElementById("h-calories").value    = lastResult.calories;
-    document.getElementById("e-protein").value     = lastResult.protein_g;
-    document.getElementById("h-protein").value     = lastResult.protein_g;
-    document.getElementById("e-carbs").value       = lastResult.carbs_g;
-    document.getElementById("h-carbs").value       = lastResult.carbs_g;
-    document.getElementById("e-fat").value         = lastResult.fat_g;
-    document.getElementById("h-fat").value         = lastResult.fat_g;
-    document.getElementById("macro-fields").classList.add("visible");
-    const lb = document.getElementById("log-btn"); if (lb) lb.style.display = "";
-    document.getElementById("log-form").scrollIntoView({ behavior: "smooth", block: "start" });
-  });
 
   // Init
   renderPantry();

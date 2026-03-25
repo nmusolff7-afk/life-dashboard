@@ -151,25 +151,32 @@ def identify_ingredients(images: list) -> list[str]:
 
 # ── Meal suggestion ───────────────────────────────────
 
-SUGGEST_PROMPT = """You are a personal nutrition coach. The user has told you what ingredients they have available (and may have shared fridge photos). Suggest ONE specific meal that:
-1. Is appropriate for the stated meal time
-2. Uses ingredients they actually have
-3. Helps them hit their remaining calorie target for the day
-4. Respects their dietary preferences
+SUGGEST_PROMPT = """You are a personal nutrition coach. The user has told you what ingredients they have available. Suggest THREE different meal options that:
+1. Are appropriate for the stated meal time
+2. Use ingredients they actually have
+3. Help them hit their remaining calorie target for the day
+4. Respect their dietary preferences
+5. Vary enough to give a real choice (e.g. light vs hearty, quick vs more involved)
 
 Respond ONLY with this exact JSON structure (no markdown, no explanation):
 {
-  "meal_name": "<2-5 word meal name>",
-  "why": "<1 sentence: why this fits their goal right now>",
-  "instructions": "<brief recipe: 2-4 steps separated by | >",
-  "calories": <integer>,
-  "protein_g": <number with one decimal>,
-  "carbs_g": <number with one decimal>,
-  "fat_g": <number with one decimal>,
+  "options": [
+    {
+      "meal_name": "<2-5 word meal name>",
+      "why": "<1 sentence: why this fits their goal right now>",
+      "instructions": "<brief recipe: 2-4 steps separated by | >",
+      "calories": <integer>,
+      "protein_g": <number with one decimal>,
+      "carbs_g": <number with one decimal>,
+      "fat_g": <number with one decimal>
+    },
+    { ... },
+    { ... }
+  ],
   "identified_ingredients": ["<ingredient>", ...]
 }
 
-The identified_ingredients array should contain every distinct ingredient visible in any photos OR mentioned by the user — normalized to simple names (e.g. "chicken breast", "eggs", "broccoli"). Real food items only, not condiments or vague terms."""
+The identified_ingredients array should contain every distinct ingredient visible in any photos OR mentioned by the user — normalized to simple names (e.g. "chicken breast", "eggs", "broccoli"). Real food items only."""
 
 
 def suggest_meal(
@@ -197,11 +204,11 @@ def suggest_meal(
     if ingredients.strip():
         context_text += f"\n\nAvailable ingredients: {ingredients.strip()}"
     if images:
-        context_text += f"\n\n{len(images)} fridge photo(s) attached — use them to identify additional ingredients."
+        context_text += f"\n\n{len(images)} photo(s) attached — use them to identify additional ingredients."
 
     # Build message content
     content = []
-    for img in images[:3]:
+    for img in images[:6]:
         content.append({
             "type": "image",
             "source": {
@@ -214,23 +221,32 @@ def suggest_meal(
 
     response = _client().messages.create(
         model="claude-opus-4-6",
-        max_tokens=700,
+        max_tokens=1200,
         system=SUGGEST_PROMPT,
         messages=[{"role": "user", "content": content}],
     )
     text = next(b.text for b in response.content if b.type == "text")
     data = _parse_json(text)
+    raw_options = data.get("options") or []
+    options = []
+    for opt in raw_options[:3]:
+        try:
+            options.append({
+                "meal_name":  opt.get("meal_name", "Suggested Meal"),
+                "why":        opt.get("why", ""),
+                "instructions": opt.get("instructions", ""),
+                "calories":   int(opt["calories"]),
+                "protein_g":  float(opt["protein_g"]),
+                "carbs_g":    float(opt["carbs_g"]),
+                "fat_g":      float(opt["fat_g"]),
+            })
+        except (KeyError, TypeError, ValueError):
+            continue
     raw_ingredients = data.get("identified_ingredients") or []
     if not isinstance(raw_ingredients, list):
         raw_ingredients = []
     return {
-        "meal_name":              data.get("meal_name", "Suggested Meal"),
-        "why":                    data.get("why", ""),
-        "instructions":           data.get("instructions", ""),
-        "calories":               int(data["calories"]),
-        "protein_g":              float(data["protein_g"]),
-        "carbs_g":                float(data["carbs_g"]),
-        "fat_g":                  float(data["fat_g"]),
+        "options":                options,
         "identified_ingredients": [str(i).strip() for i in raw_ingredients if i],
     }
 

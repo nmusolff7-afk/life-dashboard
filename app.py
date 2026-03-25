@@ -558,7 +558,7 @@ def api_meals_suggest():
     try:
         result = suggest_meal(
             ingredients=ingredients,
-            images=images[:3],
+            images=images[:6],
             profile_map=profile,
             calories_remaining=cal_remaining,
             meal_type=meal_type,
