@@ -193,13 +193,17 @@ _DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Su
 # ── Momentum pattern insight ──────────────────────────
 
 _MOMENTUM_INSIGHT_SYSTEM = (
-    "You are a data analyst reviewing a week of health and habit tracking. "
-    "Your job is to find one cross-domain pattern by comparing today against the 7-day trend — "
-    "for example: sleep duration tracking with next-day activity, calorie intake relative to burn, "
-    "or check-in consistency correlating with task completion. "
-    "Never report a single metric in isolation. Always connect at least two domains. "
-    "Write 1-2 tight sentences. Cite specific numbers from the data. "
-    "No advice, no encouragement, no filler."
+    "You are a read-only data analyst. You have access to a user's health and habit tracking data. "
+    "Your only job is to cross-check the numbers and report a genuine pattern if one exists. "
+    "Rules:\n"
+    "- Use the TIME field to anchor your analysis. Morning insights focus on overnight/previous-day patterns. "
+    "  Afternoon insights can compare today so far against the trend. Evening insights can assess the full day.\n"
+    "- Only report a pattern if it is genuinely visible in the numbers — two or more domains (sleep, movement, "
+    "  nutrition, habits, score) that clearly correlate or contrast with each other or the 7-day trend.\n"
+    "- If no genuine cross-domain pattern is visible, return exactly: 'No clear pattern in today\\'s data.'\n"
+    "- Write 1-2 sentences maximum. Cite specific numbers. Present tense, factual tone.\n"
+    "- No advice, no recommendations, no encouragement, no coaching, no filler. "
+    "  You do not know better than the user — you only see the data they have logged."
 )
 
 
@@ -320,19 +324,20 @@ def generate_momentum_insight(
     # Eating hours left: assume window closes around 9 pm (21:00)
     hours_left  = max(0, 21 - hour) if hour is not None else "unknown"
 
-    user_msg = f"""TIME: {time_label} | SCORE: {breakdown.get('momentum_score')}/100
-PROFILE: goal={primary_goal} | archetype={archetype} | rmr={rmr} kcal | deficit_goal={deficit} kcal/day
+    user_msg = f"""CURRENT TIME: {time_label}
+TODAY'S SCORE: {breakdown.get('momentum_score')}/100
 
+TODAY'S DATA
 SLEEP     | {sleep_text.strip()}
 MOVEMENT  | steps={garmin.get('steps', 0) if garmin else 'N/A'}, burned={active_burned} kcal, workouts={len(workouts)} logged
-NUTRITION | logged={cal_logged} kcal, target={adj_target} kcal (rmr {rmr} + {active_burned} burned - {deficit} deficit), remaining={remaining} kcal, ~{hours_left}h eating time left, protein={round(sum(m.get('protein_g',0) for m in meals),1)}g
-HABITS    | checkin=morning:{'Y' if c.get('morning_done') else 'N'}/evening:{'Y' if c.get('evening_done') else 'N'}, tasks={t.get('completed', 0)}/{t.get('total', 0)} done
-WELLBEING | today={round((w.get('pct') or 0) * 10, 1)}/10, 7d_avg={w.get('past_7d_avg')}/10, energy={w.get('avg_energy')}/10
+NUTRITION | logged={cal_logged} kcal, target={adj_target} kcal, remaining={remaining} kcal, ~{hours_left}h left in eating window, protein={round(sum(m.get('protein_g',0) for m in meals),1)}g
+HABITS    | morning_checkin={'done' if c.get('morning_done') else 'not done'}, evening_checkin={'done' if c.get('evening_done') else 'not done'}, tasks={t.get('completed', 0)}/{t.get('total', 0)} completed
+WELLBEING | today={round((w.get('pct') or 0) * 10, 1)}/10, 7d_avg={w.get('past_7d_avg')}/10
 
-7-DAY TREND (score | nutrition% | activity% | checkin | tasks%):
+7-DAY TREND (date | score | nutrition% | activity% | checkin_done | task_completion%):
 {history_text}
 
-Compare today's numbers against the 7-day trend. Find one pattern that connects at least two domains (sleep + movement, nutrition + activity, habits + score, etc.). Cite specific numbers. Do not describe a single metric in isolation. Do not mention wellbeing unless it is the clearest cross-domain signal."""
+Cross-check today's data against the 7-day trend. Report a genuine pattern only if the numbers clearly show one across two or more domains. Anchor your observation to the current time ({time_label}). Cite the specific numbers that show the pattern. If no real pattern is visible, say so."""
 
     response = _client().messages.create(
         model="claude-haiku-4-5-20251001",

@@ -336,10 +336,36 @@ def compute_mind_insights(profile_map: dict) -> dict:
     }
 
 
+# ── Evening prompt generation ────────────────────────────────────────────────
+
+def generate_evening_prompt(goals: str, notes: str, summary: str) -> str | None:
+    """Generate one adaptive follow-up question for the evening debrief based on morning content."""
+    parts = []
+    if goals   and goals.strip():   parts.append(f"Goals: {goals.strip()}")
+    if notes   and notes.strip():   parts.append(f"Notes: {notes.strip()}")
+    if summary and summary.strip(): parts.append(f"Summary: {summary.strip()}")
+    if not parts:
+        return None
+    try:
+        msg = _client().messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=80,
+            messages=[{"role": "user", "content": (
+                "Based on this morning check-in, write ONE short follow-up question for the "
+                "evening debrief. Reference something specific they mentioned — a goal, plan, "
+                "or concern. Be direct and conversational. Return only the question, nothing else.\n\n"
+                + "\n".join(parts)
+            )}],
+        )
+        return next(b.text for b in msg.content if b.type == "text").strip()
+    except Exception:
+        return None
+
+
 # ── Daily brief / debrief scoring ────────────────────────────────────────────
 
 def score_brief(brief_type: str, notes: str, goals: str) -> dict:
-    """Score a brief and extract actionable tasks via Claude Haiku."""
+    """Score a brief and extract explicitly stated tasks via Claude Haiku."""
     import re
     goals_line = f"Goals: {goals.strip()}\n" if goals.strip() else ""
     prompt = (
@@ -347,9 +373,11 @@ def score_brief(brief_type: str, notes: str, goals: str) -> dict:
         f'- "focus": integer 1-10 (goal clarity, motivation, mental sharpness)\n'
         f'- "wellbeing": integer 1-10 (mood, energy, stress — higher is better)\n'
         f'- "summary": string under 15 words capturing the key takeaway\n'
-        f'- "tasks": array of short discrete to-do items extracted from the text. '
-        f'ONLY include specific, completable actions with a clear done state — e.g. "buy eggs", "call dentist", "send report to Mike". '
-        f'Do NOT include habits, lifestyle changes, or vague aspirations — e.g. do NOT add "stop drinking alcohol", "exercise more", "be more productive", "drink less coffee". '
+        f'- "tasks": array of tasks. STRICT RULE: only include items the user EXPLICITLY stated they intend to do or want to accomplish. '
+        f'Copy the intent verbatim or very close to it. '
+        f'DO NOT infer, suggest, or add anything not directly stated — even if it seems obvious or helpful. '
+        f'DO NOT add habits, lifestyle advice, or goals implied by context. '
+        f'If the user said nothing they explicitly plan to do, return an empty array. '
         f'Max 10 tasks.\n\n'
         f"{goals_line}Notes: {notes.strip()}\n\nReturn JSON only, no other text:"
     )
