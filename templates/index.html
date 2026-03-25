@@ -1880,21 +1880,16 @@
   </div>
 </div>
 
-<!-- Change Workout overlay -->
+<!-- Switch Day overlay -->
 <div id="change-workout-overlay">
   <div class="cl-header">
     <button class="btn btn-ghost" id="cw-cancel-btn" style="padding:0.45rem 0.75rem;font-size:0.85rem">Cancel</button>
-    <span style="font-size:0.9rem;font-weight:700">Change Workout</span>
+    <span style="font-size:0.9rem;font-weight:700">Switch Day</span>
     <div style="width:70px"></div>
   </div>
   <div class="cw-scroll">
     <div class="card-title" style="margin-bottom:0.65rem">Pick a day from your plan</div>
     <div id="cw-day-list"></div>
-    <div style="height:1px;background:var(--border);margin:1rem 0"></div>
-    <div class="card-title" style="margin-bottom:0.65rem">Or build a one-off custom workout</div>
-    <div id="cw-custom-rows"></div>
-    <button class="btn btn-ghost" id="cw-add-ex-btn" style="margin-bottom:0.75rem">+ Add Exercise</button>
-    <button class="btn btn-primary btn-full" id="cw-start-custom-btn">Start Custom Workout</button>
   </div>
 </div>
 
@@ -3003,8 +2998,61 @@ function deleteWorkout(id) {
         block.appendChild(row);
       });
 
+      // "+ Set" button per exercise
+      const addSetBtn = document.createElement("button");
+      addSetBtn.className = "btn btn-ghost";
+      addSetBtn.textContent = "+ Set";
+      addSetBtn.style.cssText = "font-size:0.75rem;padding:0.28rem 0.6rem;margin-top:0.35rem";
+      addSetBtn.addEventListener("click", () => {
+        workoutState[ei].sets.push({ completed: false, weight: 0, reps: 0 });
+        renderChecklist(workoutState);
+      });
+      block.appendChild(addSetBtn);
+
       clBody.appendChild(block);
     });
+
+    // "+ Add Exercise" section — always visible during a session
+    const addExWrap = document.createElement("div");
+    addExWrap.style.cssText = "padding:0.75rem 0 0.25rem;display:flex;flex-direction:column;gap:0.4rem";
+    const addExBtn = document.createElement("button");
+    addExBtn.className = "btn btn-ghost btn-full";
+    addExBtn.textContent = "+ Add Exercise";
+    addExBtn.addEventListener("click", () => {
+      addExWrap.innerHTML = "";
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;gap:0.4rem;align-items:center";
+      const nameIn = document.createElement("input");
+      nameIn.type = "text"; nameIn.placeholder = "Exercise name";
+      nameIn.style.cssText = "flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.5rem 0.6rem;color:var(--text);font-size:0.9rem;min-width:0";
+      const micBtn = document.createElement("button");
+      micBtn.className = "btn btn-ghost"; micBtn.title = "Voice input";
+      micBtn.style.cssText = "padding:0.4rem 0.5rem;font-size:1rem;flex-shrink:0";
+      micBtn.textContent = "🎤";
+      micBtn.addEventListener("click", () => {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) { nameIn.focus(); return; }
+        const rec = new SR(); rec.continuous = false; rec.interimResults = false;
+        rec.onresult = e => { nameIn.value = e.results[0][0].transcript; nameIn.focus(); };
+        rec.start();
+      });
+      const confirmBtn = document.createElement("button");
+      confirmBtn.className = "btn btn-green"; confirmBtn.textContent = "Add";
+      confirmBtn.style.cssText = "padding:0.4rem 0.75rem;flex-shrink:0";
+      const doAdd = () => {
+        const name = nameIn.value.trim();
+        if (!name) { nameIn.focus(); return; }
+        workoutState.push({ name, sets: [{ completed: false, weight: 0, reps: 0 }] });
+        renderChecklist(workoutState);
+      };
+      confirmBtn.addEventListener("click", doAdd);
+      nameIn.addEventListener("keydown", e => { if (e.key === "Enter") doAdd(); });
+      row.append(nameIn, micBtn, confirmBtn);
+      addExWrap.appendChild(row);
+      nameIn.focus();
+    });
+    addExWrap.appendChild(addExBtn);
+    clBody.appendChild(addExWrap);
   }
 
   // ── Start session ────────────────────────────────────
@@ -3028,6 +3076,10 @@ function deleteWorkout(id) {
   bannerEl.addEventListener("click", () => {
     if (workoutState) showOverlay();
   });
+
+  function startQuickWorkout() {
+    startWorkoutSession([], null);
+  }
 
   function startWorkoutSession(exercises, dayName) {
     activeDayName = dayName || null;
@@ -3094,24 +3146,22 @@ function deleteWorkout(id) {
     const dayName  = DAYS_OF_WEEK[new Date().getDay()];
 
     if (todayExs === null || (todayExs.length === 0 && !getFullWeeklyPlan())) {
-      // No plan configured
+      // No plan configured — quick workout is the primary action
       idleEl.innerHTML = `
         <p style="font-size:0.82rem;color:var(--muted);text-align:center;max-width:260px">
-          No weekly plan set. Configure one in Profile to see today's workout here.</p>
-        <button class="btn btn-green" id="start-workout-btn" style="min-width:180px">Start Default Workout</button>
-        <button class="btn btn-ghost" id="change-workout-idle-btn" style="min-width:180px;margin-top:0.4rem">Change Workout</button>`;
-      document.getElementById("start-workout-btn").addEventListener("click", () => startWorkoutSession(DEFAULT_PLAN, null));
-      document.getElementById("change-workout-idle-btn").addEventListener("click", openChangeWorkout);
+          No plan set for today. Start a quick workout and add exercises as you go.</p>
+        <button class="btn btn-green" id="start-workout-btn" style="min-width:200px">Start Quick Workout</button>`;
+      document.getElementById("start-workout-btn").addEventListener("click", startQuickWorkout);
 
     } else if (todayExs.length === 0) {
-      // Rest day
+      // Rest day (plan exists)
       idleEl.innerHTML = `
         <div class="rest-day-notice">
           <span>Rest day — no workout scheduled for ${dayName}.</span>
-          <button class="btn btn-ghost" id="override-rest-btn">Override &amp; Start Anyway</button>
-          <button class="btn btn-ghost" id="change-workout-idle-btn" style="margin-top:0.4rem">Change Workout</button>
+          <button class="btn btn-green" id="start-workout-btn" style="min-width:200px">Start Quick Workout</button>
+          <button class="btn btn-ghost" id="change-workout-idle-btn" style="margin-top:0.4rem;min-width:200px">Switch Plan Day</button>
         </div>`;
-      document.getElementById("override-rest-btn").addEventListener("click", () => startWorkoutSession(DEFAULT_PLAN, null));
+      document.getElementById("start-workout-btn").addEventListener("click", startQuickWorkout);
       document.getElementById("change-workout-idle-btn").addEventListener("click", openChangeWorkout);
 
     } else {
@@ -3132,7 +3182,7 @@ function deleteWorkout(id) {
       idleEl.innerHTML = planHtml
         + `<div class="btn-row" style="width:100%;justify-content:center;gap:0.5rem;margin-top:0.25rem">
              <button class="btn btn-green" id="start-workout-btn" style="flex:1">Start ${dayName}'s Workout</button>
-             <button class="btn btn-ghost" id="change-workout-idle-btn">Change</button>
+             <button class="btn btn-ghost" id="change-workout-idle-btn">Switch Day</button>
            </div>`;
       document.getElementById("start-workout-btn").addEventListener("click", () => startWorkoutSession(todayExs, dayName));
       document.getElementById("change-workout-idle-btn").addEventListener("click", openChangeWorkout);
@@ -3303,12 +3353,8 @@ function deleteWorkout(id) {
   const cwOverlay  = document.getElementById("change-workout-overlay");
   const cwCancel   = document.getElementById("cw-cancel-btn");
   const cwDayList  = document.getElementById("cw-day-list");
-  const cwCustom   = document.getElementById("cw-custom-rows");
-  const cwAddEx    = document.getElementById("cw-add-ex-btn");
-  const cwStartCus = document.getElementById("cw-start-custom-btn");
 
   function openChangeWorkout() {
-    // Populate day picker
     cwDayList.innerHTML = "";
     const plan = getFullWeeklyPlan();
     DAYS_OF_WEEK.forEach(day => {
@@ -3325,38 +3371,8 @@ function deleteWorkout(id) {
       });
       cwDayList.appendChild(btn);
     });
-    // Reset custom section
-    cwCustom.innerHTML = "";
-    addCustomRow();
     cwOverlay.classList.add("active");
   }
-
-  function addCustomRow() {
-    const row = document.createElement("div");
-    row.className = "cw-ex-row";
-    row.innerHTML = `
-      <input type="text" placeholder="Exercise name" class="cw-ex-name">
-      <input type="number" placeholder="Sets" class="cw-ex-sets" min="1" max="10" value="3">
-      <button class="btn btn-danger" style="padding:0.3rem 0.5rem;flex-shrink:0">✕</button>`;
-    row.querySelector(".btn-danger").addEventListener("click", () => {
-      if (cwCustom.children.length > 1) row.remove();
-    });
-    cwCustom.appendChild(row);
-  }
-
-  cwAddEx.addEventListener("click", addCustomRow);
-
-  cwStartCus.addEventListener("click", () => {
-    const rows = [...cwCustom.querySelectorAll(".cw-ex-row")];
-    const exercises = rows.map(r => ({
-      name: r.querySelector(".cw-ex-name").value.trim(),
-      sets: parseInt(r.querySelector(".cw-ex-sets").value) || 3,
-      defaultWeight: 0, defaultReps: 0,
-    })).filter(e => e.name);
-    if (!exercises.length) return;
-    cwOverlay.classList.remove("active");
-    startWorkoutSession(exercises, null); // null = don't save to history
-  });
 
   cwCancel.addEventListener("click", () => cwOverlay.classList.remove("active"));
 
