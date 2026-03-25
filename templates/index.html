@@ -4200,10 +4200,14 @@ function fmtDate(iso) {
     const deficitMap = {};
     candidateDates.forEach(d => {
       let val = null;
-      if (d === localToday()) {
-        const local = localLog[d];
-        if (local && typeof local === "object" && local.deficit != null) val = -local.deficit;
+      // Priority 1: localStorage deficit — most accurate (full TDEE incl. NEAT + TEF)
+      const local = localLog[d];
+      if (local && typeof local === "object" && local.deficit != null) {
+        val = -local.deficit;   // stored as (tdee − consumed); chart convention is (consumed − tdee)
+      } else if (local && typeof local === "number") {
+        val = -local;
       }
+      // Priority 2: server meal + burn data (no NEAT/TEF, but consistent fallback)
       if (val === null) {
         const mealRow = serverMeals[d];
         if (mealRow && mealRow.calories > 0) {
@@ -4213,11 +4217,6 @@ function fmtDate(iso) {
             : (serverWorkouts[d] || []).reduce((s, w) => s + (w.calories_burned || 0), 0);
           val = mealRow.calories - (rmr + activeBurn);
         }
-      }
-      if (val === null) {
-        const local = localLog[d];
-        if (local && typeof local === "object" && local.deficit != null) val = -local.deficit;
-        else if (local && typeof local === "number") val = -local;
       }
       if (val !== null) deficitMap[d] = val;
     });
@@ -4818,8 +4817,17 @@ function fmtDate(iso) {
       const sleep    = (serverData.sleep || {})[d]  || null;
 
       // Deficit/calories — prefer dailyLog (has full TDEE), fall back to server totals
-      const calories = dayData ? dayData.calories : (meals ? meals.calories : null);
-      const deficit  = dayData ? dayData.deficit  : null;
+      const calories = (dayData && dayData.calories != null) ? dayData.calories : (meals ? meals.calories : null);
+      let deficit = (dayData && dayData.deficit != null) ? dayData.deficit : null;
+      // Fallback: compute from server data with same formula as the chart
+      if (deficit === null && meals && meals.calories > 0) {
+        const gDay = (serverData.garmin || {})[d];
+        const activeBurn = gDay && gDay.active_calories
+          ? gDay.active_calories
+          : ws.reduce((s, w) => s + (w.calories_burned || 0), 0);
+        const profileRmr = (JSON.parse(localStorage.getItem("profileData") || "{}")).rmr || SERVER_RMR;
+        deficit = (profileRmr + activeBurn) - meals.calories;  // positive = deficit
+      }
 
       // Workout icons
       let icons = "";
