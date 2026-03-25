@@ -689,11 +689,19 @@ def api_garmin_sync():
     if not garmin_sync.is_configured():
         return jsonify({"error": "GARMIN_EMAIL and GARMIN_PASSWORD are not set in environment variables."}), 400
 
+    import time as _time
     data      = request.get_json() or {}
     sync_date = data.get("date") or client_today()
+    force     = data.get("force", False)
+
+    # Throttle manual syncs: skip if fetched within the last 5 minutes (unless forced)
+    elapsed = _time.time() - garmin_sync._last_fetch_time
+    if not force and elapsed < 300:
+        return jsonify({"skipped": True, "reason": f"synced {int(elapsed)}s ago — wait a moment"}), 200
 
     try:
         result = garmin_sync.fetch_day(sync_date)
+        garmin_sync._last_fetch_time = _time.time()
     except Exception as e:
         return jsonify({"error": str(e)}), 502
 

@@ -157,13 +157,12 @@ def fetch_day(date_str: str) -> dict:
     client = get_client()
 
     summary    = client.get_user_summary(date_str)
-    hr_data    = client.get_heart_rates(date_str)
     activities = client.get_activities(0, 10)  # fetch last 10 to cover the target date
 
     steps           = int(summary.get("totalSteps")          or 0)
     active_calories = int(summary.get("activeKilocalories")  or 0)
     total_calories  = int(summary.get("totalKilocalories")   or 0)
-    resting_hr      = hr_data.get("restingHeartRate") if hr_data else None
+    resting_hr      = summary.get("restingHeartRate") or None
 
     # Sleep data — non-fatal if unavailable
     sleep = None
@@ -207,29 +206,38 @@ def fetch_day(date_str: str) -> dict:
 
 # ── Background polling thread ─────────────────────────────────────────────────
 
-POLL_INTERVAL_SEC      = 10 * 60   # 10 minutes
-RATE_LIMIT_BACKOFF_SEC = 15 * 60   # 15 minutes extra sleep on 429
+POLL_INTERVAL_SEC      = 60 * 60   # 60 minutes
+RATE_LIMIT_BACKOFF_SEC = 60 * 60   # 60 minutes extra sleep on 429
+STALE_THRESHOLD_SEC    = 45 * 60   # skip fetch if data is fresher than 45 min
 
 _poll_thread: threading.Thread | None = None
+_last_fetch_time: float = 0.0  # epoch seconds of last successful fetch
 
 
 def _poll_loop(save_fn, user_id: int) -> None:
     """
     Runs forever in a daemon thread. Calls save_fn(user_id, date_str, result)
-    every POLL_INTERVAL_SEC seconds.
+    every POLL_INTERVAL_SEC seconds, skipping if data was fetched recently.
     """
     import time
+    global _last_fetch_time
     while True:
         try:
-            today  = date.today().isoformat()
-            result = fetch_day(today)
-            save_fn(user_id, today, result)
-            logger.info(
-                "Garmin poll OK — steps=%s active_cal=%s activities=%s",
-                result["steps"], result["active_calories"], len(result["activities"]),
-            )
+            now   = time.time()
+            today = date.today().isoformat()
+            if now - _last_fetch_time < STALE_THRESHOLD_SEC:
+                logger.debug("Garmin: skipping poll — data fetched %.0f min ago",
+                             (now - _last_fetch_time) / 60)
+            else:
+                result = fetch_day(today)
+                save_fn(user_id, today, result)
+                _last_fetch_time = time.time()
+                logger.info(
+                    "Garmin poll OK — steps=%s active_cal=%s activities=%s",
+                    result["steps"], result["active_calories"], len(result["activities"]),
+                )
         except GarminConnectTooManyRequestsError:
-            logger.warning("Garmin: rate-limited (429) — sleeping 15 min extra")
+            logger.warning("Garmin: rate-limited (429) — sleeping 60 min extra")
             time.sleep(RATE_LIMIT_BACKOFF_SEC)
         except (GarminConnectAuthenticationError, GarthHTTPError):
             logger.warning("Garmin: auth error — invalidating tokens and re-authenticating")
