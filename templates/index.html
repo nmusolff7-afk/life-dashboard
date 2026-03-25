@@ -2181,6 +2181,21 @@ function saveDayField(date, updates) {
   } catch(e) {}
 }
 
+// Sync a just-logged weight into profileData so "About You" always shows current weight
+function syncWeightToProfile(weight) {
+  if (!weight || weight < 50) return;
+  try {
+    const profile = JSON.parse(localStorage.getItem("profileData") || "{}");
+    profile.curWeight = weight;
+    localStorage.setItem("profileData", JSON.stringify(profile));
+    // Update the profile-tab input if visible
+    const el = document.getElementById("p-cur-weight");
+    if (el) el.value = weight;
+    // Recalculate preview if profile tab is open
+    if (typeof window._refreshProfilePreview === "function") window._refreshProfilePreview();
+  } catch(e) {}
+}
+
 // One-time migration: copy scaleLog/stepsLog into dailyLog
 (function() {
   try {
@@ -3675,6 +3690,7 @@ function deleteWorkout(id) {
     const val = parseFloat(input.value);
     if (!val) { label.textContent = ""; return; }
     saveDayField(localToday(), { weight: val });
+    syncWeightToProfile(val);
     label.textContent = "Saved for today";
     saveBtn.textContent = "Update Weight";
     if (typeof window._refreshDashboard === "function") window._refreshDashboard();
@@ -4182,14 +4198,18 @@ try {
     const goalSetDate = (!existing.goalSetDate || inp.tgtWeight !== existing.tgtWeight)
       ? localToday()
       : existing.goalSetDate;
+    const goalStartWeight = (!existing.goalStartWeight || inp.tgtWeight !== existing.tgtWeight)
+      ? inp.curWeight
+      : existing.goalStartWeight;
     const profile = {
       ...inp,
-      rmr:         getSlider("rmr"),
-      deficit:     getSlider("deficit"),
-      protein:     getSlider("protein"),
-      carbs:       getSlider("carbs"),
-      fat:         getSlider("fat"),
+      rmr:             getSlider("rmr"),
+      deficit:         getSlider("deficit"),
+      protein:         getSlider("protein"),
+      carbs:           getSlider("carbs"),
+      fat:             getSlider("fat"),
       goalSetDate,
+      goalStartWeight,
     };
     localStorage.setItem("profileData", JSON.stringify(profile));
     applyProfileToMeals(profile);
@@ -5822,10 +5842,10 @@ if ("serviceWorker" in navigator) {
         } else if (curW <= tgtW) {
           goalEl.innerHTML = `<div style="color:var(--green);font-weight:600;font-size:1.1rem">Goal reached!</div>`;
         } else {
-          // startW = weight on the day the goal was set (from dailyLog), else curW
+          // startW = weight when goal was last set, falling back to dailyLog entry then curW
           const dailyLog = JSON.parse(localStorage.getItem("dailyLog") || "{}");
           const goalEntry = dailyLog[goalSetDate];
-          const startW    = (goalEntry && goalEntry.weight) ? goalEntry.weight : curW;
+          const startW    = profile.goalStartWeight || (goalEntry && goalEntry.weight) || curW;
           const lbsToGo   = curW - tgtW;
           const lbsLost   = startW - curW;
           const totalLbs  = startW - tgtW;
@@ -5869,6 +5889,7 @@ if ("serviceWorker" in navigator) {
     const val = parseFloat(weightQInput.value);
     if (!val || val < 50) return;
     saveDayField(localToday(), { weight: val });
+    syncWeightToProfile(val);
     weightBackdrop.classList.remove("active");
     if (typeof window._refreshDashboard === "function") window._refreshDashboard();
     // Sync to workout-tab weight input if present
@@ -6158,6 +6179,7 @@ if ("serviceWorker" in navigator) {
         // Persist bodyweight to localStorage immediately so dashboard updates
         if (isM && bw && bw > 0) {
           saveDayField(localToday(), { weight: bw });
+          syncWeightToProfile(bw);
           if (typeof window._refreshDashboard === "function") window._refreshDashboard();
         }
         initBriefs();
