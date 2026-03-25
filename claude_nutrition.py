@@ -49,7 +49,7 @@ def estimate_nutrition(meal_description: str, profile_map: dict | None = None) -
 
     response = _client().messages.create(
         model="claude-opus-4-6",
-        max_tokens=256,
+        max_tokens=512,
         system=NUTRITION_PROMPT,
         messages=[{"role": "user", "content": user_content}],
     )
@@ -88,7 +88,7 @@ def scan_meal_image(image_b64: str, media_type: str, context: str = "") -> dict:
         prompt += f"\n\nAdditional context from the user: {context}"
     response = _client().messages.create(
         model="claude-opus-4-6",
-        max_tokens=256,
+        max_tokens=512,
         messages=[{
             "role": "user",
             "content": [
@@ -131,7 +131,7 @@ Respond ONLY with this exact JSON structure (no markdown, no explanation):
 def estimate_burn(workout_description: str) -> dict:
     response = _client().messages.create(
         model="claude-opus-4-6",
-        max_tokens=128,
+        max_tokens=300,
         system=BURN_PROMPT,
         messages=[{"role": "user", "content": workout_description}],
     )
@@ -159,7 +159,7 @@ Examples:
 def shorten_label(description: str) -> str:
     response = _client().messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=24,
+        max_tokens=32,
         system=SHORTEN_PROMPT,
         messages=[{"role": "user", "content": description}],
     )
