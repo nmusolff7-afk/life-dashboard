@@ -1064,40 +1064,6 @@
       <div class="error-banner">⚠ {{ error }}</div>
       {% endif %}
 
-      <!-- Meal Suggestion -->
-      <div class="card" id="suggest-card">
-        <div class="card-title">What Should I Eat?</div>
-        <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.5">
-          Describe what ingredients you have, or snap up to 3 photos of your fridge. AI will suggest a meal to help you hit your calorie goal.
-        </p>
-        <textarea id="suggest-ingredients" rows="2" placeholder="e.g. chicken breast, rice, broccoli, olive oil, eggs…"
-          style="width:100%;box-sizing:border-box;resize:none;background:var(--surface2);border:1.5px solid var(--border);
-                 border-radius:8px;color:var(--text);font-size:0.9rem;padding:0.6rem 0.85rem;font-family:inherit;
-                 line-height:1.5;outline:none;transition:border-color .15s;min-height:0"
-          onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></textarea>
-        <div class="suggest-photos" id="suggest-photos">
-          <div class="suggest-slot" id="suggest-slot-0"><span class="slot-add">📷</span></div>
-          <div class="suggest-slot" id="suggest-slot-1"><span class="slot-add">📷</span></div>
-          <div class="suggest-slot" id="suggest-slot-2"><span class="slot-add">📷</span></div>
-        </div>
-        <input type="file" id="suggest-file-input" accept="image/*" style="display:none">
-        <button class="btn btn-primary btn-full" id="suggest-btn">✦ Suggest a Meal</button>
-        <div id="suggest-loading" style="display:none;margin-top:0.75rem;font-size:0.85rem;color:var(--accent2);
-          display:none;align-items:center;gap:0.5rem">
-          <span style="animation:spin 1.2s linear infinite;display:inline-block">⚙️</span>
-          Finding the best meal for right now…
-        </div>
-        <div id="suggest-result" style="display:none">
-          <div class="suggest-result">
-            <div class="suggest-meal-name" id="suggest-name"></div>
-            <div class="suggest-why" id="suggest-why"></div>
-            <div class="suggest-steps" id="suggest-steps"></div>
-            <div class="suggest-macros" id="suggest-macros"></div>
-            <button class="btn btn-green btn-full" id="suggest-log-btn">Log this meal</button>
-          </div>
-        </div>
-      </div>
-
       <div class="card">
         <div class="card-title">Log a meal</div>
         <form method="post" action="/log" id="log-form">
@@ -1245,6 +1211,46 @@
             </div>
           </div>
           {% endfor %}
+        </div>
+      </div>
+
+      <!-- Meal Suggestion -->
+      <div class="card" id="suggest-card">
+        <div class="card-title">Meal Suggestion</div>
+        <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.5">
+          Describe what you have or snap up to 3 fridge photos. AI will suggest a meal that fits your calorie goal right now.
+        </p>
+        <!-- Pantry: learned ingredients -->
+        <div id="suggest-pantry-wrap" style="display:none;margin-bottom:0.65rem">
+          <div style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:0.35rem">Your pantry</div>
+          <div id="suggest-pantry-chips" style="display:flex;flex-wrap:wrap;gap:0.35rem"></div>
+        </div>
+        <textarea id="suggest-ingredients" rows="2" placeholder="e.g. chicken breast, rice, broccoli, olive oil, eggs…"
+          style="width:100%;box-sizing:border-box;resize:none;background:var(--surface2);border:1.5px solid var(--border);
+                 border-radius:8px;color:var(--text);font-size:0.9rem;padding:0.6rem 0.85rem;font-family:inherit;
+                 line-height:1.5;outline:none;transition:border-color .15s"
+          onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+        <div class="suggest-photos" id="suggest-photos">
+          <div class="suggest-slot" id="suggest-slot-0"><span class="slot-add">📷</span></div>
+          <div class="suggest-slot" id="suggest-slot-1"><span class="slot-add">📷</span></div>
+          <div class="suggest-slot" id="suggest-slot-2"><span class="slot-add">📷</span></div>
+        </div>
+        <input type="file" id="suggest-camera-input" accept="image/*" capture="environment" style="display:none">
+        <input type="file" id="suggest-gallery-input" accept="image/*" style="display:none">
+        <button class="btn btn-primary btn-full" id="suggest-btn">✦ Suggest a Meal</button>
+        <div id="suggest-loading" style="display:none;margin-top:0.75rem;font-size:0.85rem;color:var(--accent2);
+          align-items:center;gap:0.5rem">
+          <span style="animation:spin 1.2s linear infinite;display:inline-block">⚙️</span>
+          Finding the best meal for right now…
+        </div>
+        <div id="suggest-result" style="display:none">
+          <div class="suggest-result">
+            <div class="suggest-meal-name" id="suggest-name"></div>
+            <div class="suggest-why" id="suggest-why"></div>
+            <div class="suggest-steps" id="suggest-steps"></div>
+            <div class="suggest-macros" id="suggest-macros"></div>
+            <button class="btn btn-green btn-full" id="suggest-log-btn">Log this meal</button>
+          </div>
         </div>
       </div>
 
@@ -2614,30 +2620,65 @@ function deleteWorkout(id) {
     });
 }
 
+
 // ══════════════════════════════════════════════════════
 //  MEALS — Meal Suggestion
 // ══════════════════════════════════════════════════════
 
 (function() {
-  const ingredientsEl = document.getElementById("suggest-ingredients");
-  const suggestBtn    = document.getElementById("suggest-btn");
-  const loadingEl     = document.getElementById("suggest-loading");
-  const resultEl      = document.getElementById("suggest-result");
-  const fileInput     = document.getElementById("suggest-file-input");
-  const logBtn        = document.getElementById("suggest-log-btn");
+  const ingredientsEl  = document.getElementById("suggest-ingredients");
+  const suggestBtn     = document.getElementById("suggest-btn");
+  const loadingEl      = document.getElementById("suggest-loading");
+  const resultEl       = document.getElementById("suggest-result");
+  const cameraInput    = document.getElementById("suggest-camera-input");
+  const galleryInput2  = document.getElementById("suggest-gallery-input");
+  const logBtn         = document.getElementById("suggest-log-btn");
+  const pantryWrap     = document.getElementById("suggest-pantry-wrap");
+  const pantryChips    = document.getElementById("suggest-pantry-chips");
 
-  const slots   = [0, 1, 2].map(i => document.getElementById("suggest-slot-" + i));
-  const images  = [null, null, null]; // {b64, mediaType} per slot
+  const slots  = [0, 1, 2].map(i => document.getElementById("suggest-slot-" + i));
+  const images = [null, null, null];
   let activeSlot = 0;
   let lastResult = null;
 
-  // ── Image resize helper (reuse same pattern as meal scan) ──────
+  // ── Pantry: persisted ingredient list ──────────────────────────────
+  const PANTRY_KEY = "apexPantry";
+
+  function loadPantry() {
+    try { return JSON.parse(localStorage.getItem(PANTRY_KEY) || "[]"); } catch(_) { return []; }
+  }
+  function savePantry(items) { localStorage.setItem(PANTRY_KEY, JSON.stringify(items)); }
+  function mergePantry(newItems) {
+    const existing = loadPantry();
+    const lower    = new Set(existing.map(s => s.toLowerCase()));
+    newItems.forEach(item => {
+      if (item && !lower.has(item.toLowerCase())) { existing.push(item); lower.add(item.toLowerCase()); }
+    });
+    savePantry(existing);
+    renderPantry();
+  }
+  function renderPantry() {
+    const items = loadPantry();
+    if (!items.length) { pantryWrap.style.display = "none"; return; }
+    pantryWrap.style.display = "";
+    pantryChips.innerHTML = items.map((item, i) =>
+      `<span style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.2rem 0.55rem;border-radius:99px;font-size:0.75rem;background:var(--surface2);border:1px solid var(--border);color:var(--text)">${item}<button type="button" data-idx="${i}" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.7rem;padding:0;line-height:1;margin-left:0.1rem" title="Remove">&#x2715;</button></span>`
+    ).join("");
+    pantryChips.querySelectorAll("button[data-idx]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const items2 = loadPantry(); items2.splice(parseInt(btn.dataset.idx), 1);
+        savePantry(items2); renderPantry();
+      });
+    });
+    if (!ingredientsEl.value.trim()) ingredientsEl.value = items.join(", ");
+  }
+  renderPantry();
+
+  // ── Image resize ────────────────────────────────────────────
   function resizeAndEncode(file, cb) {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
+    const img = new Image(), url = URL.createObjectURL(file);
     img.onload = () => {
-      const MAX = 1200;
-      let w = img.width, h = img.height;
+      const MAX = 1200; let w = img.width, h = img.height;
       if (w > MAX || h > MAX) { const r = Math.min(MAX/w, MAX/h); w = Math.round(w*r); h = Math.round(h*r); }
       const canvas = document.createElement("canvas");
       canvas.width = w; canvas.height = h;
@@ -2649,41 +2690,39 @@ function deleteWorkout(id) {
   }
 
   function renderSlot(i) {
-    const slot = slots[i];
-    slot.innerHTML = "";
+    const slot = slots[i]; slot.innerHTML = "";
     if (images[i]) {
-      const img = document.createElement("img");
-      img.src = images[i].preview;
-      slot.appendChild(img);
+      const img = document.createElement("img"); img.src = images[i].preview; slot.appendChild(img);
       const rm = document.createElement("button");
-      rm.className = "slot-rm"; rm.textContent = "✕"; rm.type = "button";
+      rm.className = "slot-rm"; rm.textContent = "\u2715"; rm.type = "button";
       rm.addEventListener("click", e => { e.stopPropagation(); images[i] = null; renderSlot(i); });
       slot.appendChild(rm);
     } else {
-      const icon = document.createElement("span");
-      icon.className = "slot-add"; icon.textContent = "📷";
+      const icon = document.createElement("span"); icon.className = "slot-add"; icon.textContent = "\uD83D\uDCF7";
       slot.appendChild(icon);
     }
   }
 
+  function handleSuggestFile(file) {
+    if (!file) return;
+    const preview = URL.createObjectURL(file);
+    resizeAndEncode(file, (b64, mediaType) => { images[activeSlot] = { b64, mediaType, preview }; renderSlot(activeSlot); });
+  }
+
+  // Slots open the shared photo-source-modal with a suggest context flag
+  window._suggestPhotoCtx = false;
   slots.forEach((slot, i) => {
     slot.addEventListener("click", () => {
       activeSlot = i;
-      fileInput.value = "";
-      fileInput.click();
+      window._suggestPhotoCtx = true;
+      document.getElementById("photo-source-modal").classList.add("active");
     });
   });
 
-  fileInput.addEventListener("change", () => {
-    const file = fileInput.files[0];
-    if (!file) return;
-    const preview = URL.createObjectURL(file);
-    resizeAndEncode(file, (b64, mediaType) => {
-      images[activeSlot] = { b64, mediaType, preview };
-      renderSlot(activeSlot);
-    });
-  });
+  cameraInput.addEventListener("change",   () => { handleSuggestFile(cameraInput.files[0]);   cameraInput.value   = ""; });
+  galleryInput2.addEventListener("change", () => { handleSuggestFile(galleryInput2.files[0]);  galleryInput2.value = ""; });
 
+  // ── Suggest ─────────────────────────────────────────────────────
   suggestBtn.addEventListener("click", async () => {
     const ingredients = ingredientsEl.value.trim();
     const imgPayload  = images.filter(Boolean).map(({ b64, mediaType }) => ({ b64, media_type: mediaType }));
@@ -2692,51 +2731,40 @@ function deleteWorkout(id) {
       setTimeout(() => ingredientsEl.style.borderColor = "var(--border)", 1500);
       return;
     }
-
-    suggestBtn.disabled    = true;
+    suggestBtn.disabled     = true;
     loadingEl.style.display = "flex";
     resultEl.style.display  = "none";
 
-    // Grab calories consumed from today's log (localStorage)
     let calConsumed = 0;
     try {
       const today = new Date().toISOString().slice(0, 10);
-      const log   = JSON.parse(localStorage.getItem("dailyLog") || "{}");
-      calConsumed = parseInt((log[today] || {}).calories || 0) || 0;
+      calConsumed = parseInt((JSON.parse(localStorage.getItem("dailyLog") || "{}")[today] || {}).calories || 0) || 0;
     } catch (_) {}
 
     try {
       const res  = await fetch("/api/meals/suggest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ingredients,
-          images:           imgPayload,
-          hour:             new Date().getHours(),
-          calories_consumed: calConsumed,
-        }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ingredients, images: imgPayload, hour: new Date().getHours(), calories_consumed: calConsumed }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-
       lastResult = data;
-      document.getElementById("suggest-name").textContent  = data.meal_name;
-      document.getElementById("suggest-why").textContent   = data.why;
 
-      // Format instructions (pipe-separated steps)
+      document.getElementById("suggest-name").textContent = data.meal_name;
+      document.getElementById("suggest-why").textContent  = data.why;
       const steps = (data.instructions || "").split("|").map(s => s.trim()).filter(Boolean);
-      document.getElementById("suggest-steps").innerHTML =
-        steps.map((s, i) => `<b>${i+1}.</b> ${s}`).join("<br>");
-
-      // Macro chips
+      document.getElementById("suggest-steps").innerHTML  = steps.map((s, idx) => `<b>${idx+1}.</b> ${s}`).join("<br>");
       document.getElementById("suggest-macros").innerHTML = [
         `<span class="mac-chip" style="color:var(--amber)">${data.calories} kcal</span>`,
         `<span class="mac-chip" style="color:#80cbc4">${data.protein_g}g protein</span>`,
         `<span class="mac-chip" style="color:#9fa8da">${data.carbs_g}g carbs</span>`,
         `<span class="mac-chip" style="color:#f48fb1">${data.fat_g}g fat</span>`,
       ].join("");
-
       resultEl.style.display = "";
+
+      if (data.identified_ingredients && data.identified_ingredients.length) {
+        mergePantry(data.identified_ingredients);
+      }
     } catch (err) {
       alert("Suggestion failed: " + err.message);
     } finally {
@@ -2745,33 +2773,21 @@ function deleteWorkout(id) {
     }
   });
 
-  // ── Log this meal — pre-fills the log form below ──────────────
+  // ── Log this meal ─────────────────────────────────────────────
   logBtn.addEventListener("click", () => {
     if (!lastResult) return;
-    const mealInput  = document.getElementById("meal-input");
-    const eCal       = document.getElementById("e-calories");
-    const ePro       = document.getElementById("e-protein");
-    const eCarb      = document.getElementById("e-carbs");
-    const eFat       = document.getElementById("e-fat");
-    const hDesc      = document.getElementById("h-description");
-    const hCal       = document.getElementById("h-calories");
-    const hPro       = document.getElementById("h-protein");
-    const hCarb      = document.getElementById("h-carbs");
-    const hFatEl     = document.getElementById("h-fat");
-    const macroFields = document.getElementById("macro-fields");
-    const logBtnMain  = document.getElementById("log-btn");
-
-    mealInput.value  = lastResult.meal_name;
-    hDesc.value      = lastResult.meal_name;
-    eCal.value       = lastResult.calories;   hCal.value  = lastResult.calories;
-    ePro.value       = lastResult.protein_g;  hPro.value  = lastResult.protein_g;
-    eCarb.value      = lastResult.carbs_g;    hCarb.value = lastResult.carbs_g;
-    eFat.value       = lastResult.fat_g;      hFatEl.value = lastResult.fat_g;
-
-    macroFields.classList.add("visible");
-    if (logBtnMain) logBtnMain.style.display = "";
-
-    // Scroll to log form
+    document.getElementById("meal-input").value    = lastResult.meal_name;
+    document.getElementById("h-description").value = lastResult.meal_name;
+    document.getElementById("e-calories").value    = lastResult.calories;
+    document.getElementById("h-calories").value    = lastResult.calories;
+    document.getElementById("e-protein").value     = lastResult.protein_g;
+    document.getElementById("h-protein").value     = lastResult.protein_g;
+    document.getElementById("e-carbs").value       = lastResult.carbs_g;
+    document.getElementById("h-carbs").value       = lastResult.carbs_g;
+    document.getElementById("e-fat").value         = lastResult.fat_g;
+    document.getElementById("h-fat").value         = lastResult.fat_g;
+    document.getElementById("macro-fields").classList.add("visible");
+    const lb = document.getElementById("log-btn"); if (lb) lb.style.display = "";
     document.getElementById("log-form").scrollIntoView({ behavior: "smooth", block: "start" });
   });
 })();
@@ -2933,13 +2949,21 @@ function deleteWorkout(id) {
   function closePhotoModal() { photoModal.classList.remove("active"); }
 
   scanBtn.addEventListener("click", openPhotoModal);
-  document.getElementById("photo-source-backdrop").addEventListener("click", closePhotoModal);
-  document.getElementById("photo-cancel-btn").addEventListener("click", closePhotoModal);
+  document.getElementById("photo-source-backdrop").addEventListener("click", () => { window._suggestPhotoCtx = false; closePhotoModal(); });
+  document.getElementById("photo-cancel-btn").addEventListener("click", () => { window._suggestPhotoCtx = false; closePhotoModal(); });
   document.getElementById("take-photo-btn").addEventListener("click", () => {
-    closePhotoModal(); scanInput.click();
+    closePhotoModal();
+    if (window._suggestPhotoCtx) {
+      window._suggestPhotoCtx = false;
+      document.getElementById("suggest-camera-input").click();
+    } else { scanInput.click(); }
   });
   document.getElementById("from-gallery-btn").addEventListener("click", () => {
-    closePhotoModal(); galleryInput.click();
+    closePhotoModal();
+    if (window._suggestPhotoCtx) {
+      window._suggestPhotoCtx = false;
+      document.getElementById("suggest-gallery-input").click();
+    } else { galleryInput.click(); }
   });
 
   scanRemoveBtn.addEventListener("click", exitScanMode);

@@ -132,8 +132,11 @@ Respond ONLY with this exact JSON structure (no markdown, no explanation):
   "calories": <integer>,
   "protein_g": <number with one decimal>,
   "carbs_g": <number with one decimal>,
-  "fat_g": <number with one decimal>
-}"""
+  "fat_g": <number with one decimal>,
+  "identified_ingredients": ["<ingredient>", ...]
+}
+
+The identified_ingredients array should contain every distinct ingredient visible in any photos OR mentioned by the user — normalized to simple names (e.g. "chicken breast", "eggs", "broccoli"). Real food items only, not condiments or vague terms."""
 
 
 def suggest_meal(
@@ -178,20 +181,24 @@ def suggest_meal(
 
     response = _client().messages.create(
         model="claude-opus-4-6",
-        max_tokens=600,
+        max_tokens=700,
         system=SUGGEST_PROMPT,
         messages=[{"role": "user", "content": content}],
     )
     text = next(b.text for b in response.content if b.type == "text")
     data = _parse_json(text)
+    raw_ingredients = data.get("identified_ingredients") or []
+    if not isinstance(raw_ingredients, list):
+        raw_ingredients = []
     return {
-        "meal_name":    data.get("meal_name", "Suggested Meal"),
-        "why":          data.get("why", ""),
-        "instructions": data.get("instructions", ""),
-        "calories":     int(data["calories"]),
-        "protein_g":    float(data["protein_g"]),
-        "carbs_g":      float(data["carbs_g"]),
-        "fat_g":        float(data["fat_g"]),
+        "meal_name":              data.get("meal_name", "Suggested Meal"),
+        "why":                    data.get("why", ""),
+        "instructions":           data.get("instructions", ""),
+        "calories":               int(data["calories"]),
+        "protein_g":              float(data["protein_g"]),
+        "carbs_g":                float(data["carbs_g"]),
+        "fat_g":                  float(data["fat_g"]),
+        "identified_ingredients": [str(i).strip() for i in raw_ingredients if i],
     }
 
 
