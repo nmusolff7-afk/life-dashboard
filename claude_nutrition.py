@@ -331,7 +331,6 @@ SLEEP     | {sleep_text.strip()}
 MOVEMENT  | steps={garmin.get('steps', 0) if garmin else 'N/A'}, burned={active_burned} kcal, workouts={len(workouts)} logged
 NUTRITION | logged={cal_logged} kcal, target={adj_target} kcal, remaining={remaining} kcal, ~{hours_left}h left in eating window, protein={round(sum(m.get('protein_g',0) for m in meals),1)}g
 HABITS    | morning_checkin={'done' if c.get('morning_done') else 'not done'}, evening_checkin={'done' if c.get('evening_done') else 'not done'}, tasks={t.get('completed', 0)}/{t.get('total', 0)} completed
-WELLBEING | today={round((w.get('pct') or 0) * 10, 1)}/10, 7d_avg={w.get('past_7d_avg')}/10
 
 7-DAY TREND (date | nutrition% | activity% | checkin_done | task_completion%):
 {history_text}
