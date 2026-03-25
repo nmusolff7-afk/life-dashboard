@@ -3025,17 +3025,6 @@ function deleteWorkout(id) {
       const nameIn = document.createElement("input");
       nameIn.type = "text"; nameIn.placeholder = "Exercise name";
       nameIn.style.cssText = "flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.5rem 0.6rem;color:var(--text);font-size:0.9rem;min-width:0";
-      const micBtn = document.createElement("button");
-      micBtn.className = "btn btn-ghost"; micBtn.title = "Voice input";
-      micBtn.style.cssText = "padding:0.4rem 0.5rem;font-size:1rem;flex-shrink:0";
-      micBtn.textContent = "🎤";
-      micBtn.addEventListener("click", () => {
-        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) { nameIn.focus(); return; }
-        const rec = new SR(); rec.continuous = false; rec.interimResults = false;
-        rec.onresult = e => { nameIn.value = e.results[0][0].transcript; nameIn.focus(); };
-        rec.start();
-      });
       const confirmBtn = document.createElement("button");
       confirmBtn.className = "btn btn-green"; confirmBtn.textContent = "Add";
       confirmBtn.style.cssText = "padding:0.4rem 0.75rem;flex-shrink:0";
@@ -3047,7 +3036,7 @@ function deleteWorkout(id) {
       };
       confirmBtn.addEventListener("click", doAdd);
       nameIn.addEventListener("keydown", e => { if (e.key === "Enter") doAdd(); });
-      row.append(nameIn, micBtn, confirmBtn);
+      row.append(nameIn, confirmBtn);
       addExWrap.appendChild(row);
       nameIn.focus();
     });
