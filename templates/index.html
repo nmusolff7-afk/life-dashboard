@@ -3159,7 +3159,7 @@ function deleteWorkout(id) {
         <div class="rest-day-notice">
           <span>Rest day — no workout scheduled for ${dayName}.</span>
           <button class="btn btn-green" id="start-workout-btn" style="min-width:200px">Start Quick Workout</button>
-          <button class="btn btn-ghost" id="change-workout-idle-btn" style="margin-top:0.4rem;min-width:200px">Switch Plan Day</button>
+          <button class="btn btn-ghost" id="change-workout-idle-btn" style="margin-top:0.4rem;min-width:200px">Different Day</button>
         </div>`;
       document.getElementById("start-workout-btn").addEventListener("click", startQuickWorkout);
       document.getElementById("change-workout-idle-btn").addEventListener("click", openChangeWorkout);
@@ -3182,10 +3182,13 @@ function deleteWorkout(id) {
       idleEl.innerHTML = planHtml
         + `<div class="btn-row" style="width:100%;justify-content:center;gap:0.5rem;margin-top:0.25rem">
              <button class="btn btn-green" id="start-workout-btn" style="flex:1">Start ${dayName}'s Workout</button>
-             <button class="btn btn-ghost" id="change-workout-idle-btn">Switch Day</button>
-           </div>`;
+             <button class="btn btn-ghost" id="change-workout-idle-btn">Different Day</button>
+           </div>
+           <button class="btn btn-ghost btn-full" id="quick-workout-idle-btn"
+             style="margin-top:0.4rem;font-size:0.8rem;opacity:0.7">Quick Workout</button>`;
       document.getElementById("start-workout-btn").addEventListener("click", () => startWorkoutSession(todayExs, dayName));
       document.getElementById("change-workout-idle-btn").addEventListener("click", openChangeWorkout);
+      document.getElementById("quick-workout-idle-btn").addEventListener("click", startQuickWorkout);
     }
   }
 
