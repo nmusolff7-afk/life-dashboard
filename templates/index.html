@@ -2044,7 +2044,7 @@ function localNow() {
 // Keep the server in sync with the client's local date so all inserts and
 // queries use the correct calendar day regardless of server timezone (UTC).
 function _syncDateCookie() {
-  document.cookie = "client_date=" + localToday() + "; path=/; max-age=120";
+  document.cookie = "client_date=" + localToday() + "; path=/; max-age=86400";
 }
 _syncDateCookie();
 setInterval(_syncDateCookie, 60000);
@@ -5773,9 +5773,13 @@ if ("serviceWorker" in navigator) {
 
   function initBriefs() {
     const settings = getBriefSettings();
-    fetch("/api/mind/today")
+    const today    = localToday();
+    _syncDateCookie();  // always fresh before the request
+    fetch("/api/mind/today?d=" + today)
       .then(r => r.json())
       .then(data => {
+        // Guard: ignore stale responses if date moved on while fetch was in flight
+        if (data.date && data.date !== localToday()) return;
         const checkins = data.checkins || [];
         renderCard("morning", checkins, settings);
         renderCard("evening", checkins, settings);
@@ -5789,7 +5793,6 @@ if ("serviceWorker" in navigator) {
     const today = localToday();
     if (today !== _lastBriefDate) {
       _lastBriefDate = today;
-      _syncDateCookie();  // ensure cookie is fresh for midnight crossover
     }
     initBriefs();
   }, 60000); // re-check every minute in case a window opens/closes or date rolls over

@@ -280,12 +280,20 @@ def api_onboarding_poll():
 @app.route("/api/mind/today")
 @login_required
 def api_mind_today():
-    today    = client_today()
+    # Accept explicit date from frontend (?d=YYYY-MM-DD) so the query is never
+    # ambiguous — falls back to the client_date cookie, then server UTC.
+    raw = request.args.get("d", "").strip()
+    try:
+        date.fromisoformat(raw)
+        today = raw
+    except (ValueError, TypeError):
+        today = client_today()
     tasks    = get_mind_tasks(uid(), today)
     checkins = get_mind_today(uid(), today)
     total    = len(tasks)
     done     = sum(1 for t in tasks if t["completed"])
     resp = jsonify({
+        "date":       today,
         "tasks":      tasks,
         "checkins":   checkins,
         "history":    get_mind_history(uid(), days=14),
