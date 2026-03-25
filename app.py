@@ -95,13 +95,16 @@ def compute_tdee(log_date=None):
 
 
 def render_index(**kwargs):
-    cd       = client_today()
-    meals    = get_today_meals(uid(), cd)
-    totals   = get_today_totals(uid(), cd)
-    workouts = get_today_workouts(uid(), cd)
-    tdee     = compute_tdee(cd)
+    cd           = client_today()
+    meals        = get_today_meals(uid(), cd)
+    totals       = get_today_totals(uid(), cd)
+    workouts     = get_today_workouts(uid(), cd)
+    workout_burn = get_today_workout_burn(uid(), cd)
+    server_rmr   = get_rmr()
+    tdee         = server_rmr + workout_burn
     return render_template("index.html",
         meals=meals, totals=totals, workouts=workouts, tdee=tdee,
+        workout_burn=workout_burn, server_rmr=server_rmr,
         user_id=uid(), username=session.get("username", ""),
         **kwargs)
 

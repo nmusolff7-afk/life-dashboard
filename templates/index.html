@@ -1008,6 +1008,12 @@
         </div>
       </div>
 
+      <!-- Energy Breakdown -->
+      <div class="card">
+        <div class="card-title">Energy Breakdown</div>
+        <div class="profile-preview" id="weight-preview">Save your profile to see your energy breakdown here.</div>
+      </div>
+
       <!-- Morning Brief -->
     </div><!-- /tab-home -->
 
@@ -1173,12 +1179,6 @@
           </div>
           {% endfor %}
         </div>
-      </div>
-
-      <!-- TDEE Breakdown -->
-      <div class="card">
-        <div class="card-title">TDEE Breakdown</div>
-        <div class="profile-preview" id="weight-preview">Save your profile to see your TDEE breakdown here.</div>
       </div>
 
     </div><!-- /tab-meals -->
@@ -1933,9 +1933,10 @@ let CAL_CONSUMED      = {{ totals.total_calories }};
 let PROTEIN_CONSUMED  = {{ "%.1f"|format(totals.total_protein) }};
 let CARBS_CONSUMED    = {{ "%.1f"|format(totals.total_carbs) }};
 let FAT_CONSUMED      = {{ "%.1f"|format(totals.total_fat) }};
-const SERVER_RMR        = 1550;
-const SERVER_TDEE       = {{ tdee }};  // RMR + today's workout burns
-let WORKOUT_BURN_TODAY = SERVER_TDEE - SERVER_RMR;
+const SERVER_RMR        = {{ server_rmr }};  // actual RMR from profile
+const SERVER_TDEE       = {{ tdee }};         // RMR + today's workout burns
+let WORKOUT_BURN_TODAY  = {{ workout_burn }}; // today's logged workout calories
+let CURRENT_TDEE        = SERVER_TDEE;        // authoritative TDEE — updated by applyProfileToMeals
 let TODAY_WORKOUT_DESCS = {{ workouts | map(attribute='description') | list | tojson }};
 
 // ── TDEE Component Functions (defined early — used by IIFEs below) ──
@@ -3694,6 +3695,7 @@ function applyProfileToMeals(profile) {
   const tef   = calcTEF(CAL_CONSUMED, PROTEIN_CONSUMED, CARBS_CONSUMED, FAT_CONSUMED);
   const tdee  = rmr + neat + eat + tef;
 
+  CURRENT_TDEE = Math.round(tdee);          // keep global in sync
   const balance  = tdee - CAL_CONSUMED;   // actual caloric deficit vs TDEE
   const goalPro  = profile.protein || 175;
   const goalCarb = profile.carbs   || 250;
