@@ -5,7 +5,7 @@ import os
 import threading
 from datetime import date, timedelta
 from functools import wraps
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, send_from_directory, make_response
 from db import (
     init_db, create_user, verify_user, delete_account,
     insert_meal, get_today_meals, get_today_totals, update_meal, delete_meal,
@@ -31,6 +31,16 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "life-dashboard-default-secret-v1")
 app.permanent_session_lifetime = timedelta(days=90)
 init_db()
+
+
+@app.route("/sw.js")
+def service_worker():
+    """Serve the service worker from the root so its scope covers the whole app."""
+    resp = make_response(send_from_directory("static", "sw.js"))
+    resp.headers["Service-Worker-Allowed"] = "/"
+    resp.headers["Content-Type"] = "application/javascript"
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return resp
 
 
 @app.template_filter("fmt_time_12h")
