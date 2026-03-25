@@ -340,6 +340,25 @@
     .idle-plan-meta { color: var(--muted); font-size: 0.78rem; }
 
     /* ── Change Workout overlay ── */
+    .quick-entry-backdrop {
+      display: none; position: fixed; inset: 0; z-index: 400;
+      background: rgba(0,0,0,.55); align-items: center; justify-content: center;
+    }
+    .quick-entry-backdrop.active { display: flex; }
+    .quick-entry-modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 1.4rem 1.4rem 1.2rem; width: 88%; max-width: 320px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.4);
+    }
+    .quick-entry-modal h3 { margin: 0 0 1rem; font-size: 1rem; font-weight: 700; }
+    .quick-entry-modal input {
+      width: 100%; box-sizing: border-box; padding: 0.65rem 0.8rem;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-size: 1.1rem;
+      margin-bottom: 0.9rem;
+    }
+    .quick-entry-row { display: flex; gap: 0.6rem; }
+    .quick-entry-row .btn { flex: 1; }
     #change-workout-overlay {
       position: fixed; inset: 0; z-index: 300;
       background: var(--bg);
@@ -826,11 +845,11 @@
         </div>
         <div class="dash-stat-card" id="dash-burn-card">
           <div class="dash-stat-val" id="dash-burn-val" style="color:var(--muted)">—</div>
-          <div class="dash-stat-lbl">Burned</div>
+          <div class="dash-stat-lbl">Cal Burned</div>
         </div>
-        <div class="dash-stat-card" id="dash-protein-card">
-          <div class="dash-stat-val" id="dash-protein-val" style="color:var(--muted)">—</div>
-          <div class="dash-stat-lbl">Protein</div>
+        <div class="dash-stat-card" id="dash-consumed-card">
+          <div class="dash-stat-val" id="dash-consumed-val" style="color:var(--muted)">—</div>
+          <div class="dash-stat-lbl">Consumed</div>
         </div>
       </div>
 
@@ -1902,6 +1921,29 @@
   </div>
 </div>
 
+<!-- Quick-entry: Weight -->
+<div class="quick-entry-backdrop" id="weight-quick-backdrop">
+  <div class="quick-entry-modal">
+    <h3>Today's Weight</h3>
+    <input type="number" id="weight-quick-input" min="50" max="500" step="0.1" placeholder="lbs">
+    <div class="quick-entry-row">
+      <button class="btn btn-ghost" id="weight-quick-cancel">Cancel</button>
+      <button class="btn btn-primary" id="weight-quick-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Quick-entry: Steps -->
+<div class="quick-entry-backdrop" id="steps-quick-backdrop">
+  <div class="quick-entry-modal">
+    <h3>Today's Steps</h3>
+    <input type="number" id="steps-quick-input" min="0" max="100000" step="100" placeholder="steps">
+    <div class="quick-entry-row">
+      <button class="btn btn-ghost" id="steps-quick-cancel">Cancel</button>
+      <button class="btn btn-primary" id="steps-quick-save">Save</button>
+    </div>
+  </div>
+</div>
 
 <script>
 // ── User context (injected by server) ──────────────────
@@ -5506,15 +5548,14 @@ if ("serviceWorker" in navigator) {
       }
     }
 
-    const goalPro = profile ? (profile.protein || 175) : 175;
-    const proteinEl = document.getElementById("dash-protein-val");
-    if (proteinEl) {
-      if (PROTEIN_CONSUMED > 0) {
-        proteinEl.textContent = Math.round(PROTEIN_CONSUMED) + "g";
-        proteinEl.style.color = PROTEIN_CONSUMED >= goalPro ? "var(--green)" : "var(--protein)";
+    const consumedEl = document.getElementById("dash-consumed-val");
+    if (consumedEl) {
+      if (CAL_CONSUMED > 0) {
+        consumedEl.textContent = CAL_CONSUMED.toLocaleString() + " kcal";
+        consumedEl.style.color = "var(--cal)";
       } else {
-        proteinEl.textContent = "—";
-        proteinEl.style.color = "var(--muted)";
+        consumedEl.textContent = "—";
+        consumedEl.style.color = "var(--muted)";
       }
     }
 
@@ -5592,13 +5633,62 @@ if ("serviceWorker" in navigator) {
     }
   }
 
-  // Click handlers — navigate to the relevant tab
+  // Click handlers
   document.getElementById("dash-cal-card").addEventListener("click", () => activateTab("meals"));
   document.getElementById("dash-macro-card").addEventListener("click", () => activateTab("meals"));
-  document.getElementById("dash-protein-card").addEventListener("click", () => activateTab("meals"));
-  document.getElementById("dash-weight-card").addEventListener("click", () => activateTab("workout"));
-  document.getElementById("dash-steps-card").addEventListener("click", () => activateTab("workout"));
+  document.getElementById("dash-consumed-card").addEventListener("click", () => activateTab("meals"));
   document.getElementById("dash-burn-card").addEventListener("click", () => activateTab("workout"));
+
+  // Weight quick-entry
+  const weightBackdrop = document.getElementById("weight-quick-backdrop");
+  const weightQInput   = document.getElementById("weight-quick-input");
+  document.getElementById("dash-weight-card").addEventListener("click", () => {
+    const entry = getDayEntry(localToday());
+    weightQInput.value = (entry && entry.weight) ? entry.weight : "";
+    weightBackdrop.classList.add("active");
+    setTimeout(() => weightQInput.focus(), 50);
+  });
+  document.getElementById("weight-quick-cancel").addEventListener("click", () => weightBackdrop.classList.remove("active"));
+  weightBackdrop.addEventListener("click", e => { if (e.target === weightBackdrop) weightBackdrop.classList.remove("active"); });
+  document.getElementById("weight-quick-save").addEventListener("click", () => {
+    const val = parseFloat(weightQInput.value);
+    if (!val || val < 50) return;
+    saveDayField(localToday(), { weight: val });
+    weightBackdrop.classList.remove("active");
+    if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+    // Sync to workout-tab weight input if present
+    const scaleInput = document.getElementById("scale-input");
+    if (scaleInput) { scaleInput.value = val; }
+    flashGreen();
+  });
+  weightQInput.addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("weight-quick-save").click(); });
+
+  // Steps quick-entry
+  const stepsBackdrop = document.getElementById("steps-quick-backdrop");
+  const stepsQInput   = document.getElementById("steps-quick-input");
+  document.getElementById("dash-steps-card").addEventListener("click", () => {
+    const saved = getTodaySteps();
+    stepsQInput.value = saved > 0 ? saved : "";
+    stepsBackdrop.classList.add("active");
+    setTimeout(() => stepsQInput.focus(), 50);
+  });
+  document.getElementById("steps-quick-cancel").addEventListener("click", () => stepsBackdrop.classList.remove("active"));
+  stepsBackdrop.addEventListener("click", e => { if (e.target === stepsBackdrop) stepsBackdrop.classList.remove("active"); });
+  document.getElementById("steps-quick-save").addEventListener("click", () => {
+    const steps = parseInt(stepsQInput.value) || 0;
+    if (steps < 0) return;
+    saveTodaySteps(steps);
+    stepsBackdrop.classList.remove("active");
+    // Recompute NEAT and update everywhere
+    try { const p = localStorage.getItem("profileData"); if (p) applyProfileToMeals(JSON.parse(p)); } catch(e) {}
+    if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+    if (typeof window._refreshProfilePreview === "function") window._refreshProfilePreview();
+    // Sync to workout-tab steps input if present
+    const stepsInput = document.getElementById("steps-input");
+    if (stepsInput) { stepsInput.value = steps; }
+    flashGreen();
+  });
+  stepsQInput.addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("steps-quick-save").click(); });
 
   window._refreshDashboard = refresh;
 
