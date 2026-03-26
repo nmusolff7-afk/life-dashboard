@@ -3464,9 +3464,42 @@ function deleteWorkout(id) {
       block.className = "exercise-block";
 
       const nameRow = document.createElement("div");
-      nameRow.style.marginBottom = "0.65rem";
-      nameRow.innerHTML = `<span class="exercise-name">${ex.name}</span>`
-        + `<span class="exercise-progress" id="ex-prog-${ei}">0 / ${ex.sets.length}</span>`;
+      nameRow.style.cssText = "margin-bottom:0.65rem;display:flex;align-items:center;gap:0.5rem";
+
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "exercise-name";
+      nameSpan.style.flex = "1";
+      nameSpan.textContent = ex.name;
+
+      const progSpan = document.createElement("span");
+      progSpan.className = "exercise-progress";
+      progSpan.id = `ex-prog-${ei}`;
+      const doneCount = ex.sets.filter(s => s.completed).length;
+      progSpan.textContent = `${doneCount} / ${ex.sets.length}`;
+
+      const editNameBtn = document.createElement("button");
+      editNameBtn.className = "done-edit-btn";
+      editNameBtn.textContent = "Edit";
+      editNameBtn.addEventListener("click", () => {
+        const input = document.createElement("input");
+        input.type = "text";
+        input.value = workoutState[ei].name;
+        input.style.cssText = "flex:1;background:var(--surface2);border:1px solid var(--accent2);border-radius:7px;" +
+          "padding:0.25rem 0.55rem;color:var(--text);font-size:0.95rem;font-weight:700;min-width:0;outline:none";
+        nameRow.replaceChild(input, nameSpan);
+        nameRow.removeChild(editNameBtn);
+        input.focus(); input.select();
+
+        const commit = () => {
+          const val = input.value.trim();
+          if (val) workoutState[ei].name = val;
+          renderChecklist(workoutState);
+        };
+        input.addEventListener("blur", commit);
+        input.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); input.blur(); } });
+      });
+
+      nameRow.append(nameSpan, editNameBtn, progSpan);
       block.appendChild(nameRow);
 
       ex.sets.forEach((set, si) => {
