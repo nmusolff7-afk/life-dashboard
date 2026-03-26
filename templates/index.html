@@ -5066,9 +5066,14 @@ function fmtDate(iso) {
     const cal       = cell.dataset.calories;
     const burn      = parseInt(cell.dataset.burn) || 0;
     const rmr       = parseInt(cell.dataset.rmr) || SERVER_RMR;
-    // For today, use the full stored TDEE (includes NEAT + TEF) if available
+    // Compute full TDEE: RMR + NEAT (occupation) + exercise burn + TEF (10% of intake)
     const localEntry = (ds === todayStr()) ? (getDayEntry(ds) || {}) : {};
-    const tdeeForPopup = localEntry.tdee || (rmr + burn);
+    const _calPop    = cal ? parseInt(cal) : 0;
+    const _profPop   = (() => { try { return JSON.parse(localStorage.getItem("profileData") || "{}"); } catch(_) { return {}; } })();
+    const _OCC       = { sedentary: 200, standing: 400, physical: 700 };
+    const _neat      = _OCC[_profPop.occupation] || 200;
+    const _tef       = Math.round(_calPop * 0.10);
+    const tdeeForPopup = localEntry.tdee || (rmr + _neat + burn + _tef);
 
     const [y, m, d] = ds.split("-").map(Number);
     const dateLabel = new Date(y, m-1, d).toLocaleDateString("en-US",
