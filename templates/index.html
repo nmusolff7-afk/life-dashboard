@@ -876,7 +876,7 @@
         </div>
         <div class="dash-stat-card" id="dash-burn-card">
           <div class="dash-stat-val" id="dash-burn-val" style="color:var(--muted)">—</div>
-          <div class="dash-stat-lbl">Cal Burned</div>
+          <div class="dash-stat-lbl">TDEE</div>
         </div>
         <div class="dash-stat-card" id="dash-consumed-card">
           <div class="dash-stat-val" id="dash-consumed-val" style="color:var(--muted)">—</div>
@@ -5990,8 +5990,8 @@ if ("serviceWorker" in navigator) {
 
     const burnEl = document.getElementById("dash-burn-val");
     if (burnEl) {
-      if (WORKOUT_BURN_TODAY > 0) {
-        burnEl.textContent = WORKOUT_BURN_TODAY.toLocaleString() + " kcal";
+      if (CURRENT_TDEE > 0) {
+        burnEl.textContent = CURRENT_TDEE.toLocaleString() + " kcal";
         burnEl.style.color = "var(--cal)";
       } else {
         burnEl.textContent = "—";
