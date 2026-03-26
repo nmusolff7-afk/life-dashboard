@@ -3829,6 +3829,7 @@ function deleteWorkout(id) {
         if (typeof window._refreshDashboard === "function") window._refreshDashboard();
         if (typeof window._patchTodayInCharts === "function") window._patchTodayInCharts(null, data.workouts);
         if (typeof window._rebuildHistory === "function") window._rebuildHistory();
+        activateTab("workout");
         flashGreen();
       })
       .catch(() => {
@@ -3842,6 +3843,7 @@ function deleteWorkout(id) {
             TODAY_WORKOUT_DESCS = (data.workouts || []).map(w => w.description);
             renderWorkoutList(data.workouts, data.burn);
             window.renderStrengthStatus(data.workouts);
+            activateTab("workout");
             flashGreen();
           })
           .catch(() => { sessionStorage.setItem("activeTab","workout"); window.location.href="/"; });
