@@ -356,11 +356,15 @@ def api_mind_checkin():
                             checkin_date=today_str,
                             sleep_quality=sleep_quality, mood_level=mood_level,
                             focus_level=focus_level)
+        # Evening tasks are for tomorrow; morning tasks are for today
+        from datetime import date as _date, timedelta as _td
+        task_date_str = ((_date.fromisoformat(today_str) + _td(days=1)).isoformat()
+                         if checkin_type == "evening" else today_str)
         tasks_added = []
         for task_text in scores.get("tasks", []):
             if task_text:
                 tid = insert_mind_task(uid(), task_text, source=checkin_type + "_brief",
-                                       task_date=today_str)
+                                       task_date=task_date_str)
                 tasks_added.append({"id": tid, "description": task_text})
         return jsonify({**scores, "tasks_added": tasks_added,
                         "bodyweight_lbs": float(bodyweight_lbs) if bodyweight_lbs else None})
