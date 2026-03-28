@@ -625,7 +625,7 @@ def api_burn_estimate():
     if not description:
         return jsonify({"error": "No description provided"}), 400
     try:
-        return jsonify(estimate_burn(description))
+        return jsonify(estimate_burn(description, profile_map=get_profile_map(uid())))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

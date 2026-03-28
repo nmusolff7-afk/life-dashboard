@@ -268,12 +268,27 @@ Respond ONLY with this exact JSON structure (no markdown, no explanation):
 }"""
 
 
-def estimate_burn(workout_description: str) -> dict:
+def estimate_burn(workout_description: str, profile_map: dict | None = None) -> dict:
+    user_content = workout_description
+    if profile_map:
+        fields = {
+            "weight_lbs":  profile_map.get("cur_weight_lbs") or profile_map.get("curWeight"),
+            "height_in":   profile_map.get("height_in"),
+            "age":         profile_map.get("age"),
+            "gender":      profile_map.get("gender") or profile_map.get("sex"),
+            "fitness_level": profile_map.get("fitness_level") or profile_map.get("activity_level"),
+        }
+        populated = {k: v for k, v in fields.items() if v is not None}
+        if populated:
+            context = "\n\nUser stats (use for an accurate personalised estimate):\n"
+            context += "\n".join(f"- {k}: {v}" for k, v in populated.items())
+            user_content = workout_description + context
+
     response = _client().messages.create(
         model="claude-opus-4-6",
         max_tokens=300,
         system=BURN_PROMPT,
-        messages=[{"role": "user", "content": workout_description}],
+        messages=[{"role": "user", "content": user_content}],
     )
     text = next(b.text for b in response.content if b.type == "text")
     data = _parse_json(text)
