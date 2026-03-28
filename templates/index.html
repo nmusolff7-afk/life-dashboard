@@ -5629,7 +5629,10 @@ function fmtDate(iso) {
       <div class="v" id="hd-weight-val">${weight !== null ? weight + '<span style="font-size:0.65rem;font-weight:400;color:var(--muted)"> lbs</span>' : "–"}</div>
       <div class="l" id="hd-weight-lbl" style="display:flex;align-items:center;justify-content:space-between">Weight <button class="done-edit-btn" id="hd-weight-edit">Edit</button></div>
     </div>`;
-    if (effectiveSteps !== null)  html += `<div class="hd-stat"><div class="v">${Number(effectiveSteps).toLocaleString()}</div><div class="l">Steps</div></div>`;
+    html += `<div class="hd-stat" id="hd-steps-stat">
+      <div class="v" id="hd-steps-val">${effectiveSteps !== null ? Number(effectiveSteps).toLocaleString() : "–"}</div>
+      <div class="l" id="hd-steps-lbl" style="display:flex;align-items:center;justify-content:space-between">Steps <button class="done-edit-btn" id="hd-steps-edit">Edit</button></div>
+    </div>`;
     if (activeCalories !== null)  html += `<div class="hd-stat"><div class="v">${activeCalories}</div><div class="l">Active Cal</div></div>`;
     if (dayData) {
       const dc = dayData.deficit >= 0 ? "var(--green)" : "var(--danger)";
@@ -5733,6 +5736,38 @@ function fmtDate(iso) {
         const newEdit = document.createElement("button");
         newEdit.className = "done-edit-btn"; newEdit.id = "hd-weight-edit"; newEdit.textContent = "Edit";
         newEdit.addEventListener("click", hdWtEdit);
+        lblEl.appendChild(newEdit);
+        flashGreen();
+      });
+    });
+
+    // Steps inline edit
+    document.getElementById("hd-steps-edit").addEventListener("click", function hdStepsEdit() {
+      const valEl = document.getElementById("hd-steps-val");
+      const lblEl = document.getElementById("hd-steps-lbl");
+      const cur   = parseInt(valEl.textContent.replace(/,/g, "")) || "";
+      const inp   = document.createElement("input");
+      inp.type = "number"; inp.min = "0"; inp.step = "1"; inp.value = cur;
+      inp.style.cssText = "width:100%;background:var(--surface);border:1px solid var(--accent2);border-radius:6px;color:var(--text);font-size:1rem;font-weight:800;padding:0.2rem 0.35rem;font-family:inherit;box-sizing:border-box";
+      const saveBtn = document.createElement("button");
+      saveBtn.className = "done-edit-btn"; saveBtn.textContent = "Save"; saveBtn.style.color = "var(--accent2)";
+      valEl.innerHTML = ""; valEl.appendChild(inp);
+      lblEl.innerHTML = "Steps&nbsp;"; lblEl.appendChild(saveBtn);
+      inp.focus();
+      inp.addEventListener("keydown", e => { if (e.key === "Enter") saveBtn.click(); });
+      saveBtn.addEventListener("click", () => {
+        const val = parseInt(inp.value);
+        if (isNaN(val) || val < 0) return;
+        const log = JSON.parse(localStorage.getItem("dailyLog") || "{}");
+        if (!log[_hdDate]) log[_hdDate] = {};
+        log[_hdDate].steps = val;
+        localStorage.setItem("dailyLog", JSON.stringify(log));
+        valEl.textContent = val.toLocaleString();
+        lblEl.style.cssText = "display:flex;align-items:center;justify-content:space-between";
+        lblEl.innerHTML = "Steps ";
+        const newEdit = document.createElement("button");
+        newEdit.className = "done-edit-btn"; newEdit.id = "hd-steps-edit"; newEdit.textContent = "Edit";
+        newEdit.addEventListener("click", hdStepsEdit);
         lblEl.appendChild(newEdit);
         flashGreen();
       });
