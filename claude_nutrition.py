@@ -271,12 +271,23 @@ Respond ONLY with this exact JSON structure (no markdown, no explanation):
 def estimate_burn(workout_description: str, profile_map: dict | None = None) -> dict:
     user_content = workout_description
     if profile_map:
+        # Build a readable height string: prefer total inches, fall back to ft+in components
+        ht_total = profile_map.get("height_inches")
+        ht_ft    = profile_map.get("height_ft")
+        ht_in    = profile_map.get("height_in")
+        if ht_total:
+            height = f"{ht_total} inches ({int(ht_total) // 12}'{int(ht_total) % 12}\")"
+        elif ht_ft is not None and ht_in is not None:
+            height = f"{ht_ft}'{ht_in}\""
+        else:
+            height = None
+
         fields = {
-            "weight_lbs":  profile_map.get("cur_weight_lbs") or profile_map.get("curWeight"),
-            "height_in":   profile_map.get("height_in"),
-            "age":         profile_map.get("age"),
-            "gender":      profile_map.get("gender") or profile_map.get("sex"),
-            "fitness_level": profile_map.get("fitness_level") or profile_map.get("activity_level"),
+            "weight_lbs":    profile_map.get("cur_weight_lbs") or profile_map.get("curWeight") or profile_map.get("current_weight_lbs"),
+            "height":        height,
+            "age":           profile_map.get("age"),
+            "gender":        profile_map.get("gender") or profile_map.get("sex"),
+            "fitness_level": profile_map.get("fitness_experience_level") or profile_map.get("fitness_level") or profile_map.get("activity_level"),
         }
         populated = {k: v for k, v in fields.items() if v is not None}
         if populated:
