@@ -871,19 +871,15 @@ def api_momentum_history():
 def api_momentum_insight():
     today = client_today()
     body  = request.get_json(silent=True) or {}
-    calorie_goal = body.get("calorie_goal") or None
-    if calorie_goal:
-        try:
-            calorie_goal = int(calorie_goal)
-        except (TypeError, ValueError):
-            calorie_goal = None
     hour = body.get("hour")
     try:
         hour = int(hour) if hour is not None else None
     except (TypeError, ValueError):
         hour = None
     try:
-        breakdown    = compute_momentum(uid(), today, calorie_goal_override=calorie_goal)
+        tdee         = int(body.get("tdee") or 0) or None
+        cal_consumed = int(body.get("cal_consumed") or 0)
+        breakdown    = compute_momentum(uid(), today)
         history      = get_momentum_history(uid(), 14)
         profile      = get_profile_map(uid())
         meals        = get_today_meals(uid(), today)
@@ -898,6 +894,7 @@ def api_momentum_insight():
             breakdown, history, profile, meals, workouts, garmin, sleep, hour,
             garmin_hist=garmin_hist, sleep_hist=sleep_hist,
             meal_hist=meal_hist, workout_hist=workout_hist,
+            tdee=tdee, cal_consumed=cal_consumed,
         )
         return jsonify(result)
     except Exception as e:

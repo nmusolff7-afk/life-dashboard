@@ -6074,7 +6074,11 @@ function fmtDate(iso) {
 
   function _getMomentumPayload() {
     try {
-      return { hour: new Date().getHours() };
+      return {
+        hour:         new Date().getHours(),
+        tdee:         CURRENT_TDEE  || 0,
+        cal_consumed: CAL_CONSUMED  || 0,
+      };
     } catch(e) { return {}; }
   }
 

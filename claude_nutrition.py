@@ -378,6 +378,8 @@ def generate_momentum_insight(
     sleep_hist: dict | None = None,
     meal_hist: dict | None = None,
     workout_hist: dict | None = None,
+    tdee: int | None = None,
+    cal_consumed: int = 0,
 ) -> dict:
     """
     Generate a 1-2 sentence pattern insight using Claude Haiku.
@@ -419,18 +421,16 @@ def generate_momentum_insight(
     t = comps.get("tasks",   {})
     n = comps.get("nutrition", {})
 
-    # ── workout-adjusted calorie target ──
-    rmr           = profile.get("rmr_kcal") or 0
-    deficit       = profile.get("calorie_deficit_target") or 0
+    # ── calorie numbers ──
+    # Use values passed directly from the client (CURRENT_TDEE and CAL_CONSUMED),
+    # which already incorporate the full TDEE formula (RMR + NEAT + exercise + TEF).
+    deficit    = profile.get("calorie_deficit_target") or 0
+    adj_target = (tdee - deficit) if tdee else None
+    cal_logged = cal_consumed
+    remaining  = (adj_target - cal_logged) if adj_target is not None else "unknown"
+    hours_left = max(0, 21 - hour) if hour is not None else "unknown"
     active_burned = (garmin.get("active_calories") or 0) if garmin else \
                     sum(wk.get("calories_burned") or 0 for wk in workouts)
-    if rmr:
-        adj_target = int(rmr + active_burned - deficit)
-    else:
-        adj_target = n.get("calorie_goal")
-    cal_logged = n.get("calories_logged", 0)
-    remaining  = (adj_target - cal_logged) if adj_target else "unknown"
-    hours_left = max(0, 21 - hour) if hour is not None else "unknown"
 
     # ── build per-day historical table ──
     # Collect all dates seen across any data source
@@ -473,7 +473,7 @@ def generate_momentum_insight(
 TODAY
 SLEEP     | {_fmt_sleep(sleep)}
 MOVEMENT  | steps={garmin.get('steps', 0) if garmin else 'N/A'}, burned={active_burned} kcal, workouts={len(workouts)} logged
-NUTRITION | logged={cal_logged} kcal, target={adj_target} kcal, remaining={remaining} kcal, ~{hours_left}h left in eating window, protein={round(sum(m.get('protein_g',0) for m in meals),1)}g
+NUTRITION | logged={cal_logged} kcal, tdee={tdee} kcal, goal={adj_target} kcal (tdee - {deficit} deficit), remaining={remaining} kcal, ~{hours_left}h left in eating window, protein={round(sum(m.get('protein_g',0) for m in meals),1)}g
 HABITS    | morning_checkin={'done' if c.get('morning_done') else 'not done'}, evening_checkin={'done' if c.get('evening_done') else 'not done'}, tasks={t.get('completed', 0)}/{t.get('total', 0)} completed
 
 RECENT HISTORY (date | sleep | steps | active burn | calories logged | protein | checkin | task completion):
