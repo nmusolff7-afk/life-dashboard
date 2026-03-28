@@ -254,7 +254,12 @@ def suggest_meal(
 # ── Workout burn estimation ────────────────────────────
 
 BURN_PROMPT = """You are a fitness expert. Given a workout description in plain English,
-estimate the total calories burned. Use your best judgment for intensity and duration when not specified.
+estimate the NET calories burned — that is, only the EXTRA calories burned above what the person
+would have burned at rest (resting metabolic rate) during that same time period. Do NOT include
+the baseline calories the body burns just to stay alive; only count the additional expenditure
+caused by the physical activity itself.
+
+Use your best judgment for intensity and duration when not specified.
 
 Respond ONLY with this exact JSON structure (no markdown, no explanation):
 {
