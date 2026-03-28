@@ -5390,7 +5390,14 @@ function fmtDate(iso) {
   });
 
   // ── Day detail overlay ────────────────────────────
+  let _hdDate = null;
+
+  function _esc(s) {
+    return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+
   function showDayDetail(date) {
+    _hdDate = date;
     const overlay = document.getElementById("history-detail");
     const content = document.getElementById("hd-content");
     const titleEl = document.getElementById("hd-title");
@@ -5399,30 +5406,231 @@ function fmtDate(iso) {
     content.innerHTML   = '<div class="empty" style="padding:1.5rem 0"><div class="icon">⏳</div>Loading…</div>';
     overlay.classList.add("active");
 
-    const dailyLog = JSON.parse(localStorage.getItem("dailyLog")  || "{}");
-    const dayData = dailyLog[date] || null;
-    const weight  = dayData ? (dayData.weight || null) : null;
-    const steps   = dayData ? (dayData.steps  || null) : null;
+    const dailyLog = JSON.parse(localStorage.getItem("dailyLog") || "{}");
+    const dayData  = dailyLog[date] || null;
+    const weight   = dayData ? (dayData.weight || null) : null;
+    const steps    = dayData ? (dayData.steps  || null) : null;
 
     fetch(`/api/day/${date}`)
       .then(r => r.json())
       .then(serverDay => renderDayDetail(content, serverDay, { dayData, weight, steps }))
-      .catch(() => renderDayDetail(content, { meals: [], workouts: [] }, { dayData, weight, steps }));
+      .catch(() => renderDayDetail(content, { meals: [], workouts: [], sleep: null, garmin: null }, { dayData, weight, steps }));
+  }
+
+  function hdRefreshMeals() {
+    fetch(`/api/day/${_hdDate}`)
+      .then(r => r.json())
+      .then(sd => {
+        const el = document.getElementById("hd-meals-list");
+        if (!el) return;
+        el.innerHTML = _buildMealsHtml(sd.meals || []);
+        _wireMealEvents();
+      });
+  }
+
+  function hdRefreshWorkouts() {
+    fetch(`/api/day/${_hdDate}`)
+      .then(r => r.json())
+      .then(sd => {
+        const el = document.getElementById("hd-workouts-list");
+        if (!el) return;
+        el.innerHTML = _buildWorkoutsHtml(sd.workouts || []);
+        _wireWorkoutEvents();
+      });
+  }
+
+  function _buildMealsHtml(meals) {
+    if (!meals.length) return '<div style="color:var(--muted);font-size:0.85rem;padding:0.25rem 0">No meals logged.</div>';
+    const inp = (cls, val, lbl) => `<div class="field"><label>${lbl}</label><input type="number" class="${cls}" value="${val}" min="0" step="${lbl.includes("Cal") ? 1 : 0.1}"></div>`;
+    const efStyle = "width:100%;box-sizing:border-box;resize:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.85rem;padding:0.55rem 0.75rem;font-family:inherit;margin-bottom:0.5rem";
+    let h = '<div class="card" style="padding:0 1rem">';
+    meals.forEach(m => {
+      h += `<div class="hd-item">
+        <div style="display:flex;align-items:flex-start;gap:0.5rem">
+          <div style="flex:1">
+            <div class="hd-item-name">${_esc(m.description)}</div>
+            <div class="hd-item-meta">
+              <span style="color:var(--cal);font-weight:700">${m.calories} kcal</span>
+              &nbsp;·&nbsp;<span style="color:var(--protein)">${Math.round(m.protein_g)}g P</span>
+              &nbsp;·&nbsp;<span style="color:var(--carbs)">${Math.round(m.carbs_g)}g C</span>
+              &nbsp;·&nbsp;<span style="color:var(--fat)">${Math.round(m.fat_g)}g F</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:0.3rem;flex-shrink:0;margin-top:0.15rem">
+            <button class="done-edit-btn hd-m-edit" data-id="${m.id}">Edit</button>
+            <button class="done-edit-btn hd-m-del"  data-id="${m.id}" style="color:var(--danger)">Del</button>
+          </div>
+        </div>
+        <div id="hd-mef-${m.id}" style="display:none;margin-top:0.65rem;padding-top:0.65rem;border-top:1px solid var(--border)">
+          <textarea class="hd-ef-desc" rows="2" style="${efStyle}">${_esc(m.description)}</textarea>
+          <div class="macro-edit-grid" style="margin-bottom:0.5rem">
+            ${inp("hd-ef-cal",m.calories,"Calories")}
+            ${inp("hd-ef-pro",m.protein_g,"Protein (g)")}
+            ${inp("hd-ef-carbs",m.carbs_g,"Carbs (g)")}
+            ${inp("hd-ef-fat",m.fat_g,"Fat (g)")}
+          </div>
+          <div style="display:flex;gap:0.5rem">
+            <button class="btn btn-green hd-ef-macros" data-id="${m.id}" style="flex:1">Get Macros</button>
+            <button class="btn btn-primary hd-ef-save" data-id="${m.id}" style="flex:1">Save</button>
+          </div>
+        </div>
+      </div>`;
+    });
+    return h + '</div>';
+  }
+
+  function _wireMealEvents() {
+    document.querySelectorAll(".hd-m-edit").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const ef = document.getElementById(`hd-mef-${btn.dataset.id}`);
+        if (ef) ef.style.display = ef.style.display === "none" ? "" : "none";
+      });
+    });
+    document.querySelectorAll(".hd-m-del").forEach(btn => {
+      btn.addEventListener("click", () => {
+        if (!confirm("Delete this meal?")) return;
+        fetch(`/api/delete-meal/${btn.dataset.id}`, { method:"POST" })
+          .then(() => { hdRefreshMeals(); flashGreen(); });
+      });
+    });
+    document.querySelectorAll(".hd-ef-macros").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const ef = document.getElementById(`hd-mef-${btn.dataset.id}`);
+        const desc = ef.querySelector(".hd-ef-desc").value.trim();
+        if (!desc) return;
+        btn.disabled = true; btn.textContent = "…";
+        fetch("/api/nutrition", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ description: desc }) })
+          .then(r => r.json())
+          .then(d => {
+            if (d.calories != null) {
+              ef.querySelector(".hd-ef-cal").value   = d.calories;
+              ef.querySelector(".hd-ef-pro").value   = d.protein_g;
+              ef.querySelector(".hd-ef-carbs").value = d.carbs_g;
+              ef.querySelector(".hd-ef-fat").value   = d.fat_g;
+            }
+            btn.disabled = false; btn.textContent = "Get Macros";
+          })
+          .catch(() => { btn.disabled = false; btn.textContent = "Get Macros"; });
+      });
+    });
+    document.querySelectorAll(".hd-ef-save").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.id;
+        const ef = document.getElementById(`hd-mef-${id}`);
+        const desc = ef.querySelector(".hd-ef-desc").value.trim();
+        if (!desc) return;
+        btn.disabled = true; btn.textContent = "Saving…";
+        fetch(`/api/edit-meal/${id}`, {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({
+            description: desc,
+            calories:  parseFloat(ef.querySelector(".hd-ef-cal").value)   || 0,
+            protein_g: parseFloat(ef.querySelector(".hd-ef-pro").value)   || 0,
+            carbs_g:   parseFloat(ef.querySelector(".hd-ef-carbs").value) || 0,
+            fat_g:     parseFloat(ef.querySelector(".hd-ef-fat").value)   || 0,
+          })
+        }).then(() => { hdRefreshMeals(); flashGreen(); })
+          .catch(() => { btn.disabled = false; btn.textContent = "Save"; });
+      });
+    });
+  }
+
+  function _buildWorkoutsHtml(workouts) {
+    if (!workouts.length) return '<div style="color:var(--muted);font-size:0.85rem;padding:0.25rem 0">No workouts logged.</div>';
+    const efStyle = "width:100%;box-sizing:border-box;resize:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.85rem;padding:0.55rem 0.75rem;font-family:inherit;margin-bottom:0.5rem";
+    let h = '<div class="card" style="padding:0 1rem">';
+    workouts.forEach(w => {
+      const icon = CARDIO_KW.test(w.description.toLowerCase()) ? "🏃" : "🏋️";
+      h += `<div class="hd-item">
+        <div style="display:flex;align-items:flex-start;gap:0.5rem">
+          <span style="font-size:1.1rem;flex-shrink:0">${icon}</span>
+          <div style="flex:1">
+            <div class="hd-item-name" style="font-weight:400">${_esc(w.description)}</div>
+            ${w.calories_burned ? `<div class="hd-item-meta" style="color:var(--cal)">~${w.calories_burned} kcal burned</div>` : ""}
+          </div>
+          <div style="display:flex;gap:0.3rem;flex-shrink:0;margin-top:0.15rem">
+            <button class="done-edit-btn hd-w-edit" data-id="${w.id}">Edit</button>
+            <button class="done-edit-btn hd-w-del"  data-id="${w.id}" style="color:var(--danger)">Del</button>
+          </div>
+        </div>
+        <div id="hd-wef-${w.id}" style="display:none;margin-top:0.65rem;padding-top:0.65rem;border-top:1px solid var(--border)">
+          <textarea class="hd-wef-desc" rows="2" style="${efStyle}">${_esc(w.description)}</textarea>
+          <div class="field" style="margin-bottom:0.5rem"><label>Calories Burned</label><input type="number" class="hd-wef-cal" value="${w.calories_burned || 0}" min="0" step="1"></div>
+          <div style="display:flex;gap:0.5rem">
+            <button class="btn btn-green hd-wef-burn" data-id="${w.id}" style="flex:1">Get Burn Estimate</button>
+            <button class="btn btn-primary hd-wef-save" data-id="${w.id}" style="flex:1">Save</button>
+          </div>
+        </div>
+      </div>`;
+    });
+    return h + '</div>';
+  }
+
+  function _wireWorkoutEvents() {
+    document.querySelectorAll(".hd-w-edit").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const ef = document.getElementById(`hd-wef-${btn.dataset.id}`);
+        if (ef) ef.style.display = ef.style.display === "none" ? "" : "none";
+      });
+    });
+    document.querySelectorAll(".hd-w-del").forEach(btn => {
+      btn.addEventListener("click", () => {
+        if (!confirm("Delete this workout?")) return;
+        fetch(`/api/delete-workout/${btn.dataset.id}`, { method:"POST" })
+          .then(() => { hdRefreshWorkouts(); flashGreen(); });
+      });
+    });
+    document.querySelectorAll(".hd-wef-burn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.id;
+        const ef = document.getElementById(`hd-wef-${id}`);
+        const desc = ef.querySelector(".hd-wef-desc").value.trim();
+        if (!desc) return;
+        const profile = JSON.parse(localStorage.getItem("profileData") || "{}");
+        btn.disabled = true; btn.textContent = "…";
+        fetch("/api/burn-estimate", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ description: desc, weight_lbs: profile.curWeight || 180, duration_minutes: null })
+        }).then(r => r.json())
+          .then(d => {
+            if (d.calories_burned != null) ef.querySelector(".hd-wef-cal").value = d.calories_burned;
+            btn.disabled = false; btn.textContent = "Get Burn Estimate";
+          })
+          .catch(() => { btn.disabled = false; btn.textContent = "Get Burn Estimate"; });
+      });
+    });
+    document.querySelectorAll(".hd-wef-save").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.id;
+        const ef = document.getElementById(`hd-wef-${id}`);
+        const desc = ef.querySelector(".hd-wef-desc").value.trim();
+        if (!desc) return;
+        btn.disabled = true; btn.textContent = "Saving…";
+        fetch(`/api/edit-workout/${id}`, {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ description: desc, calories_burned: parseInt(ef.querySelector(".hd-wef-cal").value) || 0 })
+        }).then(() => { hdRefreshWorkouts(); flashGreen(); })
+          .catch(() => { btn.disabled = false; btn.textContent = "Save"; });
+      });
+    });
   }
 
   function renderDayDetail(content, serverDay, { dayData, weight, steps }) {
+    const garmin = serverDay.garmin || null;
+    const effectiveSteps = (garmin && garmin.steps) ? garmin.steps : steps;
+    const activeCalories = garmin ? garmin.active_calories : null;
+
     let html = "";
 
-    // ── Summary stats ──
-    html += '<div class="hd-section">Summary</div>';
+    // ── Summary ──
+    html += '<div class="hd-section" style="margin-top:0">Summary</div>';
     html += '<div class="hd-stat-grid">';
-
-    if (weight !== null) {
-      html += `<div class="hd-stat"><div class="v">${weight}<span style="font-size:0.65rem;font-weight:400;color:var(--muted)"> lbs</span></div><div class="l">Weight</div></div>`;
-    }
-    if (steps !== null) {
-      html += `<div class="hd-stat"><div class="v">${steps.toLocaleString()}</div><div class="l">Steps</div></div>`;
-    }
+    html += `<div class="hd-stat" id="hd-weight-stat">
+      <div class="v" id="hd-weight-val">${weight !== null ? weight + '<span style="font-size:0.65rem;font-weight:400;color:var(--muted)"> lbs</span>' : "–"}</div>
+      <div class="l" id="hd-weight-lbl" style="display:flex;align-items:center;justify-content:space-between">Weight <button class="done-edit-btn" id="hd-weight-edit">Edit</button></div>
+    </div>`;
+    if (effectiveSteps !== null)  html += `<div class="hd-stat"><div class="v">${Number(effectiveSteps).toLocaleString()}</div><div class="l">Steps</div></div>`;
+    if (activeCalories !== null)  html += `<div class="hd-stat"><div class="v">${activeCalories}</div><div class="l">Active Cal</div></div>`;
     if (dayData) {
       const dc = dayData.deficit >= 0 ? "var(--green)" : "var(--danger)";
       const dl = dayData.deficit >= 0 ? "Deficit" : "Surplus";
@@ -5432,75 +5640,208 @@ function fmtDate(iso) {
       html += `<div class="hd-stat"><div class="v" style="color:var(--protein)">${dayData.protein}g</div><div class="l">Protein</div></div>`;
       html += `<div class="hd-stat"><div class="v" style="color:var(--carbs)">${dayData.carbs}g</div><div class="l">Carbs</div></div>`;
       html += `<div class="hd-stat"><div class="v" style="color:var(--fat)">${dayData.fat}g</div><div class="l">Fat</div></div>`;
-    } else if (serverDay.meals.length) {
+    } else if ((serverDay.meals || []).length) {
       const cal = serverDay.meals.reduce((s, m) => s + (m.calories || 0), 0);
       html += `<div class="hd-stat"><div class="v">${cal}</div><div class="l">Calories</div></div>`;
-    }
-
-    if (!weight && steps === null && !dayData && !serverDay.meals.length) {
-      html += `<div style="grid-column:1/-1;color:var(--muted);font-size:0.82rem;padding:0.25rem 0">No summary data saved for this day.</div>`;
     }
     html += '</div>';
 
     // ── Meals ──
-    html += '<div class="hd-section">Meals</div>';
-    if (serverDay.meals.length) {
-      html += '<div class="card" style="padding:0 1rem">';
-      serverDay.meals.forEach(m => {
-        html += `<div class="hd-item">
-          <div class="hd-item-name">${m.description}</div>
-          <div class="hd-item-meta">
-            <span style="color:var(--cal);font-weight:700">${m.calories} kcal</span>
-            &nbsp;·&nbsp;<span style="color:var(--protein)">${Math.round(m.protein_g)}g P</span>
-            &nbsp;·&nbsp;<span style="color:var(--carbs)">${Math.round(m.carbs_g)}g C</span>
-            &nbsp;·&nbsp;<span style="color:var(--fat)">${Math.round(m.fat_g)}g F</span>
-          </div>
-        </div>`;
-      });
-      html += '</div>';
-    } else {
-      html += '<div style="color:var(--muted);font-size:0.85rem;padding:0.25rem 0">No meals logged.</div>';
-    }
+    const taStyle = "width:100%;box-sizing:border-box;resize:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.85rem;padding:0.55rem 0.75rem;font-family:inherit;margin-bottom:0.5rem";
+    html += `<div style="display:flex;align-items:center;justify-content:space-between;margin:1rem 0 0.5rem">
+      <div class="hd-section" style="margin:0">Meals</div>
+      <button class="done-edit-btn" id="hd-add-meal-btn">+ Add</button>
+    </div>`;
+    html += `<div id="hd-add-meal-form" style="display:none;background:var(--surface2);border-radius:10px;padding:0.85rem;margin-bottom:0.75rem;border:1px solid var(--border)">
+      <textarea id="hd-meal-desc" rows="2" placeholder="Describe what you ate…" style="${taStyle}"></textarea>
+      <div id="hd-meal-macros-wrap" style="display:none;margin-bottom:0.5rem">
+        <div class="macro-edit-grid">
+          <div class="field"><label>Calories</label><input type="number" id="hd-meal-cal" min="0" step="1"></div>
+          <div class="field"><label>Protein (g)</label><input type="number" id="hd-meal-pro" min="0" step="0.1"></div>
+          <div class="field"><label>Carbs (g)</label><input type="number" id="hd-meal-carbs" min="0" step="0.1"></div>
+          <div class="field"><label>Fat (g)</label><input type="number" id="hd-meal-fat" min="0" step="0.1"></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+        <button class="btn btn-green" id="hd-meal-macros-btn" style="flex:1;min-width:120px">Get Macros</button>
+        <button class="btn btn-primary" id="hd-meal-log-btn" style="flex:1;min-width:120px;display:none">Log Meal</button>
+      </div>
+    </div>`;
+    html += `<div id="hd-meals-list">${_buildMealsHtml(serverDay.meals || [])}</div>`;
 
     // ── Workouts ──
-    html += '<div class="hd-section">Workouts</div>';
-    if (serverDay.workouts.length) {
-      html += '<div class="card" style="padding:0 1rem">';
-      serverDay.workouts.forEach(w => {
-        const icon = CARDIO_KW.test(w.description.toLowerCase()) ? "🏃" : "🏋️";
-        html += `<div class="hd-item">
-          <div style="display:flex;gap:0.5rem;align-items:flex-start">
-            <span style="font-size:1.1rem;flex-shrink:0">${icon}</span>
-            <div>
-              <div class="hd-item-name" style="font-weight:400">${w.description}</div>
-              ${w.calories_burned ? `<div class="hd-item-meta" style="color:var(--cal)">~${w.calories_burned} kcal burned</div>` : ""}
-            </div>
-          </div>
-        </div>`;
-      });
-      html += '</div>';
-    } else {
-      html += '<div style="color:var(--muted);font-size:0.85rem;padding:0.25rem 0">No workouts logged.</div>';
-    }
+    html += `<div style="display:flex;align-items:center;justify-content:space-between;margin:1rem 0 0.5rem">
+      <div class="hd-section" style="margin:0">Workouts</div>
+      <button class="done-edit-btn" id="hd-add-workout-btn">+ Add</button>
+    </div>`;
+    html += `<div id="hd-add-workout-form" style="display:none;background:var(--surface2);border-radius:10px;padding:0.85rem;margin-bottom:0.75rem;border:1px solid var(--border)">
+      <textarea id="hd-workout-desc" rows="2" placeholder="Describe your workout…" style="${taStyle}"></textarea>
+      <div id="hd-workout-cal-wrap" style="display:none;margin-bottom:0.5rem">
+        <div class="field"><label>Calories Burned</label><input type="number" id="hd-workout-cal" min="0" step="1"></div>
+      </div>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+        <button class="btn btn-green" id="hd-workout-burn-btn" style="flex:1;min-width:120px">Get Burn Estimate</button>
+        <button class="btn btn-primary" id="hd-workout-log-btn" style="flex:1;min-width:120px;display:none">Log Workout</button>
+      </div>
+    </div>`;
+    html += `<div id="hd-workouts-list">${_buildWorkoutsHtml(serverDay.workouts || [])}</div>`;
 
     // ── Sleep ──
     const sleep = serverDay.sleep;
     if (sleep && sleep.total_seconds) {
-      html += '<div class="hd-section">Sleep</div>';
-      html += '<div class="hd-stat-grid">';
+      html += '<div class="hd-section">Sleep</div><div class="hd-stat-grid">';
       html += `<div class="hd-stat"><div class="v" style="color:var(--accent2)">${fmtSleep(sleep.total_seconds)}</div><div class="l">Duration</div></div>`;
       if (sleep.rem_seconds)   html += `<div class="hd-stat"><div class="v" style="color:var(--accent)">${fmtSleep(sleep.rem_seconds)}</div><div class="l">REM</div></div>`;
       if (sleep.deep_seconds)  html += `<div class="hd-stat"><div class="v" style="color:var(--green)">${fmtSleep(sleep.deep_seconds)}</div><div class="l">Deep</div></div>`;
       if (sleep.light_seconds) html += `<div class="hd-stat"><div class="v" style="color:var(--muted)">${fmtSleep(sleep.light_seconds)}</div><div class="l">Light</div></div>`;
       if (sleep.sleep_score != null) {
-        const sc = sleep.sleep_score;
-        const sc_color = sc >= 80 ? "var(--green)" : sc >= 60 ? "var(--accent2)" : "var(--danger)";
+        const sc = sleep.sleep_score, sc_color = sc >= 80 ? "var(--green)" : sc >= 60 ? "var(--accent2)" : "var(--danger)";
         html += `<div class="hd-stat"><div class="v" style="color:${sc_color}">${sc}</div><div class="l">Score</div></div>`;
       }
       html += '</div>';
     }
 
     content.innerHTML = html;
+    _wireMealEvents();
+    _wireWorkoutEvents();
+
+    // Weight inline edit
+    document.getElementById("hd-weight-edit").addEventListener("click", function hdWtEdit() {
+      const valEl = document.getElementById("hd-weight-val");
+      const lblEl = document.getElementById("hd-weight-lbl");
+      const curW  = parseFloat(valEl.textContent) || "";
+      const inp   = document.createElement("input");
+      inp.type = "number"; inp.min = "50"; inp.step = "0.1"; inp.value = curW;
+      inp.style.cssText = "width:100%;background:var(--surface);border:1px solid var(--accent2);border-radius:6px;color:var(--text);font-size:1rem;font-weight:800;padding:0.2rem 0.35rem;font-family:inherit;box-sizing:border-box";
+      const saveBtn = document.createElement("button");
+      saveBtn.className = "done-edit-btn"; saveBtn.textContent = "Save"; saveBtn.style.color = "var(--accent2)";
+      valEl.innerHTML = ""; valEl.appendChild(inp);
+      lblEl.innerHTML = "Weight&nbsp;"; lblEl.appendChild(saveBtn);
+      inp.focus();
+      inp.addEventListener("keydown", e => { if (e.key === "Enter") saveBtn.click(); });
+      saveBtn.addEventListener("click", () => {
+        const val = parseFloat(inp.value);
+        if (!val || val < 50) return;
+        const log = JSON.parse(localStorage.getItem("dailyLog") || "{}");
+        if (!log[_hdDate]) log[_hdDate] = {};
+        log[_hdDate].weight = val;
+        localStorage.setItem("dailyLog", JSON.stringify(log));
+        syncWeightToProfile(val);
+        valEl.innerHTML = `${val}<span style="font-size:0.65rem;font-weight:400;color:var(--muted)"> lbs</span>`;
+        lblEl.style.cssText = "display:flex;align-items:center;justify-content:space-between";
+        lblEl.innerHTML = "Weight ";
+        const newEdit = document.createElement("button");
+        newEdit.className = "done-edit-btn"; newEdit.id = "hd-weight-edit"; newEdit.textContent = "Edit";
+        newEdit.addEventListener("click", hdWtEdit);
+        lblEl.appendChild(newEdit);
+        flashGreen();
+      });
+    });
+
+    // Add Meal form toggle
+    document.getElementById("hd-add-meal-btn").addEventListener("click", () => {
+      const f = document.getElementById("hd-add-meal-form");
+      f.style.display = f.style.display === "none" ? "" : "none";
+    });
+
+    // Add Meal: Get Macros
+    document.getElementById("hd-meal-macros-btn").addEventListener("click", () => {
+      const desc = document.getElementById("hd-meal-desc").value.trim();
+      if (!desc) return;
+      const btn = document.getElementById("hd-meal-macros-btn");
+      btn.disabled = true; btn.textContent = "…";
+      fetch("/api/nutrition", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ description: desc }) })
+        .then(r => r.json())
+        .then(d => {
+          if (d.calories != null) {
+            document.getElementById("hd-meal-cal").value   = d.calories;
+            document.getElementById("hd-meal-pro").value   = d.protein_g;
+            document.getElementById("hd-meal-carbs").value = d.carbs_g;
+            document.getElementById("hd-meal-fat").value   = d.fat_g;
+            document.getElementById("hd-meal-macros-wrap").style.display = "";
+            document.getElementById("hd-meal-log-btn").style.display = "";
+          }
+          btn.disabled = false; btn.textContent = "Get Macros";
+        })
+        .catch(() => { btn.disabled = false; btn.textContent = "Get Macros"; });
+    });
+
+    // Add Meal: Log
+    document.getElementById("hd-meal-log-btn").addEventListener("click", () => {
+      const desc = document.getElementById("hd-meal-desc").value.trim();
+      if (!desc) return;
+      const btn = document.getElementById("hd-meal-log-btn");
+      btn.disabled = true; btn.textContent = "Logging…";
+      fetch("/api/log-meal", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          description: desc,
+          calories:  parseFloat(document.getElementById("hd-meal-cal").value)   || 0,
+          protein_g: parseFloat(document.getElementById("hd-meal-pro").value)   || 0,
+          carbs_g:   parseFloat(document.getElementById("hd-meal-carbs").value) || 0,
+          fat_g:     parseFloat(document.getElementById("hd-meal-fat").value)   || 0,
+          client_date: _hdDate,
+        })
+      }).then(() => {
+        document.getElementById("hd-add-meal-form").style.display = "none";
+        document.getElementById("hd-meal-desc").value = "";
+        document.getElementById("hd-meal-macros-wrap").style.display = "none";
+        document.getElementById("hd-meal-log-btn").style.display = "none";
+        btn.disabled = false; btn.textContent = "Log Meal";
+        hdRefreshMeals(); flashGreen();
+      }).catch(() => { btn.disabled = false; btn.textContent = "Log Meal"; });
+    });
+
+    // Add Workout form toggle
+    document.getElementById("hd-add-workout-btn").addEventListener("click", () => {
+      const f = document.getElementById("hd-add-workout-form");
+      f.style.display = f.style.display === "none" ? "" : "none";
+    });
+
+    // Add Workout: Get Burn Estimate
+    document.getElementById("hd-workout-burn-btn").addEventListener("click", () => {
+      const desc = document.getElementById("hd-workout-desc").value.trim();
+      if (!desc) return;
+      const btn = document.getElementById("hd-workout-burn-btn");
+      const profile = JSON.parse(localStorage.getItem("profileData") || "{}");
+      btn.disabled = true; btn.textContent = "…";
+      fetch("/api/burn-estimate", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ description: desc, weight_lbs: profile.curWeight || 180, duration_minutes: null })
+      }).then(r => r.json())
+        .then(d => {
+          if (d.calories_burned != null) {
+            document.getElementById("hd-workout-cal").value = d.calories_burned;
+            document.getElementById("hd-workout-cal-wrap").style.display = "";
+            document.getElementById("hd-workout-log-btn").style.display = "";
+          }
+          btn.disabled = false; btn.textContent = "Get Burn Estimate";
+        })
+        .catch(() => { btn.disabled = false; btn.textContent = "Get Burn Estimate"; });
+    });
+
+    // Add Workout: Log
+    document.getElementById("hd-workout-log-btn").addEventListener("click", () => {
+      const desc = document.getElementById("hd-workout-desc").value.trim();
+      if (!desc) return;
+      const btn = document.getElementById("hd-workout-log-btn");
+      btn.disabled = true; btn.textContent = "Logging…";
+      fetch("/api/log-workout", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          description: desc,
+          calories_burned: parseInt(document.getElementById("hd-workout-cal").value) || 0,
+          client_date: _hdDate,
+        })
+      }).then(() => {
+        document.getElementById("hd-add-workout-form").style.display = "none";
+        document.getElementById("hd-workout-desc").value = "";
+        document.getElementById("hd-workout-cal-wrap").style.display = "none";
+        document.getElementById("hd-workout-log-btn").style.display = "none";
+        btn.disabled = false; btn.textContent = "Log Workout";
+        hdRefreshWorkouts(); flashGreen();
+      }).catch(() => { btn.disabled = false; btn.textContent = "Log Workout"; });
+    });
   }
 
   document.getElementById("hd-back").addEventListener("click", () => {

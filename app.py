@@ -9,7 +9,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, s
 from db import (
     init_db, create_user, verify_user, delete_account,
     insert_meal, get_today_meals, get_today_totals, update_meal, delete_meal,
-    insert_workout, get_today_workouts, delete_workout, get_today_workout_burn,
+    insert_workout, get_today_workouts, update_workout, delete_workout, get_today_workout_burn,
     get_meal_history, get_workout_history, get_day_detail,
     upsert_garmin_daily, get_garmin_daily, get_garmin_last_sync,
     garmin_activity_exists, insert_garmin_workout,
@@ -657,8 +657,20 @@ def api_shorten():
 @login_required
 def api_day(date_str):
     detail = get_day_detail(uid(), date_str)
-    detail["sleep"] = get_sleep(uid(), date_str)
+    detail["sleep"]  = get_sleep(uid(), date_str)
+    detail["garmin"] = get_garmin_daily(uid(), date_str)
     return jsonify(detail)
+
+
+@app.route("/api/edit-workout/<int:workout_id>", methods=["POST"])
+@login_required
+def api_edit_workout(workout_id):
+    data = request.get_json() or {}
+    description = data.get("description", "").strip()
+    if not description:
+        return jsonify({"error": "No description"}), 400
+    update_workout(workout_id, uid(), description, int(data.get("calories_burned", 0) or 0))
+    return jsonify({"ok": True})
 
 
 @app.route("/api/history")

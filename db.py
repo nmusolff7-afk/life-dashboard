@@ -319,6 +319,15 @@ def get_today_workouts(user_id, log_date=None):
     return [dict(r) for r in rows]
 
 
+def update_workout(workout_id, user_id, description, calories_burned):
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE workout_logs SET description=?, calories_burned=? WHERE id=? AND user_id=?",
+            (description, calories_burned, workout_id, user_id),
+        )
+        conn.commit()
+
+
 def delete_workout(workout_id, user_id):
     with get_conn() as conn:
         conn.execute("DELETE FROM workout_logs WHERE id = ? AND user_id = ?", (workout_id, user_id))
