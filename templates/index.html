@@ -3486,17 +3486,23 @@ function deleteWorkout(id) {
         input.value = workoutState[ei].name;
         input.style.cssText = "flex:1;background:var(--surface2);border:1px solid var(--accent2);border-radius:7px;" +
           "padding:0.25rem 0.55rem;color:var(--text);font-size:0.95rem;font-weight:700;min-width:0;outline:none";
+
+        const confirmBtn = document.createElement("button");
+        confirmBtn.className = "done-edit-btn";
+        confirmBtn.textContent = "✓";
+        confirmBtn.style.color = "var(--accent2)";
+
         nameRow.replaceChild(input, nameSpan);
-        nameRow.removeChild(editNameBtn);
-        input.focus(); input.select();
+        nameRow.replaceChild(confirmBtn, editNameBtn);
+        setTimeout(() => { input.focus(); input.select(); }, 50);
 
         const commit = () => {
           const val = input.value.trim();
           if (val) workoutState[ei].name = val;
           renderChecklist(workoutState);
         };
-        input.addEventListener("blur", commit);
-        input.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); input.blur(); } });
+        confirmBtn.addEventListener("click", commit);
+        input.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); commit(); } });
       });
 
       nameRow.append(nameSpan, editNameBtn, progSpan);
