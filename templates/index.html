@@ -1982,7 +1982,11 @@
 <!-- Workout active banner (shown when workout is minimized) -->
 <div id="workout-banner" role="button" aria-label="Return to workout">
   <span>▶ Workout Active</span>
-  <span id="workout-banner-timer" style="font-family:'Rajdhani',monospace;font-size:1rem;letter-spacing:0.05em">00:00</span>
+  <span style="font-family:'Rajdhani',monospace;font-size:1rem;letter-spacing:0.05em;display:flex;align-items:center;gap:0.4rem">
+    <span id="workout-banner-timer">00:00</span>
+    <span style="opacity:0.55;font-size:0.75rem;font-family:inherit">·rest·</span>
+    <span id="workout-banner-rest" style="color:#b3f0b3">00:00</span>
+  </span>
   <span style="opacity:0.85">Tap to return ›</span>
 </div>
 
@@ -3371,6 +3375,7 @@ function deleteWorkout(id) {
   const minimizeBtn  = document.getElementById("minimize-workout-btn");
   const bannerEl     = document.getElementById("workout-banner");
   const bannerTimer  = document.getElementById("workout-banner-timer");
+  const bannerRest   = document.getElementById("workout-banner-rest");
   const exState      = document.getElementById("cl-exercise-state");
   const finState     = document.getElementById("cl-finishing-state");
   const statusTxt    = document.getElementById("cl-status-text");
@@ -3646,9 +3651,10 @@ function deleteWorkout(id) {
       elapsed     = Math.floor((Date.now() - startTs) / 1000);
       restElapsed += 1;
       const t = formatTime(elapsed);
-      timerEl.textContent   = t;
+      timerEl.textContent    = t;
       bannerTimer.textContent = t;
-      restEl.textContent    = formatTime(restElapsed);
+      bannerRest.textContent  = formatTime(restElapsed);
+      restEl.textContent     = formatTime(restElapsed);
     }, 1000);
     showOverlay();
   }
