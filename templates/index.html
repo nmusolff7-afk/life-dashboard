@@ -3068,6 +3068,13 @@ function deleteWorkout(id) {
 
   function recalcBreakdown() {
     const rows = breakdownEl.querySelectorAll(".bd-row");
+    if (!rows.length) {
+      breakdownEl.innerHTML        = "";
+      macroFields.classList.remove("visible");
+      logBtn.style.display         = "none";
+      aiNotes.textContent          = "";
+      return;
+    }
     let cal = 0, pro = 0, carb = 0, fat = 0;
     rows.forEach(row => {
       const origCal = parseFloat(row.dataset.origCal) || 1;
