@@ -564,15 +564,29 @@ def api_meals_suggest():
 
     profile = get_profile_map(uid())
 
-    # Calculate remaining calories
-    rmr     = int(profile.get("rmr_kcal") or 1550)
+    # Calculate remaining calories using client TDEE (includes NEAT+exercise+TEF)
+    client_tdee = data.get("tdee")
+    if client_tdee:
+        tdee = int(client_tdee)
+    else:
+        tdee = int(profile.get("rmr_kcal") or 1550)
     deficit = int(profile.get("calorie_deficit_target") or 0)
     # Use client-provided consumed; fall back to DB
     if not cal_consumed:
         totals = get_today_totals(uid(), client_today())
         cal_consumed = int((totals or {}).get("calories", 0) or 0)
-    cal_target      = rmr - deficit
+    cal_target      = tdee - deficit
     cal_remaining   = max(0, cal_target - cal_consumed)
+
+    # Macro remaining
+    macro_remaining = None
+    pro_goal = data.get("protein_goal")
+    if pro_goal is not None:
+        macro_remaining = {
+            "protein_remaining_g": max(0, float(pro_goal) - float(data.get("protein_consumed", 0) or 0)),
+            "carbs_remaining_g":   max(0, float(data.get("carbs_goal", 250)) - float(data.get("carbs_consumed", 0) or 0)),
+            "fat_remaining_g":     max(0, float(data.get("fat_goal", 75)) - float(data.get("fat_consumed", 0) or 0)),
+        }
 
     try:
         result = suggest_meal(
@@ -581,6 +595,7 @@ def api_meals_suggest():
             profile_map=profile,
             calories_remaining=cal_remaining,
             meal_type=meal_type,
+            macro_remaining=macro_remaining,
         )
         result["meal_type"]      = meal_type
         result["cal_remaining"]  = cal_remaining

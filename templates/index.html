@@ -2993,16 +2993,27 @@ function deleteWorkout(id) {
     loadingEl.style.display = "flex";
     resultEl.style.display  = "none";
 
-    let calConsumed = 0;
-    try {
-      const today = new Date().toISOString().slice(0, 10);
-      calConsumed = parseInt((JSON.parse(localStorage.getItem("dailyLog") || "{}")[today] || {}).calories || 0) || 0;
-    } catch(_) {}
+    const _prof = JSON.parse(localStorage.getItem("profileData") || "{}");
+    const _goalPro  = _prof.protein || 175;
+    const _goalCarb = _prof.carbs   || 250;
+    const _goalFat  = _prof.fat     || 75;
 
     try {
       const res  = await fetch("/api/meals/suggest", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ingredients, images: imgPayload, hour: new Date().getHours(), calories_consumed: calConsumed }),
+        body: JSON.stringify({
+          ingredients,
+          images: imgPayload,
+          hour: new Date().getHours(),
+          calories_consumed: Math.round(CAL_CONSUMED),
+          tdee: CURRENT_TDEE,
+          protein_consumed: PROTEIN_CONSUMED,
+          carbs_consumed: CARBS_CONSUMED,
+          fat_consumed: FAT_CONSUMED,
+          protein_goal: _goalPro,
+          carbs_goal: _goalCarb,
+          fat_goal: _goalFat,
+        }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);

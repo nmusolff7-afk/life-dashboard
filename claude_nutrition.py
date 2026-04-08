@@ -205,16 +205,22 @@ def identify_ingredients(images: list) -> list[str]:
 SUGGEST_PROMPT = """You are a personal nutrition coach. The user has told you what ingredients they have available. Suggest THREE different meal options that:
 1. Are appropriate for the stated meal time
 2. Use ingredients they actually have
-3. Help them hit their remaining calorie target for the day
-4. Respect their dietary preferences
-5. Vary enough to give a real choice (e.g. light vs hearty, quick vs more involved)
+3. FIT WITHIN their remaining calorie budget — each meal's calories MUST be at or below the "Calories remaining today" value
+4. Help them get as close as possible to their remaining macro targets (protein, carbs, fat) — prioritize hitting protein first, then balance carbs and fat
+5. Respect their dietary preferences
+6. Vary enough to give a real choice (e.g. light vs hearty, quick vs more involved)
+
+IMPORTANT: The calorie and macro remaining values represent what the user has LEFT to eat today.
+Do NOT suggest meals that exceed the remaining calorie budget. If the budget is small (e.g. under 300 kcal),
+suggest appropriately light meals or snacks. If macros remaining are provided, tailor suggestions to close
+the gap — for example if protein remaining is high relative to calories, suggest protein-dense options.
 
 Respond ONLY with this exact JSON structure (no markdown, no explanation):
 {
   "options": [
     {
       "meal_name": "<2-5 word meal name>",
-      "why": "<1 sentence: why this fits their goal right now>",
+      "why": "<1 sentence: why this fits their calorie and macro goals right now>",
       "instructions": "<brief recipe: 2-4 steps separated by | >",
       "calories": <integer>,
       "protein_g": <number with one decimal>,
@@ -236,11 +242,19 @@ def suggest_meal(
     profile_map: dict | None,
     calories_remaining: int | None,
     meal_type: str,         # "breakfast", "lunch", "dinner", "snack"
+    macro_remaining: dict | None = None,
 ) -> dict:
     # Build context string from profile
     ctx_parts = [f"Meal time: {meal_type}"]
     if calories_remaining is not None:
         ctx_parts.append(f"Calories remaining today: {calories_remaining} kcal")
+    if macro_remaining:
+        ctx_parts.append(
+            f"Macros remaining today: "
+            f"{macro_remaining['protein_remaining_g']:.0f}g protein, "
+            f"{macro_remaining['carbs_remaining_g']:.0f}g carbs, "
+            f"{macro_remaining['fat_remaining_g']:.0f}g fat"
+        )
     if profile_map:
         for key, label in [
             ("diet_type",            "Diet style"),
