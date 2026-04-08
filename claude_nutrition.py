@@ -8,17 +8,33 @@ def _client():
 # ── Nutrition estimation ───────────────────────────────
 
 NUTRITION_PROMPT = """You are a nutrition expert. When given a meal description in plain English,
-estimate the nutritional content. Always respond with a valid JSON object and nothing else.
+estimate the nutritional content BY ITEMIZING EVERY INDIVIDUAL COMPONENT separately,
+then summing to a total. Always respond with a valid JSON object and nothing else.
 Use your best judgment for portion sizes when not specified.
 
 Respond ONLY with this exact JSON structure (no markdown, no explanation):
 {
-  "calories": <integer>,
-  "protein_g": <number with one decimal>,
-  "carbs_g": <number with one decimal>,
-  "fat_g": <number with one decimal>,
+  "items": [
+    {
+      "name": "<item name with portion, e.g. '2 scrambled eggs'>",
+      "calories": <integer>,
+      "protein_g": <number with one decimal>,
+      "carbs_g": <number with one decimal>,
+      "fat_g": <number with one decimal>
+    }
+  ],
+  "calories": <integer total — sum of all items>,
+  "protein_g": <number with one decimal — sum of all items>,
+  "carbs_g": <number with one decimal — sum of all items>,
+  "fat_g": <number with one decimal — sum of all items>,
   "notes": "<brief note about assumptions made, if any>"
-}"""
+}
+
+Rules:
+- ALWAYS break the meal into individual items, even if only one item is described.
+- Each item should include the portion/quantity in its name.
+- The top-level totals MUST equal the exact sum of all items.
+- For complex meals (e.g. a burrito), break into component ingredients (tortilla, rice, beans, meat, cheese, etc.)."""
 
 
 def _parse_json(text: str) -> dict:
@@ -49,17 +65,27 @@ def estimate_nutrition(meal_description: str, profile_map: dict | None = None) -
 
     response = _client().messages.create(
         model="claude-opus-4-6",
-        max_tokens=512,
+        max_tokens=1024,
         system=NUTRITION_PROMPT,
         messages=[{"role": "user", "content": user_content}],
     )
     text = next(b.text for b in response.content if b.type == "text")
     data = _parse_json(text)
+    items = []
+    for item in (data.get("items") or []):
+        items.append({
+            "name":      item.get("name", ""),
+            "calories":  int(item.get("calories", 0)),
+            "protein_g": float(item.get("protein_g", 0)),
+            "carbs_g":   float(item.get("carbs_g", 0)),
+            "fat_g":     float(item.get("fat_g", 0)),
+        })
     return {
         "calories":  int(data["calories"]),
         "protein_g": float(data["protein_g"]),
         "carbs_g":   float(data["carbs_g"]),
         "fat_g":     float(data["fat_g"]),
+        "items":     items,
         "notes":     data.get("notes", ""),
     }
 
@@ -67,19 +93,34 @@ def estimate_nutrition(meal_description: str, profile_map: dict | None = None) -
 # ── Meal image scanning ───────────────────────────────
 
 SCAN_PROMPT = """You are a nutrition expert analyzing a photo of food.
-Identify what food or meal is shown and estimate its nutritional content.
+Identify what food or meal is shown and estimate its nutritional content
+BY ITEMIZING EVERY INDIVIDUAL COMPONENT separately, then summing to a total.
 
 Respond ONLY with this exact JSON structure (no markdown, no explanation):
 {
   "description": "<2-5 word meal name>",
-  "calories": <integer>,
-  "protein_g": <number with one decimal>,
-  "carbs_g": <number with one decimal>,
-  "fat_g": <number with one decimal>,
+  "items": [
+    {
+      "name": "<item name with portion, e.g. 'grilled chicken breast ~6oz'>",
+      "calories": <integer>,
+      "protein_g": <number with one decimal>,
+      "carbs_g": <number with one decimal>,
+      "fat_g": <number with one decimal>
+    }
+  ],
+  "calories": <integer total — sum of all items>,
+  "protein_g": <number with one decimal — sum of all items>,
+  "carbs_g": <number with one decimal — sum of all items>,
+  "fat_g": <number with one decimal — sum of all items>,
   "notes": "<brief note about what you see and portion assumptions>"
 }
 
-Be realistic about portion sizes based on what is visible in the image."""
+Rules:
+- ALWAYS break the meal into individual items, even if only one item is visible.
+- Each item should include the estimated portion/quantity in its name.
+- The top-level totals MUST equal the exact sum of all items.
+- For complex dishes, break into component ingredients.
+- Be realistic about portion sizes based on what is visible in the image."""
 
 
 def scan_meal_image(image_b64: str, media_type: str, context: str = "") -> dict:
@@ -88,7 +129,7 @@ def scan_meal_image(image_b64: str, media_type: str, context: str = "") -> dict:
         prompt += f"\n\nAdditional context from the user: {context}"
     response = _client().messages.create(
         model="claude-opus-4-6",
-        max_tokens=512,
+        max_tokens=1024,
         messages=[{
             "role": "user",
             "content": [
@@ -106,12 +147,22 @@ def scan_meal_image(image_b64: str, media_type: str, context: str = "") -> dict:
     )
     text = next(b.text for b in response.content if b.type == "text")
     data = _parse_json(text)
+    items = []
+    for item in (data.get("items") or []):
+        items.append({
+            "name":      item.get("name", ""),
+            "calories":  int(item.get("calories", 0)),
+            "protein_g": float(item.get("protein_g", 0)),
+            "carbs_g":   float(item.get("carbs_g", 0)),
+            "fat_g":     float(item.get("fat_g", 0)),
+        })
     return {
         "description": data.get("description", "Meal from photo"),
         "calories":    int(data["calories"]),
         "protein_g":   float(data["protein_g"]),
         "carbs_g":     float(data["carbs_g"]),
         "fat_g":       float(data["fat_g"]),
+        "items":       items,
         "notes":       data.get("notes", ""),
     }
 

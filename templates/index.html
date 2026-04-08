@@ -203,6 +203,14 @@
     .macro-edit-grid .field:nth-child(3) input { border-color: rgba(159,168,218,.4); }
     .macro-edit-grid .field:nth-child(4) input { border-color: rgba(244,143,177,.4); }
     #ai-notes { font-size: 0.78rem; color: var(--muted); font-style: italic; margin-bottom: 0.75rem; }
+    #item-breakdown { font-size: 0.78rem; margin-bottom: 0.75rem; }
+    #item-breakdown table { width: 100%; border-collapse: collapse; }
+    #item-breakdown th { text-align: left; font-size: 0.68rem; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .04em; padding: 0.25rem 0.3rem; border-bottom: 1px solid var(--border); }
+    #item-breakdown th:not(:first-child) { text-align: right; }
+    #item-breakdown td { padding: 0.25rem 0.3rem; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    #item-breakdown td:not(:first-child) { text-align: right; font-family: 'Rajdhani', sans-serif; font-weight: 600; }
+    #item-breakdown tr.breakdown-total td { border-top: 1px solid var(--border); font-weight: 700; color: var(--text); }
 
     /* Meal table */
     .meal-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
@@ -1075,6 +1083,7 @@
           <input type="hidden" name="fat_g"     id="h-fat">
 
           <div id="macro-fields">
+            <div id="item-breakdown"></div>
             <div id="ai-notes"></div>
             <div class="macro-edit-grid">
               <div class="field"><label>Calories</label><input type="number" id="e-calories" min="0" step="1"></div>
@@ -3026,6 +3035,7 @@ function deleteWorkout(id) {
   const logForm        = document.getElementById("log-form");
   const macroFields    = document.getElementById("macro-fields");
   const aiNotes        = document.getElementById("ai-notes");
+  const breakdownEl    = document.getElementById("item-breakdown");
   const hDesc          = document.getElementById("h-description");
   const pairs = [
     ["e-calories","h-calories"],["e-protein","h-protein"],
@@ -3033,6 +3043,17 @@ function deleteWorkout(id) {
   ].map(([v,h]) => [document.getElementById(v), document.getElementById(h)]);
 
   pairs.forEach(([vis,hid]) => vis.addEventListener("input", () => hid.value = vis.value));
+
+  function renderBreakdown(items, totals) {
+    if (!items || items.length === 0) { breakdownEl.innerHTML = ""; return; }
+    let html = '<table><thead><tr><th>Item</th><th>Cal</th><th>P</th><th>C</th><th>F</th></tr></thead><tbody>';
+    items.forEach(it => {
+      html += '<tr><td>' + it.name + '</td><td>' + it.calories + '</td><td>' + it.protein_g.toFixed(1) + 'g</td><td>' + it.carbs_g.toFixed(1) + 'g</td><td>' + it.fat_g.toFixed(1) + 'g</td></tr>';
+    });
+    html += '<tr class="breakdown-total"><td>Total</td><td>' + totals.calories + '</td><td>' + totals.protein_g.toFixed(1) + 'g</td><td>' + totals.carbs_g.toFixed(1) + 'g</td><td>' + totals.fat_g.toFixed(1) + 'g</td></tr>';
+    html += '</tbody></table>';
+    breakdownEl.innerHTML = html;
+  }
 
   let shortLabel    = null;
   let _pendingImage = null; // {b64, mediaType} stored after resize, used by analyzeBtn
@@ -3088,6 +3109,7 @@ function deleteWorkout(id) {
     macroFields.classList.remove("visible");
     logBtn.style.display         = "none";
     aiNotes.textContent          = "";
+    breakdownEl.innerHTML        = "";
     pairs.forEach(([vis, hid]) => { vis.value = ""; hid.value = ""; });
     scanInput.value              = "";
     galleryInput.value           = "";
@@ -3140,6 +3162,7 @@ function deleteWorkout(id) {
       pairs[1][0].value = data.protein_g;  pairs[1][1].value = data.protein_g;
       pairs[2][0].value = data.carbs_g;    pairs[2][1].value = data.carbs_g;
       pairs[3][0].value = data.fat_g;      pairs[3][1].value = data.fat_g;
+      renderBreakdown(data.items, {calories: data.calories, protein_g: data.protein_g, carbs_g: data.carbs_g, fat_g: data.fat_g});
       aiNotes.style.color = "";
       aiNotes.textContent = data.notes ? "AI note: " + data.notes : "";
       macroFields.classList.add("visible");
@@ -3187,6 +3210,7 @@ function deleteWorkout(id) {
     if (typeof window._voiceStop === "function") window._voiceStop();
     macrosBtn.disabled = true; macrosBtn.textContent = "Estimating…";
     macroFields.classList.remove("visible");
+    breakdownEl.innerHTML = "";
     shortLabel = null;
     hDesc.value = val; // fallback: use full description if shorten hasn't resolved yet
 
@@ -3211,6 +3235,7 @@ function deleteWorkout(id) {
         pairs[1][0].value = pro;   pairs[1][1].value = pro;
         pairs[2][0].value = carb;  pairs[2][1].value = carb;
         pairs[3][0].value = fat;   pairs[3][1].value = fat;
+        renderBreakdown(data.items, {calories: cal, protein_g: pro, carbs_g: carb, fat_g: fat});
         aiNotes.style.color = ""; aiNotes.textContent = data.notes ? "AI note: " + data.notes : "";
         macroFields.classList.add("visible");
         logBtn.style.display = "";
