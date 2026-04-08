@@ -6979,6 +6979,76 @@ if ("serviceWorker" in navigator) {
 })();
 
 // ══════════════════════════════════════════════════════
+//  BRIEF CHECK-IN REMINDER NOTIFICATIONS
+// ══════════════════════════════════════════════════════
+(function () {
+  function getBriefSettings() {
+    try { return JSON.parse(localStorage.getItem("briefSettings") || "{}"); }
+    catch (_) { return {}; }
+  }
+
+  var _briefFiredKey = "briefNotifsFired_" + localToday();
+  function hasFired(k) {
+    try { return !!(JSON.parse(localStorage.getItem(_briefFiredKey) || "{}")[k]); }
+    catch { return false; }
+  }
+  function markFired(k) {
+    try {
+      var obj = JSON.parse(localStorage.getItem(_briefFiredKey) || "{}");
+      obj[k] = true;
+      localStorage.setItem(_briefFiredKey, JSON.stringify(obj));
+    } catch {}
+  }
+
+  function fireNotif(key, title, body) {
+    if (hasFired(key)) return;
+    markFired(key);
+    var n = new Notification(title, { body: body, icon: "/static/icon-192.png" });
+    n.addEventListener("click", function () {
+      window.focus();
+      var homeBtn = document.querySelector('.nav-btn[data-tab="home"]');
+      if (homeBtn) homeBtn.click();
+    });
+  }
+
+  function schedule() {
+    var s = getBriefSettings();
+    var mStart = s.morningStart || "06:00";
+    var eStart = s.eveningStart || "19:00";
+
+    var reminders = [
+      { key: "morning_brief", time: mStart, title: "Morning Check-in", body: "Your morning brief is open — take a moment to check in." },
+      { key: "evening_brief", time: eStart, title: "Evening Review",   body: "Your evening review is open — reflect on your day." },
+    ];
+
+    var now = new Date();
+    reminders.forEach(function (r) {
+      if (hasFired(r.key)) return;
+      var parts = (r.time || "00:00").split(":").map(Number);
+      var target = new Date(now);
+      target.setHours(parts[0], parts[1] || 0, 0, 0);
+      var ms = target - now;
+      if (ms > 0) {
+        setTimeout(function () { fireNotif(r.key, r.title, r.body); }, ms);
+      } else if (ms > -300000) {
+        // Within the last 5 minutes — fire immediately (page just loaded during window)
+        fireNotif(r.key, r.title, r.body);
+      }
+    });
+  }
+
+  if (!("Notification" in window)) return;
+  if (Notification.permission === "granted") {
+    schedule();
+  } else if (Notification.permission !== "denied") {
+    document.addEventListener("click", function req() {
+      Notification.requestPermission().then(function (p) { if (p === "granted") schedule(); });
+      document.removeEventListener("click", req);
+    }, { once: true });
+  }
+})();
+
+// ══════════════════════════════════════════════════════
 //  VOICE INPUT  (Web Speech API — Chrome / Edge / Safari)
 // ══════════════════════════════════════════════════════
 (function () {
