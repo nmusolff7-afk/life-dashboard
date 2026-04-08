@@ -133,6 +133,46 @@ def init_db():
                 created_at TIMESTAMP NOT NULL
             )
         """)
+        # Gmail OAuth tokens — one row per user
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS gmail_tokens (
+                user_id       INTEGER PRIMARY KEY REFERENCES users(id),
+                access_token  TEXT NOT NULL,
+                refresh_token TEXT NOT NULL,
+                token_expiry  TEXT NOT NULL,
+                email_address TEXT DEFAULT '',
+                connected_at  TIMESTAMP NOT NULL
+            )
+        """)
+        # Gmail email cache — recent threads for summarization
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS gmail_cache (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id       INTEGER REFERENCES users(id),
+                thread_id     TEXT NOT NULL,
+                message_id    TEXT NOT NULL,
+                sender        TEXT NOT NULL,
+                subject       TEXT DEFAULT '',
+                snippet       TEXT DEFAULT '',
+                received_at   TEXT NOT NULL,
+                has_replied   INTEGER DEFAULT 0,
+                is_read       INTEGER DEFAULT 0,
+                cached_at     TIMESTAMP NOT NULL,
+                UNIQUE(user_id, message_id)
+            )
+        """)
+        # Gmail daily summaries — AI-generated, one per user per date
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS gmail_summaries (
+                user_id      INTEGER REFERENCES users(id),
+                summary_date DATE NOT NULL,
+                summary_text TEXT NOT NULL,
+                email_count  INTEGER DEFAULT 0,
+                unreplied    INTEGER DEFAULT 0,
+                generated_at TIMESTAMP NOT NULL,
+                PRIMARY KEY (user_id, summary_date)
+            )
+        """)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS daily_momentum (
                 user_id         INTEGER REFERENCES users(id),
@@ -890,3 +930,115 @@ def get_momentum_history(user_id: int, days: int = 14) -> list:
             ORDER BY score_date
         """, (user_id, cutoff)).fetchall()
     return [dict(r) for r in rows]
+
+
+# ── Gmail tokens ───────────────────────────────────────
+
+def save_gmail_tokens(user_id: int, access_token: str, refresh_token: str,
+                      token_expiry: str, email_address: str = ""):
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO gmail_tokens
+                (user_id, access_token, refresh_token, token_expiry, email_address, connected_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                access_token  = excluded.access_token,
+                refresh_token = excluded.refresh_token,
+                token_expiry  = excluded.token_expiry,
+                email_address = excluded.email_address,
+                connected_at  = excluded.connected_at
+        """, (user_id, access_token, refresh_token, token_expiry, email_address, now))
+        conn.commit()
+
+
+def get_gmail_tokens(user_id: int):
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM gmail_tokens WHERE user_id = ?", (user_id,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def delete_gmail_tokens(user_id: int):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM gmail_tokens WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM gmail_cache WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM gmail_summaries WHERE user_id = ?", (user_id,))
+        conn.commit()
+
+
+def update_gmail_access_token(user_id: int, access_token: str, token_expiry: str):
+    with get_conn() as conn:
+        conn.execute("""
+            UPDATE gmail_tokens SET access_token = ?, token_expiry = ?
+            WHERE user_id = ?
+        """, (access_token, token_expiry, user_id))
+        conn.commit()
+
+
+# ── Gmail cache ────────────────────────────────────────
+
+def upsert_gmail_cache(user_id: int, thread_id: str, message_id: str,
+                       sender: str, subject: str, snippet: str,
+                       received_at: str, has_replied: int, is_read: int):
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO gmail_cache
+                (user_id, thread_id, message_id, sender, subject, snippet,
+                 received_at, has_replied, is_read, cached_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, message_id) DO UPDATE SET
+                sender      = excluded.sender,
+                subject     = excluded.subject,
+                snippet     = excluded.snippet,
+                has_replied = excluded.has_replied,
+                is_read     = excluded.is_read,
+                cached_at   = excluded.cached_at
+        """, (user_id, thread_id, message_id, sender, subject, snippet,
+              received_at, has_replied, is_read, now))
+        conn.commit()
+
+
+def get_gmail_cache(user_id: int, limit: int = 25):
+    with get_conn() as conn:
+        rows = conn.execute("""
+            SELECT * FROM gmail_cache WHERE user_id = ?
+            ORDER BY received_at DESC LIMIT ?
+        """, (user_id, limit)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def clear_gmail_cache(user_id: int):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM gmail_cache WHERE user_id = ?", (user_id,))
+        conn.commit()
+
+
+# ── Gmail summaries ────────────────────────────────────
+
+def save_gmail_summary(user_id: int, summary_date: str, summary_text: str,
+                       email_count: int, unreplied: int):
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO gmail_summaries
+                (user_id, summary_date, summary_text, email_count, unreplied, generated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, summary_date) DO UPDATE SET
+                summary_text = excluded.summary_text,
+                email_count  = excluded.email_count,
+                unreplied    = excluded.unreplied,
+                generated_at = excluded.generated_at
+        """, (user_id, summary_date, summary_text, email_count, unreplied, now))
+        conn.commit()
+
+
+def get_gmail_summary(user_id: int, summary_date: str):
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM gmail_summaries WHERE user_id = ? AND summary_date = ?",
+            (user_id, summary_date)
+        ).fetchone()
+    return dict(row) if row else None

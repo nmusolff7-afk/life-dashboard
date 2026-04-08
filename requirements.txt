@@ -6,3 +6,5 @@ garminconnect
 garth
 requests
 werkzeug
+google-auth
+google-auth-oauthlib

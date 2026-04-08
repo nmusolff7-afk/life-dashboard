@@ -589,6 +589,19 @@
     .mind-score-big { font-family:'Rajdhani',sans-serif; font-size:2.5rem; font-weight:700; line-height:1; }
     .mind-checkin-row { padding:0.5rem 0; border-bottom:1px solid var(--surface2); font-size:0.85rem; }
     .mind-checkin-row:last-child { border-bottom:none; }
+    /* ── Gmail card ── */
+    .gmail-card { border-left: 3px solid var(--border); transition: border-color .2s; }
+    .gmail-card.gmail-connected { border-left-color: var(--green); }
+    .gmail-email-row { display:flex;align-items:flex-start;gap:0.6rem;padding:0.5rem 0;border-bottom:1px solid var(--surface2);font-size:0.84rem; }
+    .gmail-email-row:last-child { border-bottom:none; }
+    .gmail-email-sender { font-weight:600;color:var(--text);min-width:5rem;max-width:8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0; }
+    .gmail-email-subject { flex:1;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+    .gmail-email-badge { font-size:0.68rem;padding:0.12rem 0.4rem;border-radius:99px;flex-shrink:0;font-weight:600;letter-spacing:.02em; }
+    .gmail-badge-unreplied { background:rgba(255,140,0,0.15);color:var(--amber); }
+    .gmail-badge-replied { background:rgba(34,197,94,0.12);color:var(--green); }
+    .gmail-badge-unread { background:rgba(99,102,241,0.15);color:var(--accent); }
+    .gmail-summary-text { font-size:0.84rem;color:var(--muted);line-height:1.55;white-space:pre-line; }
+
     /* ── Mind tasks ── */
     .mind-task-row { display:flex;align-items:center;gap:0.6rem;padding:0.55rem 0;border-bottom:1px solid var(--surface2); }
     .mind-task-row:last-child { border-bottom:none; }
@@ -1837,6 +1850,20 @@
       <div class="card" id="momentum-card">
         <div class="card-title">Momentum <span style="font-size:0.65rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:5px;padding:0.15rem 0.45rem;vertical-align:middle;margin-left:0.35rem">Experimental</span></div>
         <div id="momentum-content">
+          <div style="color:var(--muted);font-size:0.85rem;padding:0.25rem 0">Loading...</div>
+        </div>
+      </div>
+
+      <!-- Gmail card -->
+      <div class="card gmail-card" id="gmail-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+          <div class="card-title" style="margin:0;flex:1">
+            <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,7 12,13 2,7"/></svg>
+            Email
+          </div>
+          <div id="gmail-header-actions"></div>
+        </div>
+        <div id="gmail-content">
           <div style="color:var(--muted);font-size:0.85rem;padding:0.25rem 0">Loading...</div>
         </div>
       </div>
@@ -5991,6 +6018,154 @@ function fmtDate(iso) {
 })();
 
 // ══════════════════════════════════════════════════════
+//  GMAIL CARD
+// ══════════════════════════════════════════════════════
+(function () {
+  const card        = document.getElementById("gmail-card");
+  const content     = document.getElementById("gmail-content");
+  const headerActs  = document.getElementById("gmail-header-actions");
+  let gmailLoaded   = false;
+
+  function renderNotConfigured() {
+    card.classList.remove("gmail-connected");
+    content.innerHTML = `<div style="color:var(--muted);font-size:0.84rem;line-height:1.5">
+      Gmail integration is not configured yet.<br>
+      <span style="font-size:0.78rem">Set <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code> in your environment to enable.</span>
+    </div>`;
+    headerActs.innerHTML = "";
+  }
+
+  function renderDisconnected() {
+    card.classList.remove("gmail-connected");
+    content.innerHTML = `<div style="text-align:center;padding:0.75rem 0">
+      <div style="color:var(--muted);font-size:0.84rem;margin-bottom:0.75rem">Connect your Gmail to see a daily email summary and track unreplied messages.</div>
+      <a href="/api/gmail/connect" class="btn" style="background:var(--accent);text-decoration:none;display:inline-block;padding:0.5rem 1.2rem;font-size:0.85rem">Connect Gmail</a>
+    </div>`;
+    headerActs.innerHTML = "";
+  }
+
+  function renderEmailRows(emails) {
+    if (!emails || !emails.length) return '<div style="color:var(--muted);font-size:0.84rem">No recent emails.</div>';
+    return emails.slice(0, 8).map(e => {
+      let badge = "";
+      if (!e.is_read) badge = '<span class="gmail-email-badge gmail-badge-unread">new</span>';
+      else if (!e.has_replied) badge = '<span class="gmail-email-badge gmail-badge-unreplied">unreplied</span>';
+      else badge = '<span class="gmail-email-badge gmail-badge-replied">replied</span>';
+      return `<div class="gmail-email-row">
+        <span class="gmail-email-sender" title="${e.sender}">${e.sender}</span>
+        <span class="gmail-email-subject" title="${e.subject}">${e.subject}</span>
+        ${badge}
+      </div>`;
+    }).join("");
+  }
+
+  function renderConnected(data) {
+    card.classList.add("gmail-connected");
+    const email      = data.email || "";
+    const summary    = data.summary;
+    const emails     = data.emails || [];
+    const unreplied  = data.unreplied || 0;
+
+    // Header: email + disconnect
+    headerActs.innerHTML = `
+      <div style="display:flex;align-items:center;gap:0.5rem">
+        <span style="font-size:0.72rem;color:var(--muted)">${email}</span>
+        <button class="btn btn-ghost" id="gmail-disconnect-btn" style="font-size:0.7rem;padding:0.2rem 0.5rem;color:var(--danger)">Disconnect</button>
+      </div>`;
+    document.getElementById("gmail-disconnect-btn").addEventListener("click", () => {
+      if (!confirm("Disconnect Gmail? This will remove your email data from the dashboard.")) return;
+      fetch("/api/gmail/disconnect", { method: "POST" })
+        .then(() => loadGmail());
+    });
+
+    // Build content
+    let summaryHtml = "";
+    if (summary && summary.summary_text) {
+      summaryHtml = `<div class="gmail-summary-text">${summary.summary_text}</div>`;
+    } else {
+      summaryHtml = `<div style="color:var(--muted);font-size:0.84rem">No summary yet — hit Refresh to fetch your emails.</div>`;
+    }
+
+    // Unreplied count banner
+    let banner = "";
+    if (unreplied > 0) {
+      banner = `<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;padding:0.5rem 0.75rem;background:rgba(255,140,0,0.08);border:1px solid rgba(255,140,0,0.2);border-radius:8px">
+        <span style="font-size:1.1rem">📬</span>
+        <span style="font-size:0.84rem;color:var(--text);font-weight:600">${unreplied} unreplied email${unreplied > 1 ? "s" : ""} need${unreplied === 1 ? "s" : ""} attention</span>
+      </div>`;
+    }
+
+    content.innerHTML = `
+      ${banner}
+      ${summaryHtml}
+      <details style="margin-top:0.75rem">
+        <summary style="font-size:0.78rem;color:var(--muted);cursor:pointer;user-select:none">Recent emails (${emails.length})</summary>
+        <div style="margin-top:0.5rem">${renderEmailRows(emails)}</div>
+      </details>
+      <div style="margin-top:0.75rem;display:flex;justify-content:flex-end">
+        <button class="btn btn-ghost" id="gmail-refresh-btn" style="font-size:0.8rem;padding:0.35rem 0.8rem">
+          <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;vertical-align:-1px;margin-right:0.3rem"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Refresh
+        </button>
+      </div>`;
+
+    document.getElementById("gmail-refresh-btn").addEventListener("click", () => {
+      const btn = document.getElementById("gmail-refresh-btn");
+      btn.disabled = true;
+      btn.textContent = "Syncing…";
+      fetch("/api/gmail/sync", { method: "POST" })
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) {
+            alert(data.error);
+            btn.disabled = false;
+            btn.textContent = "Refresh";
+            return;
+          }
+          loadGmail();
+        })
+        .catch(() => {
+          alert("Failed to sync Gmail.");
+          btn.disabled = false;
+          btn.textContent = "Refresh";
+        });
+    });
+  }
+
+  function loadGmail() {
+    fetch("/api/gmail/status")
+      .then(r => r.json())
+      .then(data => {
+        gmailLoaded = true;
+        if (!data.configured) {
+          renderNotConfigured();
+        } else if (!data.connected) {
+          renderDisconnected();
+        } else {
+          renderConnected(data);
+        }
+      })
+      .catch(() => {
+        content.innerHTML = '<div style="color:var(--muted);font-size:0.85rem">Could not load Gmail status.</div>';
+      });
+  }
+
+  // Expose for Mind tab to call on activation
+  window._gmailLoad   = () => { if (!gmailLoaded) loadGmail(); };
+  window._gmailReload = loadGmail;
+
+  // Handle OAuth redirect: auto-switch to Mind tab
+  if (window.location.search.includes("gmail_connected")) {
+    document.querySelectorAll(".nav-btn").forEach(b => {
+      b.classList.toggle("active", b.dataset.tab === "mind");
+    });
+    document.querySelectorAll(".tab-panel").forEach(p => {
+      p.classList.toggle("active", p.id === "tab-mind");
+    });
+    loadGmail();
+  }
+})();
+
+// ══════════════════════════════════════════════════════
 //  MIND TAB — task list
 // ══════════════════════════════════════════════════════
 (function () {
@@ -6227,7 +6402,10 @@ function fmtDate(iso) {
     if (e.key === "Enter") saveNewTask();
   });
 
-  window._onMindActivate = () => { if (!mindLoaded) loadMind(); };
+  window._onMindActivate = () => {
+    if (!mindLoaded) loadMind();
+    if (typeof window._gmailLoad === "function") window._gmailLoad();
+  };
   window._mindReload     = loadMind;
   if (document.getElementById("tab-mind").classList.contains("active")) loadMind();
 })();

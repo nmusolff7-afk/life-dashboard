@@ -21,10 +21,14 @@ from db import (
     save_daily_weight, get_daily_weight,
     upsert_sleep, get_sleep, get_sleep_history,
     compute_momentum, get_momentum_history,
+    save_gmail_tokens, get_gmail_tokens, delete_gmail_tokens, update_gmail_access_token,
+    upsert_gmail_cache, get_gmail_cache, clear_gmail_cache,
+    save_gmail_summary, get_gmail_summary,
 )
 from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, shorten_label, scan_meal_image, generate_momentum_insight, suggest_meal, identify_ingredients
 from claude_profile import generate_profile_map, compute_mind_insights, score_brief
 import garmin_sync
+import gmail_sync
 import json
 import logging as _log
 
@@ -860,6 +864,114 @@ def api_garmin_sync():
         "activities":      imported,
         "workouts":        get_today_workouts(uid(), sync_date),
         "burn":            get_today_workout_burn(uid(), sync_date),
+    })
+
+
+# ── Gmail ──────────────────────────────────────────────
+
+@app.route("/api/gmail/status")
+@login_required
+def api_gmail_status():
+    """Return Gmail connection status and cached summary for today."""
+    tokens = get_gmail_tokens(uid())
+    connected = tokens is not None
+    today = client_today()
+    summary = get_gmail_summary(uid(), today) if connected else None
+    cached = get_gmail_cache(uid(), limit=15) if connected else []
+    unreplied = sum(1 for e in cached if not e["has_replied"] and not e["is_read"])
+    return jsonify({
+        "configured": gmail_sync.is_configured(),
+        "connected":  connected,
+        "email":      tokens.get("email_address", "") if tokens else "",
+        "summary":    summary,
+        "emails":     cached,
+        "unreplied":  unreplied,
+    })
+
+
+@app.route("/api/gmail/connect")
+@login_required
+def api_gmail_connect():
+    """Redirect user to Google OAuth consent screen."""
+    if not gmail_sync.is_configured():
+        return jsonify({"error": "Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET."}), 400
+    redirect_uri = request.url_root.rstrip("/") + "/api/gmail/callback"
+    auth_url = gmail_sync.get_auth_url(redirect_uri, state=str(uid()))
+    return redirect(auth_url)
+
+
+@app.route("/api/gmail/callback")
+@login_required
+def api_gmail_callback():
+    """Handle OAuth callback from Google."""
+    error = request.args.get("error")
+    if error:
+        return redirect(url_for("index") + "?gmail_error=" + error)
+
+    code = request.args.get("code", "")
+    if not code:
+        return redirect(url_for("index") + "?gmail_error=no_code")
+
+    redirect_uri = request.url_root.rstrip("/") + "/api/gmail/callback"
+    try:
+        token_data = gmail_sync.exchange_code(code, redirect_uri)
+        access_token  = token_data["access_token"]
+        refresh_token = token_data.get("refresh_token", "")
+        expires_in    = token_data.get("expires_in", 3600)
+        token_expiry  = gmail_sync.compute_expiry(expires_in)
+
+        email_address = gmail_sync.get_user_email(access_token)
+        save_gmail_tokens(uid(), access_token, refresh_token, token_expiry, email_address)
+        _log.info("Gmail: connected for user %s (%s)", uid(), email_address)
+        return redirect(url_for("index") + "?gmail_connected=1#tab-mind")
+    except Exception as e:
+        _log.exception("Gmail OAuth callback failed")
+        return redirect(url_for("index") + "?gmail_error=auth_failed")
+
+
+@app.route("/api/gmail/disconnect", methods=["POST"])
+@login_required
+def api_gmail_disconnect():
+    """Disconnect Gmail — delete tokens and cached data."""
+    delete_gmail_tokens(uid())
+    return jsonify({"ok": True})
+
+
+@app.route("/api/gmail/sync", methods=["POST"])
+@login_required
+def api_gmail_sync():
+    """Fetch recent emails, cache them, and generate an AI summary."""
+    access_token = gmail_sync.get_valid_token(
+        uid(), get_gmail_tokens, update_gmail_access_token
+    )
+    if not access_token:
+        return jsonify({"error": "Gmail not connected or token expired. Please reconnect."}), 401
+
+    try:
+        emails = gmail_sync.fetch_recent_emails(access_token, max_results=20)
+    except Exception as e:
+        _log.exception("Gmail: fetch failed")
+        return jsonify({"error": "Failed to fetch emails. Please try again."}), 502
+
+    # Cache emails
+    clear_gmail_cache(uid())
+    for e in emails:
+        upsert_gmail_cache(
+            uid(), e["thread_id"], e["message_id"],
+            e["sender"], e["subject"], e["snippet"],
+            e["received_at"], e["has_replied"], e["is_read"],
+        )
+
+    # Generate AI summary
+    today = client_today()
+    summary_text = gmail_sync.summarize_emails(emails)
+    unreplied = sum(1 for e in emails if not e["has_replied"] and not e["is_read"])
+    save_gmail_summary(uid(), today, summary_text, len(emails), unreplied)
+
+    return jsonify({
+        "emails":     emails,
+        "summary":    {"summary_text": summary_text, "email_count": len(emails), "unreplied": unreplied},
+        "unreplied":  unreplied,
     })
 
 
