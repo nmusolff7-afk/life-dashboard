@@ -26,6 +26,9 @@ from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_pl
 from claude_profile import generate_profile_map, compute_mind_insights, score_brief
 import garmin_sync
 import json
+import logging as _log
+
+_AI_ERR = "Something went wrong, please try again later"
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "life-dashboard-default-secret-v1")
@@ -318,7 +321,6 @@ def api_mind_today():
 @app.route("/api/mind/checkin", methods=["POST"])
 @login_required
 def api_mind_checkin():
-    import traceback
     try:
         data         = request.get_json(force=True) or {}
         checkin_type = data.get("type", "morning")
@@ -369,7 +371,8 @@ def api_mind_checkin():
         return jsonify({**scores, "tasks_added": tasks_added,
                         "bodyweight_lbs": float(bodyweight_lbs) if bodyweight_lbs else None})
     except Exception as e:
-        return jsonify({"error": str(e), "detail": traceback.format_exc()[-800:]}), 500
+        _log.exception("mind/checkin failed")
+        return jsonify({"error": _AI_ERR}), 500
 
 
 @app.route("/api/mind/task", methods=["POST"])
@@ -518,7 +521,8 @@ def api_scan_meal():
     try:
         return jsonify(scan_meal_image(image_b64, media_type, context=context))
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        _log.exception("scan-meal failed")
+        return jsonify({"error": _AI_ERR}), 500
 
 
 @app.route("/api/meals/scan", methods=["POST"])
@@ -532,7 +536,8 @@ def api_meals_scan():
         ingredients = identify_ingredients(images)
         return jsonify({"ingredients": ingredients})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        _log.exception("meals/scan failed")
+        return jsonify({"error": _AI_ERR}), 500
 
 
 @app.route("/api/meals/suggest", methods=["POST"])
@@ -581,7 +586,8 @@ def api_meals_suggest():
         result["cal_remaining"]  = cal_remaining
         return jsonify(result)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        _log.exception("meals/suggest failed")
+        return jsonify({"error": _AI_ERR}), 500
 
 
 @app.route("/api/estimate", methods=["POST"])
@@ -594,7 +600,8 @@ def api_estimate():
     try:
         return jsonify(estimate_nutrition(description, profile_map=get_profile_map(uid())))
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        _log.exception("estimate failed")
+        return jsonify({"error": _AI_ERR}), 500
 
 
 # ── Workouts ────────────────────────────────────────────
@@ -627,7 +634,8 @@ def api_burn_estimate():
     try:
         return jsonify(estimate_burn(description, profile_map=get_profile_map(uid())))
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        _log.exception("burn-estimate failed")
+        return jsonify({"error": _AI_ERR}), 500
 
 
 @app.route("/api/log-workout", methods=["POST"])
@@ -708,7 +716,8 @@ def api_parse_workout_plan():
     try:
         return jsonify(parse_workout_plan(text))
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        _log.exception("parse-workout-plan failed")
+        return jsonify({"error": _AI_ERR}), 500
 
 
 # ── Garmin ──────────────────────────────────────────────
@@ -898,7 +907,8 @@ def api_momentum_insight():
         )
         return jsonify(result)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        _log.exception("momentum-insight failed")
+        return jsonify({"error": _AI_ERR}), 500
 
 
 if __name__ == "__main__":

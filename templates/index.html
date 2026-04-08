@@ -1111,7 +1111,7 @@
           <!-- AI scanning status -->
           <div id="scan-status" style="display:none;margin-top:0.75rem;font-size:0.85rem;color:var(--accent2);display:none;align-items:center;gap:0.5rem">
             <span style="animation:spin 1.2s linear infinite;display:inline-block;font-size:1rem">⚙️</span>
-            Analyzing photo with AI…
+            Analyzing…
           </div>
 
           <!-- Photo preview (shown after image selected) -->
@@ -2005,7 +2005,7 @@
   <!-- Finishing / saving state -->
   <div id="cl-finishing-state" style="display:none;flex:1" class="cl-finishing">
     <div class="cl-spinner">⚙️</div>
-    <div class="cl-status" id="cl-status-text">Analyzing workout with Claude…</div>
+    <div class="cl-status" id="cl-status-text">Analyzing workout…</div>
   </div>
 </div>
 
@@ -3852,7 +3852,7 @@ function deleteWorkout(id) {
 
     exState.style.display = "none";
     finState.style.display = "flex";
-    statusTxt.textContent = "Analyzing workout with Claude…";
+    statusTxt.textContent = "Analyzing workout…";
 
     fetch("/api/burn-estimate", { method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({description: desc}) })
@@ -4187,7 +4187,7 @@ function deleteWorkout(id) {
     const text = document.getElementById("plan-ai-input").value.trim();
     if (!text) return;
     parseBtn.disabled = true; parseBtn.textContent = "Parsing…";
-    parseStatus.textContent = "Sending to Claude…";
+    parseStatus.textContent = "Analyzing…";
     parseStatus.style.color = "var(--muted)";
 
     fetch("/api/parse-workout-plan", {
