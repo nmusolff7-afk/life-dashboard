@@ -900,6 +900,21 @@ def _gmail_redirect_uri():
     return f"{scheme}://{host}/api/gmail/callback"
 
 
+@app.route("/api/gmail/debug")
+@login_required
+def api_gmail_debug():
+    """Debug endpoint — shows what redirect URI the app would use."""
+    return jsonify({
+        "redirect_uri": _gmail_redirect_uri(),
+        "request_url_root": request.url_root,
+        "request_scheme": request.scheme,
+        "request_host": request.host,
+        "x_forwarded_proto": request.headers.get("X-Forwarded-Proto", ""),
+        "x_forwarded_host": request.headers.get("X-Forwarded-Host", ""),
+        "APP_URL": os.environ.get("APP_URL", ""),
+    })
+
+
 @app.route("/api/gmail/connect")
 @login_required
 def api_gmail_connect():
