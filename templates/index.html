@@ -6133,7 +6133,10 @@ function fmtDate(iso) {
 
   function loadGmail() {
     fetch("/api/gmail/status")
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
       .then(data => {
         gmailLoaded = true;
         if (!data.configured) {
@@ -6144,7 +6147,8 @@ function fmtDate(iso) {
           renderConnected(data);
         }
       })
-      .catch(() => {
+      .catch(err => {
+        console.error("Gmail status fetch failed:", err);
         content.innerHTML = '<div style="color:var(--muted);font-size:0.85rem">Could not load Gmail status.</div>';
       });
   }
@@ -6406,8 +6410,11 @@ function fmtDate(iso) {
     if (!mindLoaded) loadMind();
     if (typeof window._gmailLoad === "function") window._gmailLoad();
   };
-  window._mindReload     = loadMind;
-  if (document.getElementById("tab-mind").classList.contains("active")) loadMind();
+  window._mindReload = () => { loadMind(); if (typeof window._gmailReload === "function") window._gmailReload(); };
+  if (document.getElementById("tab-mind").classList.contains("active")) {
+    loadMind();
+    if (typeof window._gmailLoad === "function") window._gmailLoad();
+  }
 })();
 
 // ══════════════════════════════════════════════════════

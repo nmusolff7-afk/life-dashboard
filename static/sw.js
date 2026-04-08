@@ -1,4 +1,4 @@
-const CACHE = "life-dashboard-v3";
+const CACHE = "life-dashboard-v4";
 
 // App shell — resources to cache on install
 const PRECACHE = [
