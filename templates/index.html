@@ -2254,12 +2254,19 @@ function syncWeightToProfile(weight) {
   try {
     const profile = JSON.parse(localStorage.getItem("profileData") || "{}");
     profile.curWeight = weight;
+    // Recalculate RMR with new weight
+    const hFt = profile.heightFt || 5, hIn = profile.heightIn || 10;
+    const age = profile.age || 25, sex = profile.sex || "male";
+    const bf  = profile.bfPct || 0;
+    profile.rmr = calcRMR(weight, hFt, hIn, age, sex, bf);
     localStorage.setItem("profileData", JSON.stringify(profile));
     // Update the profile-tab input if visible
     const el = document.getElementById("p-cur-weight");
     if (el) el.value = weight;
-    // Recalculate preview if profile tab is open
+    // Recalculate sliders and preview card
     if (typeof window._refreshProfilePreview === "function") window._refreshProfilePreview();
+    // Refresh meals tab deficit/TDEE and dashboard
+    applyProfileToMeals(profile);
   } catch(e) {}
 }
 
@@ -4556,8 +4563,8 @@ try {
     }
   } catch(e) { recalcAll(); }
 
-  // Expose so steps save handler can trigger a full TDEE preview refresh
-  window._refreshProfilePreview = updatePreview;
+  // Expose so weight/steps save handlers can trigger a full TDEE recalc + preview refresh
+  window._refreshProfilePreview = recalcAll;
 })();
 
 // ══════════════════════════════════════════════════════
