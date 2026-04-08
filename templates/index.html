@@ -6087,11 +6087,10 @@ function fmtDate(iso) {
     const score      = data.momentum_score;
     const scoreColor = _momentumColor(score);
     const COMP_DEFS  = [
-      { key: "nutrition", label: "Nutrition", max: 30 },
-      { key: "activity",  label: "Activity",  max: 30 },
+      { key: "nutrition", label: "Nutrition", max: 35 },
+      { key: "activity",  label: "Activity",  max: 35 },
       { key: "checkin",   label: "Check-in",  max: 20 },
       { key: "tasks",     label: "Tasks",     max: 10 },
-      { key: "wellbeing", label: "Wellbeing", max: 10 },
     ];
     const comps   = data.components || {};
     const contrib = data.weighted_contributions || {};

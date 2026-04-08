@@ -725,11 +725,10 @@ import logging as _logging
 _momentum_logger = _logging.getLogger(__name__)
 
 MOMENTUM_WEIGHTS = {
-    "nutrition": 30,
-    "activity":  30,
+    "nutrition": 35,
+    "activity":  35,
     "checkin":   20,
     "tasks":     10,
-    "wellbeing": 10,
 }
 assert sum(MOMENTUM_WEIGHTS.values()) == 100
 
@@ -802,52 +801,12 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
     completed_tasks = sum(1 for t in tasks if t["completed"])
     task_rate       = (completed_tasks / total_tasks) if total_tasks > 0 else 0.5
 
-    # Wellbeing: combine mood/wellbeing, energy, stress (inverted), sleep quality, mood slider, focus
-    wb_scores      = [c["wellbeing"]     for c in checkins if c.get("wellbeing")     is not None]
-    energy_scores  = [c["energy_level"]  for c in checkins if c.get("energy_level")  is not None]
-    stress_scores  = [c["stress_level"]  for c in checkins if c.get("stress_level")  is not None]
-    sleep_scores   = [c["sleep_quality"] for c in checkins if c.get("sleep_quality") is not None]
-    mood_scores    = [c["mood_level"]    for c in checkins if c.get("mood_level")    is not None]
-    focus_scores   = [c["focus_level"]   for c in checkins if c.get("focus_level")   is not None]
-
-    avg_wellbeing = sum(wb_scores)     / len(wb_scores)     if wb_scores     else None
-    avg_energy    = sum(energy_scores) / len(energy_scores) if energy_scores else None
-    avg_stress    = sum(stress_scores) / len(stress_scores) if stress_scores else None
-    avg_sleep_q   = sum(sleep_scores)  / len(sleep_scores)  if sleep_scores  else None
-    avg_mood      = sum(mood_scores)   / len(mood_scores)   if mood_scores   else None
-    avg_focus     = sum(focus_scores)  / len(focus_scores)  if focus_scores  else None
-
-    norm_scores = []
-    if avg_wellbeing is not None: norm_scores.append(avg_wellbeing / 10.0)
-    if avg_energy    is not None: norm_scores.append(avg_energy    / 10.0)
-    if avg_stress    is not None: norm_scores.append((10 - avg_stress) / 10.0)
-    if avg_sleep_q   is not None: norm_scores.append(avg_sleep_q   / 10.0)
-    if avg_mood      is not None: norm_scores.append(avg_mood      / 10.0)
-    if avg_focus     is not None: norm_scores.append(avg_focus     / 10.0)
-    wellbeing_pct = sum(norm_scores) / len(norm_scores) if norm_scores else 0.0
-
-    cutoff_7d = (date.today() - timedelta(days=7)).isoformat()
-    with get_conn() as conn:
-        past_rows = conn.execute(
-            "SELECT wellbeing FROM mind_checkins "
-            "WHERE user_id = ? AND checkin_date > ? AND checkin_date < ?",
-            (user_id, cutoff_7d, date_str)
-        ).fetchall()
-    past_scores = [r["wellbeing"] for r in past_rows if r["wellbeing"] is not None]
-    if past_scores and avg_wellbeing is not None:
-        past_avg        = round(sum(past_scores) / len(past_scores), 2)
-        wellbeing_delta = round(avg_wellbeing - past_avg, 2)
-    else:
-        past_avg        = None
-        wellbeing_delta = 0.0
-
     # ── weighted contributions ───────────────────────────
     weighted = {
         "nutrition": round(nutrition_pct  * MOMENTUM_WEIGHTS["nutrition"], 2),
         "activity":  round(activity_pct   * MOMENTUM_WEIGHTS["activity"],  2),
         "checkin":   round(checkin_score  * MOMENTUM_WEIGHTS["checkin"],   2),
         "tasks":     round(task_rate      * MOMENTUM_WEIGHTS["tasks"],     2),
-        "wellbeing": round(wellbeing_pct  * MOMENTUM_WEIGHTS["wellbeing"], 2),
     }
 
     momentum_score = int(round(sum(weighted.values())))
@@ -886,18 +845,6 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
                 "pct":       round(task_rate, 4),
                 "weighted":  weighted["tasks"],
             },
-            "wellbeing": {
-                "avg_today":    round(avg_wellbeing, 2) if avg_wellbeing is not None else None,
-                "avg_energy":   round(avg_energy, 2)    if avg_energy    is not None else None,
-                "avg_stress":   round(avg_stress, 2)    if avg_stress    is not None else None,
-                "avg_sleep_q":  round(avg_sleep_q, 2)  if avg_sleep_q   is not None else None,
-                "avg_mood":     round(avg_mood, 2)      if avg_mood      is not None else None,
-                "avg_focus":    round(avg_focus, 2)     if avg_focus     is not None else None,
-                "past_7d_avg":  past_avg,
-                "delta":        wellbeing_delta,
-                "pct":          round(wellbeing_pct, 4),
-                "weighted":     weighted["wellbeing"],
-            },
         },
         "weighted_contributions": weighted,
     }
@@ -921,7 +868,7 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
                 wellbeing_delta = excluded.wellbeing_delta,
                 computed_at     = excluded.computed_at
         """, (user_id, date_str, momentum_score, nutrition_pct,
-              activity_pct, checkin_done, task_rate, wellbeing_delta, now))
+              activity_pct, checkin_done, task_rate, 0.0, now))
         conn.commit()
 
     return debug_breakdown
