@@ -3239,7 +3239,7 @@ function deleteWorkout(id) {
       }
       renderBreakdown(data.items);
       aiNotes.style.color = "";
-      aiNotes.textContent = data.notes ? "AI note: " + data.notes : "";
+      aiNotes.textContent = data.notes ? "Note: " + data.notes : "";
       macroFields.classList.add("visible");
       logBtn.style.display = "";
     })
@@ -3306,7 +3306,7 @@ function deleteWorkout(id) {
           macroFields.classList.add("visible"); return;
         }
         renderBreakdown(data.items);
-        aiNotes.style.color = ""; aiNotes.textContent = data.notes ? "AI note: " + data.notes : "";
+        aiNotes.style.color = ""; aiNotes.textContent = data.notes ? "Note: " + data.notes : "";
         macroFields.classList.add("visible");
         logBtn.style.display = "";
       })
@@ -3396,7 +3396,7 @@ function deleteWorkout(id) {
           panel.classList.add("visible"); return;
         }
         burnVal.value = data.calories_burned;
-        notes.style.color = ""; notes.textContent = data.notes ? "AI note: " + data.notes : "";
+        notes.style.color = ""; notes.textContent = data.notes ? "Note: " + data.notes : "";
         panel.classList.add("visible");
         logBtn.style.display = "";
       })
