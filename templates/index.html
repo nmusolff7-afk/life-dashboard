@@ -5590,16 +5590,15 @@ function fmtDate(iso) {
         const ef = document.getElementById(`hd-mef-${btn.dataset.id}`);
         const desc = ef.querySelector(".hd-ef-desc").value.trim();
         if (!desc) return;
-        btn.disabled = true; btn.textContent = "…";
-        fetch("/api/nutrition", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ description: desc }) })
+        btn.disabled = true; btn.textContent = "Estimating…";
+        fetch("/api/estimate", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ description: desc }) })
           .then(r => r.json())
           .then(d => {
-            if (d.calories != null) {
-              ef.querySelector(".hd-ef-cal").value   = d.calories;
-              ef.querySelector(".hd-ef-pro").value   = d.protein_g;
-              ef.querySelector(".hd-ef-carbs").value = d.carbs_g;
-              ef.querySelector(".hd-ef-fat").value   = d.fat_g;
-            }
+            if (d.error) { btn.disabled = false; btn.textContent = "Get Macros"; alert(d.error); return; }
+            ef.querySelector(".hd-ef-cal").value   = d.calories;
+            ef.querySelector(".hd-ef-pro").value   = d.protein_g;
+            ef.querySelector(".hd-ef-carbs").value = d.carbs_g;
+            ef.querySelector(".hd-ef-fat").value   = d.fat_g;
             btn.disabled = false; btn.textContent = "Get Macros";
           })
           .catch(() => { btn.disabled = false; btn.textContent = "Get Macros"; });
@@ -5644,13 +5643,13 @@ function fmtDate(iso) {
         const ef = document.getElementById(`hd-wef-${id}`);
         const desc = ef.querySelector(".hd-wef-desc").value.trim();
         if (!desc) return;
-        const profile = JSON.parse(localStorage.getItem("profileData") || "{}");
-        btn.disabled = true; btn.textContent = "…";
+        btn.disabled = true; btn.textContent = "Estimating…";
         fetch("/api/burn-estimate", {
           method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({ description: desc, weight_lbs: profile.curWeight || 180, duration_minutes: null })
+          body: JSON.stringify({ description: desc })
         }).then(r => r.json())
           .then(d => {
+            if (d.error) { btn.disabled = false; btn.textContent = "Get Burn Estimate"; alert(d.error); return; }
             if (d.calories_burned != null) ef.querySelector(".hd-wef-cal").value = d.calories_burned;
             btn.disabled = false; btn.textContent = "Get Burn Estimate";
           })
@@ -5841,18 +5840,17 @@ function fmtDate(iso) {
       const desc = document.getElementById("hd-meal-desc").value.trim();
       if (!desc) return;
       const btn = document.getElementById("hd-meal-macros-btn");
-      btn.disabled = true; btn.textContent = "…";
-      fetch("/api/nutrition", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ description: desc }) })
+      btn.disabled = true; btn.textContent = "Estimating…";
+      fetch("/api/estimate", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ description: desc }) })
         .then(r => r.json())
         .then(d => {
-          if (d.calories != null) {
-            document.getElementById("hd-meal-cal").value   = d.calories;
-            document.getElementById("hd-meal-pro").value   = d.protein_g;
-            document.getElementById("hd-meal-carbs").value = d.carbs_g;
-            document.getElementById("hd-meal-fat").value   = d.fat_g;
-            document.getElementById("hd-meal-macros-wrap").style.display = "";
-            document.getElementById("hd-meal-log-btn").style.display = "";
-          }
+          if (d.error) { btn.disabled = false; btn.textContent = "Get Macros"; alert(d.error); return; }
+          document.getElementById("hd-meal-cal").value   = d.calories;
+          document.getElementById("hd-meal-pro").value   = d.protein_g;
+          document.getElementById("hd-meal-carbs").value = d.carbs_g;
+          document.getElementById("hd-meal-fat").value   = d.fat_g;
+          document.getElementById("hd-meal-macros-wrap").style.display = "";
+          document.getElementById("hd-meal-log-btn").style.display = "";
           btn.disabled = false; btn.textContent = "Get Macros";
         })
         .catch(() => { btn.disabled = false; btn.textContent = "Get Macros"; });
@@ -5895,13 +5893,13 @@ function fmtDate(iso) {
       const desc = document.getElementById("hd-workout-desc").value.trim();
       if (!desc) return;
       const btn = document.getElementById("hd-workout-burn-btn");
-      const profile = JSON.parse(localStorage.getItem("profileData") || "{}");
-      btn.disabled = true; btn.textContent = "…";
+      btn.disabled = true; btn.textContent = "Estimating…";
       fetch("/api/burn-estimate", {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ description: desc, weight_lbs: profile.curWeight || 180, duration_minutes: null })
+        body: JSON.stringify({ description: desc })
       }).then(r => r.json())
         .then(d => {
+          if (d.error) { btn.disabled = false; btn.textContent = "Get Burn Estimate"; alert(d.error); return; }
           if (d.calories_burned != null) {
             document.getElementById("hd-workout-cal").value = d.calories_burned;
             document.getElementById("hd-workout-cal-wrap").style.display = "";
