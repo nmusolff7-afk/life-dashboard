@@ -600,6 +600,7 @@
     .mind-task-text { flex:1;font-size:0.88rem;color:var(--text);line-height:1.4;word-break:break-word; }
     .mind-task-text.done { text-decoration:line-through;color:var(--muted); }
     .mind-task-src { font-size:0.78rem;flex-shrink:0;width:1rem;text-align:center; }
+    .mind-task-overdue { font-size:0.68rem;color:var(--danger);flex-shrink:0;white-space:nowrap;opacity:0.85; }
     .mind-task-del { color:var(--muted);font-size:0.8rem;cursor:pointer;background:none;border:none;
       padding:0.15rem 0.3rem;line-height:1;flex-shrink:0;opacity:0.4;transition:opacity .15s; }
     .mind-task-del:hover { color:var(--danger);opacity:1; }
@@ -6007,13 +6008,22 @@ function fmtDate(iso) {
       return;
     }
     const CHECK_SVG = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-    list.innerHTML = tasks.map(t => `
-      <div class="mind-task-row" data-id="${t.id}">
+    const today = localToday();
+    list.innerHTML = tasks.map(t => {
+      const src = t.source === "morning_brief" ? "☀" : t.source === "evening_brief" ? "🌙" : "";
+      let overdue = "";
+      if (t.task_date && t.task_date < today && !t.completed) {
+        const diff = Math.round((new Date(today) - new Date(t.task_date)) / 86400000);
+        overdue = `<span class="mind-task-overdue">${diff}d overdue</span>`;
+      }
+      return `<div class="mind-task-row" data-id="${t.id}">
         <button class="mind-task-check${t.completed ? " done" : ""}" data-id="${t.id}">${t.completed ? CHECK_SVG : ""}</button>
         <span class="mind-task-text${t.completed ? " done" : ""}">${t.description}</span>
-        <span class="mind-task-src">${t.source === "morning_brief" ? "☀" : t.source === "evening_brief" ? "🌙" : ""}</span>
+        ${overdue}
+        <span class="mind-task-src">${src}</span>
         <button class="mind-task-del" data-id="${t.id}">✕</button>
-      </div>`).join("");
+      </div>`;
+    }).join("");
 
     list.querySelectorAll(".mind-task-check").forEach(btn =>
       btn.addEventListener("click", () => toggleTask(+btn.dataset.id)));

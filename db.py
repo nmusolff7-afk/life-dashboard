@@ -694,9 +694,10 @@ def get_mind_tasks(user_id, task_date=None):
     with get_conn() as conn:
         rows = conn.execute(
             """SELECT * FROM mind_tasks WHERE user_id = ?
+               AND task_date <= ?
                AND (completed = 0 OR task_date = ?)
-               ORDER BY completed, created_at""",
-            (user_id, td)
+               ORDER BY completed, task_date, created_at""",
+            (user_id, td, td)
         ).fetchall()
     return [dict(r) for r in rows]
 
@@ -755,9 +756,12 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
         ).fetchall()
         checkins = [dict(r) for r in checkin_rows]
 
+        # Count all visible tasks for today: tasks dated today OR overdue incomplete tasks
         task_rows = conn.execute(
-            "SELECT completed FROM mind_tasks WHERE user_id = ? AND task_date = ?",
-            (user_id, date_str)
+            """SELECT completed FROM mind_tasks WHERE user_id = ?
+               AND task_date <= ?
+               AND (completed = 0 OR task_date = ?)""",
+            (user_id, date_str, date_str)
         ).fetchall()
         tasks = [dict(r) for r in task_rows]
 

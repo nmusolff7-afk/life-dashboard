@@ -373,12 +373,14 @@ def score_brief(brief_type: str, notes: str, goals: str) -> dict:
         f'- "focus": integer 1-10 (goal clarity, motivation, mental sharpness)\n'
         f'- "wellbeing": integer 1-10 (mood, energy, stress — higher is better)\n'
         f'- "summary": string under 15 words capturing the key takeaway\n'
-        f'- "tasks": array of tasks. STRICT RULE: only include items the user EXPLICITLY stated they intend to do or want to accomplish. '
-        f'Copy the intent verbatim or very close to it. '
-        f'DO NOT infer, suggest, or add anything not directly stated — even if it seems obvious or helpful. '
-        f'DO NOT add habits, lifestyle advice, or goals implied by context. '
-        f'If the user said nothing they explicitly plan to do, return an empty array. '
-        f'Max 10 tasks.\n\n'
+        f'- "tasks": array of CONCRETE actionable tasks only. STRICT RULES:\n'
+        f'  1. Only include items the user EXPLICITLY stated as a specific thing they need to DO (e.g. "I need to finish the report", "I have to call the dentist").\n'
+        f'  2. DO NOT include goals, aspirations, intentions, or desires (e.g. "I want to eat healthier", "hoping to be more productive", "goal is to sleep better").\n'
+        f'  3. DO NOT include habits, lifestyle advice, or anything implied by context.\n'
+        f'  4. DO NOT infer or suggest tasks — even if they seem obvious or helpful.\n'
+        f'  5. A task must be completable in a single action or session — not an ongoing goal.\n'
+        f'  6. Copy the user\'s wording closely. If the user said nothing they explicitly need to do, return an empty array.\n'
+        f'  Max 10 tasks.\n\n'
         f"{goals_line}Notes: {notes.strip()}\n\nReturn JSON only, no other text:"
     )
     try:
