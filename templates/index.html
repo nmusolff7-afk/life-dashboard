@@ -204,23 +204,22 @@
     .macro-edit-grid .field:nth-child(4) input { border-color: rgba(244,143,177,.4); }
     #ai-notes { font-size: 0.78rem; color: var(--muted); font-style: italic; margin-bottom: 0.75rem; }
     #item-breakdown { font-size: 0.78rem; margin-bottom: 0.75rem; }
-    #item-breakdown table { width: 100%; border-collapse: collapse; }
-    #item-breakdown th { text-align: left; font-size: 0.68rem; font-weight: 600; color: var(--muted);
-      text-transform: uppercase; letter-spacing: .04em; padding: 0.25rem 0.3rem; border-bottom: 1px solid var(--border); }
-    #item-breakdown th:not(:first-child) { text-align: right; }
-    #item-breakdown th.bd-del-col { width: 1.5rem; }
-    #item-breakdown td { padding: 0.25rem 0.3rem; border-bottom: 1px solid rgba(255,255,255,0.04); }
-    #item-breakdown td:not(:first-child) { text-align: right; font-family: 'Rajdhani', sans-serif; font-weight: 600; }
-    #item-breakdown tr.breakdown-total td { border-top: 1px solid var(--border); font-weight: 700; color: var(--text); }
-    #item-breakdown input.bd-name { width: 100%; background: transparent; border: none; border-bottom: 1px dashed var(--border);
-      color: var(--text); font-size: 0.78rem; padding: 0.15rem 0; outline: none; }
-    #item-breakdown input.bd-num { width: 3.5rem; background: transparent; border: none; border-bottom: 1px dashed var(--border);
+    .bd-row { display: flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .bd-row .bd-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+    .bd-row .bd-cal-wrap { display: flex; align-items: center; gap: 0.15rem; flex-shrink: 0; }
+    .bd-row .bd-cal { width: 3.2rem; background: transparent; border: none; border-bottom: 1px dashed var(--border);
       color: var(--text); font-family: 'Rajdhani', sans-serif; font-weight: 600; font-size: 0.78rem;
       text-align: right; padding: 0.15rem 0; outline: none; }
-    #item-breakdown input.bd-name:focus, #item-breakdown input.bd-num:focus { border-bottom-color: var(--accent); }
-    #item-breakdown .bd-del { background: none; border: none; color: var(--danger, #f85149); cursor: pointer;
-      font-size: 0.9rem; line-height: 1; padding: 0 0.2rem; opacity: 0.7; }
-    #item-breakdown .bd-del:hover { opacity: 1; }
+    .bd-row .bd-cal:focus { border-bottom-color: var(--accent); }
+    .bd-row .bd-cal-unit { color: var(--muted); font-size: 0.7rem; }
+    .bd-del { background: none; border: none; color: var(--danger, #f85149); cursor: pointer;
+      font-size: 0.9rem; line-height: 1; padding: 0 0.15rem; opacity: 0.7; flex-shrink: 0; }
+    .bd-del:hover { opacity: 1; }
+    .bd-total { display: flex; justify-content: space-between; align-items: center;
+      padding: 0.4rem 0 0.15rem; border-top: 1px solid var(--border); font-weight: 700; color: var(--text); }
+    .bd-total-macros { display: flex; gap: 0.6rem; font-family: 'Rajdhani', sans-serif; font-size: 0.82rem; }
+    .bd-total-macros span { font-weight: 600; }
 
     /* Meal table */
     .meal-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
@@ -3068,20 +3067,23 @@ function deleteWorkout(id) {
   pairs.forEach(([vis,hid]) => vis.addEventListener("input", () => hid.value = vis.value));
 
   function recalcBreakdown() {
-    const rows = breakdownEl.querySelectorAll("tr.bd-row");
+    const rows = breakdownEl.querySelectorAll(".bd-row");
     let cal = 0, pro = 0, carb = 0, fat = 0;
     rows.forEach(row => {
-      cal  += parseFloat(row.querySelector(".bd-cal").value)  || 0;
-      pro  += parseFloat(row.querySelector(".bd-pro").value)  || 0;
-      carb += parseFloat(row.querySelector(".bd-carb").value) || 0;
-      fat  += parseFloat(row.querySelector(".bd-fat").value)  || 0;
+      const origCal = parseFloat(row.dataset.origCal) || 1;
+      const curCal  = parseFloat(row.querySelector(".bd-cal").value) || 0;
+      const ratio   = origCal > 0 ? curCal / origCal : 1;
+      cal  += curCal;
+      pro  += (parseFloat(row.dataset.pro)  || 0) * ratio;
+      carb += (parseFloat(row.dataset.carb) || 0) * ratio;
+      fat  += (parseFloat(row.dataset.fat)  || 0) * ratio;
     });
-    const tot = breakdownEl.querySelector(".breakdown-total");
+    const tot = breakdownEl.querySelector(".bd-total");
     if (tot) {
-      tot.querySelector(".bt-cal").textContent  = Math.round(cal);
-      tot.querySelector(".bt-pro").textContent  = pro.toFixed(1) + "g";
-      tot.querySelector(".bt-carb").textContent = carb.toFixed(1) + "g";
-      tot.querySelector(".bt-fat").textContent  = fat.toFixed(1) + "g";
+      tot.querySelector(".bt-cal").textContent  = Math.round(cal) + " cal";
+      tot.querySelector(".bt-pro").textContent  = pro.toFixed(1) + "g P";
+      tot.querySelector(".bt-carb").textContent = carb.toFixed(1) + "g C";
+      tot.querySelector(".bt-fat").textContent  = fat.toFixed(1) + "g F";
     }
     pairs[0][0].value = Math.round(cal);  pairs[0][1].value = Math.round(cal);
     pairs[1][0].value = pro.toFixed(1);   pairs[1][1].value = pro.toFixed(1);
@@ -3091,34 +3093,30 @@ function deleteWorkout(id) {
 
   function renderBreakdown(items) {
     if (!items || items.length === 0) { breakdownEl.innerHTML = ""; return; }
-    const tbl = document.createElement("table");
-    tbl.innerHTML = '<thead><tr><th></th><th>Item</th><th>Cal</th><th>P</th><th>C</th><th>F</th></tr></thead>';
-    const tbody = document.createElement("tbody");
+    breakdownEl.innerHTML = "";
 
     items.forEach(it => {
-      const tr = document.createElement("tr");
-      tr.className = "bd-row";
-      tr.innerHTML =
-        '<td><button type="button" class="bd-del" title="Remove">&times;</button></td>' +
-        '<td><input class="bd-name" type="text" value="' + (it.name || "").replace(/"/g, "&quot;") + '"></td>' +
-        '<td><input class="bd-num bd-cal" type="number" min="0" step="1" value="' + it.calories + '"></td>' +
-        '<td><input class="bd-num bd-pro" type="number" min="0" step="0.1" value="' + it.protein_g.toFixed(1) + '"></td>' +
-        '<td><input class="bd-num bd-carb" type="number" min="0" step="0.1" value="' + it.carbs_g.toFixed(1) + '"></td>' +
-        '<td><input class="bd-num bd-fat" type="number" min="0" step="0.1" value="' + it.fat_g.toFixed(1) + '"></td>';
-      tr.querySelector(".bd-del").addEventListener("click", () => { tr.remove(); recalcBreakdown(); });
-      tr.querySelectorAll(".bd-num").forEach(inp => inp.addEventListener("input", recalcBreakdown));
-      tbody.appendChild(tr);
+      const row = document.createElement("div");
+      row.className = "bd-row";
+      row.dataset.origCal = it.calories;
+      row.dataset.pro     = it.protein_g.toFixed(1);
+      row.dataset.carb    = it.carbs_g.toFixed(1);
+      row.dataset.fat     = it.fat_g.toFixed(1);
+      row.innerHTML =
+        '<button type="button" class="bd-del" title="Remove">&times;</button>' +
+        '<span class="bd-name">' + (it.name || "").replace(/</g, "&lt;") + '</span>' +
+        '<span class="bd-cal-wrap"><input class="bd-cal" type="number" min="0" step="1" value="' + it.calories + '"><span class="bd-cal-unit">cal</span></span>';
+      row.querySelector(".bd-del").addEventListener("click", () => { row.remove(); recalcBreakdown(); });
+      row.querySelector(".bd-cal").addEventListener("input", recalcBreakdown);
+      breakdownEl.appendChild(row);
     });
 
-    const totRow = document.createElement("tr");
-    totRow.className = "breakdown-total";
-    totRow.innerHTML =
-      '<td></td><td>Total</td>' +
-      '<td class="bt-cal"></td><td class="bt-pro"></td><td class="bt-carb"></td><td class="bt-fat"></td>';
-    tbody.appendChild(totRow);
-    tbl.appendChild(tbody);
-    breakdownEl.innerHTML = "";
-    breakdownEl.appendChild(tbl);
+    const tot = document.createElement("div");
+    tot.className = "bd-total";
+    tot.innerHTML =
+      '<span>Total</span>' +
+      '<span class="bd-total-macros"><span class="bt-cal"></span><span class="bt-pro"></span><span class="bt-carb"></span><span class="bt-fat"></span></span>';
+    breakdownEl.appendChild(tot);
     recalcBreakdown();
   }
 
