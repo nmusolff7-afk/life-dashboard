@@ -889,13 +889,24 @@ def api_gmail_status():
     })
 
 
+def _gmail_redirect_uri():
+    """Build the Gmail OAuth redirect URI, respecting reverse proxies."""
+    app_url = os.environ.get("APP_URL", "").rstrip("/")
+    if app_url:
+        return app_url + "/api/gmail/callback"
+    # Fall back to request-based detection with proxy header support
+    scheme = request.headers.get("X-Forwarded-Proto", request.scheme)
+    host   = request.headers.get("X-Forwarded-Host", request.host)
+    return f"{scheme}://{host}/api/gmail/callback"
+
+
 @app.route("/api/gmail/connect")
 @login_required
 def api_gmail_connect():
     """Redirect user to Google OAuth consent screen."""
     if not gmail_sync.is_configured():
         return jsonify({"error": "Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET."}), 400
-    redirect_uri = request.url_root.rstrip("/") + "/api/gmail/callback"
+    redirect_uri = _gmail_redirect_uri()
     auth_url = gmail_sync.get_auth_url(redirect_uri, state=str(uid()))
     return redirect(auth_url)
 
@@ -912,7 +923,7 @@ def api_gmail_callback():
     if not code:
         return redirect(url_for("index") + "?gmail_error=no_code")
 
-    redirect_uri = request.url_root.rstrip("/") + "/api/gmail/callback"
+    redirect_uri = _gmail_redirect_uri()
     try:
         token_data = gmail_sync.exchange_code(code, redirect_uri)
         access_token  = token_data["access_token"]
