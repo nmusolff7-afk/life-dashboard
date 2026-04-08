@@ -208,9 +208,19 @@
     #item-breakdown th { text-align: left; font-size: 0.68rem; font-weight: 600; color: var(--muted);
       text-transform: uppercase; letter-spacing: .04em; padding: 0.25rem 0.3rem; border-bottom: 1px solid var(--border); }
     #item-breakdown th:not(:first-child) { text-align: right; }
+    #item-breakdown th.bd-del-col { width: 1.5rem; }
     #item-breakdown td { padding: 0.25rem 0.3rem; border-bottom: 1px solid rgba(255,255,255,0.04); }
     #item-breakdown td:not(:first-child) { text-align: right; font-family: 'Rajdhani', sans-serif; font-weight: 600; }
     #item-breakdown tr.breakdown-total td { border-top: 1px solid var(--border); font-weight: 700; color: var(--text); }
+    #item-breakdown input.bd-name { width: 100%; background: transparent; border: none; border-bottom: 1px dashed var(--border);
+      color: var(--text); font-size: 0.78rem; padding: 0.15rem 0; outline: none; }
+    #item-breakdown input.bd-num { width: 3.5rem; background: transparent; border: none; border-bottom: 1px dashed var(--border);
+      color: var(--text); font-family: 'Rajdhani', sans-serif; font-weight: 600; font-size: 0.78rem;
+      text-align: right; padding: 0.15rem 0; outline: none; }
+    #item-breakdown input.bd-name:focus, #item-breakdown input.bd-num:focus { border-bottom-color: var(--accent); }
+    #item-breakdown .bd-del { background: none; border: none; color: var(--danger, #f85149); cursor: pointer;
+      font-size: 0.9rem; line-height: 1; padding: 0 0.2rem; opacity: 0.7; }
+    #item-breakdown .bd-del:hover { opacity: 1; }
 
     /* Meal table */
     .meal-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
@@ -3044,15 +3054,59 @@ function deleteWorkout(id) {
 
   pairs.forEach(([vis,hid]) => vis.addEventListener("input", () => hid.value = vis.value));
 
-  function renderBreakdown(items, totals) {
-    if (!items || items.length === 0) { breakdownEl.innerHTML = ""; return; }
-    let html = '<table><thead><tr><th>Item</th><th>Cal</th><th>P</th><th>C</th><th>F</th></tr></thead><tbody>';
-    items.forEach(it => {
-      html += '<tr><td>' + it.name + '</td><td>' + it.calories + '</td><td>' + it.protein_g.toFixed(1) + 'g</td><td>' + it.carbs_g.toFixed(1) + 'g</td><td>' + it.fat_g.toFixed(1) + 'g</td></tr>';
+  function recalcBreakdown() {
+    const rows = breakdownEl.querySelectorAll("tr.bd-row");
+    let cal = 0, pro = 0, carb = 0, fat = 0;
+    rows.forEach(row => {
+      cal  += parseFloat(row.querySelector(".bd-cal").value)  || 0;
+      pro  += parseFloat(row.querySelector(".bd-pro").value)  || 0;
+      carb += parseFloat(row.querySelector(".bd-carb").value) || 0;
+      fat  += parseFloat(row.querySelector(".bd-fat").value)  || 0;
     });
-    html += '<tr class="breakdown-total"><td>Total</td><td>' + totals.calories + '</td><td>' + totals.protein_g.toFixed(1) + 'g</td><td>' + totals.carbs_g.toFixed(1) + 'g</td><td>' + totals.fat_g.toFixed(1) + 'g</td></tr>';
-    html += '</tbody></table>';
-    breakdownEl.innerHTML = html;
+    const tot = breakdownEl.querySelector(".breakdown-total");
+    if (tot) {
+      tot.querySelector(".bt-cal").textContent  = Math.round(cal);
+      tot.querySelector(".bt-pro").textContent  = pro.toFixed(1) + "g";
+      tot.querySelector(".bt-carb").textContent = carb.toFixed(1) + "g";
+      tot.querySelector(".bt-fat").textContent  = fat.toFixed(1) + "g";
+    }
+    pairs[0][0].value = Math.round(cal);  pairs[0][1].value = Math.round(cal);
+    pairs[1][0].value = pro.toFixed(1);   pairs[1][1].value = pro.toFixed(1);
+    pairs[2][0].value = carb.toFixed(1);  pairs[2][1].value = carb.toFixed(1);
+    pairs[3][0].value = fat.toFixed(1);   pairs[3][1].value = fat.toFixed(1);
+  }
+
+  function renderBreakdown(items) {
+    if (!items || items.length === 0) { breakdownEl.innerHTML = ""; return; }
+    const tbl = document.createElement("table");
+    tbl.innerHTML = '<thead><tr><th></th><th>Item</th><th>Cal</th><th>P</th><th>C</th><th>F</th></tr></thead>';
+    const tbody = document.createElement("tbody");
+
+    items.forEach(it => {
+      const tr = document.createElement("tr");
+      tr.className = "bd-row";
+      tr.innerHTML =
+        '<td><button type="button" class="bd-del" title="Remove">&times;</button></td>' +
+        '<td><input class="bd-name" type="text" value="' + (it.name || "").replace(/"/g, "&quot;") + '"></td>' +
+        '<td><input class="bd-num bd-cal" type="number" min="0" step="1" value="' + it.calories + '"></td>' +
+        '<td><input class="bd-num bd-pro" type="number" min="0" step="0.1" value="' + it.protein_g.toFixed(1) + '"></td>' +
+        '<td><input class="bd-num bd-carb" type="number" min="0" step="0.1" value="' + it.carbs_g.toFixed(1) + '"></td>' +
+        '<td><input class="bd-num bd-fat" type="number" min="0" step="0.1" value="' + it.fat_g.toFixed(1) + '"></td>';
+      tr.querySelector(".bd-del").addEventListener("click", () => { tr.remove(); recalcBreakdown(); });
+      tr.querySelectorAll(".bd-num").forEach(inp => inp.addEventListener("input", recalcBreakdown));
+      tbody.appendChild(tr);
+    });
+
+    const totRow = document.createElement("tr");
+    totRow.className = "breakdown-total";
+    totRow.innerHTML =
+      '<td></td><td>Total</td>' +
+      '<td class="bt-cal"></td><td class="bt-pro"></td><td class="bt-carb"></td><td class="bt-fat"></td>';
+    tbody.appendChild(totRow);
+    tbl.appendChild(tbody);
+    breakdownEl.innerHTML = "";
+    breakdownEl.appendChild(tbl);
+    recalcBreakdown();
   }
 
   let shortLabel    = null;
@@ -3158,11 +3212,7 @@ function deleteWorkout(id) {
         hDesc.value     = data.description;
         shortLabel      = data.description;
       }
-      pairs[0][0].value = data.calories;   pairs[0][1].value = data.calories;
-      pairs[1][0].value = data.protein_g;  pairs[1][1].value = data.protein_g;
-      pairs[2][0].value = data.carbs_g;    pairs[2][1].value = data.carbs_g;
-      pairs[3][0].value = data.fat_g;      pairs[3][1].value = data.fat_g;
-      renderBreakdown(data.items, {calories: data.calories, protein_g: data.protein_g, carbs_g: data.carbs_g, fat_g: data.fat_g});
+      renderBreakdown(data.items);
       aiNotes.style.color = "";
       aiNotes.textContent = data.notes ? "AI note: " + data.notes : "";
       macroFields.classList.add("visible");
@@ -3230,12 +3280,7 @@ function deleteWorkout(id) {
           aiNotes.textContent = "⚠ " + data.error; aiNotes.style.color = "var(--danger)";
           macroFields.classList.add("visible"); return;
         }
-        const [cal, pro, carb, fat] = [data.calories, data.protein_g, data.carbs_g, data.fat_g];
-        pairs[0][0].value = cal;   pairs[0][1].value = cal;
-        pairs[1][0].value = pro;   pairs[1][1].value = pro;
-        pairs[2][0].value = carb;  pairs[2][1].value = carb;
-        pairs[3][0].value = fat;   pairs[3][1].value = fat;
-        renderBreakdown(data.items, {calories: cal, protein_g: pro, carbs_g: carb, fat_g: fat});
+        renderBreakdown(data.items);
         aiNotes.style.color = ""; aiNotes.textContent = data.notes ? "AI note: " + data.notes : "";
         macroFields.classList.add("visible");
         logBtn.style.display = "";
