@@ -369,22 +369,8 @@
       </div>
     </div>
 
-    <!-- ══ PAGE 4: Mind ══ -->
+    <!-- ══ Processing ══ -->
     <div class="ob-page" id="page-4">
-      <div class="slider-field">
-        <label>Typical daily energy level <span id="ob-energy-val">6 / 10</span></label>
-        <input type="range" id="ob-energy" min="1" max="10" step="1" value="6">
-        <div class="slider-endpoints"><span>Exhausted</span><span>Full of energy</span></div>
-      </div>
-      <div class="slider-field">
-        <label>Baseline mood / outlook <span id="ob-mood-val">6 / 10</span></label>
-        <input type="range" id="ob-mood" min="1" max="10" step="1" value="6">
-        <div class="slider-endpoints"><span>Very low</span><span>Thriving</span></div>
-      </div>
-    </div>
-
-    <!-- ══ PAGE 6: Processing ══ -->
-    <div class="ob-page" id="page-5">
       <div class="ob-spinner" id="ob-spinner">
         <div class="spinner-ring"></div>
         <div>
@@ -471,6 +457,9 @@
         <button class="btn btn-ghost" id="ob-retry-btn" style="display:none;width:100%;margin-top:0.75rem" onclick="runCompletion()">
           Try again
         </button>
+        <button class="btn btn-ghost" id="ob-back-to-edit" style="width:100%;margin-top:0.5rem" onclick="currentPage = TOTAL_PAGES; updateUI();">
+          ← Back to edit
+        </button>
       </div>
     </div>
 
@@ -485,14 +474,13 @@
 
 <script>
 (function() {
-  const TOTAL_PAGES = 4; // page 5 is processing — no nav buttons
+  const TOTAL_PAGES = 3; // page 4 is processing — no nav buttons
   let currentPage = 1;
 
   const PAGE_META = [
     { title: "Let's get to know you",  sub: "Your name and body stats — used to calculate your metabolism." },
     { title: "What's your goal?",       sub: "This determines your calorie target, protein, and macros." },
     { title: "Your daily life",        sub: "How you work and your stress level affect your calorie needs." },
-    { title: "Mind & energy",          sub: "Your baseline energy and mood set the starting point for daily check-ins." },
   ];
 
   // ── Single-select chip groups ──────────────────────────────────
@@ -514,8 +502,7 @@
     lbl.textContent = fmt(el.value);
   }
   bindSlider("ob-stress", "ob-stress-val", v => v + " / 10");
-  bindSlider("ob-energy", "ob-energy-val", v => v + " / 10");
-  bindSlider("ob-mood",   "ob-mood-val",   v => v + " / 10");
+  // energy and mood sliders removed — collected during daily check-ins instead
 
   // ── BMI preview on page 1 ──────────────────────────────────────
   function updateBMI() {
@@ -560,14 +547,12 @@
       occupation_description:  document.getElementById("ob-occupation").value.trim() || null,
       work_style:              chipVal("ob-work-style-chips"),
       stress_level_1_10:       parseInt(document.getElementById("ob-stress").value),
-      energy_level_1_10:       parseInt(document.getElementById("ob-energy").value),
-      mood_baseline_1_10:      parseInt(document.getElementById("ob-mood").value),
     };
   }
 
   // ── Navigation ─────────────────────────────────────────────────
   function updateUI() {
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 4; i++) {
       document.getElementById("page-" + i).classList.toggle("active", i === currentPage);
     }
     const pct = Math.round((currentPage / (TOTAL_PAGES + 1)) * 100);
@@ -576,7 +561,7 @@
     const footer  = document.getElementById("ob-footer");
     const nextBtn = document.getElementById("ob-next-btn");
 
-    if (currentPage === 5) {
+    if (currentPage === 4) {
       footer.style.display = "none";
     } else {
       footer.style.display = "flex";
@@ -608,7 +593,7 @@
       currentPage++;
       updateUI();
     } else {
-      currentPage = 5;
+      currentPage = 4;
       updateUI();
       runCompletion();
     }
@@ -664,7 +649,7 @@
         document.getElementById("ob-complete-icon").textContent = "✦";
         document.getElementById("ob-complete-heading").textContent = "Your Profile is Ready";
         document.getElementById("ob-complete-body").textContent = "Apex now understands who you are. Your dashboard is calibrated to your goals, lifestyle, and motivations.";
-        buildSummary(job.profile || {});
+        buildSummary(job.profile || {}, job.targets || null);
         buildPlanPanel(job.targets || null);
         showWorkoutSection();
         // Enter button stays hidden until workout plan is chosen
@@ -688,20 +673,15 @@
     document.getElementById("ob-retry-btn").style.display = "";
   }
 
-  function buildSummary(p) {
-    function fmt(v, suffix) {
-      if (v == null || v === "") return "—";
-      const n = parseFloat(v);
-      return isNaN(n) ? String(v) : (suffix ? n.toFixed(1) + suffix : String(v));
-    }
+  function buildSummary(p, targets) {
+    // Use targets from compute_targets when available (more reliable than Claude output)
+    const t = targets || {};
     const rows = [
-      ["Name",        p.first_name || "—"],
-      ["BMI",         fmt(p.bmi, "")],
-      ["RMR",         p.rmr_kcal ? p.rmr_kcal + " kcal" : "—"],
-      ["Calorie goal",p.daily_calorie_goal ? p.daily_calorie_goal + " kcal / day" : "—"],
-      ["Protein goal",p.daily_protein_goal_g ? p.daily_protein_goal_g + "g / day" : "—"],
-      ["To goal",     p.lbs_to_goal ? p.lbs_to_goal + " lbs · ~" + (p.weeks_to_goal || "?") + " weeks" : "—"],
-      ["Archetype",   p.behavioral_archetype || "—"],
+      ["Name",         p.first_name || "—"],
+      ["RMR",          (t.rmr || p.rmr_kcal) ? (t.rmr || p.rmr_kcal) + " kcal" : "—"],
+      ["Calorie target", t.calorie_target ? t.calorie_target + " kcal / day" : "—"],
+      ["Protein",      t.protein_g ? t.protein_g + "g / day" : "—"],
+      ["Archetype",    p.behavioral_archetype || "—"],
     ];
     let html = rows.map(([k, v]) =>
       `<div class="summary-row"><span class="k">${k}</span><span class="v">${v}</span></div>`
@@ -1106,10 +1086,8 @@
     setVal("ob-occupation", s.occupation_description);
     setChip("ob-work-style-chips", s.work_style);
     setVal("ob-stress", s.stress_level_1_10);
-    setVal("ob-energy", s.energy_level_1_10);
-    setVal("ob-mood", s.mood_baseline_1_10);
     // Re-fire slider labels
-    ["ob-stress","ob-energy","ob-mood"].forEach(id => {
+    ["ob-stress"].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.dispatchEvent(new Event("input"));
     });

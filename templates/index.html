@@ -2649,24 +2649,33 @@ fetch("/api/profile")
         sumEl.textContent = "No profile generated yet. Complete onboarding to enable personalized scoring.";
       }
     }
-    // Seed localStorage with goal targets from backend if not already set
+    // Seed localStorage with body stats + goal targets from backend
     try {
       const saved = JSON.parse(localStorage.getItem("profileData") || "{}");
       let changed = false;
+
+      // Body stats from onboarding (seed if localStorage is empty)
+      function _seed(key, val) { if (val != null && !saved[key]) { saved[key] = val; changed = true; } }
+      _seed("curWeight", p.current_weight_lbs);
+      _seed("tgtWeight", p.target_weight_lbs || null);  // null if no goal weight
+      _seed("heightFt",  p.height_ft);
+      _seed("heightIn",  p.height_in);
+      _seed("age",       p.age);
+      _seed("sex",       p.gender);
+      _seed("occupation", { desk: "sedentary", standing: "standing", physical: "physical", remote: "sedentary", mixed: "standing" }[p.work_style] || null);
+      _seed("goal",      p.primary_goal);
+
+      // Goal targets
       const gt = p.goal_targets;
       if (gt) {
-        // Seed each target only if localStorage doesn't already have a user-set value
-        if (gt.rmr && !saved.rmr)                 { saved.rmr     = gt.rmr;             changed = true; }
-        if (gt.goal_key && !saved.goal)            { saved.goal    = gt.goal_key;        changed = true; }
-        if (gt.deficit_surplus != null && saved.deficit == null)
-                                                   { saved.deficit = gt.deficit_surplus;  changed = true; }
-        if (gt.protein_g && !saved.protein)        { saved.protein = gt.protein_g;       changed = true; }
-        if (gt.fat_g && !saved.fat)                { saved.fat     = gt.fat_g;           changed = true; }
-        if (gt.carbs_g && !saved.carbs)            { saved.carbs   = gt.carbs_g;         changed = true; }
+        _seed("rmr",     gt.rmr);
+        _seed("goal",    gt.goal_key);
+        if (gt.deficit_surplus != null && saved.deficit == null) { saved.deficit = gt.deficit_surplus; changed = true; }
+        _seed("protein", gt.protein_g);
+        _seed("fat",     gt.fat_g);
+        _seed("carbs",   gt.carbs_g);
       } else {
-        // Fallback: seed from Claude-generated profile if no goal targets yet
-        if (p.rmr_kcal && !saved.rmr)              { saved.rmr  = p.rmr_kcal;           changed = true; }
-        if (p.primary_goal && !saved.goal)          { saved.goal = p.primary_goal;       changed = true; }
+        _seed("rmr", p.rmr_kcal);
       }
       if (changed) localStorage.setItem("profileData", JSON.stringify(saved));
       // Pre-select goal button if localStorage has it

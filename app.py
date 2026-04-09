@@ -241,6 +241,14 @@ def api_profile():
     """Return key profile fields for client-side pre-filling and display."""
     p = get_profile_map(uid())
     goal = get_user_goal(uid())
+    # Also read raw onboarding inputs for body stats
+    ob_row = get_onboarding(uid())
+    raw = {}
+    if ob_row and ob_row.get("raw_inputs"):
+        try:
+            raw = json.loads(ob_row["raw_inputs"])
+        except Exception:
+            pass
     resp = {
         "energy_level_typical_1_10":  p.get("energy_level_typical_1_10"),
         "mood_baseline_1_10":         p.get("mood_baseline_1_10"),
@@ -248,12 +256,20 @@ def api_profile():
         "daily_calorie_goal":         p.get("daily_calorie_goal"),
         "daily_protein_goal_g":       p.get("daily_protein_goal_g"),
         "rmr_kcal":                   p.get("rmr_kcal"),
-        "primary_goal":               p.get("primary_goal"),
+        "primary_goal":               p.get("primary_goal") or raw.get("primary_goal"),
         "steps_per_day_estimated":    p.get("steps_per_day_estimated"),
         "behavioral_archetype":       p.get("behavioral_archetype"),
-        "first_name":                 p.get("first_name"),
+        "first_name":                 p.get("first_name") or raw.get("first_name"),
         "one_sentence_summary":       p.get("one_sentence_summary"),
         "biggest_leverage_point":     p.get("biggest_leverage_point"),
+        # Body stats from onboarding raw inputs
+        "current_weight_lbs":         raw.get("current_weight_lbs"),
+        "target_weight_lbs":          raw.get("target_weight_lbs"),
+        "height_ft":                  raw.get("height_ft"),
+        "height_in":                  raw.get("height_in"),
+        "age":                        raw.get("age"),
+        "gender":                     raw.get("gender"),
+        "work_style":                 raw.get("work_style"),
     }
     # Include computed goal targets if available
     if goal:
@@ -284,10 +300,13 @@ def _run_profile_generation(user_id: int, raw: dict):
 
             # ── Compute goal-driven targets from raw inputs ──
             goal_key = raw.get("primary_goal") or profile.get("primary_goal") or "lose_weight"
+            cur_wt = float(raw.get("current_weight_lbs") or profile.get("current_weight_lbs") or 185)
+            tgt_wt_raw = raw.get("target_weight_lbs") or profile.get("target_weight_lbs")
+            tgt_wt = float(tgt_wt_raw) if tgt_wt_raw else cur_wt  # no goal weight = use current
             targets = compute_targets(
                 goal_key=goal_key,
-                weight_lbs=float(raw.get("current_weight_lbs") or profile.get("current_weight_lbs") or 185),
-                target_weight_lbs=float(raw.get("target_weight_lbs") or profile.get("target_weight_lbs") or 170),
+                weight_lbs=cur_wt,
+                target_weight_lbs=tgt_wt,
                 height_ft=int(raw.get("height_ft") or profile.get("height_ft") or 5),
                 height_in=int(raw.get("height_in") or profile.get("height_in") or 10),
                 age=int(raw.get("age") or profile.get("age") or 28),
