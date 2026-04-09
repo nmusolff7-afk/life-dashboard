@@ -90,7 +90,7 @@ GOAL_CONFIGS = {
     "recomp": {
         "key":          "recomp",
         "label":        "Body Recomposition",
-        "short":        "Recomp",
+        "short":        "Body Recomp",
         "cal_adjust":   -0.10,
         "protein_gkg":  2.2,
         "protein_ref":  "current",

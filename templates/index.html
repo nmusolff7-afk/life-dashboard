@@ -1749,7 +1749,7 @@
           <div class="seg-control" style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem">
             <button class="seg-btn goal-btn" data-val="lose_weight">Lose Weight</button>
             <button class="seg-btn goal-btn" data-val="build_muscle">Build Muscle</button>
-            <button class="seg-btn goal-btn" data-val="recomp">Recomp</button>
+            <button class="seg-btn goal-btn" data-val="recomp">Body Recomp</button>
             <button class="seg-btn goal-btn" data-val="maintain">Maintain</button>
           </div>
         </div>
@@ -1796,7 +1796,7 @@
           <div style="display:grid;grid-template-columns:auto 1fr;gap:0.2rem 0.75rem;margin-bottom:0.7rem;font-size:0.78rem">
             <span style="font-weight:600;color:var(--text)">Lose weight</span>
             <span style="color:var(--muted)">2.0 g/kg &mdash; mid-range of 1.8&ndash;2.4 g/kg shown to preserve lean mass during caloric restriction (Helms et al. 2014)</span>
-            <span style="font-weight:600;color:var(--text)">Recomp</span>
+            <span style="font-weight:600;color:var(--text)">Body Recomposition</span>
             <span style="color:var(--muted)">2.2 g/kg &mdash; highest of the four goals; simultaneous fat loss + muscle gain requires maximum protein to fuel synthesis while in a mild deficit</span>
             <span style="font-weight:600;color:var(--text)">Build muscle</span>
             <span style="color:var(--muted)">1.8 g/kg &mdash; a caloric surplus is already anabolic, so protein needs are lower; above ~1.6 g/kg shows diminishing returns for hypertrophy (Morton et al. 2018)</span>
@@ -4871,7 +4871,7 @@ try {
     const intake  = tdee + adjust;
     const deficit = -adjust;  // positive when in deficit for weeksToGoal
     const weeks   = weeksToGoal(inp.curWeight, inp.tgtWeight, deficit);
-    const goalLabel = { lose_weight: "Lose Weight", build_muscle: "Build Muscle", recomp: "Recomp", maintain: "Maintain" }[inp.goal] || inp.goal;
+    const goalLabel = { lose_weight: "Lose Weight", build_muscle: "Build Muscle", recomp: "Body Recomposition", maintain: "Maintain" }[inp.goal] || inp.goal;
     const previewEl = document.getElementById("profile-preview");
     if (!previewEl) return;
 

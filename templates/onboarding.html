@@ -891,7 +891,7 @@
   const GOAL_META = {
     lose_weight:  { icon: "\u25BF", title: "Lose Weight",   desc: "We'll calculate a moderate calorie deficit to lose fat while preserving your muscle. Protein is set high to protect lean mass." },
     build_muscle: { icon: "\u25B3", title: "Build Muscle",  desc: "We'll set a slight calorie surplus to maximize muscle growth. Protein is optimized for hypertrophy without excess." },
-    recomp:       { icon: "\u25CA", title: "Recomposition",  desc: "We'll use a mild deficit with the highest protein target to drive simultaneous fat loss and muscle gain." },
+    recomp:       { icon: "\u25CA", title: "Body Recomposition",  desc: "We'll use a mild deficit with the highest protein target to drive simultaneous fat loss and muscle gain." },
     maintain:     { icon: "\u2594", title: "Maintain",       desc: "We'll match your calories to your energy expenditure. Protein is set to preserve muscle without overcomplicating your diet." },
   };
   // Direct aspiration-to-goal mappings (no phase 2 needed)
@@ -987,10 +987,10 @@
     } else if (goal === "build_muscle") {
       if (diff > 0) { valid = true; }
       else if (diff === 0) {
-        suggestion = "Staying the same weight while building muscle is recomposition. Recomp might be a better fit.";
-        sugGoal = "recomp"; sugLabel = "Recomp";
+        suggestion = "Staying the same weight while building muscle is body recomposition. That might be a better fit.";
+        sugGoal = "recomp"; sugLabel = "Body Recomposition";
       } else {
-        suggestion = "A lower goal weight means losing weight. Lose Weight or Recomp might fit better.";
+        suggestion = "A lower goal weight means losing weight. Lose Weight or Body Recomposition might fit better.";
         sugGoal = "lose_weight"; sugLabel = "Lose Weight";
       }
     } else if (goal === "recomp") {
