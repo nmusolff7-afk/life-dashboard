@@ -1650,26 +1650,33 @@
 
       <!-- About You -->
       <div class="card">
-        <div class="card-title">About You</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.9rem">
+          <div class="card-title" style="margin:0;flex:1">About You</div>
+          <div class="seg-control" id="unit-toggle" style="gap:0.25rem">
+            <button class="seg-btn unit-btn active" data-val="imperial" style="padding:0.3rem 0.65rem;font-size:0.72rem">lbs / ft</button>
+            <button class="seg-btn unit-btn" data-val="metric" style="padding:0.3rem 0.65rem;font-size:0.72rem">kg / cm</button>
+          </div>
+        </div>
 
         <div class="profile-grid-2" style="margin-bottom:0.75rem">
           <div class="field" style="margin-bottom:0">
             <label>Current weight</label>
             <div class="input-suffix-wrap">
-              <input type="number" id="p-cur-weight" min="80" max="500" step="1" placeholder="185">
-              <span class="input-suffix">lbs</span>
+              <input type="number" id="p-cur-weight" min="30" max="500" step="0.1" placeholder="185">
+              <span class="input-suffix unit-weight-label">lbs</span>
             </div>
           </div>
           <div class="field" style="margin-bottom:0">
             <label>Target weight</label>
             <div class="input-suffix-wrap">
-              <input type="number" id="p-tgt-weight" min="80" max="500" step="1" placeholder="170">
-              <span class="input-suffix">lbs</span>
+              <input type="number" id="p-tgt-weight" min="30" max="500" step="0.1" placeholder="170">
+              <span class="input-suffix unit-weight-label">lbs</span>
             </div>
           </div>
         </div>
 
-        <div class="profile-grid-3" style="margin-bottom:0.75rem">
+        <!-- Imperial height -->
+        <div id="height-imperial" class="profile-grid-3" style="margin-bottom:0.75rem">
           <div class="field" style="margin-bottom:0">
             <label>Height (ft)</label>
             <input type="number" id="p-height-ft" min="4" max="7" step="1" placeholder="5">
@@ -1681,6 +1688,17 @@
           <div class="field" style="margin-bottom:0">
             <label>Age</label>
             <input type="number" id="p-age" min="16" max="100" step="1" placeholder="28">
+          </div>
+        </div>
+        <!-- Metric height -->
+        <div id="height-metric" class="profile-grid-2" style="margin-bottom:0.75rem;display:none">
+          <div class="field" style="margin-bottom:0">
+            <label>Height (cm)</label>
+            <input type="number" id="p-height-cm" min="120" max="230" step="0.5" placeholder="178">
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label>Age</label>
+            <input type="number" id="p-age-metric" min="16" max="100" step="1" placeholder="28">
           </div>
         </div>
 
@@ -2268,6 +2286,16 @@ let TODAY_WORKOUT_DESCS = {{ workouts | map(attribute='description') | list | to
 // ── TDEE Component Functions (defined early — used by IIFEs below) ──
 
 const OCC_BASE = { sedentary: 200, standing: 400, physical: 700 };
+
+// ── Global unit helpers (available to all IIFEs) ────────
+function _userUnits() { return localStorage.getItem("apex-units") || "imperial"; }
+function _isUserMetric() { return _userUnits() === "metric"; }
+function _fmtWeight(lbs) {
+  if (lbs == null) return "—";
+  if (_isUserMetric()) return (lbs / 2.20462).toFixed(1) + " kg";
+  return lbs + " lbs";
+}
+function _weightUnit() { return _isUserMetric() ? "kg" : "lbs"; }
 
 function calcRMR(weightLbs, heightFt, heightIn, age, sex, bfPct) {
   const kg = weightLbs * 0.453592;
@@ -4612,12 +4640,91 @@ try {
     nm.addEventListener("input", () => { sl.value = nm.value; updatePreview(); });
   }
 
+  // ── Unit system toggle ──────────────────────────────
+  const LBS_PER_KG = 2.20462;
+  const CM_PER_IN  = 2.54;
+  let _units = localStorage.getItem("apex-units") || "imperial";
+
+  function _isMetric() { return _units === "metric"; }
+
+  function _applyUnitUI() {
+    const metric = _isMetric();
+    // Toggle buttons
+    document.querySelectorAll(".unit-btn").forEach(b =>
+      b.classList.toggle("active", b.dataset.val === _units));
+    // Weight labels
+    document.querySelectorAll(".unit-weight-label").forEach(el =>
+      el.textContent = metric ? "kg" : "lbs");
+    // Height sections
+    document.getElementById("height-imperial").style.display = metric ? "none" : "";
+    document.getElementById("height-metric").style.display   = metric ? ""     : "none";
+    // Sync age between the two age inputs
+    const ageImp = document.getElementById("p-age");
+    const ageMet = document.getElementById("p-age-metric");
+    if (metric && ageImp.value) ageMet.value = ageImp.value;
+    if (!metric && ageMet.value) ageImp.value = ageMet.value;
+    // Weight placeholders
+    document.getElementById("p-cur-weight").placeholder = metric ? "84" : "185";
+    document.getElementById("p-tgt-weight").placeholder = metric ? "77" : "170";
+  }
+
+  function _switchUnits(newUnit) {
+    const wasMetric = _isMetric();
+    const curW = parseFloat(document.getElementById("p-cur-weight").value) || 0;
+    const tgtW = parseFloat(document.getElementById("p-tgt-weight").value) || 0;
+    _units = newUnit;
+    localStorage.setItem("apex-units", _units);
+
+    // Convert weight values in the inputs
+    if (wasMetric && newUnit === "imperial") {
+      // kg → lbs
+      if (curW) document.getElementById("p-cur-weight").value = Math.round(curW * LBS_PER_KG);
+      if (tgtW) document.getElementById("p-tgt-weight").value = Math.round(tgtW * LBS_PER_KG);
+    } else if (!wasMetric && newUnit === "metric") {
+      // lbs → kg
+      if (curW) document.getElementById("p-cur-weight").value = +(curW / LBS_PER_KG).toFixed(1);
+      if (tgtW) document.getElementById("p-tgt-weight").value = +(tgtW / LBS_PER_KG).toFixed(1);
+      // Convert ft/in → cm
+      const ft = parseInt(document.getElementById("p-height-ft").value) || 0;
+      const inches = parseInt(document.getElementById("p-height-in").value) || 0;
+      if (ft || inches) {
+        document.getElementById("p-height-cm").value = Math.round((ft * 12 + inches) * CM_PER_IN);
+      }
+    }
+    _applyUnitUI();
+    recalcAll();
+  }
+
+  document.querySelectorAll(".unit-btn").forEach(btn => {
+    btn.addEventListener("click", () => _switchUnits(btn.dataset.val));
+  });
+
+  // Sync metric age → imperial age on input
+  document.getElementById("p-age-metric").addEventListener("input", function() {
+    document.getElementById("p-age").value = this.value;
+    recalcAll();
+  });
+  // Sync metric height → ft/in on input (for internal calc)
+  document.getElementById("p-height-cm").addEventListener("input", function() {
+    const totalIn = parseFloat(this.value) / CM_PER_IN;
+    document.getElementById("p-height-ft").value = Math.floor(totalIn / 12);
+    document.getElementById("p-height-in").value = Math.round(totalIn % 12);
+    recalcAll();
+  });
+
   function readInputs() {
-    const curWeight  = parseFloat(document.getElementById("p-cur-weight").value) || DEFAULTS.curWeight;
-    const tgtWeight  = parseFloat(document.getElementById("p-tgt-weight").value) || DEFAULTS.tgtWeight;
+    // Always read in display units, convert to imperial internally
+    let curWeight, tgtWeight;
+    if (_isMetric()) {
+      curWeight = Math.round((parseFloat(document.getElementById("p-cur-weight").value) || DEFAULTS.curWeight / LBS_PER_KG) * LBS_PER_KG);
+      tgtWeight = Math.round((parseFloat(document.getElementById("p-tgt-weight").value) || DEFAULTS.tgtWeight / LBS_PER_KG) * LBS_PER_KG);
+    } else {
+      curWeight = parseFloat(document.getElementById("p-cur-weight").value) || DEFAULTS.curWeight;
+      tgtWeight = parseFloat(document.getElementById("p-tgt-weight").value) || DEFAULTS.tgtWeight;
+    }
     const heightFt   = parseInt(document.getElementById("p-height-ft").value)    || DEFAULTS.heightFt;
     const heightIn   = parseInt(document.getElementById("p-height-in").value)    || 0;
-    const age        = parseInt(document.getElementById("p-age").value)           || DEFAULTS.age;
+    const age        = parseInt((_isMetric() ? document.getElementById("p-age-metric") : document.getElementById("p-age")).value) || DEFAULTS.age;
     const bfPct      = parseFloat(document.getElementById("p-bf").value)         || 0;
     const sexBtn     = document.querySelector(".gender-btn.active");
     const occBtn     = document.querySelector(".occ-btn.active");
@@ -4680,7 +4787,7 @@ try {
     html += `Goal: <b>${goalLabel}</b> · Target intake: <b>${Math.round(intake)} kcal/day</b>`;
     if (deficit > 0) {
       html += `<br>${deficit} kcal/day deficit`;
-      if (weeks !== null) html += ` → <b>${inp.tgtWeight} lbs in ~${weeks} weeks</b>`;
+      if (weeks !== null) html += ` → <b>${_fmtWeight(inp.tgtWeight)} in ~${weeks} weeks</b>`;
     } else if (deficit < 0) {
       html += `<br>${Math.abs(deficit)} kcal/day surplus`;
     } else {
@@ -4746,11 +4853,20 @@ try {
   function populateForm(profile) {
     if (!profile) return;
     const set = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.value = val; };
-    set("p-cur-weight", profile.curWeight);
-    set("p-tgt-weight", profile.tgtWeight);
+    // Always store imperial internally, convert for display
+    if (_isMetric()) {
+      set("p-cur-weight", profile.curWeight ? +(profile.curWeight / LBS_PER_KG).toFixed(1) : "");
+      set("p-tgt-weight", profile.tgtWeight ? +(profile.tgtWeight / LBS_PER_KG).toFixed(1) : "");
+      const totalIn = (profile.heightFt || 0) * 12 + (profile.heightIn || 0);
+      set("p-height-cm", totalIn ? Math.round(totalIn * CM_PER_IN) : "");
+    } else {
+      set("p-cur-weight", profile.curWeight);
+      set("p-tgt-weight", profile.tgtWeight);
+    }
     set("p-height-ft",  profile.heightFt);
     set("p-height-in",  profile.heightIn);
     set("p-age",        profile.age);
+    set("p-age-metric", profile.age);
     set("p-bf",         profile.bfPct || "");
     document.querySelectorAll(".gender-btn").forEach(b =>
       b.classList.toggle("active", b.dataset.val === (profile.sex || profile.gender)));
@@ -4922,6 +5038,7 @@ try {
       recalcAll();
     }
   } catch(e) { recalcAll(); }
+  _applyUnitUI();
 
   // Expose so weight/steps save handlers can trigger a full TDEE recalc + preview refresh
   window._refreshProfilePreview = recalcAll;
@@ -5069,8 +5186,8 @@ function fmtDate(iso) {
             filter: item => item.parsed.y !== null,
             callbacks: {
               label: ctx => ctx.datasetIndex === 0
-                ? ` ${ctx.parsed.y} lbs`
-                : ` Target: ${ctx.parsed.y} lbs`,
+                ? ` ${_isUserMetric() ? (ctx.parsed.y / 2.20462).toFixed(1) + " kg" : ctx.parsed.y + " lbs"}`
+                : ` Target: ${_isUserMetric() ? (ctx.parsed.y / 2.20462).toFixed(1) + " kg" : ctx.parsed.y + " lbs"}`,
             },
           },
         },
@@ -5082,7 +5199,7 @@ function fmtDate(iso) {
           }},
           y: {
             grid: { color: _gc() },
-            ticks: { callback: v => v + " lbs", font: { size: 10 } },
+            ticks: { callback: v => _isUserMetric() ? (v / 2.20462).toFixed(0) + " kg" : v + " lbs", font: { size: 10 } },
             suggestedMin: Math.min(...dataVals, targetWt || Infinity) - 3,
             suggestedMax: Math.max(...dataVals, targetWt || -Infinity) + 3,
           },
@@ -5093,18 +5210,22 @@ function fmtDate(iso) {
     const chgColor = change <= 0 ? "var(--green)" : "var(--danger)";
     const chgStr   = (change >= 0 ? "+" : "") + change.toFixed(1);
     const chgLbl   = `${weightDays}D Change`;
+    const _wu = _weightUnit();
+    const _wv = v => _isUserMetric() ? (v / 2.20462).toFixed(1) : v;
+    const _chg = _isUserMetric() ? (change / 2.20462).toFixed(1) : change.toFixed(1);
+    const _chgStr = (change >= 0 ? "+" : "") + _chg;
     let html = `
       <div class="chart-stat">
-        <div class="chart-stat-val">${last} lbs</div>
+        <div class="chart-stat-val">${_wv(last)} ${_wu}</div>
         <div class="chart-stat-lbl">Current</div>
       </div>
       <div class="chart-stat">
-        <div class="chart-stat-val" style="color:${chgColor}">${chgStr} lbs</div>
+        <div class="chart-stat-val" style="color:${chgColor}">${_chgStr} ${_wu}</div>
         <div class="chart-stat-lbl">${chgLbl}</div>
       </div>`;
     if (targetWt) {
       html += `<div class="chart-stat">
-        <div class="chart-stat-val">${targetWt} lbs</div>
+        <div class="chart-stat-val">${_wv(targetWt)} ${_wu}</div>
         <div class="chart-stat-lbl">Target</div>
       </div>`;
     }
@@ -5385,14 +5506,14 @@ function fmtDate(iso) {
           legend: { display: false },
           tooltip: {
             ...TOOLTIP_STYLE,
-            callbacks: { label: ctx => ` ${ctx.parsed.y} lbs` },
+            callbacks: { label: ctx => ` ${_isUserMetric() ? (ctx.parsed.y / 2.20462).toFixed(1) + " kg" : ctx.parsed.y + " lbs"}` },
           },
         },
         scales: {
           x: { grid: { color: _gc() }, ticks: { maxTicksLimit: 6, maxRotation: 0 } },
           y: {
             grid: { color: _gc() },
-            ticks: { callback: v => v + " lbs" },
+            ticks: { callback: v => _isUserMetric() ? (v / 2.20462).toFixed(0) + " kg" : v + " lbs" },
             suggestedMin: Math.min(...data) - 10,
           },
         },
@@ -6289,7 +6410,7 @@ function fmtDate(iso) {
     html += '<div class="hd-section" style="margin-top:0">Summary</div>';
     html += '<div class="hd-stat-grid">';
     html += `<div class="hd-stat" id="hd-weight-stat">
-      <div class="v" id="hd-weight-val">${weight !== null ? weight + '<span style="font-size:0.65rem;font-weight:400;color:var(--muted)"> lbs</span>' : "–"}</div>
+      <div class="v" id="hd-weight-val">${weight !== null ? (_isUserMetric() ? (weight/2.20462).toFixed(1) : weight) + '<span style="font-size:0.65rem;font-weight:400;color:var(--muted)"> ' + _weightUnit() + '</span>' : "–"}</div>
       <div class="l" id="hd-weight-lbl" style="display:flex;align-items:center;justify-content:space-between">Weight <button class="done-edit-btn" id="hd-weight-edit">Edit</button></div>
     </div>`;
     html += `<div class="hd-stat" id="hd-steps-stat">
@@ -7262,7 +7383,7 @@ if ("serviceWorker" in navigator) {
     }
     if (weightEl) {
       if (entry && entry.weight) {
-        weightEl.textContent = entry.weight + " lbs";
+        weightEl.textContent = _fmtWeight(entry.weight);
         weightEl.style.color = "var(--accent2)";
         if (wBadge) wBadge.style.display = "none";
       } else {
@@ -7365,7 +7486,7 @@ if ("serviceWorker" in navigator) {
           const sinceLbl  = `since ${fmtDate(goalSetDate)}`;
 
           let topRow = `<div class="dash-goal-row"><div class="dash-goal-meta" style="text-align:left">
-            <div>${curW} → ${tgtW} lbs</div>
+            <div>${_fmtWeight(curW)} → ${_fmtWeight(tgtW)}</div>
             <div style="color:var(--muted)">${sinceLbl}</div></div>`;
           if (deficitKcal > 0) {
             const weeksLeft = Math.ceil(lbsToGo / ((deficitKcal * 7) / 3500));
