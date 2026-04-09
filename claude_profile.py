@@ -17,117 +17,39 @@ def _client():
 
 PROFILE_SCHEMA = {
     # Identity
-    "first_name": None, "age": None, "date_of_birth": None,
-    "gender": None, "pronouns": None,
+    "first_name": None, "age": None, "gender": None,
     # Physical body
-    "height_inches": None, "height_ft": None, "height_in": None,
+    "height_ft": None, "height_in": None,
     "current_weight_lbs": None, "target_weight_lbs": None,
     "body_fat_pct": None, "bmi": None,
-    "lean_mass_lbs": None, "fat_mass_lbs": None,
-    "rmr_kcal": None, "tdee_kcal": None,
+    "rmr_kcal": None,
     "daily_calorie_goal": None, "daily_protein_goal_g": None,
-    "daily_carbs_goal_g": None, "daily_fat_goal_g": None,
-    "calorie_deficit_target": None, "weight_loss_rate_lbs_per_week": None,
-    "weeks_to_goal": None, "lbs_to_goal": None,
-    # Goals & motivation
-    "primary_goal": None, "goal_timeline_weeks": None,
-    "goal_why_raw": None, "goal_why_core_motivation": None,
-    "goal_urgency_1_10": None, "goal_confidence_1_10": None,
-    "goal_previous_attempts_raw": None, "goal_previous_attempt_summary": None,
-    "typical_obstacles_raw": None, "obstacle_categories": None,
-    "success_vision_1yr_raw": None, "success_vision_summary": None,
-    "secondary_goals": None, "life_priorities": None,
-    "values_inferred": None,
+    "lbs_to_goal": None, "weeks_to_goal": None,
+    # Goals
+    "primary_goal": None,
     # Lifestyle
-    "occupation_type": None, "occupation_description": None,
-    "work_hours_per_week": None, "commute_type": None,
-    "commute_minutes_per_day": None, "sleep_hours_per_night": None,
-    "sleep_quality_1_10": None, "chronotype": None,
-    "stress_level_1_10": None, "stress_main_source": None,
-    "screen_time_hours_per_day": None,
-    "social_energy": None, "living_situation": None,
-    "has_children": None, "relationship_status": None,
-    "hobbies_raw": None, "hobbies_list": None,
-    # Nutrition
-    "diet_type": None, "dietary_restrictions": None,
-    "food_allergies": None, "foods_loved_raw": None,
-    "foods_loved_list": None, "foods_disliked_raw": None,
-    "foods_disliked_list": None,
-    "cook_vs_eat_out_ratio_0_10": None, "meal_prep_habit": None,
-    "breakfast_habit": None, "meal_timing_preference": None,
-    "meal_frequency_per_day": None,
-    "hydration_glasses_per_day": None,
-    "alcohol_frequency": None, "alcohol_drinks_per_week": None,
-    "caffeine_cups_per_day": None, "supplement_use_raw": None,
-    "supplement_list": None, "intermittent_fasting": None,
-    # Fitness
-    "workout_days_per_week": None, "workout_types_enjoyed": None,
-    "fitness_experience_level": None,
-    "activity_level_outside_gym": None,
-    "current_cardio_description": None, "current_strength_description": None,
-    "workout_time_preference": None, "workout_duration_minutes": None,
-    "sport_activities": None, "fitness_injuries_limitations": None,
-    "steps_per_day_estimated": None, "vo2max_estimated": None,
-    # Mental & psychological
+    "occupation_description": None, "work_style": None,
+    "stress_level_1_10": None, "steps_per_day_estimated": None,
+    # Mental
     "energy_level_typical_1_10": None, "mood_baseline_1_10": None,
-    "anxiety_level_1_10": None, "mindfulness_practice": None,
-    "mindfulness_type": None, "journaling_habit": None,
-    "motivation_style": None, "accountability_preference": None,
-    "personality_inferred": None, "growth_mindset_score_1_10": None,
-    "self_efficacy_score_1_10": None,
-    "resilience_indicators": None, "risk_factors": None,
-    "perfectionism_tendency": None, "all_or_nothing_thinking": None,
-    # Health
-    "medical_conditions_raw": None, "medications_raw": None,
-    "chronic_pain_areas": None, "mental_health_history_raw": None,
-    "family_health_history_raw": None, "last_physical_exam_approx": None,
-    "smoking_status": None, "recreational_substances": None,
-    "hormonal_considerations": None, "gut_health_notes": None,
-    # Financial
-    "financial_goals_raw": None, "financial_goals_summary": None,
-    "income_bracket": None, "financial_stress_level_1_10": None,
-    "financial_health_impact": None,
-    # Data connections
-    "willing_to_connect_gmail": None, "willing_to_connect_sms": None,
-    "willing_to_connect_banking": None, "willing_to_connect_wearable": None,
-    "current_wearable": None, "wearable_brand": None,
-    "data_sharing_comfort_level": None,
-    # App usage intent
-    "primary_app_use_case": None, "check_in_frequency_preference": None,
-    "notification_preference": None, "coaching_style_preference": None,
-    # AI-generated profile insights
-    "readiness_score_0_100": None,
+    # AI-generated insights
     "biggest_leverage_point": None,
-    "predicted_success_timeline": None,
-    "personalized_approach": None,
-    "calorie_strategy": None, "macro_strategy": None,
-    "workout_recommendation": None,
-    "sleep_priority": None, "stress_management_need": None,
-    "key_risks": None, "key_strengths": None,
     "personalized_insight": None,
     "behavioral_archetype": None,
-    "engagement_prediction": None,
-    "top_3_action_items": None,
     "one_sentence_summary": None,
-    # Onboarding meta
-    "onboarding_version": "1.0",
-    "profile_generated_at": None,
 }
 
 
-PROFILE_GENERATION_PROMPT = """You are a world-class personal health and life coach generating a comprehensive user profile.
+PROFILE_GENERATION_PROMPT = """You are a personal fitness coach generating a user profile from onboarding answers.
 
-You have been given a user's answers from a detailed onboarding survey. Analyze ALL responses holistically and fill in a structured profile map. This profile powers deeply personalized health, fitness, nutrition, and life insights.
-
-Guidelines:
-- Use raw inputs to fill every field you can directly derive
-- Infer psychological and behavioral traits from how they phrase things, not just what they say
-- Calculate physical metrics (BMI, RMR, TDEE, etc.) using standard formulas
-- Be honest and nuanced — don't fill everything positively
-- For list fields, output actual JSON arrays
-- For score fields (1-10), give genuine assessments
-- Leave fields as null only if there is truly no basis to infer them
-- The "personalized_insight" should be 2-3 sentences that make this person feel deeply understood
+Fill in the JSON fields below. Keep it concise:
+- Calculate BMI from height/weight. Calculate RMR using Mifflin-St Jeor.
+- "behavioral_archetype": one word (e.g. "Optimizer", "Steady", "Sprinter", "Explorer")
+- "one_sentence_summary": one sentence describing this person's situation
+- "personalized_insight": 1-2 sentences that show you understand their specific situation
+- "biggest_leverage_point": the single most impactful change they could make
+- Copy over raw input fields directly (first_name, age, gender, height, weight, goal, etc.)
+- Leave fields as null only if there is no data to derive them from
 
 Respond ONLY with a valid JSON object. No markdown, no explanation."""
 
@@ -142,8 +64,8 @@ def generate_profile_map(raw_inputs: dict) -> dict:
     )
 
     response = _client().messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=4096,
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1024,
         system=PROFILE_GENERATION_PROMPT,
         messages=[{"role": "user", "content": user_content}],
     )

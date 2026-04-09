@@ -343,32 +343,8 @@
       </div>
     </div>
 
-    <!-- ══ PAGE 4: Food ══ -->
+    <!-- ══ PAGE 4: Mind ══ -->
     <div class="ob-page" id="page-4">
-      <div class="field">
-        <label>How do you eat?</label>
-        <div class="chips" id="ob-diet-chips">
-          <div class="chip" data-val="omnivore">Omnivore</div>
-          <div class="chip" data-val="vegetarian">Vegetarian</div>
-          <div class="chip" data-val="vegan">Vegan</div>
-          <div class="chip" data-val="keto">Keto / Low-carb</div>
-          <div class="chip" data-val="paleo">Paleo</div>
-          <div class="chip" data-val="mediterranean">Mediterranean</div>
-          <div class="chip" data-val="other">Other</div>
-        </div>
-      </div>
-      <div class="field">
-        <label>Dietary restrictions or allergies</label>
-        <input type="text" id="ob-allergies" placeholder="e.g. gluten-free, nut allergy, lactose intolerant, none">
-      </div>
-      <div class="field">
-        <label>Foods you dislike or avoid</label>
-        <textarea id="ob-foods-disliked" placeholder="Anything you won't eat…" style="min-height:80px"></textarea>
-      </div>
-    </div>
-
-    <!-- ══ PAGE 5: Mind ══ -->
-    <div class="ob-page" id="page-5">
       <div class="slider-field">
         <label>Typical daily energy level <span id="ob-energy-val">6 / 10</span></label>
         <input type="range" id="ob-energy" min="1" max="10" step="1" value="6">
@@ -382,7 +358,7 @@
     </div>
 
     <!-- ══ PAGE 6: Processing ══ -->
-    <div class="ob-page" id="page-6">
+    <div class="ob-page" id="page-5">
       <div class="ob-spinner" id="ob-spinner">
         <div class="spinner-ring"></div>
         <div>
@@ -483,14 +459,13 @@
 
 <script>
 (function() {
-  const TOTAL_PAGES = 5; // page 6 is processing — no nav buttons
+  const TOTAL_PAGES = 4; // page 5 is processing — no nav buttons
   let currentPage = 1;
 
   const PAGE_META = [
     { title: "Let's get to know you",  sub: "Your name and body stats — used to calculate your metabolism." },
     { title: "What's your goal?",       sub: "This determines your calorie target, protein, and macros." },
     { title: "Your daily life",        sub: "How you work and your stress level affect your calorie needs." },
-    { title: "Food & nutrition",       sub: "Your diet style helps Apex estimate meals accurately." },
     { title: "Mind & energy",          sub: "Your baseline energy and mood set the starting point for daily check-ins." },
   ];
 
@@ -559,9 +534,6 @@
       occupation_description:  document.getElementById("ob-occupation").value.trim() || null,
       work_style:              chipVal("ob-work-style-chips"),
       stress_level_1_10:       parseInt(document.getElementById("ob-stress").value),
-      diet_type:               chipVal("ob-diet-chips"),
-      dietary_restrictions:    document.getElementById("ob-allergies").value.trim() || null,
-      foods_disliked_raw:      document.getElementById("ob-foods-disliked").value.trim() || null,
       energy_level_1_10:       parseInt(document.getElementById("ob-energy").value),
       mood_baseline_1_10:      parseInt(document.getElementById("ob-mood").value),
     };
@@ -569,7 +541,7 @@
 
   // ── Navigation ─────────────────────────────────────────────────
   function updateUI() {
-    for (let i = 1; i <= 6; i++) {
+    for (let i = 1; i <= 5; i++) {
       document.getElementById("page-" + i).classList.toggle("active", i === currentPage);
     }
     const pct = Math.round((currentPage / (TOTAL_PAGES + 1)) * 100);
@@ -578,7 +550,7 @@
     const footer  = document.getElementById("ob-footer");
     const nextBtn = document.getElementById("ob-next-btn");
 
-    if (currentPage === 6) {
+    if (currentPage === 5) {
       footer.style.display = "none";
     } else {
       footer.style.display = "flex";
@@ -610,7 +582,7 @@
       currentPage++;
       updateUI();
     } else {
-      currentPage = 6;
+      currentPage = 5;
       updateUI();
       runCompletion();
     }
@@ -669,7 +641,7 @@
         buildSummary(job.profile || {});
         buildPlanPanel(job.targets || null);
         showWorkoutSection();
-        document.getElementById("ob-enter-btn").style.display = "";
+        // Enter button stays hidden until workout plan is chosen
       } catch (renderErr) {
         document.getElementById("ob-error").textContent = "Display error (profile saved): " + renderErr.message;
         document.getElementById("ob-error").style.display = "";
@@ -855,12 +827,14 @@
     document.getElementById("ob-wp-done-icon").textContent = "\u2713";
     document.getElementById("ob-wp-done-text").textContent = "Plan saved!";
     showWPState("done");
+    document.getElementById("ob-enter-btn").style.display = "";
   });
 
   document.getElementById("ob-wp-skip-btn").addEventListener("click", () => {
     document.getElementById("ob-wp-done-icon").textContent = "\u2192";
     document.getElementById("ob-wp-done-text").textContent = "No problem — set it up in the Profile tab.";
     showWPState("done");
+    document.getElementById("ob-enter-btn").style.display = "";
   });
 
   // Show the workout section when plan panel is shown
@@ -986,9 +960,6 @@
     setVal("ob-occupation", s.occupation_description);
     setChip("ob-work-style-chips", s.work_style);
     setVal("ob-stress", s.stress_level_1_10);
-    setChip("ob-diet-chips", s.diet_type);
-    setVal("ob-allergies", s.dietary_restrictions);
-    setVal("ob-foods-disliked", s.foods_disliked_raw);
     setVal("ob-energy", s.energy_level_1_10);
     setVal("ob-mood", s.mood_baseline_1_10);
     // Re-fire slider labels
