@@ -203,7 +203,9 @@ def compute_targets(goal_key: str, weight_lbs: float, target_weight_lbs: float,
     calorie_target = max(raw_target, rmr)  # never below RMR
 
     # ── Protein ──
-    if cfg["protein_ref"] == "goal" and target_weight_lbs < weight_lbs:
+    # Use goal weight only if it's set (non-zero, less than current) AND the goal config says to
+    has_goal_weight = target_weight_lbs and target_weight_lbs > 0 and target_weight_lbs != weight_lbs
+    if cfg["protein_ref"] == "goal" and has_goal_weight and target_weight_lbs < weight_lbs:
         ref_kg = target_weight_lbs * 0.453592
     else:
         ref_kg = kg

@@ -949,11 +949,10 @@
     document.getElementById("gw-done-text").textContent = msg;
   }
 
-  // "No goal weight" — use current weight
+  // "No goal weight" — leave target blank
   document.getElementById("gw-no-btn").addEventListener("click", () => {
-    const cur = parseFloat(document.getElementById("ob-cur-weight").value) || 0;
-    _setTargetWeight(cur || "");
-    _gwFinish("Got it — we'll use your current weight as your target.");
+    _setTargetWeight("");
+    _gwFinish("No problem — your calorie and protein targets will still be calculated based on your goal.");
   });
 
   // "Yes" — show input

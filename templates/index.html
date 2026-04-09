@@ -4822,10 +4822,11 @@ try {
     let curWeight, tgtWeight;
     if (_isMetric()) {
       curWeight = Math.round((parseFloat(document.getElementById("p-cur-weight").value) || DEFAULTS.curWeight / LBS_PER_KG) * LBS_PER_KG);
-      tgtWeight = Math.round((parseFloat(document.getElementById("p-tgt-weight").value) || DEFAULTS.tgtWeight / LBS_PER_KG) * LBS_PER_KG);
+      const rawTgt = parseFloat(document.getElementById("p-tgt-weight").value);
+      tgtWeight = rawTgt ? Math.round(rawTgt * LBS_PER_KG) : curWeight;
     } else {
       curWeight = parseFloat(document.getElementById("p-cur-weight").value) || DEFAULTS.curWeight;
-      tgtWeight = parseFloat(document.getElementById("p-tgt-weight").value) || DEFAULTS.tgtWeight;
+      tgtWeight = parseFloat(document.getElementById("p-tgt-weight").value) || curWeight;
     }
     const heightFt   = parseInt(document.getElementById("p-height-ft").value)    || DEFAULTS.heightFt;
     const heightIn   = parseInt(document.getElementById("p-height-in").value)    || 0;
@@ -4890,9 +4891,10 @@ try {
     html += `</table>`;
     html += `<div style="margin-top:0.6rem;font-size:0.82rem">`;
     html += `Goal: <b>${goalLabel}</b> · Target intake: <b>${Math.round(intake)} kcal/day</b>`;
+    const hasGoalWt = inp.tgtWeight && inp.tgtWeight !== inp.curWeight;
     if (deficit > 0) {
       html += `<br>${deficit} kcal/day deficit`;
-      if (weeks !== null) html += ` → <b>${_fmtWeight(inp.tgtWeight)} in ~${weeks} weeks</b>`;
+      if (weeks !== null && hasGoalWt) html += ` → <b>${_fmtWeight(inp.tgtWeight)} in ~${weeks} weeks</b>`;
     } else if (deficit < 0) {
       html += `<br>${Math.abs(deficit)} kcal/day surplus`;
     } else {
@@ -5225,7 +5227,9 @@ function fmtDate(iso) {
   function buildWeightChart() {
     const dailyLog  = JSON.parse(localStorage.getItem("dailyLog") || "{}");
     const profile   = JSON.parse(localStorage.getItem("profileData") || "{}");
-    const targetWt  = profile.tgtWeight || null;
+    // Only show target line if goal weight is set and different from current
+    const _rawTgt   = profile.tgtWeight || null;
+    const targetWt  = (_rawTgt && _rawTgt !== profile.curWeight) ? _rawTgt : null;
     const cutoff    = daysAgoStr(weightDays - 1);
 
     const weightMap = {};
@@ -7908,8 +7912,8 @@ if ("serviceWorker" in navigator) {
     const goalCard = document.getElementById("dash-goal-card");
     const goalEl   = document.getElementById("dash-goal-content");
     if (goalCard && goalEl) {
-      if (!profile || !profile.tgtWeight || !profile.goalSetDate) {
-        // Hide card entirely until a goal has been set
+      if (!profile || !profile.tgtWeight || !profile.goalSetDate || profile.tgtWeight === profile.curWeight) {
+        // Hide card when no meaningful goal weight is set
         goalCard.style.display = "none";
       } else {
         goalCard.style.display = "";
