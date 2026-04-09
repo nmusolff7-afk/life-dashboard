@@ -1339,6 +1339,19 @@
         </div>
       </div>
 
+      <!-- Calories Consumed Chart -->
+      <div class="card">
+        <div class="card-title">Calories Consumed<span id="meal-chart-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0;margin-left:auto">7 days</span></div>
+        <div class="chart-wrap"><canvas id="chart-meal-cal"></canvas></div>
+        <div id="meal-chart-nodata" style="display:none" class="empty">No meal data yet.</div>
+        <div class="chart-stats" id="meal-chart-stats"></div>
+        <div class="chart-range-pills">
+          <button class="btn btn-ghost chart-range-pill meal-chart-pill active" data-days="7">7D</button>
+          <button class="btn btn-ghost chart-range-pill meal-chart-pill" data-days="30">30D</button>
+          <button class="btn btn-ghost chart-range-pill meal-chart-pill" data-days="90">90D</button>
+        </div>
+      </div>
+
     </div><!-- /tab-meals -->
 
 
@@ -1450,6 +1463,19 @@
           <span class="save-confirm" id="weight-save-confirm">✓ Saved</span>
         </div>
         <div style="font-size:0.78rem;color:var(--muted);margin-top:0.4rem" id="scale-saved-label"></div>
+      </div>
+
+      <!-- Calories Burned Chart -->
+      <div class="card">
+        <div class="card-title">Calories Burned<span id="burn-chart-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0;margin-left:auto">7 days</span></div>
+        <div class="chart-wrap"><canvas id="chart-burn-cal"></canvas></div>
+        <div id="burn-chart-nodata" style="display:none" class="empty">No workout data yet.</div>
+        <div class="chart-stats" id="burn-chart-stats"></div>
+        <div class="chart-range-pills">
+          <button class="btn btn-ghost chart-range-pill burn-chart-pill active" data-days="7">7D</button>
+          <button class="btn btn-ghost chart-range-pill burn-chart-pill" data-days="30">30D</button>
+          <button class="btn btn-ghost chart-range-pill burn-chart-pill" data-days="90">90D</button>
+        </div>
       </div>
 
     </div><!-- /tab-workout -->
@@ -2468,6 +2494,7 @@ function activateTab(t) {
   sessionStorage.setItem("activeTab", t);
   if (t === "home"     && typeof window._refreshDashboard  === "function") window._refreshDashboard();
   if (t === "meals"    && typeof window._onMealsActivate   === "function") window._onMealsActivate();
+  if (t === "workout"  && typeof window._onWorkoutActivate === "function") window._onWorkoutActivate();
   if (t === "progress" && typeof window._onChartsActivate  === "function") window._onChartsActivate();
   if (t === "progress" && typeof window._onHistoryActivate === "function") window._onHistoryActivate();
   if (t === "mind"     && typeof window._onMindActivate    === "function") window._onMindActivate();
@@ -5403,6 +5430,223 @@ function fmtDate(iso) {
 
   // Init immediately if the progress tab is active on page load
   if (document.getElementById("tab-progress").classList.contains("active")) initCharts();
+
+  // ── Meals tab: Calories Consumed chart ─────────────
+  let mealChartDays = 7;
+  let mealChartInst = null;
+
+  function buildMealCalChart() {
+    const serverMeals = (histData && histData.meals) || {};
+    const cutoff = daysAgoStr(mealChartDays - 1);
+
+    const allDates = [];
+    { const c = new Date(cutoff + "T00:00:00"), e = new Date(todayStr() + "T00:00:00");
+      while (c <= e) { allDates.push(localDateStr(c)); c.setDate(c.getDate() + 1); } }
+
+    const canvas   = document.getElementById("chart-meal-cal");
+    const nodataEl = document.getElementById("meal-chart-nodata");
+    const statsEl  = document.getElementById("meal-chart-stats");
+
+    const vals   = allDates.map(d => (serverMeals[d] && serverMeals[d].calories) || 0);
+    const hasAny = vals.some(v => v > 0);
+
+    if (!hasAny) {
+      canvas.style.display = "none";
+      if (nodataEl) nodataEl.style.display = "";
+      statsEl.innerHTML = "";
+      return;
+    }
+    canvas.style.display = "";
+    if (nodataEl) nodataEl.style.display = "none";
+
+    const avg     = Math.round(vals.filter(v => v > 0).reduce((a, b) => a + b, 0) / vals.filter(v => v > 0).length) || 0;
+    const maxVal  = Math.max(...vals);
+    const todayV  = vals[vals.length - 1] || 0;
+
+    if (mealChartInst) mealChartInst.destroy();
+    mealChartInst = new Chart(canvas, {
+      type: "bar",
+      data: {
+        labels: allDates.map(fmtDate),
+        datasets: [{
+          label: "Calories",
+          data: vals,
+          backgroundColor: vals.map(v => v > 0 ? "rgba(121,134,203,0.55)" : "rgba(121,134,203,0.1)"),
+          borderColor: "rgba(121,134,203,0.8)",
+          borderWidth: 1,
+          borderRadius: 4,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: true, aspectRatio: 1.9,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            ...TOOLTIP_STYLE,
+            callbacks: { label: ctx => " " + ctx.parsed.y.toLocaleString() + " kcal" },
+          },
+        },
+        scales: {
+          x: { grid: { color: "#21262d" }, ticks: {
+            maxTicksLimit: mealChartDays <= 7 ? 7 : 6,
+            maxRotation: 0, autoSkip: true, autoSkipPadding: 12, font: { size: 10 },
+          }},
+          y: { grid: { color: "#21262d" }, beginAtZero: true,
+            ticks: { callback: v => v.toLocaleString(), font: { size: 10 } },
+          },
+        },
+      },
+    });
+
+    statsEl.innerHTML = `
+      <div class="chart-stat">
+        <div class="chart-stat-val">${todayV.toLocaleString()}</div>
+        <div class="chart-stat-lbl">Today</div>
+      </div>
+      <div class="chart-stat">
+        <div class="chart-stat-val">${avg.toLocaleString()}</div>
+        <div class="chart-stat-lbl">Avg / day</div>
+      </div>
+      <div class="chart-stat">
+        <div class="chart-stat-val">${maxVal.toLocaleString()}</div>
+        <div class="chart-stat-lbl">Peak</div>
+      </div>`;
+  }
+
+  document.querySelectorAll(".meal-chart-pill").forEach(btn => {
+    btn.addEventListener("click", () => {
+      mealChartDays = parseInt(btn.dataset.days);
+      document.querySelectorAll(".meal-chart-pill").forEach(b => b.classList.toggle("active", b === btn));
+      document.getElementById("meal-chart-range-label").textContent = mealChartDays + " days";
+      if (histData) buildMealCalChart();
+    });
+  });
+
+  // ── Workout tab: Calories Burned chart ─────────────
+  let burnChartDays = 7;
+  let burnChartInst = null;
+
+  function buildBurnCalChart() {
+    const serverWorkouts = (histData && histData.workouts) || {};
+    const serverGarmin   = (histData && histData.garmin)   || {};
+    const cutoff = daysAgoStr(burnChartDays - 1);
+
+    const allDates = [];
+    { const c = new Date(cutoff + "T00:00:00"), e = new Date(todayStr() + "T00:00:00");
+      while (c <= e) { allDates.push(localDateStr(c)); c.setDate(c.getDate() + 1); } }
+
+    const canvas   = document.getElementById("chart-burn-cal");
+    const nodataEl = document.getElementById("burn-chart-nodata");
+    const statsEl  = document.getElementById("burn-chart-stats");
+
+    const vals = allDates.map(d => {
+      // Prefer Garmin active calories if available
+      if (serverGarmin[d] && serverGarmin[d].active_calories) return serverGarmin[d].active_calories;
+      const ws = serverWorkouts[d] || [];
+      return ws.reduce((sum, w) => sum + (w.calories_burned || 0), 0);
+    });
+    const hasAny = vals.some(v => v > 0);
+
+    if (!hasAny) {
+      canvas.style.display = "none";
+      if (nodataEl) nodataEl.style.display = "";
+      statsEl.innerHTML = "";
+      return;
+    }
+    canvas.style.display = "";
+    if (nodataEl) nodataEl.style.display = "none";
+
+    const avg    = Math.round(vals.filter(v => v > 0).reduce((a, b) => a + b, 0) / vals.filter(v => v > 0).length) || 0;
+    const maxVal = Math.max(...vals);
+    const todayV = vals[vals.length - 1] || 0;
+
+    if (burnChartInst) burnChartInst.destroy();
+    burnChartInst = new Chart(canvas, {
+      type: "bar",
+      data: {
+        labels: allDates.map(fmtDate),
+        datasets: [{
+          label: "Burned",
+          data: vals,
+          backgroundColor: vals.map(v => v > 0 ? "rgba(63,185,80,0.45)" : "rgba(63,185,80,0.1)"),
+          borderColor: "rgba(63,185,80,0.7)",
+          borderWidth: 1,
+          borderRadius: 4,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: true, aspectRatio: 1.9,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            ...TOOLTIP_STYLE,
+            callbacks: { label: ctx => " " + ctx.parsed.y.toLocaleString() + " kcal burned" },
+          },
+        },
+        scales: {
+          x: { grid: { color: "#21262d" }, ticks: {
+            maxTicksLimit: burnChartDays <= 7 ? 7 : 6,
+            maxRotation: 0, autoSkip: true, autoSkipPadding: 12, font: { size: 10 },
+          }},
+          y: { grid: { color: "#21262d" }, beginAtZero: true,
+            ticks: { callback: v => v.toLocaleString(), font: { size: 10 } },
+          },
+        },
+      },
+    });
+
+    statsEl.innerHTML = `
+      <div class="chart-stat">
+        <div class="chart-stat-val">${todayV.toLocaleString()}</div>
+        <div class="chart-stat-lbl">Today</div>
+      </div>
+      <div class="chart-stat">
+        <div class="chart-stat-val">${avg.toLocaleString()}</div>
+        <div class="chart-stat-lbl">Avg / day</div>
+      </div>
+      <div class="chart-stat">
+        <div class="chart-stat-val">${maxVal.toLocaleString()}</div>
+        <div class="chart-stat-lbl">Peak</div>
+      </div>`;
+  }
+
+  document.querySelectorAll(".burn-chart-pill").forEach(btn => {
+    btn.addEventListener("click", () => {
+      burnChartDays = parseInt(btn.dataset.days);
+      document.querySelectorAll(".burn-chart-pill").forEach(b => b.classList.toggle("active", b === btn));
+      document.getElementById("burn-chart-range-label").textContent = burnChartDays + " days";
+      if (histData) buildBurnCalChart();
+    });
+  });
+
+  // ── Hook tab-level charts into data loading ────────
+  const origBuildAll = buildAll;
+  buildAll = function() {
+    origBuildAll();
+    buildMealCalChart();
+    buildBurnCalChart();
+  };
+
+  // Also build when switching to meals/workout tabs if data is ready
+  const origMealsActivate   = window._onMealsActivate;
+  const origWorkoutActivate = window._onWorkoutActivate;
+  window._onMealsActivate = function() {
+    if (typeof origMealsActivate === "function") origMealsActivate();
+    if (histData) { buildMealCalChart(); return; }
+    fetch("/api/history").then(r => r.json()).then(data => {
+      histData = data; window._appHistory = data;
+      buildMealCalChart();
+    }).catch(() => {});
+  };
+  window._onWorkoutActivate = function() {
+    if (typeof origWorkoutActivate === "function") origWorkoutActivate();
+    if (histData) { buildBurnCalChart(); return; }
+    fetch("/api/history").then(r => r.json()).then(data => {
+      histData = data; window._appHistory = data;
+      buildBurnCalChart();
+    }).catch(() => {});
+  };
+
 })();
 
 // ══════════════════════════════════════════════════════
