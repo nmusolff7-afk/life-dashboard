@@ -908,7 +908,7 @@
         </div>
         <div class="dash-stat-card" id="dash-burn-card">
           <div class="dash-stat-val" id="dash-burn-val" style="color:var(--muted)">—</div>
-          <div class="dash-stat-lbl">TDEE</div>
+          <div class="dash-stat-lbl">Proj. Burn</div>
         </div>
         <div class="dash-stat-card" id="dash-consumed-card">
           <div class="dash-stat-val" id="dash-consumed-val" style="color:var(--muted)">—</div>
@@ -1218,7 +1218,7 @@
         <div class="deficit-display">
           <div class="d-label" id="deficit-label">{% if balance >= 0 %}Calorie Deficit{% else %}Calorie Surplus{% endif %}</div>
           <div class="d-value {% if balance >= 0 %}deficit{% else %}surplus{% endif %}" id="deficit-value">{{ balance|abs }} kcal</div>
-          <div class="d-sub" id="deficit-sub">{{ cal_consumed }} consumed &nbsp;/&nbsp; {{ tdee }} TDEE</div>
+          <div class="d-sub" id="deficit-sub">{{ cal_consumed }} consumed &nbsp;/&nbsp; {{ tdee }} projected burn</div>
         </div>
         <div class="progress-section">
           {% for name, consumed, goal, cls in [
@@ -4377,7 +4377,7 @@ function applyProfileToMeals(profile) {
     valueEl.textContent = Math.abs(balance) + " kcal";
     valueEl.className = "d-value " + (balance >= 0 ? "deficit" : "surplus");
   }
-  if (subEl) subEl.textContent = CAL_CONSUMED + " consumed \u00a0/\u00a0 " + Math.round(tdee) + " TDEE";
+  if (subEl) subEl.textContent = CAL_CONSUMED + " consumed \u00a0/\u00a0 " + Math.round(tdee) + " projected burn";
 
   updateMacroBar("pro",  PROTEIN_CONSUMED, goalPro);
   updateMacroBar("carb", CARBS_CONSUMED,   goalCarb);
@@ -4505,7 +4505,7 @@ try {
     html += `<tr><td style="color:var(--muted)">EAT</td><td style="text-align:right">${eat} kcal <span style="color:var(--muted);font-size:0.72rem">(today's workouts)</span></td></tr>`;
     html += `<tr><td style="color:var(--muted)">TEF</td><td style="text-align:right">${tef} kcal <span style="color:var(--muted);font-size:0.72rem">(thermic effect of food)</span></td></tr>`;
     html += `<tr><td colspan="2"><div style="height:1px;background:var(--border);margin:0.3rem 0"></div></td></tr>`;
-    html += `<tr><td style="font-weight:700">TDEE</td><td style="text-align:right;font-weight:700">${tdee} kcal/day</td></tr>`;
+    html += `<tr><td style="font-weight:700">Projected Calorie Burn</td><td style="text-align:right;font-weight:700">${tdee} kcal/day</td></tr>`;
     html += `</table>`;
     html += `<div style="margin-top:0.6rem;font-size:0.82rem">Target intake: <b>${Math.round(intake)} kcal/day</b>`;
     if (weeks !== null) {
@@ -5782,7 +5782,7 @@ function fmtDate(iso) {
       const dl = dayData.deficit >= 0 ? "Deficit" : "Surplus";
       html += `<div class="hd-stat"><div class="v">${dayData.calories}</div><div class="l">Calories</div></div>`;
       html += `<div class="hd-stat"><div class="v" style="color:${dc}">${Math.abs(dayData.deficit)}</div><div class="l">${dl}</div></div>`;
-      html += `<div class="hd-stat"><div class="v">${dayData.tdee}</div><div class="l">TDEE</div></div>`;
+      html += `<div class="hd-stat"><div class="v">${dayData.tdee}</div><div class="l">Proj. Burn</div></div>`;
       html += `<div class="hd-stat"><div class="v" style="color:var(--protein)">${dayData.protein}g</div><div class="l">Protein</div></div>`;
       html += `<div class="hd-stat"><div class="v" style="color:var(--carbs)">${dayData.carbs}g</div><div class="l">Carbs</div></div>`;
       html += `<div class="hd-stat"><div class="v" style="color:var(--fat)">${dayData.fat}g</div><div class="l">Fat</div></div>`;
@@ -6676,7 +6676,7 @@ if ("serviceWorker" in navigator) {
 
     if (metaEl) {
       metaEl.textContent = calories > 0 || tdee > 0
-        ? calories.toLocaleString() + " consumed / " + tdee.toLocaleString() + " TDEE"
+        ? calories.toLocaleString() + " consumed / " + tdee.toLocaleString() + " projected burn"
         : "Log meals to see balance";
     }
 
