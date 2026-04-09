@@ -893,7 +893,16 @@
             <div class="dash-ring-label" id="dash-deficit-lbl">deficit</div>
           </div>
         </div>
-        <div class="dash-cal-meta" id="dash-cal-meta">Log meals to see balance</div>
+        <div id="dash-cal-equation" style="display:flex;align-items:center;justify-content:center;gap:0.5rem;margin-top:0.5rem;font-size:0.82rem;color:var(--muted)">
+          <span id="dash-eq-burn" style="color:var(--text);font-weight:600">—</span>
+          <span>burned</span>
+          <span style="color:var(--muted);font-weight:600">&minus;</span>
+          <span id="dash-eq-consumed" style="color:var(--text);font-weight:600">—</span>
+          <span>eaten</span>
+          <span style="color:var(--muted);font-weight:600">=</span>
+          <span id="dash-eq-result" style="font-weight:700">—</span>
+        </div>
+        <div class="dash-cal-meta" id="dash-cal-meta" style="margin-top:0.35rem">Log meals to see your balance</div>
       </div>
 
       <!-- Stats Grid -->
@@ -6672,12 +6681,28 @@ if ("serviceWorker" in navigator) {
       }
     }
 
-    const metaEl = document.getElementById("dash-cal-meta");
+    // ── Equation line: burned − eaten = deficit/surplus ──
+    const eqBurn     = document.getElementById("dash-eq-burn");
+    const eqConsumed = document.getElementById("dash-eq-consumed");
+    const eqResult   = document.getElementById("dash-eq-result");
+    if (eqBurn && eqConsumed && eqResult) {
+      if (calories > 0 || tdee > 0) {
+        eqBurn.textContent     = tdee.toLocaleString();
+        eqConsumed.textContent = calories.toLocaleString();
+        const sign = balance <= 0 ? "−" : "+";
+        eqResult.textContent   = sign + Math.abs(balance).toLocaleString();
+        eqResult.style.color   = balanceColor(balance);
+      } else {
+        eqBurn.textContent = eqConsumed.textContent = eqResult.textContent = "—";
+        eqResult.style.color = "var(--muted)";
+      }
+    }
 
+    const metaEl = document.getElementById("dash-cal-meta");
     if (metaEl) {
       metaEl.textContent = calories > 0 || tdee > 0
-        ? calories.toLocaleString() + " consumed / " + tdee.toLocaleString() + " projected burn"
-        : "Log meals to see balance";
+        ? (balance <= 0 ? "On track — burning more than you're eating" : "Eating more than you're burning today")
+        : "Log meals to see your balance";
     }
 
     // ── Stat cards ──
