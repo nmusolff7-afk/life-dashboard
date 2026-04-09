@@ -1102,8 +1102,8 @@
         </div>
       </div>
 
-      <!-- Sleep Card (populated from Garmin sync) -->
-      <div class="card" id="sleep-card" style="display:none;padding-bottom:0.85rem">
+      <!-- Sleep Card (disabled — Garmin offline) -->
+      <div class="card" id="sleep-card" style="display:none !important;padding-bottom:0.85rem">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
           <div class="card-title" style="margin:0;flex:1">Last Night's Sleep</div>
           <div id="sleep-score-wrap" style="display:none;text-align:center;line-height:1">
@@ -6403,8 +6403,8 @@ function fmtDate(iso) {
 
       const calStr   = calories !== null ? `${calories} kcal` : "";
       const stepsStr = steps    !== null ? `${steps.toLocaleString()} steps` : "";
-      const sleepStr = sleep    ? `🌙 ${fmtSleep(sleep.total_seconds)}` : "";
-      const midMeta  = [calStr, stepsStr, sleepStr].filter(Boolean).join(" · ");
+      // const sleepStr = sleep ? ... : "";  // disabled — Garmin offline
+      const midMeta  = [calStr, stepsStr].filter(Boolean).join(" · ");
 
       return `<div class="hist-row" data-date="${d}">
         <div class="hist-date">
@@ -6737,20 +6737,9 @@ function fmtDate(iso) {
     </div>`;
     html += `<div id="hd-workouts-list">${_buildWorkoutsHtml(serverDay.workouts || [])}</div>`;
 
-    // ── Sleep ──
-    const sleep = serverDay.sleep;
-    if (sleep && sleep.total_seconds) {
-      html += '<div class="hd-section">Sleep</div><div class="hd-stat-grid">';
-      html += `<div class="hd-stat"><div class="v" style="color:var(--accent2)">${fmtSleep(sleep.total_seconds)}</div><div class="l">Duration</div></div>`;
-      if (sleep.rem_seconds)   html += `<div class="hd-stat"><div class="v" style="color:var(--accent)">${fmtSleep(sleep.rem_seconds)}</div><div class="l">REM</div></div>`;
-      if (sleep.deep_seconds)  html += `<div class="hd-stat"><div class="v" style="color:var(--green)">${fmtSleep(sleep.deep_seconds)}</div><div class="l">Deep</div></div>`;
-      if (sleep.light_seconds) html += `<div class="hd-stat"><div class="v" style="color:var(--muted)">${fmtSleep(sleep.light_seconds)}</div><div class="l">Light</div></div>`;
-      if (sleep.sleep_score != null) {
-        const sc = sleep.sleep_score, sc_color = sc >= 80 ? "var(--green)" : sc >= 60 ? "var(--accent2)" : "var(--danger)";
-        html += `<div class="hd-stat"><div class="v" style="color:${sc_color}">${sc}</div><div class="l">Score</div></div>`;
-      }
-      html += '</div>';
-    }
+    // ── Sleep (disabled — Garmin offline) ──
+    // const sleep = serverDay.sleep;
+    // Sleep section hidden until Garmin is back online
 
     content.innerHTML = html;
     _wireHdDelegation(content);
