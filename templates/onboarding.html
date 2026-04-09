@@ -393,7 +393,7 @@
       <div class="ob-complete" id="ob-complete" style="display:none">
         <div class="ob-complete-icon" id="ob-complete-icon">✦</div>
         <h2 id="ob-complete-heading">Your Profile is Ready</h2>
-        <p id="ob-complete-body">Apex now understands who you are. Your dashboard is calibrated to your goals, lifestyle, and motivations.</p>
+        <p id="ob-complete-body" style="margin-bottom:1.25rem">Apex now understands who you are. Your dashboard is calibrated to your goals, lifestyle, and motivations.</p>
         <div class="ob-profile-summary" id="ob-profile-summary"></div>
         <div id="ob-plan-section" style="display:none;margin-top:1.25rem"></div>
 
@@ -703,12 +703,16 @@
       ["To goal",     p.lbs_to_goal ? p.lbs_to_goal + " lbs · ~" + (p.weeks_to_goal || "?") + " weeks" : "—"],
       ["Archetype",   p.behavioral_archetype || "—"],
     ];
-    if (p.personalized_insight) {
-      rows.push(["Insight", p.personalized_insight]);
-    }
-    document.getElementById("ob-profile-summary").innerHTML = rows.map(([k, v]) =>
+    let html = rows.map(([k, v]) =>
       `<div class="summary-row"><span class="k">${k}</span><span class="v">${v}</span></div>`
     ).join("");
+    if (p.personalized_insight) {
+      html += `<div style="border-top:1px solid var(--border);margin-top:0.6rem;padding-top:0.65rem">
+        <div style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-bottom:0.35rem">Insight</div>
+        <div style="font-size:0.84rem;color:var(--accent2);line-height:1.55">${p.personalized_insight}</div>
+      </div>`;
+    }
+    document.getElementById("ob-profile-summary").innerHTML = html;
   }
 
   function buildPlanPanel(targets) {
