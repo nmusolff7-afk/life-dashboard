@@ -1742,13 +1742,16 @@
 
         <div class="slider-row">
           <div class="slider-header">
-            <span class="slider-label">Daily Calorie Deficit</span>
+            <span class="slider-label">Daily Deficit / Surplus</span>
             <div class="slider-val-row">
-              <input type="number" id="deficit-num" class="slider-num" min="0" max="1000">
-              <span class="slider-unit">kcal</span>
+              <input type="number" id="deficit-num" class="slider-num" min="-2000" max="2000" style="width:78px">
+              <span class="slider-unit" id="deficit-unit-label">kcal</span>
             </div>
           </div>
-          <input type="range" id="deficit-slider" min="0" max="1000" step="25">
+          <input type="range" id="deficit-slider" min="-2000" max="2000" step="25">
+          <div style="display:flex;justify-content:space-between;font-size:0.65rem;color:var(--muted);margin-top:0.2rem">
+            <span>← surplus</span><span>0</span><span>deficit →</span>
+          </div>
         </div>
 
         <div style="height:1px;background:var(--border);margin:0.5rem 0 1rem"></div>
@@ -4541,7 +4544,7 @@ try {
     heightFt: 5, heightIn: 10,
     age: 28, sex: "male", occupation: "sedentary", bfPct: 0,
     goal: "lose_weight",
-    rmr: 1800, deficit: 500,
+    rmr: 1800, deficit: 400,
     protein: 170, carbs: 220, fat: 65,
   };
 
@@ -4627,10 +4630,10 @@ try {
     const tef   = calcTEF(CAL_CONSUMED, PROTEIN_CONSUMED, CARBS_CONSUMED, FAT_CONSUMED);
     const tdee  = rmr + neat + eat + tef;
     const targetCal = calcTargetCalories(tdee, inp.goal, rmr);
-    const deficit   = tdee - targetCal;
+    const deficit   = tdee - targetCal;  // positive = deficit, negative = surplus
     const macros    = calcMacros(targetCal, inp.curWeight, inp.tgtWeight, inp.goal);
     setSlider("rmr",     rmr);
-    setSlider("deficit", Math.max(0, deficit));
+    setSlider("deficit", deficit);
     setSlider("protein", macros.protein);
     setSlider("carbs",   macros.carbs);
     setSlider("fat",     macros.fat);
@@ -4667,13 +4670,17 @@ try {
     html += `</table>`;
     html += `<div style="margin-top:0.6rem;font-size:0.82rem">`;
     html += `Goal: <b>${goalLabel}</b> · Target intake: <b>${Math.round(intake)} kcal/day</b>`;
-    if (deficit > 0 && weeks !== null) {
-      html += `<br>At ${deficit} kcal/day deficit → <b>${inp.tgtWeight} lbs in ~${weeks} weeks</b>`;
-    } else if (deficit > 0) {
+    if (deficit > 0) {
       html += `<br>${deficit} kcal/day deficit`;
+      if (weeks !== null) html += ` → <b>${inp.tgtWeight} lbs in ~${weeks} weeks</b>`;
     } else if (deficit < 0) {
-      html += `<br>${Math.abs(deficit)} kcal/day surplus for muscle gain`;
+      html += `<br>${Math.abs(deficit)} kcal/day surplus`;
+    } else {
+      html += `<br>Eating at maintenance`;
     }
+    // Update unit label
+    const unitEl = document.getElementById("deficit-unit-label");
+    if (unitEl) unitEl.textContent = deficit > 0 ? "deficit" : deficit < 0 ? "surplus" : "kcal";
     html += `</div>`;
     if (previewEl) previewEl.innerHTML = html;
   }
@@ -4781,7 +4788,7 @@ try {
       const deficit   = tdee - targetCal;
       const macros    = calcMacros(targetCal, inp.curWeight, inp.tgtWeight, inp.goal);
       profile.rmr     = rmr;
-      profile.deficit = Math.max(0, deficit);
+      profile.deficit = deficit;
       profile.protein = macros.protein;
       profile.carbs   = macros.carbs;
       profile.fat     = macros.fat;
@@ -4956,9 +4963,8 @@ function fmtDate(iso) {
     const change   = last - first;
 
     let weeksLeft = null;
-    if (targetWt && last > targetWt) {
-      const deficit = profile.deficit || 500;
-      weeksLeft = Math.ceil((last - targetWt) / ((deficit * 7) / 3500));
+    if (targetWt && last > targetWt && (profile.deficit || 0) > 0) {
+      weeksLeft = Math.ceil((last - targetWt) / ((profile.deficit * 7) / 3500));
     }
 
     const ptRadius = allDates.map(d => weightMap[d] != null ? 4 : 0);
