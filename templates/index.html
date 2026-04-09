@@ -532,6 +532,7 @@
     .seg-btn.active { border-color: var(--accent2); background: rgba(121,134,203,.15); color: var(--accent2); }
 
     .slider-row { margin-bottom: 1.15rem; }
+    .calc-explain { font-size:0.7rem;color:var(--muted);margin-top:0.3rem;line-height:1.5;font-family:monospace;opacity:0.8; }
     .slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; }
     .slider-label { font-size: 0.82rem; color: var(--muted); font-weight: 500; }
     .slider-val-row { display: flex; align-items: center; gap: 0.3rem; }
@@ -1739,6 +1740,7 @@
             </div>
           </div>
           <input type="range" id="rmr-slider" min="1000" max="3500" step="10">
+          <div id="calc-explain-rmr" class="calc-explain"></div>
         </div>
 
         <div class="slider-row">
@@ -1753,6 +1755,7 @@
           <div style="display:flex;justify-content:space-between;font-size:0.65rem;color:var(--muted);margin-top:0.2rem">
             <span>← deficit</span><span>0</span><span>surplus →</span>
           </div>
+          <div id="calc-explain-deficit" class="calc-explain"></div>
         </div>
 
         <div style="height:1px;background:var(--border);margin:0.5rem 0 1rem"></div>
@@ -1766,6 +1769,7 @@
             </div>
           </div>
           <input type="range" id="protein-slider" min="50" max="450" step="5">
+          <div id="calc-explain-protein" class="calc-explain"></div>
         </div>
 
         <div class="slider-row">
@@ -1777,6 +1781,7 @@
             </div>
           </div>
           <input type="range" id="carbs-slider" min="0" max="700" step="5">
+          <div id="calc-explain-carbs" class="calc-explain"></div>
         </div>
 
         <div class="slider-row" style="margin-bottom:0">
@@ -1788,6 +1793,7 @@
             </div>
           </div>
           <input type="range" id="fat-slider" min="20" max="250" step="5">
+          <div id="calc-explain-fat" class="calc-explain"></div>
         </div>
       </div>
 
@@ -4685,6 +4691,56 @@ try {
     if (unitEl) unitEl.textContent = adjust < 0 ? "deficit" : adjust > 0 ? "surplus" : "kcal";
     html += `</div>`;
     if (previewEl) previewEl.innerHTML = html;
+
+    // ── Formula explanations below each slider ──
+    const kg = (inp.curWeight * 0.453592).toFixed(1);
+    const cm = ((inp.heightFt * 12 + inp.heightIn) * 2.54).toFixed(1);
+
+    const rmrEl = document.getElementById("calc-explain-rmr");
+    if (rmrEl) {
+      if (inp.bfPct > 0) {
+        const lbm = (kg * (1 - inp.bfPct / 100)).toFixed(1);
+        rmrEl.textContent = `Katch-McArdle: 370 + (21.6 × ${lbm} kg LBM) = ${rmr} kcal`;
+      } else {
+        const sign = inp.sex === "male" ? "+ 5" : "− 161";
+        rmrEl.textContent = `Mifflin-St Jeor: (10 × ${kg} kg) + (6.25 × ${cm} cm) − (5 × ${inp.age}) ${sign} = ${rmr} kcal`;
+      }
+    }
+
+    const goalPctMap = { lose_weight: "−20%", build_muscle: "+10%", maintain: "0%", recomp: "−10%" };
+    const defEl = document.getElementById("calc-explain-deficit");
+    if (defEl) {
+      const pct = goalPctMap[inp.goal] || "−20%";
+      defEl.textContent = `${goalLabel} goal → TDEE ${pct} = ${Math.round(intake)} kcal target (TDEE ${tdee} ${adjust >= 0 ? "+" : "−"} ${Math.abs(adjust)})`;
+    }
+
+    const proGPerKg = (GOAL_PRO_GPERKG[inp.goal] || 2.0);
+    const refLbs = (inp.goal === "lose_weight" && inp.tgtWeight < inp.curWeight) ? inp.tgtWeight : inp.curWeight;
+    const refKg  = (refLbs * 0.453592).toFixed(1);
+    const proEl = document.getElementById("calc-explain-protein");
+    if (proEl) {
+      const refLabel = refLbs === inp.tgtWeight ? "goal weight" : "body weight";
+      proEl.textContent = `${proGPerKg} g/kg × ${refKg} kg ${refLabel} = ${getSlider("protein")}g`;
+    }
+
+    const fatG = getSlider("fat");
+    const fatFromPct = Math.round((intake * 0.25) / 9);
+    const fatFromBw  = Math.round((inp.curWeight * 0.453592) * 0.7);
+    const fatEl = document.getElementById("calc-explain-fat");
+    if (fatEl) {
+      const which = fatFromBw > fatFromPct
+        ? `0.7 g/kg × ${kg} kg = ${fatFromBw}g (floor) > 25% of ${Math.round(intake)} kcal = ${fatFromPct}g`
+        : `25% of ${Math.round(intake)} kcal ÷ 9 = ${fatFromPct}g > 0.7 g/kg floor (${fatFromBw}g)`;
+      fatEl.textContent = which;
+    }
+
+    const carbsG = getSlider("carbs");
+    const proKcal = getSlider("protein") * 4;
+    const fatKcal = fatG * 9;
+    const carbEl = document.getElementById("calc-explain-carbs");
+    if (carbEl) {
+      carbEl.textContent = `(${Math.round(intake)} kcal − ${proKcal} protein kcal − ${fatKcal} fat kcal) ÷ 4 = ${carbsG}g (min 100g)`;
+    }
   }
 
   function populateForm(profile) {
