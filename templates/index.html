@@ -8103,21 +8103,12 @@ if ("serviceWorker" in navigator) {
   confirmBtn.addEventListener("click", () => {
     confirmBtn.disabled = true;
     confirmBtn.textContent = "Deleting…";
-    fetch("/api/delete-account", { method: "POST" })
-      .then(r => r.json())
-      .then(data => {
-        if (data.ok) {
-          localStorage.clear();
-          window.location.href = "/login";
-        } else {
-          confirmBtn.disabled = false;
-          confirmBtn.textContent = "Yes, delete my account";
-        }
-      })
-      .catch(() => {
-        confirmBtn.disabled = false;
-        confirmBtn.textContent = "Yes, delete my account";
-      });
+    // Clear all client storage immediately
+    try { localStorage.clear(); } catch(e) {}
+    try { sessionStorage.clear(); } catch(e) {}
+    // Fire delete and redirect — don't wait for response
+    fetch("/api/delete-account", { method: "POST" }).catch(() => {});
+    window.location.href = "/login";
   });
 })();
 
