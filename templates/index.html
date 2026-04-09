@@ -1741,13 +1741,56 @@
       <!-- Calculated Goals -->
       <div class="card">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
-          <div class="card-title" style="margin:0;flex:1">Calculated Goals</div>
+          <div class="card-title" style="margin:0;flex:1">Calculated Goals
+            <button id="goals-info-btn" style="background:none;border:1px solid var(--border);border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:0.7rem;font-weight:700;font-style:italic;font-family:Georgia,serif;vertical-align:middle;margin-left:0.3rem;padding:0;line-height:1;transition:border-color .15s,color .15s" title="How are these calculated?">i</button>
+          </div>
           <button class="btn btn-ghost" id="goals-edit-btn" style="font-size:0.78rem;padding:0.28rem 0.7rem;display:flex;align-items:center;gap:0.35rem">
             <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             Edit
           </button>
         </div>
         <div class="slider-hint" id="goals-hint">Auto-calculated from your inputs above. Tap Edit to adjust.</div>
+
+        <!-- Research info panel -->
+        <div id="goals-info-panel" style="display:none;margin-bottom:1rem;padding:0.85rem 1rem;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:0.8rem;color:var(--text);line-height:1.65">
+          <div style="font-weight:700;margin-bottom:0.6rem;font-size:0.82rem">How we calculate your targets</div>
+          <p style="color:var(--muted);margin-bottom:0.7rem">These targets are derived from peer-reviewed sports nutrition research, not AI guesswork. Every number traces back to a formula you can verify.</p>
+
+          <div style="font-weight:600;margin-bottom:0.25rem">Protein by goal</div>
+          <div style="margin-bottom:0.6rem;color:var(--muted)">
+            Protein need scales with metabolic stress, not growth. The more catabolic pressure your body is under, the more protein you need to preserve muscle.
+          </div>
+
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:0.2rem 0.75rem;margin-bottom:0.7rem;font-size:0.78rem">
+            <span style="font-weight:600;color:var(--text)">Lose weight</span>
+            <span style="color:var(--muted)">2.0 g/kg &mdash; mid-range of 1.8&ndash;2.4 g/kg shown to preserve lean mass during caloric restriction (Helms et al. 2014)</span>
+            <span style="font-weight:600;color:var(--text)">Recomp</span>
+            <span style="color:var(--muted)">2.2 g/kg &mdash; highest of the four goals; simultaneous fat loss + muscle gain requires maximum protein to fuel synthesis while in a mild deficit</span>
+            <span style="font-weight:600;color:var(--text)">Build muscle</span>
+            <span style="color:var(--muted)">1.8 g/kg &mdash; a caloric surplus is already anabolic, so protein needs are lower; above ~1.6 g/kg shows diminishing returns for hypertrophy (Morton et al. 2018)</span>
+            <span style="font-weight:600;color:var(--text)">Maintain</span>
+            <span style="color:var(--muted)">1.6 g/kg &mdash; roughly 2x the RDA; sufficient to maintain muscle mass without aggressive body composition goals</span>
+          </div>
+
+          <div style="font-weight:600;margin-bottom:0.25rem">Calorie target</div>
+          <div style="margin-bottom:0.6rem;color:var(--muted)">
+            Your total daily energy expenditure (TDEE) is adjusted by goal: lose &minus;20%, recomp &minus;10%, maintain 0%, build +10%. The target never drops below your resting metabolic rate.
+          </div>
+
+          <div style="font-weight:600;margin-bottom:0.25rem">Fat</div>
+          <div style="margin-bottom:0.6rem;color:var(--muted)">
+            25% of target calories or 0.7 g/kg body weight, whichever is higher. The floor protects hormone production and nutrient absorption.
+          </div>
+
+          <div style="font-weight:600;margin-bottom:0.25rem">Carbs</div>
+          <div style="margin-bottom:0.6rem;color:var(--muted)">
+            Whatever calories remain after protein and fat, divided by 4. Minimum 100g/day to support brain function and training intensity.
+          </div>
+
+          <div style="font-size:0.72rem;color:var(--muted);border-top:1px solid var(--border);padding-top:0.5rem;margin-top:0.2rem">
+            Sources: Helms et al. (2014) <em>J Int Soc Sports Nutr</em> &middot; Morton et al. (2018) <em>Br J Sports Med</em> &middot; Mifflin et al. (1990) <em>Am J Clin Nutr</em> &middot; Katch &amp; McArdle (1996)
+          </div>
+        </div>
 
         <div class="slider-row">
           <div class="slider-header">
@@ -4911,6 +4954,15 @@ try {
     btn.innerHTML = goalsEditing
       ? '<svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Lock'
       : '<svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit';
+  });
+
+  document.getElementById("goals-info-btn").addEventListener("click", () => {
+    const panel = document.getElementById("goals-info-panel");
+    const btn   = document.getElementById("goals-info-btn");
+    const show  = panel.style.display === "none";
+    panel.style.display = show ? "" : "none";
+    btn.style.borderColor = show ? "var(--accent2)" : "var(--border)";
+    btn.style.color       = show ? "var(--accent2)" : "var(--muted)";
   });
 
   document.querySelectorAll(".gender-btn").forEach(btn => {
