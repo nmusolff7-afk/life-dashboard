@@ -24,11 +24,13 @@ from db import (
     save_gmail_tokens, get_gmail_tokens, delete_gmail_tokens, update_gmail_access_token,
     upsert_gmail_cache, get_gmail_cache, clear_gmail_cache,
     save_gmail_summary, get_gmail_summary,
+    upsert_user_goal, get_user_goal,
 )
 from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, shorten_label, scan_meal_image, generate_momentum_insight, suggest_meal, identify_ingredients
 from claude_profile import generate_profile_map, compute_mind_insights, score_brief
 import garmin_sync
 import gmail_sync
+from goal_config import compute_targets, get_goal_config
 import json
 import logging as _log
 
@@ -237,7 +239,8 @@ def api_onboarding_status():
 def api_profile():
     """Return key profile fields for client-side pre-filling and display."""
     p = get_profile_map(uid())
-    return jsonify({
+    goal = get_user_goal(uid())
+    resp = {
         "energy_level_typical_1_10":  p.get("energy_level_typical_1_10"),
         "mood_baseline_1_10":         p.get("mood_baseline_1_10"),
         "stress_level_1_10":          p.get("stress_level_1_10"),
@@ -250,17 +253,59 @@ def api_profile():
         "first_name":                 p.get("first_name"),
         "one_sentence_summary":       p.get("one_sentence_summary"),
         "biggest_leverage_point":     p.get("biggest_leverage_point"),
-    })
+    }
+    # Include computed goal targets if available
+    if goal:
+        resp["goal_targets"] = {
+            "goal_key":        goal["goal_key"],
+            "calorie_target":  goal["calorie_target"],
+            "protein_g":       goal["protein_g"],
+            "fat_g":           goal["fat_g"],
+            "carbs_g":         goal["carbs_g"],
+            "deficit_surplus":  goal["deficit_surplus"],
+            "rmr":             goal["rmr"],
+        }
+    return jsonify(resp)
 
 
 def _run_profile_generation(user_id: int, raw: dict):
-    """Background thread: generate profile map and write to DB."""
+    """Background thread: generate profile map and write to DB, then compute goal targets."""
     import traceback
     try:
         profile = generate_profile_map(raw)
         with app.app_context():
             complete_onboarding(user_id, json.dumps(profile))
-        _ob_jobs[user_id] = {"status": "done", "profile": profile}
+
+            # ── Compute goal-driven targets from raw inputs ──
+            goal_key = raw.get("primary_goal") or profile.get("primary_goal") or "lose_weight"
+            targets = compute_targets(
+                goal_key=goal_key,
+                weight_lbs=float(raw.get("current_weight_lbs") or profile.get("current_weight_lbs") or 185),
+                target_weight_lbs=float(raw.get("target_weight_lbs") or profile.get("target_weight_lbs") or 170),
+                height_ft=int(raw.get("height_ft") or profile.get("height_ft") or 5),
+                height_in=int(raw.get("height_in") or profile.get("height_in") or 10),
+                age=int(raw.get("age") or profile.get("age") or 28),
+                sex=raw.get("gender") or profile.get("gender") or "male",
+                bf_pct=float(raw.get("body_fat_pct") or profile.get("body_fat_pct") or 0),
+            )
+            upsert_user_goal(
+                user_id=user_id,
+                goal_key=targets["goal_key"],
+                calorie_target=targets["calorie_target"],
+                protein_g=targets["protein_g"],
+                fat_g=targets["fat_g"],
+                carbs_g=targets["carbs_g"],
+                deficit_surplus=targets["deficit_surplus"],
+                rmr=targets["rmr"],
+                rmr_method=targets["rmr_method"],
+                tdee_used=targets["tdee_used"],
+                config_json=json.dumps(targets["rationale"]),
+                sources_json=json.dumps(targets["sources"]),
+            )
+            _log.info("Goal targets computed for user %s: %s → %s kcal",
+                      user_id, goal_key, targets["calorie_target"])
+
+        _ob_jobs[user_id] = {"status": "done", "profile": profile, "targets": targets}
     except Exception as e:
         tb = traceback.format_exc()
         _ob_jobs[user_id] = {"status": "error", "error": f"{type(e).__name__}: {e}", "traceback": tb[-800:]}

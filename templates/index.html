@@ -2623,12 +2623,25 @@ fetch("/api/profile")
         sumEl.textContent = "No profile generated yet. Complete onboarding to enable personalized scoring.";
       }
     }
-    // Seed localStorage with onboarding values if not already set
+    // Seed localStorage with goal targets from backend if not already set
     try {
       const saved = JSON.parse(localStorage.getItem("profileData") || "{}");
       let changed = false;
-      if (p.rmr_kcal && !saved.rmr) { saved.rmr = p.rmr_kcal; changed = true; }
-      if (p.primary_goal && !saved.goal) { saved.goal = p.primary_goal; changed = true; }
+      const gt = p.goal_targets;
+      if (gt) {
+        // Seed each target only if localStorage doesn't already have a user-set value
+        if (gt.rmr && !saved.rmr)                 { saved.rmr     = gt.rmr;             changed = true; }
+        if (gt.goal_key && !saved.goal)            { saved.goal    = gt.goal_key;        changed = true; }
+        if (gt.deficit_surplus != null && saved.deficit == null)
+                                                   { saved.deficit = gt.deficit_surplus;  changed = true; }
+        if (gt.protein_g && !saved.protein)        { saved.protein = gt.protein_g;       changed = true; }
+        if (gt.fat_g && !saved.fat)                { saved.fat     = gt.fat_g;           changed = true; }
+        if (gt.carbs_g && !saved.carbs)            { saved.carbs   = gt.carbs_g;         changed = true; }
+      } else {
+        // Fallback: seed from Claude-generated profile if no goal targets yet
+        if (p.rmr_kcal && !saved.rmr)              { saved.rmr  = p.rmr_kcal;           changed = true; }
+        if (p.primary_goal && !saved.goal)          { saved.goal = p.primary_goal;       changed = true; }
+      }
       if (changed) localStorage.setItem("profileData", JSON.stringify(saved));
       // Pre-select goal button if localStorage has it
       if (saved.goal) {
