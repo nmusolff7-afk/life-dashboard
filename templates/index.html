@@ -1649,12 +1649,22 @@
           </div>
         </div>
 
-        <div class="field" style="margin-bottom:0">
+        <div class="field">
           <label>Occupation <span style="color:var(--muted);font-weight:400">(daily life, not workouts)</span></label>
           <div class="seg-control">
             <button class="seg-btn occ-btn" data-val="sedentary">Desk Job</button>
             <button class="seg-btn occ-btn" data-val="standing">Standing</button>
             <button class="seg-btn occ-btn" data-val="physical">Physical</button>
+          </div>
+        </div>
+
+        <div class="field" style="margin-bottom:0">
+          <label>Goal</label>
+          <div class="seg-control" style="flex-wrap:wrap;gap:0.4rem">
+            <button class="seg-btn goal-btn" data-val="lose_weight">Lose Weight</button>
+            <button class="seg-btn goal-btn" data-val="build_muscle">Build Muscle</button>
+            <button class="seg-btn goal-btn" data-val="recomp">Recomp</button>
+            <button class="seg-btn goal-btn" data-val="maintain">Maintain</button>
           </div>
         </div>
       </div>
@@ -1770,6 +1780,15 @@
         <div style="display:flex;align-items:center;margin-top:1rem">
           <button class="btn btn-primary" id="save-plan-btn">Save Workout Plan</button>
           <span class="save-confirm" id="plan-save-confirm">✓ Saved</span>
+        </div>
+      </div>
+
+      <!-- Target recalc prompt -->
+      <div id="target-recalc-prompt" style="display:none;margin-bottom:0.75rem;padding:0.75rem 1rem;background:var(--surface);border:1px solid var(--accent);border-radius:10px">
+        <div style="font-size:0.84rem;color:var(--text);margin-bottom:0.6rem;line-height:1.5">Your profile changes would update your nutrition targets. Apply new targets?</div>
+        <div style="display:flex;gap:0.5rem">
+          <button class="btn btn-primary" id="target-recalc-yes" style="flex:1;padding:0.5rem;font-size:0.85rem">Yes, recalculate</button>
+          <button class="btn btn-ghost" id="target-recalc-no" style="flex:1;padding:0.5rem;font-size:0.85rem">No, keep current</button>
         </div>
       </div>
 
@@ -2452,16 +2471,19 @@ fetch("/api/profile")
         sumEl.textContent = "No profile generated yet. Complete onboarding to enable personalized scoring.";
       }
     }
-    // Cache RMR for momentum payload if present and not already in localStorage
-    if (p.rmr_kcal) {
-      try {
-        const saved = JSON.parse(localStorage.getItem("profileData") || "{}");
-        if (!saved.rmr) {
-          saved.rmr = p.rmr_kcal;
-          localStorage.setItem("profileData", JSON.stringify(saved));
-        }
-      } catch(e) {}
-    }
+    // Seed localStorage with onboarding values if not already set
+    try {
+      const saved = JSON.parse(localStorage.getItem("profileData") || "{}");
+      let changed = false;
+      if (p.rmr_kcal && !saved.rmr) { saved.rmr = p.rmr_kcal; changed = true; }
+      if (p.primary_goal && !saved.goal) { saved.goal = p.primary_goal; changed = true; }
+      if (changed) localStorage.setItem("profileData", JSON.stringify(saved));
+      // Pre-select goal button if localStorage has it
+      if (saved.goal) {
+        document.querySelectorAll(".goal-btn").forEach(b =>
+          b.classList.toggle("active", b.dataset.val === saved.goal));
+      }
+    } catch(e) {}
   })
   .catch(() => {
     const sumEl = document.getElementById("profile-summary-line");
@@ -4447,15 +4469,40 @@ try {
     curWeight: 185, tgtWeight: 170,
     heightFt: 5, heightIn: 10,
     age: 28, sex: "male", occupation: "sedentary", bfPct: 0,
+    goal: "lose_weight",
     rmr: 1800, deficit: 500,
     protein: 170, carbs: 220, fat: 65,
   };
 
-  function calcMacros(intakeCal, tgtWeight) {
-    const protein = Math.round(tgtWeight * 1);
-    const fatG    = Math.round((intakeCal * 0.25) / 9);
-    const carbs   = Math.round((intakeCal - protein * 4 - fatG * 9) / 4);
-    return { protein, carbs: Math.max(0, carbs), fat: fatG };
+  // Goal-aware multipliers
+  const GOAL_CAL_ADJ   = { lose_weight: -0.20, build_muscle: 0.10, maintain: 0, recomp: -0.10 };
+  const GOAL_PRO_GPERKG = { lose_weight: 2.0,  build_muscle: 1.8,  maintain: 1.6, recomp: 2.2  };
+
+  function calcTargetCalories(tdee, goal, rmr) {
+    const adj  = GOAL_CAL_ADJ[goal] ?? -0.20;
+    const raw  = Math.round(tdee * (1 + adj));
+    return Math.max(raw, rmr);   // never below BMR
+  }
+
+  function calcMacros(intakeCal, curWeight, tgtWeight, goal) {
+    // Protein: g/kg using goal-specific multiplier
+    // Use goal weight as reference for fat loss when goal weight < current weight
+    const refLbs = (goal === "lose_weight" && tgtWeight < curWeight) ? tgtWeight : curWeight;
+    const refKg  = refLbs * 0.453592;
+    const proGPerKg = GOAL_PRO_GPERKG[goal] ?? 2.0;
+    const protein   = Math.round(refKg * proGPerKg);
+
+    // Fat: 25% of calories or 0.7 g/kg body weight — whichever is higher
+    const bodyKg    = curWeight * 0.453592;
+    const fatFromPct = Math.round((intakeCal * 0.25) / 9);
+    const fatFromBw  = Math.round(bodyKg * 0.7);
+    const fatG       = Math.max(fatFromPct, fatFromBw);
+
+    // Carbs: remainder, minimum 100g
+    const remaining = intakeCal - protein * 4 - fatG * 9;
+    const carbs     = Math.max(100, Math.round(remaining / 4));
+
+    return { protein, carbs, fat: fatG };
   }
 
   function weeksToGoal(curWeight, tgtWeight, deficitKcal) {
@@ -4493,9 +4540,11 @@ try {
     const bfPct      = parseFloat(document.getElementById("p-bf").value)         || 0;
     const sexBtn     = document.querySelector(".gender-btn.active");
     const occBtn     = document.querySelector(".occ-btn.active");
-    const sex        = sexBtn ? sexBtn.dataset.val : DEFAULTS.sex;
-    const occupation = occBtn ? occBtn.dataset.val : DEFAULTS.occupation;
-    return { curWeight, tgtWeight, heightFt, heightIn, age, sex, occupation, bfPct };
+    const goalBtn    = document.querySelector(".goal-btn.active");
+    const sex        = sexBtn  ? sexBtn.dataset.val  : DEFAULTS.sex;
+    const occupation = occBtn  ? occBtn.dataset.val  : DEFAULTS.occupation;
+    const goal       = goalBtn ? goalBtn.dataset.val : DEFAULTS.goal;
+    return { curWeight, tgtWeight, heightFt, heightIn, age, sex, occupation, bfPct, goal };
   }
 
   function recalcAll() {
@@ -4506,8 +4555,9 @@ try {
     const eat   = WORKOUT_BURN_TODAY;
     const tef   = calcTEF(CAL_CONSUMED, PROTEIN_CONSUMED, CARBS_CONSUMED, FAT_CONSUMED);
     const tdee  = rmr + neat + eat + tef;
-    const deficit = Math.min(getSlider("deficit") || 500, tdee - 1200);
-    const macros  = calcMacros(tdee - deficit, inp.tgtWeight);
+    const targetCal = calcTargetCalories(tdee, inp.goal, rmr);
+    const deficit   = tdee - targetCal;
+    const macros    = calcMacros(targetCal, inp.curWeight, inp.tgtWeight, inp.goal);
     setSlider("rmr",     rmr);
     setSlider("deficit", Math.max(0, deficit));
     setSlider("protein", macros.protein);
@@ -4527,6 +4577,7 @@ try {
     const tdee    = rmr + neat + eat + tef;
     const intake  = tdee - deficit;
     const weeks   = weeksToGoal(inp.curWeight, inp.tgtWeight, deficit);
+    const goalLabel = { lose_weight: "Lose Weight", build_muscle: "Build Muscle", recomp: "Recomp", maintain: "Maintain" }[inp.goal] || inp.goal;
     const previewEl = document.getElementById("profile-preview");
     if (!previewEl) return;
 
@@ -4543,11 +4594,14 @@ try {
     html += `<tr><td colspan="2"><div style="height:1px;background:var(--border);margin:0.3rem 0"></div></td></tr>`;
     html += `<tr><td style="font-weight:700">Projected Calorie Burn</td><td style="text-align:right;font-weight:700">${tdee} kcal/day</td></tr>`;
     html += `</table>`;
-    html += `<div style="margin-top:0.6rem;font-size:0.82rem">Target intake: <b>${Math.round(intake)} kcal/day</b>`;
-    if (weeks !== null) {
+    html += `<div style="margin-top:0.6rem;font-size:0.82rem">`;
+    html += `Goal: <b>${goalLabel}</b> · Target intake: <b>${Math.round(intake)} kcal/day</b>`;
+    if (deficit > 0 && weeks !== null) {
       html += `<br>At ${deficit} kcal/day deficit → <b>${inp.tgtWeight} lbs in ~${weeks} weeks</b>`;
-    } else if (inp.curWeight <= inp.tgtWeight) {
-      html += `<br>At or below target weight — consider a maintenance plan.`;
+    } else if (deficit > 0) {
+      html += `<br>${deficit} kcal/day deficit`;
+    } else if (deficit < 0) {
+      html += `<br>${Math.abs(deficit)} kcal/day surplus for muscle gain`;
     }
     html += `</div>`;
     if (previewEl) previewEl.innerHTML = html;
@@ -4566,6 +4620,8 @@ try {
       b.classList.toggle("active", b.dataset.val === (profile.sex || profile.gender)));
     document.querySelectorAll(".occ-btn").forEach(b =>
       b.classList.toggle("active", b.dataset.val === profile.occupation));
+    document.querySelectorAll(".goal-btn").forEach(b =>
+      b.classList.toggle("active", b.dataset.val === (profile.goal || DEFAULTS.goal)));
     setSlider("rmr",     profile.rmr     || DEFAULTS.rmr);
     setSlider("deficit", profile.deficit || DEFAULTS.deficit);
     setSlider("protein", profile.protein || DEFAULTS.protein);
@@ -4617,11 +4673,84 @@ try {
       btn.classList.add("active"); recalcAll();
     });
   });
+  document.querySelectorAll(".goal-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".goal-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active"); recalcAll();
+    });
+  });
 
   ["p-cur-weight","p-tgt-weight","p-height-ft","p-height-in","p-age","p-bf"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener("input", recalcAll);
   });
+
+  // Fields that affect target calculations
+  const TARGET_FIELDS = ["curWeight", "tgtWeight", "heightFt", "heightIn", "age", "sex", "bfPct", "goal"];
+
+  function _targetsChanged(newProfile) {
+    const old = JSON.parse(localStorage.getItem("profileData") || "{}");
+    return TARGET_FIELDS.some(f => {
+      const o = old[f] ?? null, n = newProfile[f] ?? null;
+      return String(o) !== String(n);
+    });
+  }
+
+  function _commitSave(profile, recalcTargets) {
+    if (recalcTargets) {
+      // Recalculate from current inputs
+      const inp   = readInputs();
+      const steps = getTodaySteps();
+      const rmr   = calcRMR(inp.curWeight, inp.heightFt, inp.heightIn, inp.age, inp.sex, inp.bfPct);
+      const { neat } = calcNEAT(inp.occupation, steps, TODAY_WORKOUT_DESCS);
+      const eat   = WORKOUT_BURN_TODAY;
+      const tef   = calcTEF(CAL_CONSUMED, PROTEIN_CONSUMED, CARBS_CONSUMED, FAT_CONSUMED);
+      const tdee  = rmr + neat + eat + tef;
+      const targetCal = calcTargetCalories(tdee, inp.goal, rmr);
+      const deficit   = tdee - targetCal;
+      const macros    = calcMacros(targetCal, inp.curWeight, inp.tgtWeight, inp.goal);
+      profile.rmr     = rmr;
+      profile.deficit = Math.max(0, deficit);
+      profile.protein = macros.protein;
+      profile.carbs   = macros.carbs;
+      profile.fat     = macros.fat;
+      setSlider("rmr", rmr);
+      setSlider("deficit", profile.deficit);
+      setSlider("protein", macros.protein);
+      setSlider("carbs", macros.carbs);
+      setSlider("fat", macros.fat);
+      updatePreview();
+    }
+    localStorage.setItem("profileData", JSON.stringify(profile));
+    applyProfileToMeals(profile);
+    const conf = document.getElementById("save-confirm");
+    if (conf) { conf.classList.add("show"); setTimeout(() => conf.classList.remove("show"), 2000); }
+    flashGreen();
+    document.getElementById("target-recalc-prompt").style.display = "none";
+  }
+
+  function _doProfileSave(profile) {
+    if (_targetsChanged(profile)) {
+      // Show inline prompt
+      const prompt = document.getElementById("target-recalc-prompt");
+      prompt.style.display = "";
+      prompt.scrollIntoView({ behavior: "smooth", block: "center" });
+
+      // Remove old listeners by replacing buttons
+      const yesBtn = document.getElementById("target-recalc-yes");
+      const noBtn  = document.getElementById("target-recalc-no");
+      const yesNew = yesBtn.cloneNode(true);
+      const noNew  = noBtn.cloneNode(true);
+      yesBtn.parentNode.replaceChild(yesNew, yesBtn);
+      noBtn.parentNode.replaceChild(noNew, noBtn);
+
+      yesNew.addEventListener("click", () => _commitSave(profile, true));
+      noNew.addEventListener("click",  () => _commitSave(profile, false));
+    } else {
+      // No target-affecting changes — save directly
+      _commitSave(profile, false);
+    }
+  }
 
   document.getElementById("save-profile-btn").addEventListener("click", () => {
     const inp      = readInputs();
@@ -4643,11 +4772,7 @@ try {
       goalSetDate,
       goalStartWeight,
     };
-    localStorage.setItem("profileData", JSON.stringify(profile));
-    applyProfileToMeals(profile);
-    const confirm = document.getElementById("save-confirm");
-    if (confirm) { confirm.classList.add("show"); setTimeout(() => confirm.classList.remove("show"), 2000); }
-    flashGreen();
+    _doProfileSave(profile);
   });
 
   try {
@@ -4657,6 +4782,7 @@ try {
     } else {
       document.querySelectorAll(".gender-btn").forEach(b => b.classList.toggle("active", b.dataset.val === DEFAULTS.sex));
       document.querySelectorAll(".occ-btn").forEach(b => b.classList.toggle("active", b.dataset.val === DEFAULTS.occupation));
+      document.querySelectorAll(".goal-btn").forEach(b => b.classList.toggle("active", b.dataset.val === DEFAULTS.goal));
       recalcAll();
     }
   } catch(e) { recalcAll(); }
