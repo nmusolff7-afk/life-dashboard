@@ -8106,9 +8106,9 @@ if ("serviceWorker" in navigator) {
     // Clear all client storage immediately
     try { localStorage.clear(); } catch(e) {}
     try { sessionStorage.clear(); } catch(e) {}
-    // Fire delete and redirect — don't wait for response
+    // Fire delete and redirect through /logout to clear session cookie
     fetch("/api/delete-account", { method: "POST" }).catch(() => {});
-    window.location.href = "/login";
+    window.location.href = "/logout";
   });
 })();
 
