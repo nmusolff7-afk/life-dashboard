@@ -1082,8 +1082,13 @@ def api_momentum_today():
             calorie_goal = int(calorie_goal)
         except (TypeError, ValueError):
             calorie_goal = None
+    hour = body.get("hour")
     try:
-        breakdown = compute_momentum(uid(), today, calorie_goal_override=calorie_goal)
+        hour = int(hour) if hour is not None else None
+    except (TypeError, ValueError):
+        hour = None
+    try:
+        breakdown = compute_momentum(uid(), today, calorie_goal_override=calorie_goal, hour=hour)
         return jsonify(breakdown)
     except Exception as e:
         return jsonify({"error": str(e)}), 500

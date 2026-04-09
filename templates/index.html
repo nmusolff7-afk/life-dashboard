@@ -7278,38 +7278,40 @@ function fmtDate(iso) {
     function deltaDesc(key) {
       const d = deltas[key];
       if (!d) return "";
+      if (d.pending) return "pending";
       if (key === "calories") {
-        if (d.target == null) return "no target set";
-        if (d.actual === 0) return "nothing logged";
+        if (d.target == null) return "no goal";
+        if (d.actual === 0) return "not logged";
         const sign = d.delta > 0 ? "+" : "";
-        return sign + d.delta + " kcal vs " + d.target + " target";
+        return sign + d.delta + " kcal";
       }
       if (key === "protein") {
-        if (d.target == null) return "no target set";
-        if (d.actual === 0) return "nothing logged";
+        if (d.target == null) return "no goal";
+        if (d.actual === 0) return "not logged";
         const sign = d.delta > 0 ? "+" : "";
-        return sign + Math.round(d.delta) + "g vs " + d.target + "g target";
+        return sign + Math.round(d.delta) + "g";
       }
       if (key === "workout") {
-        if (d.done) return d.burn > 0 ? d.burn + " kcal burned" : "active today";
-        return "no workout logged";
+        if (d.done) return d.burn > 0 ? d.burn + " kcal" : "done";
+        return "none";
       }
       if (key === "checkin") {
-        if (d.morning && d.evening) return "both done";
-        if (d.morning) return "morning done, evening missing";
-        if (d.evening) return "evening done, morning missing";
-        return "none completed";
+        if (d.morning && d.evening) return "both";
+        if (d.morning && d.evening_pending) return "AM done";
+        if (d.morning) return "AM only";
+        if (d.evening) return "PM only";
+        return "none";
       }
       if (key === "tasks") {
-        if (d.total === 0) return "no tasks today";
-        return d.completed + " of " + d.total + " done";
+        if (d.total === 0) return "none";
+        return d.completed + "/" + d.total;
       }
       return "";
     }
 
     const DEDUCTIONS = [
-      { key: "nutrition", deltaKey: "calories", label: "Calories", max: 15 },
-      { key: "protein",   deltaKey: "protein",  label: "Protein",  max: 10 },
+      { key: "nutrition", deltaKey: "calories", label: "Cal",      max: 15 },
+      { key: "protein",   deltaKey: "protein",  label: "Pro",      max: 10 },
       { key: "activity",  deltaKey: "workout",  label: "Workout",  max: 10 },
       { key: "checkin",   deltaKey: "checkin",  label: "Check-in", max:  5 },
       { key: "tasks",     deltaKey: "tasks",    label: "Tasks",    max:  5 },
@@ -7317,16 +7319,20 @@ function fmtDate(iso) {
 
     const rows = DEDUCTIONS.map(d => {
       const pen   = penalties[d.key] || 0;
-      const color = penColor(pen, d.max);
+      const delta = deltas[d.deltaKey] || {};
+      const isPending = delta.pending;
+      const color = isPending ? "var(--muted)" : penColor(pen, d.max);
       const desc  = deltaDesc(d.deltaKey);
       const missing = (comps[d.key] && comps[d.key].missing)
-        ? ' <span style="font-size:0.7rem;color:var(--muted)">(no goal)</span>' : "";
-      const penStr  = pen <= 0 ? '<span style="color:var(--green)">0</span>'
-                               : '<span style="color:' + color + '">−' + pen.toFixed(1) + '</span>';
-      return `<div style="display:flex;align-items:baseline;gap:0.5rem;padding:0.35rem 0;border-bottom:1px solid var(--surface2)">
-        <span style="font-size:0.82rem;color:var(--text);min-width:4.5rem">${d.label}${missing}</span>
-        <span style="font-family:monospace;font-size:0.8rem;flex-shrink:0">${penStr}</span>
-        <span style="font-size:0.72rem;color:var(--muted);flex:1;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${desc}</span>
+        ? ' <span style="font-size:0.65rem;color:var(--muted)">?</span>' : "";
+      let penStr;
+      if (isPending) penStr = '<span style="color:var(--muted);font-size:0.7rem">--</span>';
+      else if (pen <= 0) penStr = '<span style="color:var(--green)">0</span>';
+      else penStr = '<span style="color:' + color + '">-' + pen.toFixed(1) + '</span>';
+      return `<div style="display:flex;align-items:baseline;gap:0.35rem;padding:0.3rem 0;border-bottom:1px solid var(--surface2)">
+        <span style="font-size:0.78rem;color:var(--text);min-width:3.8rem">${d.label}${missing}</span>
+        <span style="font-family:monospace;font-size:0.75rem;min-width:2.2rem;text-align:right;flex-shrink:0">${penStr}</span>
+        <span style="font-size:0.7rem;color:${isPending ? 'var(--accent2)' : 'var(--muted)'};text-align:right;flex:1">${desc}</span>
       </div>`;
     }).join("");
 

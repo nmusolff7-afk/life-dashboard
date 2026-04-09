@@ -814,13 +814,25 @@ MOMENTUM_WEIGHTS = {
 _SCORED_MAX = sum(MOMENTUM_WEIGHTS.values())  # 45
 
 
-def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | None = None) -> dict:
+def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | None = None,
+                     hour: int | None = None) -> dict:
     """
     Compute a 0–100 daily score using a penalty-based system.
     Starts at 100, subtracts penalties for deviations from targets.
+    hour: current hour (0-23) in the user's timezone. When provided,
+          metrics that haven't been tracked yet are forgiven if it's
+          still early enough in the day to track them.
     Upserts the result into daily_momentum and returns a full breakdown dict.
     """
     import json as _json
+
+    # Time-awareness: don't penalize unlogged data early in the day
+    # Before these hours, unlogged = "not yet" instead of "missed"
+    _is_today = (date_str == date.today().isoformat())
+    _h = hour if hour is not None else 23  # default: end of day = full penalties
+    _meals_expected   = _is_today and _h < 11   # no meals before 11am is normal
+    _workout_expected = _is_today and _h < 15   # workout could happen later
+    _evening_expected = _is_today and _h < 19   # evening check-in unlocks at 7pm
 
     # ── gather inputs ────────────────────────────────────
     totals  = get_today_totals(user_id, date_str)
@@ -868,16 +880,19 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
 
     # 1. Calories (15 pts) — penalty scales with % deviation from target
     if cal_goal and cal_goal > 0 and cal_today > 0:
-        cal_delta = cal_today - cal_goal                    # positive = over, negative = under
-        cal_dev   = abs(cal_delta) / cal_goal               # 0.0 = perfect, 1.0 = 100% off
-        cal_pen   = min(1.0, cal_dev / 0.25) * MOMENTUM_WEIGHTS["nutrition"]  # 25% off = full penalty
-        raw_deltas["calories"] = {"target": cal_goal, "actual": cal_today, "delta": cal_delta}
+        cal_delta = cal_today - cal_goal
+        cal_dev   = abs(cal_delta) / cal_goal
+        cal_pen   = min(1.0, cal_dev / 0.25) * MOMENTUM_WEIGHTS["nutrition"]
+        raw_deltas["calories"] = {"target": cal_goal, "actual": cal_today, "delta": cal_delta, "pending": False}
+    elif cal_today == 0 and _meals_expected:
+        cal_pen = 0  # too early to penalize — meals haven't started yet
+        raw_deltas["calories"] = {"target": cal_goal, "actual": 0, "delta": 0, "pending": True}
     elif cal_today == 0:
-        cal_pen = MOMENTUM_WEIGHTS["nutrition"]  # nothing logged = full penalty
-        raw_deltas["calories"] = {"target": cal_goal, "actual": 0, "delta": -(cal_goal or 0)}
+        cal_pen = MOMENTUM_WEIGHTS["nutrition"]
+        raw_deltas["calories"] = {"target": cal_goal, "actual": 0, "delta": -(cal_goal or 0), "pending": False}
     else:
-        cal_pen = 0  # no goal set = no penalty
-        raw_deltas["calories"] = {"target": None, "actual": cal_today, "delta": 0}
+        cal_pen = 0
+        raw_deltas["calories"] = {"target": None, "actual": cal_today, "delta": 0, "pending": False}
     penalties["nutrition"] = round(cal_pen, 2)
 
     # 2. Protein (10 pts) — same scaled deviation
@@ -885,24 +900,31 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
         pro_delta = pro_today - pro_goal
         pro_dev   = abs(pro_delta) / pro_goal
         pro_pen   = min(1.0, pro_dev / 0.25) * MOMENTUM_WEIGHTS["protein"]
-        raw_deltas["protein"] = {"target": pro_goal, "actual": round(pro_today, 1), "delta": round(pro_delta, 1)}
+        raw_deltas["protein"] = {"target": pro_goal, "actual": round(pro_today, 1), "delta": round(pro_delta, 1), "pending": False}
+    elif pro_today == 0 and _meals_expected:
+        pro_pen = 0
+        raw_deltas["protein"] = {"target": pro_goal, "actual": 0, "delta": 0, "pending": True}
     elif pro_today == 0 and pro_goal:
         pro_pen = MOMENTUM_WEIGHTS["protein"]
-        raw_deltas["protein"] = {"target": pro_goal, "actual": 0, "delta": -pro_goal}
+        raw_deltas["protein"] = {"target": pro_goal, "actual": 0, "delta": -pro_goal, "pending": False}
     else:
         pro_pen = 0
-        raw_deltas["protein"] = {"target": None, "actual": round(pro_today, 1), "delta": 0}
+        raw_deltas["protein"] = {"target": None, "actual": round(pro_today, 1), "delta": 0, "pending": False}
     penalties["protein"] = round(pro_pen, 2)
 
-    # 3. Workout (10 pts) — 0 if any workout done, full penalty if skipped, partial for incomplete
+    # 3. Workout (10 pts)
     workout_burn = get_today_workout_burn(user_id, date_str)
     garmin_active = (garmin.get("active_calories") or 0) if garmin else 0
     has_workout = workout_burn > 0 or garmin_active > 100
     if has_workout:
         activity_pen = 0
+        raw_deltas["workout"] = {"done": True, "burn": workout_burn, "garmin_active": garmin_active, "pending": False}
+    elif _workout_expected:
+        activity_pen = 0  # still time to work out
+        raw_deltas["workout"] = {"done": False, "burn": 0, "garmin_active": garmin_active, "pending": True}
     else:
         activity_pen = MOMENTUM_WEIGHTS["activity"]
-    raw_deltas["workout"] = {"done": has_workout, "burn": workout_burn, "garmin_active": garmin_active}
+        raw_deltas["workout"] = {"done": False, "burn": 0, "garmin_active": garmin_active, "pending": False}
     penalties["activity"] = round(activity_pen, 2)
 
     # 4. Check-in (5 pts) — 2.5 each for morning and evening
@@ -910,8 +932,10 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
     has_evening = "evening" in types_done
     checkin_pen = 0
     if not has_morning: checkin_pen += MOMENTUM_WEIGHTS["checkin"] * 0.5
-    if not has_evening: checkin_pen += MOMENTUM_WEIGHTS["checkin"] * 0.5
-    raw_deltas["checkin"] = {"morning": has_morning, "evening": has_evening}
+    if not has_evening and not _evening_expected:
+        checkin_pen += MOMENTUM_WEIGHTS["checkin"] * 0.5
+    raw_deltas["checkin"] = {"morning": has_morning, "evening": has_evening,
+                             "evening_pending": _evening_expected and not has_evening}
     penalties["checkin"] = round(checkin_pen, 2)
 
     # 5. Tasks (5 pts) — penalty proportional to incomplete tasks

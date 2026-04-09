@@ -480,23 +480,28 @@ _SCALE_SUMMARY_PROMPT = """You are a concise health data reporter for a personal
 
 The user's goal is: {goal_label}
 Time scale: {scale}
+Current date and time: {current_datetime}
 
-You will receive the user's daily scores and deltas for the period. Respond with EXACTLY one paragraph in this format — no bullet points, no headers, no extra text:
+You will receive the user's daily scores and deltas for the period. Items marked "pending" have not been tracked YET — the user still has time. Do NOT count pending items as failures or missed targets.
+
+Respond with EXACTLY one paragraph — no bullet points, no headers, no extra text:
 
 For "day" scale:
-"Today you [summary of what happened with specific numbers]. [One sentence on what went well or needs attention]."
+If it's early (before noon): focus on what's been done so far and what's still ahead. Don't criticize unlogged meals or workouts — they haven't happened yet.
+If it's later: summarize actual progress with numbers. Note what went well and what fell short.
 
 For "week" scale:
-"This week you averaged [X]/100 across [N] days. [Key pattern — e.g. protein was consistently low, workouts were strong]. [One actionable sentence]."
+"This week you averaged [X]/100 across [N] days. [Key pattern]. [One actionable sentence]."
 
 For "month" scale:
-"Over the last 30 days your average score was [X]/100. [Trend — improving, steady, or declining]. Against your {goal_label} goal, you are [on track / drifting / making strong progress]. [One sentence on biggest area for improvement]."
+"Over the last 30 days your average score was [X]/100. [Trend]. Against your {goal_label} goal, you are [on track / drifting / making strong progress]. [One sentence on biggest area for improvement]."
 
 Rules:
 - Use actual numbers from the data, not vague language
 - Keep it under 60 words
 - No motivational fluff — just the data and what it means
-- Reference the user's goal by name"""
+- Reference the user's goal by name
+- NEVER penalize the user for data that is marked as pending"""
 
 
 def generate_scale_summary(scale: str, goal_label: str, history: list) -> str:
@@ -505,6 +510,7 @@ def generate_scale_summary(scale: str, goal_label: str, history: list) -> str:
     history: list of {score_date, momentum_score, raw_deltas (JSON string or dict)}
     """
     import json as _json
+    from datetime import datetime as _dt
 
     if not history:
         return "Not enough data yet for a summary."
@@ -524,19 +530,22 @@ def generate_scale_summary(scale: str, goal_label: str, history: list) -> str:
         cal_d = deltas.get("calories", {})
         pro_d = deltas.get("protein", {})
         wk_d  = deltas.get("workout", {})
+        cal_status = "pending" if cal_d.get("pending") else f"{cal_d.get('actual', '?')}/{cal_d.get('target', '?')}"
+        pro_status = "pending" if pro_d.get("pending") else f"{pro_d.get('actual', '?')}/{pro_d.get('target', '?')}g"
+        wk_status  = "pending" if wk_d.get("pending") else ("yes" if wk_d.get("done") else "no")
         lines.append(
             f"{h['score_date']}: score={h['momentum_score']}, "
-            f"cal={cal_d.get('actual', '?')}/{cal_d.get('target', '?')}, "
-            f"protein={pro_d.get('actual', '?')}/{pro_d.get('target', '?')}g, "
-            f"workout={'yes' if wk_d.get('done') else 'no'}"
+            f"cal={cal_status}, protein={pro_status}, workout={wk_status}"
         )
 
     data_text = "\n".join(lines)
     data_text += f"\n\nPeriod average score: {avg_score}/100 over {len(scores)} day(s)."
 
+    now_str = _dt.now().strftime("%Y-%m-%d %I:%M %p")
     prompt = _SCALE_SUMMARY_PROMPT.format(
         goal_label=goal_label,
         scale=scale,
+        current_datetime=now_str,
     )
 
     try:
