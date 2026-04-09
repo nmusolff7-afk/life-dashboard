@@ -116,6 +116,23 @@
     .summary-row .k { color: var(--muted); }
     .summary-row .v { font-weight: 600; color: var(--accent2); }
 
+    .ob-plan { background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.25rem; text-align: left; }
+    .ob-plan-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .07em;
+      font-weight: 700; color: var(--muted); margin-bottom: 0.85rem;
+      display: flex; align-items: center; gap: 0.5rem; }
+    .ob-plan-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .ob-plan-goal { font-size: 1rem; font-weight: 700; color: var(--accent2); margin-bottom: 0.15rem; }
+    .ob-plan-goal-desc { font-size: 0.82rem; color: var(--muted); line-height: 1.5; margin-bottom: 1rem; }
+    .ob-plan-macro-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.85rem; }
+    .ob-plan-macro { background: var(--surface2); border-radius: 10px; padding: 0.65rem 0.75rem; }
+    .ob-plan-macro-val { font-size: 1.15rem; font-weight: 800; line-height: 1.2; }
+    .ob-plan-macro-lbl { font-size: 0.68rem; color: var(--muted); text-transform: uppercase;
+      letter-spacing: .04em; margin-top: 0.15rem; }
+    .ob-plan-macro-why { font-size: 0.72rem; color: var(--muted); margin-top: 0.3rem; line-height: 1.45; }
+    .ob-plan-sources { font-size: 0.7rem; color: var(--muted); border-top: 1px solid var(--border);
+      padding-top: 0.65rem; margin-top: 0.5rem; line-height: 1.55; }
+
     .card { background: var(--surface); border: 1px solid var(--border);
       border-radius: 12px; padding: 1.1rem; margin-bottom: 1rem; }
     .card-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .07em;
@@ -378,6 +395,7 @@
         <h2 id="ob-complete-heading">Your Profile is Ready</h2>
         <p id="ob-complete-body">Apex now understands who you are. Your dashboard is calibrated to your goals, lifestyle, and motivations.</p>
         <div class="ob-profile-summary" id="ob-profile-summary"></div>
+        <div id="ob-plan-section" style="display:none;margin-top:1.25rem"></div>
         <div class="error-msg" id="ob-error" style="display:none;margin-top:1rem"></div>
         <button class="btn btn-primary" id="ob-enter-btn" style="display:none;width:100%;margin-top:1.5rem;padding:0.9rem;font-size:1rem" onclick="enterApex(this)">
           Enter Apex ›
@@ -583,6 +601,7 @@
         document.getElementById("ob-complete-heading").textContent = "Your Profile is Ready";
         document.getElementById("ob-complete-body").textContent = "Apex now understands who you are. Your dashboard is calibrated to your goals, lifestyle, and motivations.";
         buildSummary(job.profile || {});
+        buildPlanPanel(job.targets || null);
         document.getElementById("ob-enter-btn").style.display = "";
       } catch (renderErr) {
         document.getElementById("ob-error").textContent = "Display error (profile saved): " + renderErr.message;
@@ -625,6 +644,73 @@
     document.getElementById("ob-profile-summary").innerHTML = rows.map(([k, v]) =>
       `<div class="summary-row"><span class="k">${k}</span><span class="v">${v}</span></div>`
     ).join("");
+  }
+
+  function buildPlanPanel(targets) {
+    const el = document.getElementById("ob-plan-section");
+    if (!el || !targets) { if (el) el.style.display = "none"; return; }
+
+    const t = targets;
+    const goalLabels = {
+      lose_weight: "Lose Weight", build_muscle: "Build Muscle",
+      recomp: "Body Recomposition", maintain: "Maintain"
+    };
+    const goalDescs = {
+      lose_weight: "Moderate calorie deficit to lose fat while preserving muscle.",
+      build_muscle: "Slight calorie surplus to maximize muscle growth.",
+      recomp: "Mild deficit with high protein for simultaneous fat loss and muscle gain.",
+      maintain: "Eating at maintenance to hold current weight and composition."
+    };
+    const adjPct = { lose_weight: "-20%", build_muscle: "+10%", recomp: "-10%", maintain: "0%" };
+    const proGKG = { lose_weight: "2.0", build_muscle: "1.8", recomp: "2.2", maintain: "1.6" };
+
+    const gk = t.goal_key || "lose_weight";
+    const ds = t.deficit_surplus || 0;
+    const dsLabel = ds < 0 ? Math.abs(ds) + " kcal deficit" : ds > 0 ? ds + " kcal surplus" : "at maintenance";
+
+    // Rationale per macro (from compute_targets)
+    const rat = t.rationale || {};
+
+    let html = '<div class="ob-plan">';
+    html += '<div class="ob-plan-title">Your Plan</div>';
+    html += '<div class="ob-plan-goal">' + (goalLabels[gk] || gk) + '</div>';
+    html += '<div class="ob-plan-goal-desc">' + (goalDescs[gk] || "") + '</div>';
+
+    // Macro grid
+    html += '<div class="ob-plan-macro-grid">';
+    html += '<div class="ob-plan-macro" style="grid-column:1/-1">'
+      + '<div class="ob-plan-macro-val" style="color:var(--cal)">' + (t.calorie_target || "—") + ' <span style="font-size:0.7rem;font-weight:400">kcal/day</span></div>'
+      + '<div class="ob-plan-macro-lbl">Calorie Target &middot; ' + dsLabel + '</div>'
+      + '<div class="ob-plan-macro-why">TDEE ' + (adjPct[gk] || "0%") + ' = ' + (t.calorie_target || "—") + ' kcal. Never below your RMR (' + (t.rmr || "—") + ' kcal).</div>'
+      + '</div>';
+    html += '<div class="ob-plan-macro">'
+      + '<div class="ob-plan-macro-val" style="color:var(--protein)">' + (t.protein_g || "—") + 'g</div>'
+      + '<div class="ob-plan-macro-lbl">Protein</div>'
+      + '<div class="ob-plan-macro-why">' + (proGKG[gk] || "2.0") + ' g/kg' + (gk === "lose_weight" ? " of goal weight" : " of body weight") + '</div>'
+      + '</div>';
+    html += '<div class="ob-plan-macro">'
+      + '<div class="ob-plan-macro-val" style="color:var(--fat)">' + (t.fat_g || "—") + 'g</div>'
+      + '<div class="ob-plan-macro-lbl">Fat</div>'
+      + '<div class="ob-plan-macro-why">25% of calories or 0.7 g/kg floor</div>'
+      + '</div>';
+    html += '<div class="ob-plan-macro" style="grid-column:1/-1">'
+      + '<div class="ob-plan-macro-val" style="color:var(--carbs)">' + (t.carbs_g || "—") + 'g</div>'
+      + '<div class="ob-plan-macro-lbl">Carbs</div>'
+      + '<div class="ob-plan-macro-why">Remainder after protein and fat, minimum 100g/day</div>'
+      + '</div>';
+    html += '</div>';
+
+    // Sources
+    const sources = t.sources || [];
+    if (sources.length) {
+      html += '<div class="ob-plan-sources">';
+      html += '<strong>Sources:</strong> ' + sources.join(' &middot; ');
+      html += '</div>';
+    }
+
+    html += '</div>';
+    el.innerHTML = html;
+    el.style.display = "";
   }
 
   window.enterApex = async function(btn) {
