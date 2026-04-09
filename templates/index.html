@@ -11,6 +11,16 @@
   <meta name="apple-mobile-web-app-title" content="Apex Fitness" />
   <link rel="manifest" href="/static/manifest.json" />
   <link rel="apple-touch-icon" href="/static/icon-192.png" />
+  <script>
+    // Apply saved theme BEFORE first paint to prevent flash
+    (function() {
+      var t = localStorage.getItem("apex-theme") || "dark";
+      document.documentElement.setAttribute("data-theme", t);
+      var m = document.querySelector('meta[name="theme-color"]');
+      var tc = { dark: "#0d1117", medium: "#1e1e2e", light: "#fef0f5" };
+      if (m) m.setAttribute("content", tc[t] || tc.dark);
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -18,7 +28,7 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    :root {
+    :root, [data-theme="dark"] {
       --bg:       #0d1117;
       --surface:  #161b22;
       --surface2: #21262d;
@@ -36,6 +46,45 @@
       --amber:    #e3b341;
       --nav-h:    64px;
       --header-h: 60px;
+      --theme-color: #0d1117;
+    }
+
+    [data-theme="medium"] {
+      --bg:       #1e1e2e;
+      --surface:  #27273a;
+      --surface2: #313148;
+      --border:   #44446a;
+      --accent:   #7c8ade;
+      --accent2:  #96a3f0;
+      --text:     #e8e8f0;
+      --muted:    #9898b0;
+      --cal:      #ffd699;
+      --protein:  #80d4c8;
+      --carbs:    #a8b0e0;
+      --fat:      #f0a0c0;
+      --danger:   #ff6b6b;
+      --green:    #5ed07a;
+      --amber:    #f0c860;
+      --theme-color: #1e1e2e;
+    }
+
+    [data-theme="light"] {
+      --bg:       #fef0f5;
+      --surface:  #ffffff;
+      --surface2: #f5e6ee;
+      --border:   #e0c8d8;
+      --accent:   #d4729c;
+      --accent2:  #e091b4;
+      --text:     #3a2030;
+      --muted:    #8a6878;
+      --cal:      #e89840;
+      --protein:  #3aaa96;
+      --carbs:    #6a78c0;
+      --fat:      #d45080;
+      --danger:   #d04050;
+      --green:    #40a860;
+      --amber:    #d0a030;
+      --theme-color: #fef0f5;
     }
 
     html, body { height: 100%; background: var(--bg); color: var(--text);
@@ -1811,6 +1860,28 @@
           </svg>
           Sign Out
         </a>
+      </div>
+
+      <!-- Theme -->
+      <div class="card">
+        <div class="card-title">Theme</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.6rem" id="theme-picker">
+          <button class="theme-swatch" data-theme="dark" style="background:#0d1117;border:2px solid transparent;border-radius:10px;padding:0.65rem 0.5rem;cursor:pointer;text-align:center;transition:border-color .15s">
+            <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 0.4rem;background:linear-gradient(135deg,#161b22,#5c6bc0)"></div>
+            <div style="font-size:0.78rem;font-weight:600;color:#e6edf3">Dark</div>
+            <div style="font-size:0.65rem;color:#8b949e;margin-top:0.15rem">Default</div>
+          </button>
+          <button class="theme-swatch" data-theme="medium" style="background:#1e1e2e;border:2px solid transparent;border-radius:10px;padding:0.65rem 0.5rem;cursor:pointer;text-align:center;transition:border-color .15s">
+            <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 0.4rem;background:linear-gradient(135deg,#27273a,#7c8ade)"></div>
+            <div style="font-size:0.78rem;font-weight:600;color:#e8e8f0">Medium</div>
+            <div style="font-size:0.65rem;color:#9898b0;margin-top:0.15rem">Balanced</div>
+          </button>
+          <button class="theme-swatch" data-theme="light" style="background:#fef0f5;border:2px solid transparent;border-radius:10px;padding:0.65rem 0.5rem;cursor:pointer;text-align:center;transition:border-color .15s">
+            <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 0.4rem;background:linear-gradient(135deg,#f5e6ee,#d4729c)"></div>
+            <div style="font-size:0.78rem;font-weight:600;color:#3a2030">Light</div>
+            <div style="font-size:0.65rem;color:#8a6878;margin-top:0.15rem">Soft</div>
+          </button>
+        </div>
       </div>
 
       <!-- Timezone -->
@@ -4802,8 +4873,11 @@ function fmtDate(iso) {
 
 (function() {
   // ── Dark-theme Chart.js defaults ──────────────────
-  Chart.defaults.color          = "#8b949e";
-  Chart.defaults.borderColor    = "#30363d";
+  const _isLight = document.documentElement.getAttribute("data-theme") === "light";
+  Chart.defaults.color          = _isLight ? "#8a6878" : "#8b949e";
+  Chart.defaults.borderColor    = _isLight ? "#e0c8d8" : "#30363d";
+  // Theme-aware grid color for charts
+  function _gc() { return document.documentElement.getAttribute("data-theme") === "light" ? "#e0c8d8" : "#21262d"; }
   Chart.defaults.font.family    = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   Chart.defaults.font.size      = 11;
 
@@ -4827,16 +4901,18 @@ function fmtDate(iso) {
     const d = new Date(); d.setDate(d.getDate() - n); return localDateStr(d);
   }
 
-  const TOOLTIP_STYLE = {
-    backgroundColor: "#21262d",
-    borderColor: "#30363d",
-    borderWidth: 1,
-    padding: 10,
-    titleColor: "#e6edf3",
-    bodyColor: "#8b949e",
-    xAlign: "left",
-    yAlign: "bottom",
-  };
+  function _tooltipStyle() {
+    const lt = document.documentElement.getAttribute("data-theme") === "light";
+    return {
+      backgroundColor: lt ? "#ffffff" : "#21262d",
+      borderColor:     lt ? "#e0c8d8" : "#30363d",
+      borderWidth: 1, padding: 10,
+      titleColor:  lt ? "#3a2030" : "#e6edf3",
+      bodyColor:   lt ? "#8a6878" : "#8b949e",
+      xAlign: "left", yAlign: "bottom",
+    };
+  }
+  const TOOLTIP_STYLE = _tooltipStyle();
 
   // ── 1. Body Weight Trend ──────────────────────────
   function buildWeightChart() {
@@ -4934,13 +5010,13 @@ function fmtDate(iso) {
           },
         },
         scales: {
-          x: { grid: { color: "#21262d" }, ticks: {
+          x: { grid: { color: _gc() }, ticks: {
             maxTicksLimit: weightDays <= 7 ? 7 : weightDays <= 30 ? 6 : 7,
             maxRotation: 0, autoSkip: true, autoSkipPadding: 12,
             font: { size: 10 },
           }},
           y: {
-            grid: { color: "#21262d" },
+            grid: { color: _gc() },
             ticks: { callback: v => v + " lbs", font: { size: 10 } },
             suggestedMin: Math.min(...dataVals, targetWt || Infinity) - 3,
             suggestedMax: Math.max(...dataVals, targetWt || -Infinity) + 3,
@@ -5101,7 +5177,7 @@ function fmtDate(iso) {
           },
         },
         scales: {
-          x: { grid: { color: "#21262d" }, ticks: {
+          x: { grid: { color: _gc() }, ticks: {
             maxTicksLimit: deficitDays <= 7 ? 7 : deficitDays <= 30 ? 6 : 7,
             maxRotation: 0, autoSkip: true, autoSkipPadding: 12,
             font: { size: 10 },
@@ -5248,9 +5324,9 @@ function fmtDate(iso) {
           },
         },
         scales: {
-          x: { grid: { color: "#21262d" }, ticks: { maxTicksLimit: 6, maxRotation: 0 } },
+          x: { grid: { color: _gc() }, ticks: { maxTicksLimit: 6, maxRotation: 0 } },
           y: {
-            grid: { color: "#21262d" },
+            grid: { color: _gc() },
             ticks: { callback: v => v + " lbs" },
             suggestedMin: Math.min(...data) - 10,
           },
@@ -5613,11 +5689,11 @@ function fmtDate(iso) {
           },
         },
         scales: {
-          x: { grid: { color: "#21262d" }, ticks: {
+          x: { grid: { color: _gc() }, ticks: {
             maxTicksLimit: mealChartDays <= 7 ? 7 : 6,
             maxRotation: 0, autoSkip: true, autoSkipPadding: 12, font: { size: 10 },
           }},
-          y: { grid: { color: "#21262d" }, beginAtZero: true,
+          y: { grid: { color: _gc() }, beginAtZero: true,
             ticks: { callback: v => v.toLocaleString(), font: { size: 10 } },
           },
         },
@@ -5710,11 +5786,11 @@ function fmtDate(iso) {
           },
         },
         scales: {
-          x: { grid: { color: "#21262d" }, ticks: {
+          x: { grid: { color: _gc() }, ticks: {
             maxTicksLimit: burnChartDays <= 7 ? 7 : 6,
             maxRotation: 0, autoSkip: true, autoSkipPadding: 12, font: { size: 10 },
           }},
-          y: { grid: { color: "#21262d" }, beginAtZero: true,
+          y: { grid: { color: _gc() }, beginAtZero: true,
             ticks: { callback: v => v.toLocaleString(), font: { size: 10 } },
           },
         },
@@ -6842,6 +6918,38 @@ if ("serviceWorker" in navigator) {
   });
 }
 
+
+// ══════════════════════════════════════════════════════
+//  THEME PICKER
+// ══════════════════════════════════════════════════════
+(function() {
+  const THEME_COLORS = { dark: "#0d1117", medium: "#1e1e2e", light: "#fef0f5" };
+  const picker = document.getElementById("theme-picker");
+  if (!picker) return;
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("apex-theme", theme);
+    // Update status bar color
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", THEME_COLORS[theme] || THEME_COLORS.dark);
+    // Update Chart.js defaults for new theme
+    const isDark = theme !== "light";
+    Chart.defaults.color = isDark ? "#8b949e" : "#8a6878";
+    Chart.defaults.borderColor = isDark ? "#30363d" : "#e0c8d8";
+    // Highlight active swatch
+    picker.querySelectorAll(".theme-swatch").forEach(s => {
+      s.style.borderColor = s.dataset.theme === theme ? "var(--accent2)" : "transparent";
+    });
+  }
+
+  // Highlight current theme on load
+  const current = localStorage.getItem("apex-theme") || "dark";
+  picker.querySelectorAll(".theme-swatch").forEach(s => {
+    s.style.borderColor = s.dataset.theme === current ? "var(--accent2)" : "transparent";
+    s.addEventListener("click", () => applyTheme(s.dataset.theme));
+  });
+})();
 
 // ══════════════════════════════════════════════════════
 //  TIMEZONE SETTINGS
