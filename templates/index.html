@@ -976,6 +976,14 @@
         </div>
       </div>
 
+      <!-- Macros Card -->
+      <div class="card" id="dash-macro-card" style="cursor:pointer">
+        <div class="card-title">Macros</div>
+        <div id="dash-macro-bars">
+          <div style="color:var(--muted);font-size:0.85rem">Log meals to see macros.</div>
+        </div>
+      </div>
+
       <!-- Morning Brief -->
       <div class="card brief-card" id="home-morning-card" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.7rem">
@@ -1094,16 +1102,6 @@
         </div>
       </div>
 
-      <!-- Macros Card -->
-      <div class="card" id="dash-macro-card" style="cursor:pointer">
-        <div class="card-title">Macros</div>
-        <div id="dash-macro-bars">
-          <div style="color:var(--muted);font-size:0.85rem">Log meals to see macros.</div>
-        </div>
-      </div>
-
-
-
       <!-- Sleep Card (populated from Garmin sync) -->
       <div class="card" id="sleep-card" style="display:none;padding-bottom:0.85rem">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
@@ -1151,6 +1149,42 @@
       {% if error %}
       <div class="error-banner">⚠ {{ error }}</div>
       {% endif %}
+
+      {% set default_goal_protein = 175 %}
+      {% set default_goal_carbs   = 250 %}
+      {% set default_goal_fat     = 75 %}
+      {% set cal_consumed = totals.total_calories %}
+      {% set balance = tdee - cal_consumed %}
+
+      <div class="card">
+        <div class="card-title">Daily summary</div>
+        <div class="deficit-display">
+          <div class="d-label" id="deficit-label">{% if balance >= 0 %}Calorie Deficit{% else %}Calorie Surplus{% endif %}</div>
+          <div class="d-value {% if balance >= 0 %}deficit{% else %}surplus{% endif %}" id="deficit-value">{{ balance|abs }} kcal</div>
+          <div class="d-sub" id="deficit-sub">{{ cal_consumed }} consumed &nbsp;/&nbsp; {{ tdee }} projected burn</div>
+        </div>
+        <div class="progress-section">
+          {% for name, consumed, goal, cls in [
+            ("Protein", totals.total_protein, default_goal_protein, "pro"),
+            ("Carbs",   totals.total_carbs,   default_goal_carbs,   "carb"),
+            ("Fat",     totals.total_fat,     default_goal_fat,     "fat"),
+          ] %}
+          {% set pct = [[((consumed/goal)*100)|round|int, 100]|min, 0]|max %}
+          <div class="progress-row">
+            <div class="progress-header">
+              <span class="p-label">{{ name }}</span>
+              <span id="goal-label-{{ cls }}" style="font-weight:600;color:var(--{% if cls=='pro' %}protein{% elif cls=='carb' %}carbs{% else %}fat{% endif %})">
+                {{ "%.0f"|format(consumed) }}g / {{ goal }}g
+              </span>
+            </div>
+            <div class="progress-bar-track">
+              <div class="progress-bar-fill {{ cls }}{% if consumed >= goal %} hit{% endif %}"
+                   id="bar-fill-{{ cls }}" style="width:{{ pct }}%"></div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
 
       <div class="card">
         <div class="card-title">Log a meal</div>
@@ -1267,39 +1301,16 @@
         {% endif %}
       </div>
 
-      {% set default_goal_protein = 175 %}
-      {% set default_goal_carbs   = 250 %}
-      {% set default_goal_fat     = 75 %}
-      {% set cal_consumed = totals.total_calories %}
-      {% set balance = tdee - cal_consumed %}
-
+      <!-- Calories Consumed Chart -->
       <div class="card">
-        <div class="card-title">Daily summary</div>
-        <div class="deficit-display">
-          <div class="d-label" id="deficit-label">{% if balance >= 0 %}Calorie Deficit{% else %}Calorie Surplus{% endif %}</div>
-          <div class="d-value {% if balance >= 0 %}deficit{% else %}surplus{% endif %}" id="deficit-value">{{ balance|abs }} kcal</div>
-          <div class="d-sub" id="deficit-sub">{{ cal_consumed }} consumed &nbsp;/&nbsp; {{ tdee }} projected burn</div>
-        </div>
-        <div class="progress-section">
-          {% for name, consumed, goal, cls in [
-            ("Protein", totals.total_protein, default_goal_protein, "pro"),
-            ("Carbs",   totals.total_carbs,   default_goal_carbs,   "carb"),
-            ("Fat",     totals.total_fat,     default_goal_fat,     "fat"),
-          ] %}
-          {% set pct = [[((consumed/goal)*100)|round|int, 100]|min, 0]|max %}
-          <div class="progress-row">
-            <div class="progress-header">
-              <span class="p-label">{{ name }}</span>
-              <span id="goal-label-{{ cls }}" style="font-weight:600;color:var(--{% if cls=='pro' %}protein{% elif cls=='carb' %}carbs{% else %}fat{% endif %})">
-                {{ "%.0f"|format(consumed) }}g / {{ goal }}g
-              </span>
-            </div>
-            <div class="progress-bar-track">
-              <div class="progress-bar-fill {{ cls }}{% if consumed >= goal %} hit{% endif %}"
-                   id="bar-fill-{{ cls }}" style="width:{{ pct }}%"></div>
-            </div>
-          </div>
-          {% endfor %}
+        <div class="card-title">Calories Consumed<span id="meal-chart-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0;margin-left:auto">7 days</span></div>
+        <div class="chart-wrap"><canvas id="chart-meal-cal"></canvas></div>
+        <div id="meal-chart-nodata" style="display:none" class="empty">No meal data yet.</div>
+        <div class="chart-stats" id="meal-chart-stats"></div>
+        <div class="chart-range-pills">
+          <button class="btn btn-ghost chart-range-pill meal-chart-pill active" data-days="7">7D</button>
+          <button class="btn btn-ghost chart-range-pill meal-chart-pill" data-days="30">30D</button>
+          <button class="btn btn-ghost chart-range-pill meal-chart-pill" data-days="90">90D</button>
         </div>
       </div>
 
@@ -1390,18 +1401,6 @@
         </div>
       </div>
 
-      <!-- Calories Consumed Chart -->
-      <div class="card">
-        <div class="card-title">Calories Consumed<span id="meal-chart-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0;margin-left:auto">7 days</span></div>
-        <div class="chart-wrap"><canvas id="chart-meal-cal"></canvas></div>
-        <div id="meal-chart-nodata" style="display:none" class="empty">No meal data yet.</div>
-        <div class="chart-stats" id="meal-chart-stats"></div>
-        <div class="chart-range-pills">
-          <button class="btn btn-ghost chart-range-pill meal-chart-pill active" data-days="7">7D</button>
-          <button class="btn btn-ghost chart-range-pill meal-chart-pill" data-days="30">30D</button>
-          <button class="btn btn-ghost chart-range-pill meal-chart-pill" data-days="90">90D</button>
-        </div>
-      </div>
 
     </div><!-- /tab-meals -->
 
@@ -1558,6 +1557,25 @@
           <div class="icon">⚠️</div>Failed to load data. Reload and try again.
         </div>
 
+        <!-- Daily Score -->
+        <div class="card">
+          <div class="card-title">Daily Score<span id="score-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0;margin-left:auto">7 days</span></div>
+          <div class="chart-wrap"><canvas id="chart-score"></canvas></div>
+          <div id="score-nodata" style="display:none" class="empty">No score data yet — complete a day to start tracking.</div>
+          <div class="chart-stats" id="score-stats"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:0.75rem">
+            <div class="chart-range-pills" style="margin-top:0">
+              <button class="btn btn-ghost chart-range-pill score-pill active" data-days="7">7D</button>
+              <button class="btn btn-ghost chart-range-pill score-pill" data-days="30">30D</button>
+              <button class="btn btn-ghost chart-range-pill score-pill" data-days="90">90D</button>
+            </div>
+            <div style="display:flex;gap:0.35rem">
+              <button class="btn btn-ghost score-avg-btn" data-avg="7" style="font-size:0.68rem;padding:0.18rem 0.45rem;opacity:0.6">7D avg</button>
+              <button class="btn btn-ghost score-avg-btn" data-avg="30" style="font-size:0.68rem;padding:0.18rem 0.45rem;opacity:0.6">30D avg</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Body Weight Trend -->
         <div class="card">
           <div class="card-title">Body Weight Trend<span id="weight-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0;margin-left:auto">7 days</span></div>
@@ -1600,25 +1618,6 @@
           <div id="strength-empty" class="empty" style="padding:0.75rem 0">
             <div class="icon" style="font-size:1.5rem">💪</div>
             Select an exercise above to see your progress over time.
-          </div>
-        </div>
-
-        <!-- Daily Score -->
-        <div class="card">
-          <div class="card-title">Daily Score<span id="score-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0;margin-left:auto">7 days</span></div>
-          <div class="chart-wrap"><canvas id="chart-score"></canvas></div>
-          <div id="score-nodata" style="display:none" class="empty">No score data yet — complete a day to start tracking.</div>
-          <div class="chart-stats" id="score-stats"></div>
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:0.75rem">
-            <div class="chart-range-pills" style="margin-top:0">
-              <button class="btn btn-ghost chart-range-pill score-pill active" data-days="7">7D</button>
-              <button class="btn btn-ghost chart-range-pill score-pill" data-days="30">30D</button>
-              <button class="btn btn-ghost chart-range-pill score-pill" data-days="90">90D</button>
-            </div>
-            <div style="display:flex;gap:0.35rem">
-              <button class="btn btn-ghost score-avg-btn" data-avg="7" style="font-size:0.68rem;padding:0.18rem 0.45rem;opacity:0.6">7D avg</button>
-              <button class="btn btn-ghost score-avg-btn" data-avg="30" style="font-size:0.68rem;padding:0.18rem 0.45rem;opacity:0.6">30D avg</button>
-            </div>
           </div>
         </div>
 
@@ -1883,6 +1882,21 @@
         <div class="profile-preview" id="profile-preview">Fill in your details above to see your personalized plan.</div>
       </div>
 
+      <!-- Target recalc prompt -->
+      <div id="target-recalc-prompt" style="display:none;margin-bottom:0.75rem;padding:0.75rem 1rem;background:var(--surface);border:1px solid var(--accent);border-radius:10px">
+        <div style="font-size:0.84rem;color:var(--text);margin-bottom:0.6rem;line-height:1.5">Your profile changes would update your nutrition targets. Apply new targets?</div>
+        <div style="display:flex;gap:0.5rem">
+          <button class="btn btn-primary" id="target-recalc-yes" style="flex:1;padding:0.5rem;font-size:0.85rem">Yes, recalculate</button>
+          <button class="btn btn-ghost" id="target-recalc-no" style="flex:1;padding:0.5rem;font-size:0.85rem">No, keep current</button>
+        </div>
+      </div>
+
+      <!-- Save -->
+      <div style="display:flex;align-items:center;margin-bottom:1rem">
+        <button class="btn btn-primary btn-full" id="save-profile-btn">Save Profile</button>
+        <span class="save-confirm" id="save-confirm">✓ Saved</span>
+      </div>
+
       <!-- Workout Plan -->
       <div class="card">
         <div class="card-title">Workout Plan</div>
@@ -1922,34 +1936,27 @@
         </div>
       </div>
 
-      <!-- Target recalc prompt -->
-      <div id="target-recalc-prompt" style="display:none;margin-bottom:0.75rem;padding:0.75rem 1rem;background:var(--surface);border:1px solid var(--accent);border-radius:10px">
-        <div style="font-size:0.84rem;color:var(--text);margin-bottom:0.6rem;line-height:1.5">Your profile changes would update your nutrition targets. Apply new targets?</div>
-        <div style="display:flex;gap:0.5rem">
-          <button class="btn btn-primary" id="target-recalc-yes" style="flex:1;padding:0.5rem;font-size:0.85rem">Yes, recalculate</button>
-          <button class="btn btn-ghost" id="target-recalc-no" style="flex:1;padding:0.5rem;font-size:0.85rem">No, keep current</button>
-        </div>
-      </div>
-
-      <!-- Save -->
-      <div style="display:flex;align-items:center;margin-bottom:1rem">
-        <button class="btn btn-primary btn-full" id="save-profile-btn">Save Profile</button>
-        <span class="save-confirm" id="save-confirm">✓ Saved</span>
-      </div>
-
-      <!-- Account -->
+      <!-- My Profile -->
       <div class="card">
-        <div class="card-title">Account</div>
-        <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:1rem">
-          <img src="/static/apex-logo.png" alt="Apex Fitness" style="height:20px;width:auto;opacity:0.7">
-          <span style="font-size:0.88rem;color:var(--muted)">Signed in as <strong style="color:var(--text)">{{ username }}</strong></span>
+        <div class="card-title">My Profile</div>
+        <div id="profile-summary-line" style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.5">
+          Loading profile summary…
         </div>
-        <a href="/logout" class="btn btn-ghost btn-full" style="text-decoration:none;display:flex;align-items:center;justify-content:center;gap:0.5rem">
-          <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-          </svg>
-          Sign Out
-        </a>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
+          <a href="/onboarding?edit=1" class="btn btn-ghost" style="text-decoration:none;display:flex;align-items:center;justify-content:center;gap:0.4rem;font-size:0.85rem">
+            <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+            Edit Profile
+          </a>
+          <button class="btn btn-ghost" id="view-plan-btn" style="font-size:0.85rem;display:flex;align-items:center;justify-content:center;gap:0.4rem">
+            <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+            View Plan
+          </button>
+        </div>
+        <div id="view-plan-panel" style="display:none;margin-top:0.85rem"></div>
       </div>
 
       <!-- Theme -->
@@ -1974,28 +1981,7 @@
         </div>
       </div>
 
-      <!-- Timezone -->
-      <div class="card">
-        <div class="card-title">Timezone</div>
-        <div style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem">
-          Controls which calendar day your meals and workouts are saved to.
-          <em>Automatic</em> uses your device's clock.
-        </div>
-        <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.65rem">
-          <label style="font-size:0.82rem;color:var(--muted);flex-shrink:0">Mode</label>
-          <div id="tz-mode-btns" style="display:flex;gap:0.4rem;flex:1">
-            <button type="button" id="tz-auto-btn" class="btn" style="flex:1;font-size:0.8rem">Automatic</button>
-            <button type="button" id="tz-manual-btn" class="btn" style="flex:1;font-size:0.8rem">Manual</button>
-          </div>
-        </div>
-        <div id="tz-detected" style="font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem"></div>
-        <div id="tz-manual-row" style="display:none;margin-bottom:0.5rem">
-          <select id="tz-select" class="input" style="width:100%;font-size:0.85rem"></select>
-        </div>
-        <div id="tz-current-date" style="font-size:0.78rem;color:var(--muted)"></div>
-      </div>
-
-      <!-- Brief Schedule -->
+      <!-- Check-in Schedule -->
       <div class="card">
         <div class="card-title">Check-in Schedule</div>
         <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.5">
@@ -2029,27 +2015,40 @@
         <span class="save-confirm" id="brief-save-confirm">✓ Saved</span>
       </div>
 
-      <!-- Edit Profile -->
+      <!-- Timezone -->
       <div class="card">
-        <div class="card-title">My Profile</div>
-        <div id="profile-summary-line" style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.5">
-          Loading profile summary…
+        <div class="card-title">Timezone</div>
+        <div style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem">
+          Controls which calendar day your meals and workouts are saved to.
+          <em>Automatic</em> uses your device's clock.
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
-          <a href="/onboarding?edit=1" class="btn btn-ghost" style="text-decoration:none;display:flex;align-items:center;justify-content:center;gap:0.4rem;font-size:0.85rem">
-            <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-            </svg>
-            Edit Profile
-          </a>
-          <button class="btn btn-ghost" id="view-plan-btn" style="font-size:0.85rem;display:flex;align-items:center;justify-content:center;gap:0.4rem">
-            <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-            </svg>
-            View Plan
-          </button>
+        <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.65rem">
+          <label style="font-size:0.82rem;color:var(--muted);flex-shrink:0">Mode</label>
+          <div id="tz-mode-btns" style="display:flex;gap:0.4rem;flex:1">
+            <button type="button" id="tz-auto-btn" class="btn" style="flex:1;font-size:0.8rem">Automatic</button>
+            <button type="button" id="tz-manual-btn" class="btn" style="flex:1;font-size:0.8rem">Manual</button>
+          </div>
         </div>
-        <div id="view-plan-panel" style="display:none;margin-top:0.85rem"></div>
+        <div id="tz-detected" style="font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem"></div>
+        <div id="tz-manual-row" style="display:none;margin-bottom:0.5rem">
+          <select id="tz-select" class="input" style="width:100%;font-size:0.85rem"></select>
+        </div>
+        <div id="tz-current-date" style="font-size:0.78rem;color:var(--muted)"></div>
+      </div>
+
+      <!-- Account -->
+      <div class="card">
+        <div class="card-title">Account</div>
+        <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:1rem">
+          <img src="/static/apex-logo.png" alt="Apex Fitness" style="height:20px;width:auto;opacity:0.7">
+          <span style="font-size:0.88rem;color:var(--muted)">Signed in as <strong style="color:var(--text)">{{ username }}</strong></span>
+        </div>
+        <a href="/logout" class="btn btn-ghost btn-full" style="text-decoration:none;display:flex;align-items:center;justify-content:center;gap:0.5rem">
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Sign Out
+        </a>
       </div>
 
       <!-- Delete Account -->
@@ -2080,20 +2079,6 @@
       <div class="card" id="momentum-card">
         <div class="card-title">Daily Score</div>
         <div id="momentum-content">
-          <div style="color:var(--muted);font-size:0.85rem;padding:0.25rem 0">Loading...</div>
-        </div>
-      </div>
-
-      <!-- Gmail card -->
-      <div class="card gmail-card" id="gmail-card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
-          <div class="card-title" style="margin:0;flex:1">
-            <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,7 12,13 2,7"/></svg>
-            Email
-          </div>
-          <div id="gmail-header-actions"></div>
-        </div>
-        <div id="gmail-content">
           <div style="color:var(--muted);font-size:0.85rem;padding:0.25rem 0">Loading...</div>
         </div>
       </div>
@@ -2130,6 +2115,20 @@
         </div>
         <div id="mind-task-list">
           <div style="color:var(--muted);font-size:0.85rem;padding:0.5rem 0">No tasks yet — submit a brief or add one manually.</div>
+        </div>
+      </div>
+
+      <!-- Gmail card -->
+      <div class="card gmail-card" id="gmail-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+          <div class="card-title" style="margin:0;flex:1">
+            <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,7 12,13 2,7"/></svg>
+            Email
+          </div>
+          <div id="gmail-header-actions"></div>
+        </div>
+        <div id="gmail-content">
+          <div style="color:var(--muted);font-size:0.85rem;padding:0.25rem 0">Loading...</div>
         </div>
       </div>
 
