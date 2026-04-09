@@ -7023,45 +7023,89 @@ function fmtDate(iso) {
   function renderMomentum(data) {
     const el = document.getElementById("momentum-content");
     if (!data || data.error) {
-      el.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:0.25rem 0">Complete your profile to enable Momentum tracking.</div>';
+      el.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:0.25rem 0">Complete your profile to enable Daily Score tracking.</div>';
       return;
     }
     const score      = data.momentum_score;
     const scoreColor = _momentumColor(score);
-    const COMP_DEFS  = [
-      { key: "nutrition", label: "Calories", max: 15 },
-      { key: "protein",   label: "Protein",  max: 10 },
-      { key: "activity",  label: "Workout",  max: 10 },
-      { key: "checkin",   label: "Check-in", max:  5 },
-      { key: "tasks",     label: "Tasks",    max:  5 },
+    const penalties  = data.penalties || {};
+    const deltas     = data.raw_deltas || {};
+    const comps      = data.components || {};
+
+    // Build deduction rows
+    function penColor(pen, max) {
+      if (pen <= 0) return "var(--green)";
+      if (pen < max * 0.5) return "var(--amber)";
+      return "var(--danger)";
+    }
+
+    function deltaDesc(key) {
+      const d = deltas[key];
+      if (!d) return "";
+      if (key === "calories") {
+        if (d.target == null) return "no target set";
+        if (d.actual === 0) return "nothing logged";
+        const sign = d.delta > 0 ? "+" : "";
+        return sign + d.delta + " kcal vs " + d.target + " target";
+      }
+      if (key === "protein") {
+        if (d.target == null) return "no target set";
+        if (d.actual === 0) return "nothing logged";
+        const sign = d.delta > 0 ? "+" : "";
+        return sign + Math.round(d.delta) + "g vs " + d.target + "g target";
+      }
+      if (key === "workout") {
+        if (d.done) return d.burn > 0 ? d.burn + " kcal burned" : "active today";
+        return "no workout logged";
+      }
+      if (key === "checkin") {
+        if (d.morning && d.evening) return "both done";
+        if (d.morning) return "morning done, evening missing";
+        if (d.evening) return "evening done, morning missing";
+        return "none completed";
+      }
+      if (key === "tasks") {
+        if (d.total === 0) return "no tasks today";
+        return d.completed + " of " + d.total + " done";
+      }
+      return "";
+    }
+
+    const DEDUCTIONS = [
+      { key: "nutrition", deltaKey: "calories", label: "Calories", max: 15 },
+      { key: "protein",   deltaKey: "protein",  label: "Protein",  max: 10 },
+      { key: "activity",  deltaKey: "workout",  label: "Workout",  max: 10 },
+      { key: "checkin",   deltaKey: "checkin",  label: "Check-in", max:  5 },
+      { key: "tasks",     deltaKey: "tasks",    label: "Tasks",    max:  5 },
     ];
-    const comps   = data.components || {};
-    const contrib = data.weighted_contributions || {};
-    const rows = COMP_DEFS.map(c => {
-      const pct      = (comps[c.key] && comps[c.key].pct != null) ? comps[c.key].pct : 0;
-      const weighted = (contrib[c.key] != null) ? contrib[c.key] : 0;
-      const barPct   = Math.round(pct * 100);
-      const barColor = pct >= 0.8 ? "var(--green)" : pct >= 0.4 ? "var(--amber)" : "var(--danger)";
-      const missing  = (comps[c.key] && comps[c.key].missing)
-        ? ' <span style="color:var(--muted);font-size:0.7rem">(no goal set)</span>' : "";
-      return `<div style="margin-bottom:0.55rem">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:0.22rem">
-          <span style="font-size:0.82rem;color:var(--text)">${c.label}${missing}</span>
-          <span style="font-family:monospace;font-size:0.78rem;color:var(--muted)">${weighted.toFixed(1)} / ${c.max}</span>
-        </div>
-        <div style="height:5px;background:var(--surface2);border-radius:99px;overflow:hidden">
-          <div style="height:100%;border-radius:99px;background:${barColor};width:${barPct}%;transition:width .4s ease"></div>
-        </div>
+
+    const rows = DEDUCTIONS.map(d => {
+      const pen   = penalties[d.key] || 0;
+      const color = penColor(pen, d.max);
+      const desc  = deltaDesc(d.deltaKey);
+      const missing = (comps[d.key] && comps[d.key].missing)
+        ? ' <span style="font-size:0.7rem;color:var(--muted)">(no goal)</span>' : "";
+      const penStr  = pen <= 0 ? '<span style="color:var(--green)">0</span>'
+                               : '<span style="color:' + color + '">−' + pen.toFixed(1) + '</span>';
+      return `<div style="display:flex;align-items:baseline;gap:0.5rem;padding:0.35rem 0;border-bottom:1px solid var(--surface2)">
+        <span style="font-size:0.82rem;color:var(--text);min-width:4.5rem">${d.label}${missing}</span>
+        <span style="font-family:monospace;font-size:0.8rem;flex-shrink:0">${penStr}</span>
+        <span style="font-size:0.72rem;color:var(--muted);flex:1;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${desc}</span>
       </div>`;
     }).join("");
 
+    const totalPen = Object.values(penalties).reduce((a, b) => a + b, 0);
+
     el.innerHTML = `
-      <div style="display:flex;align-items:center;gap:1.25rem;margin-bottom:1.1rem">
+      <div style="display:flex;align-items:center;gap:1.25rem;margin-bottom:0.75rem">
         <div style="text-align:center;min-width:4.5rem">
           <div class="mind-score-big" style="font-size:3rem;color:${scoreColor}">${score}</div>
           <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:0.1rem">/ 100</div>
         </div>
-        <div style="flex:1">${rows}</div>
+        <div style="flex:1">
+          <div style="font-size:0.78rem;color:var(--muted);margin-bottom:0.4rem">100 − ${totalPen.toFixed(1)} penalties = ${score}</div>
+          ${rows}
+        </div>
       </div>
       <div style="border-top:1px solid var(--border);padding-top:0.85rem">
         <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:0.5rem">Pattern Insight</div>
