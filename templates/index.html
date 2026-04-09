@@ -1709,7 +1709,7 @@
 
         <div class="field" style="margin-bottom:0">
           <label>Goal</label>
-          <div class="seg-control" style="flex-wrap:wrap;gap:0.4rem">
+          <div class="seg-control" style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem">
             <button class="seg-btn goal-btn" data-val="lose_weight">Lose Weight</button>
             <button class="seg-btn goal-btn" data-val="build_muscle">Build Muscle</button>
             <button class="seg-btn goal-btn" data-val="recomp">Recomp</button>
@@ -1750,7 +1750,7 @@
           </div>
           <input type="range" id="deficit-slider" min="-2000" max="2000" step="25">
           <div style="display:flex;justify-content:space-between;font-size:0.65rem;color:var(--muted);margin-top:0.2rem">
-            <span>← surplus</span><span>0</span><span>deficit →</span>
+            <span>← deficit</span><span>0</span><span>surplus →</span>
           </div>
         </div>
 
@@ -4630,10 +4630,10 @@ try {
     const tef   = calcTEF(CAL_CONSUMED, PROTEIN_CONSUMED, CARBS_CONSUMED, FAT_CONSUMED);
     const tdee  = rmr + neat + eat + tef;
     const targetCal = calcTargetCalories(tdee, inp.goal, rmr);
-    const deficit   = tdee - targetCal;  // positive = deficit, negative = surplus
+    const adjust    = targetCal - tdee;  // negative = deficit, positive = surplus
     const macros    = calcMacros(targetCal, inp.curWeight, inp.tgtWeight, inp.goal);
     setSlider("rmr",     rmr);
-    setSlider("deficit", deficit);
+    setSlider("deficit", adjust);
     setSlider("protein", macros.protein);
     setSlider("carbs",   macros.carbs);
     setSlider("fat",     macros.fat);
@@ -4644,12 +4644,13 @@ try {
     const inp     = readInputs();
     const steps   = getTodaySteps();
     const rmr     = getSlider("rmr");
-    const deficit = getSlider("deficit");
+    const adjust  = getSlider("deficit");  // negative = deficit, positive = surplus
     const { neat, workoutSteps, netSteps } = calcNEAT(inp.occupation, steps, TODAY_WORKOUT_DESCS);
     const eat     = WORKOUT_BURN_TODAY;
     const tef     = calcTEF(CAL_CONSUMED, PROTEIN_CONSUMED, CARBS_CONSUMED, FAT_CONSUMED);
     const tdee    = rmr + neat + eat + tef;
-    const intake  = tdee - deficit;
+    const intake  = tdee + adjust;
+    const deficit = -adjust;  // positive when in deficit for weeksToGoal
     const weeks   = weeksToGoal(inp.curWeight, inp.tgtWeight, deficit);
     const goalLabel = { lose_weight: "Lose Weight", build_muscle: "Build Muscle", recomp: "Recomp", maintain: "Maintain" }[inp.goal] || inp.goal;
     const previewEl = document.getElementById("profile-preview");
@@ -4678,9 +4679,9 @@ try {
     } else {
       html += `<br>Eating at maintenance`;
     }
-    // Update unit label
+    // Update unit label based on slider value (adjust: negative=deficit, positive=surplus)
     const unitEl = document.getElementById("deficit-unit-label");
-    if (unitEl) unitEl.textContent = deficit > 0 ? "deficit" : deficit < 0 ? "surplus" : "kcal";
+    if (unitEl) unitEl.textContent = adjust < 0 ? "deficit" : adjust > 0 ? "surplus" : "kcal";
     html += `</div>`;
     if (previewEl) previewEl.innerHTML = html;
   }
@@ -4785,10 +4786,10 @@ try {
       const tef   = calcTEF(CAL_CONSUMED, PROTEIN_CONSUMED, CARBS_CONSUMED, FAT_CONSUMED);
       const tdee  = rmr + neat + eat + tef;
       const targetCal = calcTargetCalories(tdee, inp.goal, rmr);
-      const deficit   = tdee - targetCal;
+      const adjust    = targetCal - tdee;  // negative = deficit, positive = surplus
       const macros    = calcMacros(targetCal, inp.curWeight, inp.tgtWeight, inp.goal);
       profile.rmr     = rmr;
-      profile.deficit = deficit;
+      profile.deficit = adjust;
       profile.protein = macros.protein;
       profile.carbs   = macros.carbs;
       profile.fat     = macros.fat;
@@ -4963,8 +4964,9 @@ function fmtDate(iso) {
     const change   = last - first;
 
     let weeksLeft = null;
-    if (targetWt && last > targetWt && (profile.deficit || 0) > 0) {
-      weeksLeft = Math.ceil((last - targetWt) / ((profile.deficit * 7) / 3500));
+    const _absDef = -(profile.deficit || 0);  // profile.deficit is negative when in deficit
+    if (targetWt && last > targetWt && _absDef > 0) {
+      weeksLeft = Math.ceil((last - targetWt) / ((_absDef * 7) / 3500));
     }
 
     const ptRadius = allDates.map(d => weightMap[d] != null ? 4 : 0);
@@ -7287,7 +7289,7 @@ if ("serviceWorker" in navigator) {
         goalCard.style.display = "";
         const curW        = entry.weight || null;
         const tgtW        = profile.tgtWeight;
-        const deficitKcal = profile.deficit || 0;
+        const deficitKcal = -(profile.deficit || 0);  // negate: stored as negative=deficit
         const goalSetDate = profile.goalSetDate;
 
         if (!curW) {
