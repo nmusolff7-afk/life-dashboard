@@ -1603,6 +1603,25 @@
           </div>
         </div>
 
+        <!-- Daily Score -->
+        <div class="card">
+          <div class="card-title">Daily Score<span id="score-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0;margin-left:auto">7 days</span></div>
+          <div class="chart-wrap"><canvas id="chart-score"></canvas></div>
+          <div id="score-nodata" style="display:none" class="empty">No score data yet — complete a day to start tracking.</div>
+          <div class="chart-stats" id="score-stats"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:0.75rem">
+            <div class="chart-range-pills" style="margin-top:0">
+              <button class="btn btn-ghost chart-range-pill score-pill active" data-days="7">7D</button>
+              <button class="btn btn-ghost chart-range-pill score-pill" data-days="30">30D</button>
+              <button class="btn btn-ghost chart-range-pill score-pill" data-days="90">90D</button>
+            </div>
+            <div style="display:flex;gap:0.35rem">
+              <button class="btn btn-ghost score-avg-btn" data-avg="7" style="font-size:0.68rem;padding:0.18rem 0.45rem;opacity:0.6">7D avg</button>
+              <button class="btn btn-ghost score-avg-btn" data-avg="30" style="font-size:0.68rem;padding:0.18rem 0.45rem;opacity:0.6">30D avg</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Activity Calendar -->
         <div class="card">
           <div class="card-title">Activity Calendar</div>
@@ -5586,7 +5605,163 @@ function fmtDate(iso) {
     });
   }
 
-  // ── 4. Activity Calendar ──────────────────────────
+  // ── 4. Daily Score chart ─────────────────────────
+  let scoreDays = 7;
+  let scoreChart = null;
+  let scoreAvg7  = false;
+  let scoreAvg30 = false;
+
+  function rollingAvg(data, window) {
+    return data.map((_, i) => {
+      const start = Math.max(0, i - window + 1);
+      const slice = data.slice(start, i + 1).filter(v => v !== null);
+      return slice.length ? Math.round(slice.reduce((a, b) => a + b, 0) / slice.length * 10) / 10 : null;
+    });
+  }
+
+  function buildScoreChart() {
+    const momentum = (histData && histData.momentum) || {};
+    const cutoff   = daysAgoStr(scoreDays - 1);
+    const canvas   = document.getElementById("chart-score");
+    const nodataEl = document.getElementById("score-nodata");
+    const statsEl  = document.getElementById("score-stats");
+
+    // Build date range
+    const allDates = [];
+    { const c = new Date(cutoff + "T00:00:00"), e = new Date(todayStr() + "T00:00:00");
+      while (c <= e) { allDates.push(localDateStr(c)); c.setDate(c.getDate() + 1); } }
+
+    const vals = allDates.map(d => momentum[d] ?? null);
+    const hasAny = vals.some(v => v !== null);
+
+    if (!hasAny) {
+      canvas.style.display = "none";
+      if (nodataEl) nodataEl.style.display = "";
+      statsEl.innerHTML = "";
+      return;
+    }
+    canvas.style.display = "";
+    if (nodataEl) nodataEl.style.display = "none";
+
+    const nonNull  = vals.filter(v => v !== null);
+    const avg      = Math.round(nonNull.reduce((a, b) => a + b, 0) / nonNull.length);
+    const todayVal = vals[vals.length - 1];
+    const first    = nonNull[0], last = nonNull[nonNull.length - 1];
+    const trend    = last - first;
+
+    const ptRadius = allDates.map(d => momentum[d] != null ? 3 : 0);
+
+    const datasets = [{
+      label: "Score",
+      data: vals,
+      spanGaps: true,
+      borderColor: "#7986cb",
+      backgroundColor: "rgba(121,134,203,0.08)",
+      fill: true,
+      tension: 0.3,
+      pointRadius: ptRadius,
+      pointBackgroundColor: "#7986cb",
+      pointBorderColor: "var(--surface)",
+      pointBorderWidth: 2,
+      borderWidth: 2,
+    }];
+
+    if (scoreAvg7) {
+      datasets.push({
+        label: "7D Rolling Avg",
+        data: rollingAvg(vals, 7),
+        spanGaps: true,
+        borderColor: "#3fb950",
+        borderWidth: 1.5,
+        borderDash: [5, 3],
+        pointRadius: 0,
+        fill: false,
+        tension: 0.3,
+      });
+    }
+    if (scoreAvg30) {
+      datasets.push({
+        label: "30D Rolling Avg",
+        data: rollingAvg(vals, 30),
+        spanGaps: true,
+        borderColor: "#e3b341",
+        borderWidth: 1.5,
+        borderDash: [5, 3],
+        pointRadius: 0,
+        fill: false,
+        tension: 0.3,
+      });
+    }
+
+    if (scoreChart) scoreChart.destroy();
+    scoreChart = new Chart(canvas, {
+      type: "line",
+      data: { labels: allDates.map(fmtDate), datasets },
+      options: {
+        responsive: true, maintainAspectRatio: true, aspectRatio: 1.9,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: { display: datasets.length > 1, position: "bottom",
+            labels: { boxWidth: 12, font: { size: 10 }, padding: 8 } },
+          tooltip: {
+            ..._tooltipStyle(),
+            filter: item => item.parsed.y !== null,
+            callbacks: { label: ctx => " " + ctx.dataset.label + ": " + ctx.parsed.y },
+          },
+        },
+        scales: {
+          x: { grid: { color: _gc() }, ticks: {
+            maxTicksLimit: scoreDays <= 7 ? 7 : 6,
+            maxRotation: 0, autoSkip: true, autoSkipPadding: 12, font: { size: 10 },
+          }},
+          y: {
+            grid: { color: _gc() },
+            min: 0, max: 100,
+            ticks: { stepSize: 20, font: { size: 10 } },
+          },
+        },
+      },
+    });
+
+    const trendColor = trend >= 0 ? "var(--green)" : "var(--danger)";
+    const trendStr   = (trend >= 0 ? "+" : "") + trend;
+    const trendLabel = trend > 0 ? "Improving" : trend < 0 ? "Declining" : "Steady";
+    statsEl.innerHTML = `
+      <div class="chart-stat">
+        <div class="chart-stat-val">${todayVal !== null ? todayVal : "—"}</div>
+        <div class="chart-stat-lbl">Today</div>
+      </div>
+      <div class="chart-stat">
+        <div class="chart-stat-val">${avg}</div>
+        <div class="chart-stat-lbl">${scoreDays}D Avg</div>
+      </div>
+      <div class="chart-stat">
+        <div class="chart-stat-val" style="color:${trendColor}">${trendStr}</div>
+        <div class="chart-stat-lbl">${trendLabel}</div>
+      </div>`;
+  }
+
+  document.querySelectorAll(".score-pill").forEach(btn => {
+    btn.addEventListener("click", () => {
+      scoreDays = parseInt(btn.dataset.days);
+      document.querySelectorAll(".score-pill").forEach(b => b.classList.toggle("active", b === btn));
+      document.getElementById("score-range-label").textContent = scoreDays + " days";
+      if (histData) buildScoreChart();
+    });
+  });
+
+  document.querySelectorAll(".score-avg-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const w = parseInt(btn.dataset.avg);
+      if (w === 7) scoreAvg7 = !scoreAvg7;
+      if (w === 30) scoreAvg30 = !scoreAvg30;
+      btn.style.opacity = (w === 7 ? scoreAvg7 : scoreAvg30) ? "1" : "0.6";
+      btn.style.borderColor = (w === 7 ? scoreAvg7 : scoreAvg30) ? "var(--accent2)" : "";
+      if (histData) buildScoreChart();
+    });
+  });
+
+  // ── 5. Activity Calendar ──────────────────────────
   function buildActivityCalendar() {
     const container = document.getElementById("cal-container");
     container.innerHTML = "";
@@ -5798,6 +5973,7 @@ function fmtDate(iso) {
     buildDeficitChart();
     populateExerciseSelect();
     buildStrengthChart(document.getElementById("strength-ex-select").value);
+    buildScoreChart();
     buildActivityCalendar();
   }
 
