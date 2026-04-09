@@ -474,6 +474,84 @@ def generate_workout_plan(goal: str, days_per_week: int = 3, experience: str = "
     return {d: data.get(d, []) for d in _DAYS}
 
 
+# ── Multi-scale momentum summary ─────────────────────
+
+_SCALE_SUMMARY_PROMPT = """You are a concise health data reporter for a personal fitness app. You summarize the user's tracking data at a specific time scale.
+
+The user's goal is: {goal_label}
+Time scale: {scale}
+
+You will receive the user's daily scores and deltas for the period. Respond with EXACTLY one paragraph in this format — no bullet points, no headers, no extra text:
+
+For "day" scale:
+"Today you [summary of what happened with specific numbers]. [One sentence on what went well or needs attention]."
+
+For "week" scale:
+"This week you averaged [X]/100 across [N] days. [Key pattern — e.g. protein was consistently low, workouts were strong]. [One actionable sentence]."
+
+For "month" scale:
+"Over the last 30 days your average score was [X]/100. [Trend — improving, steady, or declining]. Against your {goal_label} goal, you are [on track / drifting / making strong progress]. [One sentence on biggest area for improvement]."
+
+Rules:
+- Use actual numbers from the data, not vague language
+- Keep it under 60 words
+- No motivational fluff — just the data and what it means
+- Reference the user's goal by name"""
+
+
+def generate_scale_summary(scale: str, goal_label: str, history: list) -> str:
+    """Generate a structured summary for day/week/month scale.
+
+    history: list of {score_date, momentum_score, raw_deltas (JSON string or dict)}
+    """
+    import json as _json
+
+    if not history:
+        return "Not enough data yet for a summary."
+
+    # Build data summary for the prompt
+    scores = [h["momentum_score"] for h in history]
+    avg_score = round(sum(scores) / len(scores), 1) if scores else 0
+
+    lines = []
+    for h in history[-7:]:  # Last 7 entries max to keep prompt short
+        deltas = h.get("raw_deltas", "{}")
+        if isinstance(deltas, str):
+            try:
+                deltas = _json.loads(deltas)
+            except Exception:
+                deltas = {}
+        cal_d = deltas.get("calories", {})
+        pro_d = deltas.get("protein", {})
+        wk_d  = deltas.get("workout", {})
+        lines.append(
+            f"{h['score_date']}: score={h['momentum_score']}, "
+            f"cal={cal_d.get('actual', '?')}/{cal_d.get('target', '?')}, "
+            f"protein={pro_d.get('actual', '?')}/{pro_d.get('target', '?')}g, "
+            f"workout={'yes' if wk_d.get('done') else 'no'}"
+        )
+
+    data_text = "\n".join(lines)
+    data_text += f"\n\nPeriod average score: {avg_score}/100 over {len(scores)} day(s)."
+
+    prompt = _SCALE_SUMMARY_PROMPT.format(
+        goal_label=goal_label,
+        scale=scale,
+    )
+
+    try:
+        response = _client().messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=200,
+            system=prompt,
+            messages=[{"role": "user", "content": data_text}],
+        )
+        return response.content[0].text.strip()
+    except Exception as e:
+        logger.error("Scale summary generation failed: %s", e)
+        return "Summary unavailable — try again later."
+
+
 # ── Momentum pattern insight ──────────────────────────
 
 _MOMENTUM_INSIGHT_SYSTEM = (

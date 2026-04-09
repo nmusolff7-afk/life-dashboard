@@ -248,6 +248,17 @@ def init_db():
             except Exception:
                 pass
 
+        # Momentum summaries — AI-generated at day/week/month scale, cached
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS momentum_summaries (
+                user_id      INTEGER REFERENCES users(id),
+                summary_date DATE NOT NULL,
+                scale        TEXT NOT NULL,
+                summary_text TEXT NOT NULL,
+                generated_at TIMESTAMP NOT NULL,
+                PRIMARY KEY (user_id, summary_date, scale)
+            )
+        """)
         # Migrate: add raw_deltas to daily_momentum for penalty-based scoring
         try:
             conn.execute("ALTER TABLE daily_momentum ADD COLUMN raw_deltas TEXT DEFAULT '{}'")
@@ -1021,6 +1032,44 @@ def get_momentum_history(user_id: int, days: int = 14) -> list:
             ORDER BY score_date
         """, (user_id, cutoff)).fetchall()
     return [dict(r) for r in rows]
+
+
+def get_momentum_history_with_deltas(user_id: int, days: int = 7) -> list:
+    """Return momentum rows with raw_deltas for the last N days."""
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    with get_conn() as conn:
+        rows = conn.execute("""
+            SELECT score_date, momentum_score, raw_deltas
+            FROM daily_momentum
+            WHERE user_id = ? AND score_date >= ?
+            ORDER BY score_date
+        """, (user_id, cutoff)).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ── Momentum summaries ─────────────────────────────────
+
+def save_momentum_summary(user_id: int, summary_date: str, scale: str, summary_text: str):
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO momentum_summaries
+                (user_id, summary_date, scale, summary_text, generated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, summary_date, scale) DO UPDATE SET
+                summary_text = excluded.summary_text,
+                generated_at = excluded.generated_at
+        """, (user_id, summary_date, scale, summary_text, now))
+        conn.commit()
+
+
+def get_momentum_summary(user_id: int, summary_date: str, scale: str):
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM momentum_summaries WHERE user_id = ? AND summary_date = ? AND scale = ?",
+            (user_id, summary_date, scale)
+        ).fetchone()
+    return dict(row) if row else None
 
 
 # ── Gmail tokens ───────────────────────────────────────

@@ -25,8 +25,9 @@ from db import (
     upsert_gmail_cache, get_gmail_cache, clear_gmail_cache,
     save_gmail_summary, get_gmail_summary,
     upsert_user_goal, get_user_goal,
+    get_momentum_history_with_deltas, save_momentum_summary, get_momentum_summary,
 )
-from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, generate_workout_plan, shorten_label, scan_meal_image, generate_momentum_insight, suggest_meal, identify_ingredients
+from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, generate_workout_plan, shorten_label, scan_meal_image, generate_momentum_insight, generate_scale_summary, suggest_meal, identify_ingredients
 from claude_profile import generate_profile_map, compute_mind_insights, score_brief
 import garmin_sync
 import gmail_sync
@@ -1123,6 +1124,44 @@ def api_momentum_insight():
         return jsonify(result)
     except Exception as e:
         _log.exception("momentum-insight failed")
+        return jsonify({"error": _AI_ERR}), 500
+
+
+@app.route("/api/momentum/summary", methods=["POST"])
+@login_required
+def api_momentum_summary():
+    """Generate or return cached AI summary at day/week/month scale."""
+    data  = request.get_json(silent=True) or {}
+    scale = data.get("scale", "day")
+    if scale not in ("day", "week", "month"):
+        return jsonify({"error": "Invalid scale. Use day, week, or month."}), 400
+
+    today = client_today()
+    force = data.get("force", False)
+
+    # Check cache (unless forced refresh)
+    if not force:
+        cached = get_momentum_summary(uid(), today, scale)
+        if cached:
+            return jsonify({"summary": cached["summary_text"], "cached": True})
+
+    # Determine history window
+    days_map = {"day": 1, "week": 7, "month": 30}
+    history = get_momentum_history_with_deltas(uid(), days_map[scale])
+
+    # Get goal label
+    goal = get_user_goal(uid())
+    goal_label = "your goal"
+    if goal:
+        from goal_config import get_goal_config
+        goal_label = get_goal_config(goal["goal_key"])["label"]
+
+    try:
+        summary_text = generate_scale_summary(scale, goal_label, history)
+        save_momentum_summary(uid(), today, scale, summary_text)
+        return jsonify({"summary": summary_text, "cached": False})
+    except Exception as e:
+        _log.exception("momentum/summary failed")
         return jsonify({"error": _AI_ERR}), 500
 
 
