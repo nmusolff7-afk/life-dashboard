@@ -7223,22 +7223,24 @@ function fmtDate(iso) {
   let _summaryCache = {};  // { "day": { text, ts }, ... }
   const SUMMARY_TTL = 15 * 60 * 1000;  // 15 min cache
 
-  function loadSummary(scale) {
+  function loadSummary(scale, force) {
     const textEl = document.getElementById("momentum-summary-text");
     if (!textEl) return;
 
-    // Check in-memory cache
-    const cached = _summaryCache[scale];
-    if (cached && (Date.now() - cached.ts) < SUMMARY_TTL) {
-      textEl.textContent = cached.text;
-      return;
+    // Check in-memory cache (skip if forced)
+    if (!force) {
+      const cached = _summaryCache[scale];
+      if (cached && (Date.now() - cached.ts) < SUMMARY_TTL) {
+        textEl.textContent = cached.text;
+        return;
+      }
     }
 
     textEl.textContent = "Loading...";
     fetch("/api/momentum/summary", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scale }),
+      body: JSON.stringify({ scale, force: !!force, hour: new Date().getHours() }),
     })
       .then(r => r.json())
       .then(data => {
@@ -7377,6 +7379,11 @@ function fmtDate(iso) {
       try { sessionStorage.removeItem("momentum_insight"); } catch(e) {}
       _summaryCache = {};
       loadMomentum();
+      // Force fresh summary after momentum recalculates
+      setTimeout(() => {
+        const activeTab = document.querySelector(".summary-tab.active");
+        loadSummary(activeTab ? activeTab.dataset.scale : "day", true);
+      }, 500);
     });
 
     loadSummary("day");

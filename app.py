@@ -1202,6 +1202,14 @@ def api_momentum_summary():
         if cached:
             return jsonify({"summary": cached["summary_text"], "cached": True})
 
+    # Ensure today's score is fresh before generating summary
+    hour = data.get("hour")
+    try:
+        hour = int(hour) if hour is not None else None
+    except (TypeError, ValueError):
+        hour = None
+    compute_momentum(uid(), today, hour=hour)
+
     # Determine history window
     days_map = {"day": 1, "week": 7, "month": 30}
     history = get_momentum_history_with_deltas(uid(), days_map[scale])
