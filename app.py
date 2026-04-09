@@ -220,7 +220,8 @@ def api_onboarding_save():
             existing = json.loads(row["raw_inputs"])
         except Exception:
             pass
-    existing.update(data)
+    # Only overwrite with non-null values so earlier pages aren't wiped
+    existing.update({k: v for k, v in data.items() if v is not None})
     upsert_onboarding_inputs(uid(), json.dumps(existing))
     return jsonify({"ok": True})
 
