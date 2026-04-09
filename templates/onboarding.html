@@ -124,6 +124,32 @@
       white-space: pre-wrap; word-break: break-all; max-height: 260px; overflow-y: auto;
       background: #7a1a1a; border: 1px solid #f85149;
       border-radius: 8px; padding: 0.75rem; text-align: left; line-height: 1.5; }
+
+    /* ── Goal selection cards ── */
+    .goal-card-grid { display:grid; grid-template-columns:1fr 1fr; gap:0.65rem; }
+    .goal-card { background:var(--surface); border:1.5px solid var(--border); border-radius:12px;
+      padding:1rem 0.85rem; cursor:pointer; text-align:center; transition:border-color .15s,background .15s;
+      font-family:inherit; color:inherit; }
+    .goal-card:hover, .goal-card:focus { border-color:var(--accent2); }
+    .goal-card.selected { border-color:var(--accent2); background:rgba(121,134,203,0.1); }
+    .goal-card-icon { font-size:1.4rem; margin-bottom:0.35rem; opacity:0.7; }
+    .goal-card-title { font-size:0.92rem; font-weight:700; margin-bottom:0.25rem; }
+    .goal-card-desc { font-size:0.74rem; color:var(--muted); line-height:1.45; }
+
+    /* ── Path comparison cards ── */
+    .path-card { background:var(--surface); border:1.5px solid var(--border); border-radius:12px;
+      padding:0.9rem 1rem; margin-bottom:0.65rem; cursor:pointer; transition:border-color .15s; }
+    .path-card:hover, .path-card:focus { border-color:var(--accent2); }
+    .path-card.selected { border-color:var(--accent2); background:rgba(121,134,203,0.08); }
+    .path-card-header { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:0.5rem; }
+    .path-card-title { font-size:0.92rem; font-weight:700; }
+    .path-card-tag { font-size:0.68rem; color:var(--muted); background:var(--surface2);
+      padding:0.15rem 0.5rem; border-radius:99px; }
+    .path-card-body { font-size:0.78rem; color:var(--muted); line-height:1.55; margin-bottom:0.5rem; }
+    .path-pro, .path-con { margin-bottom:0.35rem; }
+    .path-label { font-weight:600; color:var(--green); margin-right:0.3rem; }
+    .path-con .path-label { color:var(--amber); }
+    .path-card-footer { font-size:0.76rem; color:var(--accent2); }
   </style>
 </head>
 <body>
@@ -189,15 +215,90 @@
 
     <!-- ══ PAGE 2: Goal ══ -->
     <div class="ob-page" id="page-2">
-      <div class="field">
-        <label>Primary goal</label>
-        <div class="chips" id="ob-goal-chips">
-          <div class="chip" data-val="lose_weight">Lose weight</div>
-          <div class="chip" data-val="build_muscle">Build muscle</div>
-          <div class="chip" data-val="recomp">Body recomp</div>
-          <div class="chip" data-val="maintain">Maintain</div>
-          <div class="chip" data-val="improve_health">Improve health</div>
-          <div class="chip" data-val="performance">Athletic performance</div>
+      <!-- Hidden chip group — collectAll reads from this -->
+      <div class="chips" id="ob-goal-chips" style="display:none">
+        <div class="chip" data-val="lose_weight"></div>
+        <div class="chip" data-val="build_muscle"></div>
+        <div class="chip" data-val="recomp"></div>
+        <div class="chip" data-val="maintain"></div>
+      </div>
+
+      <!-- Phase 1: broad aspiration -->
+      <div id="goal-phase-1">
+        <div style="font-size:0.84rem;color:var(--muted);margin-bottom:1rem;line-height:1.5">Pick the one that sounds most like you right now.</div>
+        <div class="goal-card-grid">
+          <button class="goal-card" data-aspiration="leaner">
+            <div class="goal-card-icon">&#9663;</div>
+            <div class="goal-card-title">Get leaner</div>
+            <div class="goal-card-desc">Lose body fat while keeping as much muscle as possible</div>
+          </button>
+          <button class="goal-card" data-aspiration="bigger">
+            <div class="goal-card-icon">&#9651;</div>
+            <div class="goal-card-title">Get bigger</div>
+            <div class="goal-card-desc">Build muscle and strength, even if it means gaining some fat</div>
+          </button>
+          <button class="goal-card" data-aspiration="both">
+            <div class="goal-card-icon">&#9674;</div>
+            <div class="goal-card-title">Lean &amp; muscular</div>
+            <div class="goal-card-desc">I want to lose fat and build muscle at the same time</div>
+          </button>
+          <button class="goal-card" data-aspiration="maintain">
+            <div class="goal-card-icon">&#9644;</div>
+            <div class="goal-card-title">Stay where I am</div>
+            <div class="goal-card-desc">Maintain my current weight and body composition</div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Phase 2: path selection (only shown for "both") -->
+      <div id="goal-phase-2" style="display:none">
+        <button id="goal-back-phase" style="background:none;border:none;color:var(--muted);font-size:0.82rem;cursor:pointer;margin-bottom:0.75rem;padding:0">&larr; Back to goals</button>
+        <div style="font-size:0.84rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.5">There are three proven ways to get lean and muscular. Each has trade-offs.</div>
+
+        <div class="path-card" data-goal="lose_weight">
+          <div class="path-card-header">
+            <div class="path-card-title">Cut first, then bulk</div>
+            <div class="path-card-tag">Recommended if BF% &gt; 18%</div>
+          </div>
+          <div class="path-card-body">
+            <div class="path-pro"><span class="path-label">Pros</span> Faster visible results. Easier to gauge muscle gain later when you're leaner. Insulin sensitivity improves, making a future bulk more efficient.</div>
+            <div class="path-con"><span class="path-label">Cons</span> You won't gain muscle during the cut. Requires patience to see the full transformation across two phases.</div>
+          </div>
+          <div class="path-card-footer">Apex sets you up with a <b>fat loss</b> phase first.</div>
+        </div>
+
+        <div class="path-card" data-goal="build_muscle">
+          <div class="path-card-header">
+            <div class="path-card-title">Bulk first, then cut</div>
+            <div class="path-card-tag">Recommended if BF% &lt; 15%</div>
+          </div>
+          <div class="path-card-body">
+            <div class="path-pro"><span class="path-label">Pros</span> Maximizes muscle growth rate. Strength gains come faster. More food makes training easier and recovery better.</div>
+            <div class="path-con"><span class="path-label">Cons</span> You'll gain some fat alongside muscle. You'll need a cut phase afterward to reveal the muscle you built.</div>
+          </div>
+          <div class="path-card-footer">Apex sets you up with a <b>muscle gain</b> phase first.</div>
+        </div>
+
+        <div class="path-card" data-goal="recomp">
+          <div class="path-card-header">
+            <div class="path-card-title">Recomposition</div>
+            <div class="path-card-tag">Best for beginners or returning lifters</div>
+          </div>
+          <div class="path-card-body">
+            <div class="path-pro"><span class="path-label">Pros</span> No distinct phases — your body composition improves gradually. No bulk/cut cycles. Psychologically easier to sustain long-term.</div>
+            <div class="path-con"><span class="path-label">Cons</span> Slowest path. Results take longer to see. Requires very consistent protein intake and training. Less effective if you're already lean and experienced.</div>
+          </div>
+          <div class="path-card-footer">Apex sets you up with a <b>recomposition</b> plan — mild deficit, highest protein.</div>
+        </div>
+      </div>
+
+      <!-- Confirmation (shown after selection) -->
+      <div id="goal-confirmed" style="display:none">
+        <button id="goal-change-btn" style="background:none;border:none;color:var(--muted);font-size:0.82rem;cursor:pointer;margin-bottom:0.75rem;padding:0">&larr; Change goal</button>
+        <div style="text-align:center;padding:0.5rem 0">
+          <div style="font-size:1.6rem;margin-bottom:0.4rem" id="goal-confirmed-icon"></div>
+          <div style="font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:0.3rem" id="goal-confirmed-title"></div>
+          <div style="font-size:0.84rem;color:var(--muted);line-height:1.5;max-width:320px;margin:0 auto" id="goal-confirmed-desc"></div>
         </div>
       </div>
     </div>
@@ -303,7 +404,7 @@
 
   const PAGE_META = [
     { title: "Let's get to know you",  sub: "Your name and body stats — used to calculate your metabolism." },
-    { title: "What you're after",      sub: "Your primary goal shapes everything in your dashboard." },
+    { title: "What's your goal?",       sub: "This determines your calorie target, protein, and macros." },
     { title: "Your daily life",        sub: "How you work and your stress level affect your calorie needs." },
     { title: "Food & nutrition",       sub: "Your diet style helps Apex estimate meals accurately." },
     { title: "Mind & energy",          sub: "Your baseline energy and mood set the starting point for daily check-ins." },
@@ -545,6 +646,75 @@
     }
   };
 
+  // ── Goal decision tree ─────────────────────────────────────────
+  const GOAL_META = {
+    lose_weight:  { icon: "\u25BF", title: "Lose Weight",   desc: "We'll calculate a moderate calorie deficit to lose fat while preserving your muscle. Protein is set high to protect lean mass." },
+    build_muscle: { icon: "\u25B3", title: "Build Muscle",  desc: "We'll set a slight calorie surplus to maximize muscle growth. Protein is optimized for hypertrophy without excess." },
+    recomp:       { icon: "\u25CA", title: "Recomposition",  desc: "We'll use a mild deficit with the highest protein target to drive simultaneous fat loss and muscle gain." },
+    maintain:     { icon: "\u2594", title: "Maintain",       desc: "We'll match your calories to your energy expenditure. Protein is set to preserve muscle without overcomplicating your diet." },
+  };
+  // Direct aspiration-to-goal mappings (no phase 2 needed)
+  const DIRECT_MAP = { leaner: "lose_weight", bigger: "build_muscle", maintain: "maintain" };
+
+  let selectedGoal = null;
+
+  function _setGoal(goalKey) {
+    selectedGoal = goalKey;
+    // Set the hidden chip so collectAll picks it up
+    document.querySelectorAll("#ob-goal-chips .chip").forEach(c =>
+      c.classList.toggle("active", c.dataset.val === goalKey));
+    // Show confirmation
+    const meta = GOAL_META[goalKey];
+    document.getElementById("goal-phase-1").style.display  = "none";
+    document.getElementById("goal-phase-2").style.display  = "none";
+    document.getElementById("goal-confirmed").style.display = "";
+    document.getElementById("goal-confirmed-icon").textContent  = meta.icon;
+    document.getElementById("goal-confirmed-title").textContent = meta.title;
+    document.getElementById("goal-confirmed-desc").textContent  = meta.desc;
+  }
+
+  function _resetGoal() {
+    selectedGoal = null;
+    document.querySelectorAll("#ob-goal-chips .chip").forEach(c => c.classList.remove("active"));
+    document.querySelectorAll(".goal-card").forEach(c => c.classList.remove("selected"));
+    document.querySelectorAll(".path-card").forEach(c => c.classList.remove("selected"));
+    document.getElementById("goal-phase-1").style.display   = "";
+    document.getElementById("goal-phase-2").style.display   = "none";
+    document.getElementById("goal-confirmed").style.display = "none";
+  }
+
+  // Phase 1: aspiration cards
+  document.querySelectorAll(".goal-card").forEach(card => {
+    card.addEventListener("click", () => {
+      const asp = card.dataset.aspiration;
+      document.querySelectorAll(".goal-card").forEach(c => c.classList.remove("selected"));
+      card.classList.add("selected");
+      if (asp === "both") {
+        // Show phase 2
+        document.getElementById("goal-phase-1").style.display = "none";
+        document.getElementById("goal-phase-2").style.display = "";
+      } else {
+        _setGoal(DIRECT_MAP[asp]);
+      }
+    });
+  });
+
+  // Phase 2: path cards
+  document.querySelectorAll(".path-card").forEach(card => {
+    card.addEventListener("click", () => {
+      document.querySelectorAll(".path-card").forEach(c => c.classList.remove("selected"));
+      card.classList.add("selected");
+      _setGoal(card.dataset.goal);
+    });
+  });
+
+  // Back buttons
+  document.getElementById("goal-back-phase").addEventListener("click", () => {
+    document.getElementById("goal-phase-2").style.display = "none";
+    document.getElementById("goal-phase-1").style.display = "";
+  });
+  document.getElementById("goal-change-btn").addEventListener("click", _resetGoal);
+
   // ── Restore saved data if returning to onboarding ──────────────
   const saved = {{ saved | tojson }};
   if (saved && Object.keys(saved).length) {
@@ -568,7 +738,10 @@
     setVal("ob-height-in", s.height_in);
     setVal("ob-cur-weight", s.current_weight_lbs);
     setVal("ob-tgt-weight", s.target_weight_lbs);
-    setChip("ob-goal-chips", s.primary_goal);
+    // Restore goal selection through the decision tree
+    if (s.primary_goal && GOAL_META[s.primary_goal]) {
+      _setGoal(s.primary_goal);
+    }
     setVal("ob-occupation", s.occupation_description);
     setChip("ob-work-style-chips", s.work_style);
     setVal("ob-stress", s.stress_level_1_10);
