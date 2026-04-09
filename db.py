@@ -173,6 +173,25 @@ def init_db():
                 PRIMARY KEY (user_id, summary_date)
             )
         """)
+        # User goals — stores the active goal and computed targets
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_goals (
+                user_id         INTEGER PRIMARY KEY REFERENCES users(id),
+                goal_key        TEXT NOT NULL DEFAULT 'lose_weight',
+                calorie_target  INTEGER NOT NULL,
+                protein_g       INTEGER NOT NULL,
+                fat_g           INTEGER NOT NULL,
+                carbs_g         INTEGER NOT NULL,
+                deficit_surplus INTEGER DEFAULT 0,
+                rmr             INTEGER NOT NULL,
+                rmr_method      TEXT DEFAULT 'mifflin_st_jeor',
+                tdee_used       INTEGER DEFAULT 0,
+                config_json     TEXT DEFAULT '{}',
+                sources_json    TEXT DEFAULT '[]',
+                created_at      TIMESTAMP NOT NULL,
+                updated_at      TIMESTAMP NOT NULL
+            )
+        """)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS daily_momentum (
                 user_id         INTEGER REFERENCES users(id),
@@ -1042,3 +1061,50 @@ def get_gmail_summary(user_id: int, summary_date: str):
             (user_id, summary_date)
         ).fetchone()
     return dict(row) if row else None
+
+
+# ── User goals ─────────────────────────────────────────
+
+def upsert_user_goal(user_id: int, goal_key: str, calorie_target: int,
+                     protein_g: int, fat_g: int, carbs_g: int,
+                     deficit_surplus: int, rmr: int, rmr_method: str,
+                     tdee_used: int, config_json: str, sources_json: str):
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO user_goals
+                (user_id, goal_key, calorie_target, protein_g, fat_g, carbs_g,
+                 deficit_surplus, rmr, rmr_method, tdee_used,
+                 config_json, sources_json, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                goal_key        = excluded.goal_key,
+                calorie_target  = excluded.calorie_target,
+                protein_g       = excluded.protein_g,
+                fat_g           = excluded.fat_g,
+                carbs_g         = excluded.carbs_g,
+                deficit_surplus = excluded.deficit_surplus,
+                rmr             = excluded.rmr,
+                rmr_method      = excluded.rmr_method,
+                tdee_used       = excluded.tdee_used,
+                config_json     = excluded.config_json,
+                sources_json    = excluded.sources_json,
+                updated_at      = excluded.updated_at
+        """, (user_id, goal_key, calorie_target, protein_g, fat_g, carbs_g,
+              deficit_surplus, rmr, rmr_method, tdee_used,
+              config_json, sources_json, now, now))
+        conn.commit()
+
+
+def get_user_goal(user_id: int):
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM user_goals WHERE user_id = ?", (user_id,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def delete_user_goal(user_id: int):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM user_goals WHERE user_id = ?", (user_id,))
+        conn.commit()
