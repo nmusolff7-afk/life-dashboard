@@ -248,6 +248,13 @@ def init_db():
             except Exception:
                 pass
 
+        # Migrate: add raw_deltas to daily_momentum for penalty-based scoring
+        try:
+            conn.execute("ALTER TABLE daily_momentum ADD COLUMN raw_deltas TEXT DEFAULT '{}'")
+            conn.commit()
+        except Exception:
+            pass
+
         # Migrate: assign orphaned rows (no user_id) to user 1 if they exist
         conn.execute("UPDATE meal_logs      SET user_id = 1 WHERE user_id IS NULL AND EXISTS (SELECT 1 FROM users WHERE id = 1)")
         conn.execute("UPDATE workout_logs   SET user_id = 1 WHERE user_id IS NULL AND EXISTS (SELECT 1 FROM users WHERE id = 1)")
@@ -785,37 +792,38 @@ import logging as _logging
 _momentum_logger = _logging.getLogger(__name__)
 
 MOMENTUM_WEIGHTS = {
-    "nutrition": 35,
-    "activity":  35,
-    "checkin":   20,
-    "tasks":     10,
+    "nutrition": 15,
+    "protein":   10,
+    "activity":  10,
+    "checkin":    5,
+    "tasks":      5,
 }
-assert sum(MOMENTUM_WEIGHTS.values()) == 100
-
-_ACTIVITY_CAL_TARGET = 500  # kcal of active burn considered "full credit"
+# Remaining 55 pts are reserved for future metrics (sleep, etc.)
+# For now they are "free" — no penalty assessed, score starts at 100.
+_SCORED_MAX = sum(MOMENTUM_WEIGHTS.values())  # 45
 
 
 def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | None = None) -> dict:
     """
-    Compute a 0–100 momentum score for user_id on date_str.
-    calorie_goal_override: when provided, takes precedence over profile map value.
-    Upserts the result into daily_momentum and returns a full debug_breakdown dict.
+    Compute a 0–100 daily score using a penalty-based system.
+    Starts at 100, subtracts penalties for deviations from targets.
+    Upserts the result into daily_momentum and returns a full breakdown dict.
     """
+    import json as _json
+
     # ── gather inputs ────────────────────────────────────
     totals  = get_today_totals(user_id, date_str)
     profile = get_profile_map(user_id)
     garmin  = get_garmin_daily(user_id, date_str)
+    goal    = get_user_goal(user_id)
 
     with get_conn() as conn:
         checkin_rows = conn.execute(
-            "SELECT type, wellbeing, focus, energy_level, stress_level, "
-            "sleep_quality, mood_level, focus_level FROM mind_checkins "
-            "WHERE user_id = ? AND checkin_date = ?",
+            "SELECT type FROM mind_checkins WHERE user_id = ? AND checkin_date = ?",
             (user_id, date_str)
         ).fetchall()
-        checkins = [dict(r) for r in checkin_rows]
+        types_done = {r["type"] for r in checkin_rows}
 
-        # Count all visible tasks for today: tasks dated today OR overdue incomplete tasks
         task_rows = conn.execute(
             """SELECT completed FROM mind_tasks WHERE user_id = ?
                AND task_date <= ?
@@ -824,87 +832,148 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
         ).fetchall()
         tasks = [dict(r) for r in task_rows]
 
-    # ── component scoring ────────────────────────────────
-
-    # Nutrition: calories logged vs workout-adjusted daily calorie target
-    # Compute RMR + active_burn - deficit_target so workouts raise the goal dynamically.
-    # Fall back to the static onboarding goal or the client override when RMR is missing.
-    rmr_kcal       = profile.get("rmr_kcal") or 0
-    deficit_target = profile.get("calorie_deficit_target") or 0
-    if rmr_kcal:
-        active_burned_n = (garmin.get("active_calories") or 0) if garmin \
-                          else get_today_workout_burn(user_id, date_str)
-        cal_goal = int(rmr_kcal + active_burned_n - deficit_target)
+    # ── resolve targets ──────────────────────────────────
+    # Prefer user_goals table, fall back to profile, then client override
+    if goal:
+        cal_goal = goal["calorie_target"]
+        pro_goal = goal["protein_g"]
     else:
-        cal_goal = profile.get("daily_calorie_goal") or calorie_goal_override
+        rmr_kcal       = profile.get("rmr_kcal") or 0
+        deficit_target = profile.get("calorie_deficit_target") or 0
+        if rmr_kcal:
+            active_burned = (garmin.get("active_calories") or 0) if garmin \
+                            else get_today_workout_burn(user_id, date_str)
+            cal_goal = int(rmr_kcal + active_burned - deficit_target)
+        else:
+            cal_goal = profile.get("daily_calorie_goal") or calorie_goal_override
+        pro_goal = profile.get("daily_protein_goal_g") or None
+
     cal_today = totals["total_calories"]
-    if cal_goal and cal_goal > 0:
-        nutrition_pct = min(1.0, cal_today / cal_goal)
-    else:
-        nutrition_pct = 0.0
+    pro_today = totals.get("total_protein", 0)
 
-    # Activity: Garmin active calories vs target; fallback to logged workout burn
-    if garmin:
-        active_cal   = garmin.get("active_calories") or 0
-        activity_pct = min(1.0, active_cal / _ACTIVITY_CAL_TARGET)
-    else:
-        active_cal   = None
-        workout_burn = get_today_workout_burn(user_id, date_str)
-        activity_pct = min(1.0, workout_burn / _ACTIVITY_CAL_TARGET) if workout_burn > 0 else 0.0
+    # ── penalty calculations ─────────────────────────────
+    raw_deltas = {}
+    penalties = {}
 
-    # Checkin: each brief worth 10 pts independently (morning 0.5 + evening 0.5 = 1.0 max)
-    types_done  = {c["type"] for c in checkins}
+    # 1. Calories (15 pts) — penalty scales with % deviation from target
+    if cal_goal and cal_goal > 0 and cal_today > 0:
+        cal_delta = cal_today - cal_goal                    # positive = over, negative = under
+        cal_dev   = abs(cal_delta) / cal_goal               # 0.0 = perfect, 1.0 = 100% off
+        cal_pen   = min(1.0, cal_dev / 0.25) * MOMENTUM_WEIGHTS["nutrition"]  # 25% off = full penalty
+        raw_deltas["calories"] = {"target": cal_goal, "actual": cal_today, "delta": cal_delta}
+    elif cal_today == 0:
+        cal_pen = MOMENTUM_WEIGHTS["nutrition"]  # nothing logged = full penalty
+        raw_deltas["calories"] = {"target": cal_goal, "actual": 0, "delta": -(cal_goal or 0)}
+    else:
+        cal_pen = 0  # no goal set = no penalty
+        raw_deltas["calories"] = {"target": None, "actual": cal_today, "delta": 0}
+    penalties["nutrition"] = round(cal_pen, 2)
+
+    # 2. Protein (10 pts) — same scaled deviation
+    if pro_goal and pro_goal > 0 and pro_today > 0:
+        pro_delta = pro_today - pro_goal
+        pro_dev   = abs(pro_delta) / pro_goal
+        pro_pen   = min(1.0, pro_dev / 0.25) * MOMENTUM_WEIGHTS["protein"]
+        raw_deltas["protein"] = {"target": pro_goal, "actual": round(pro_today, 1), "delta": round(pro_delta, 1)}
+    elif pro_today == 0 and pro_goal:
+        pro_pen = MOMENTUM_WEIGHTS["protein"]
+        raw_deltas["protein"] = {"target": pro_goal, "actual": 0, "delta": -pro_goal}
+    else:
+        pro_pen = 0
+        raw_deltas["protein"] = {"target": None, "actual": round(pro_today, 1), "delta": 0}
+    penalties["protein"] = round(pro_pen, 2)
+
+    # 3. Workout (10 pts) — 0 if any workout done, full penalty if skipped, partial for incomplete
+    workout_burn = get_today_workout_burn(user_id, date_str)
+    garmin_active = (garmin.get("active_calories") or 0) if garmin else 0
+    has_workout = workout_burn > 0 or garmin_active > 100
+    if has_workout:
+        activity_pen = 0
+    else:
+        activity_pen = MOMENTUM_WEIGHTS["activity"]
+    raw_deltas["workout"] = {"done": has_workout, "burn": workout_burn, "garmin_active": garmin_active}
+    penalties["activity"] = round(activity_pen, 2)
+
+    # 4. Check-in (5 pts) — 2.5 each for morning and evening
     has_morning = "morning" in types_done
     has_evening = "evening" in types_done
-    checkin_score = (0.5 if has_morning else 0.0) + (0.5 if has_evening else 0.0)
-    checkin_done  = 1 if types_done else 0
+    checkin_pen = 0
+    if not has_morning: checkin_pen += MOMENTUM_WEIGHTS["checkin"] * 0.5
+    if not has_evening: checkin_pen += MOMENTUM_WEIGHTS["checkin"] * 0.5
+    raw_deltas["checkin"] = {"morning": has_morning, "evening": has_evening}
+    penalties["checkin"] = round(checkin_pen, 2)
 
-    # Tasks: completed / total
+    # 5. Tasks (5 pts) — penalty proportional to incomplete tasks
     total_tasks     = len(tasks)
     completed_tasks = sum(1 for t in tasks if t["completed"])
-    task_rate       = (completed_tasks / total_tasks) if total_tasks > 0 else 0.5
+    if total_tasks > 0:
+        task_pen = (1 - completed_tasks / total_tasks) * MOMENTUM_WEIGHTS["tasks"]
+    else:
+        task_pen = 0  # no tasks = no penalty
+    raw_deltas["tasks"] = {"total": total_tasks, "completed": completed_tasks}
+    penalties["tasks"] = round(task_pen, 2)
 
-    # ── weighted contributions ───────────────────────────
-    weighted = {
-        "nutrition": round(nutrition_pct  * MOMENTUM_WEIGHTS["nutrition"], 2),
-        "activity":  round(activity_pct   * MOMENTUM_WEIGHTS["activity"],  2),
-        "checkin":   round(checkin_score  * MOMENTUM_WEIGHTS["checkin"],   2),
-        "tasks":     round(task_rate      * MOMENTUM_WEIGHTS["tasks"],     2),
-    }
+    # ── compute score ────────────────────────────────────
+    total_penalty  = sum(penalties.values())
+    momentum_score = max(0, round(100 - total_penalty))
 
-    momentum_score = int(round(sum(weighted.values())))
+    # ── build frontend-compatible response ───────────────
+    # pct: 1.0 = perfect (no penalty), 0.0 = full penalty
+    # weighted: points earned = max - penalty
+    def _comp_pct(key):
+        return round(1.0 - penalties[key] / MOMENTUM_WEIGHTS[key], 4) if MOMENTUM_WEIGHTS[key] > 0 else 1.0
 
-    # ── debug breakdown ──────────────────────────────────
+    weighted = {k: round(MOMENTUM_WEIGHTS[k] - penalties[k], 2) for k in MOMENTUM_WEIGHTS}
+
+    nutrition_pct = _comp_pct("nutrition")
+    activity_pct  = _comp_pct("activity")
+    checkin_done  = 1 if types_done else 0
+    task_rate     = (completed_tasks / total_tasks) if total_tasks > 0 else 1.0
+
     debug_breakdown = {
         "date":           date_str,
         "momentum_score": momentum_score,
         "weights":        MOMENTUM_WEIGHTS,
+        "penalties":      penalties,
+        "raw_deltas":     raw_deltas,
         "components": {
             "nutrition": {
                 "calories_logged": cal_today,
                 "calorie_goal":    cal_goal,
-                "pct":             round(nutrition_pct, 4),
+                "penalty":         penalties["nutrition"],
+                "pct":             nutrition_pct,
                 "weighted":        weighted["nutrition"],
                 "missing":         cal_goal is None,
             },
+            "protein": {
+                "protein_logged":  round(pro_today, 1),
+                "protein_goal":    pro_goal,
+                "penalty":         penalties["protein"],
+                "pct":             _comp_pct("protein"),
+                "weighted":        weighted["protein"],
+                "missing":         pro_goal is None,
+            },
             "activity": {
-                "active_calories":  active_cal,
-                "target_calories":  _ACTIVITY_CAL_TARGET,
+                "has_workout":      has_workout,
+                "workout_burn":     workout_burn,
+                "garmin_active":    garmin_active,
                 "garmin_available": garmin is not None,
-                "pct":              round(activity_pct, 4),
+                "penalty":          penalties["activity"],
+                "pct":              _comp_pct("activity"),
                 "weighted":         weighted["activity"],
             },
             "checkin": {
                 "morning_done": has_morning,
                 "evening_done": has_evening,
-                "score":        round(checkin_score, 4),
-                "pct":          round(checkin_score, 4),
+                "penalty":      penalties["checkin"],
+                "pct":          _comp_pct("checkin"),
                 "weighted":     weighted["checkin"],
             },
             "tasks": {
                 "total":     total_tasks,
                 "completed": completed_tasks,
                 "rate":      round(task_rate, 4),
+                "penalty":   penalties["tasks"],
                 "pct":       round(task_rate, 4),
                 "weighted":  weighted["tasks"],
             },
@@ -912,7 +981,7 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
         "weighted_contributions": weighted,
     }
 
-    _momentum_logger.debug("Momentum %s uid=%s score=%s", date_str, user_id, momentum_score)
+    _momentum_logger.debug("Momentum %s uid=%s score=%s penalties=%s", date_str, user_id, momentum_score, penalties)
 
     # ── upsert result ─────────────────────────────────────
     now = datetime.now().isoformat()
@@ -920,8 +989,9 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
         conn.execute("""
             INSERT INTO daily_momentum
                 (user_id, score_date, momentum_score, nutrition_pct,
-                 activity_pct, checkin_done, task_rate, wellbeing_delta, computed_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 activity_pct, checkin_done, task_rate, wellbeing_delta,
+                 raw_deltas, computed_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(user_id, score_date) DO UPDATE SET
                 momentum_score  = excluded.momentum_score,
                 nutrition_pct   = excluded.nutrition_pct,
@@ -929,9 +999,11 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
                 checkin_done    = excluded.checkin_done,
                 task_rate       = excluded.task_rate,
                 wellbeing_delta = excluded.wellbeing_delta,
+                raw_deltas      = excluded.raw_deltas,
                 computed_at     = excluded.computed_at
         """, (user_id, date_str, momentum_score, nutrition_pct,
-              activity_pct, checkin_done, task_rate, 0.0, now))
+              activity_pct, checkin_done, task_rate, 0.0,
+              _json.dumps(raw_deltas), now))
         conn.commit()
 
     return debug_breakdown

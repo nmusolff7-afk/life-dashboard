@@ -2050,7 +2050,7 @@
 
       <!-- Momentum card -->
       <div class="card" id="momentum-card">
-        <div class="card-title">Momentum <span style="font-size:0.65rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:5px;padding:0.15rem 0.45rem;vertical-align:middle;margin-left:0.35rem">Experimental</span></div>
+        <div class="card-title">Daily Score</div>
         <div id="momentum-content">
           <div style="color:var(--muted);font-size:0.85rem;padding:0.25rem 0">Loading...</div>
         </div>
@@ -7029,10 +7029,11 @@ function fmtDate(iso) {
     const score      = data.momentum_score;
     const scoreColor = _momentumColor(score);
     const COMP_DEFS  = [
-      { key: "nutrition", label: "Nutrition", max: 35 },
-      { key: "activity",  label: "Activity",  max: 35 },
-      { key: "checkin",   label: "Check-in",  max: 20 },
-      { key: "tasks",     label: "Tasks",     max: 10 },
+      { key: "nutrition", label: "Calories", max: 15 },
+      { key: "protein",   label: "Protein",  max: 10 },
+      { key: "activity",  label: "Workout",  max: 10 },
+      { key: "checkin",   label: "Check-in", max:  5 },
+      { key: "tasks",     label: "Tasks",    max:  5 },
     ];
     const comps   = data.components || {};
     const contrib = data.weighted_contributions || {};
