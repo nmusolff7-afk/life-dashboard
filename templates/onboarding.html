@@ -396,6 +396,70 @@
         <p id="ob-complete-body">Apex now understands who you are. Your dashboard is calibrated to your goals, lifestyle, and motivations.</p>
         <div class="ob-profile-summary" id="ob-profile-summary"></div>
         <div id="ob-plan-section" style="display:none;margin-top:1.25rem"></div>
+
+        <!-- Workout plan choice -->
+        <div id="ob-workout-section" style="display:none;margin-top:1.25rem">
+          <div class="ob-plan">
+            <div class="ob-plan-title">Workout Plan</div>
+
+            <!-- Initial choice -->
+            <div id="ob-wp-choice">
+              <div style="font-size:0.84rem;color:var(--muted);margin-bottom:0.85rem;line-height:1.5">
+                How do you want to set up your training?
+              </div>
+
+              <div style="margin-bottom:0.65rem">
+                <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.35rem">Training days per week</label>
+                <div class="chips" id="ob-wp-days-chips">
+                  <div class="chip" data-val="3" style="flex:1;text-align:center">3</div>
+                  <div class="chip active" data-val="4" style="flex:1;text-align:center">4</div>
+                  <div class="chip" data-val="5" style="flex:1;text-align:center">5</div>
+                  <div class="chip" data-val="6" style="flex:1;text-align:center">6</div>
+                </div>
+              </div>
+
+              <div style="margin-bottom:0.85rem">
+                <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.35rem">Experience level</label>
+                <div class="chips" id="ob-wp-exp-chips">
+                  <div class="chip active" data-val="beginner" style="flex:1;text-align:center">Beginner</div>
+                  <div class="chip" data-val="intermediate" style="flex:1;text-align:center">Intermediate</div>
+                  <div class="chip" data-val="advanced" style="flex:1;text-align:center">Advanced</div>
+                </div>
+              </div>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
+                <button class="btn btn-primary" id="ob-wp-suggest-btn" style="font-size:0.88rem;padding:0.7rem">Suggest a Plan</button>
+                <button class="btn btn-ghost" id="ob-wp-skip-btn" style="font-size:0.88rem;padding:0.7rem">I'll do my own</button>
+              </div>
+            </div>
+
+            <!-- Loading state -->
+            <div id="ob-wp-loading" style="display:none;text-align:center;padding:1rem 0;color:var(--muted);font-size:0.85rem">
+              <div style="animation:spin 1.2s linear infinite;display:inline-block;margin-bottom:0.5rem">&#9881;</div>
+              <div>Generating your plan...</div>
+            </div>
+
+            <!-- Generated plan review -->
+            <div id="ob-wp-review" style="display:none">
+              <div style="font-size:0.84rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.5">
+                Here's a simple plan based on your goal. Review it below.
+              </div>
+              <div id="ob-wp-preview" style="margin-bottom:0.85rem"></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
+                <button class="btn btn-primary" id="ob-wp-accept-btn" style="font-size:0.88rem;padding:0.7rem">Use This Plan</button>
+                <button class="btn btn-ghost" id="ob-wp-regenerate-btn" style="font-size:0.88rem;padding:0.7rem">Try Again</button>
+              </div>
+            </div>
+
+            <!-- Accepted / skipped confirmation -->
+            <div id="ob-wp-done" style="display:none;text-align:center;padding:0.5rem 0">
+              <div style="font-size:1.2rem;margin-bottom:0.3rem" id="ob-wp-done-icon">&#10003;</div>
+              <div style="font-size:0.88rem;font-weight:600;color:var(--text)" id="ob-wp-done-text">Plan saved!</div>
+              <div style="font-size:0.78rem;color:var(--muted);margin-top:0.2rem">You can edit it anytime in the Profile tab.</div>
+            </div>
+          </div>
+        </div>
+
         <div class="error-msg" id="ob-error" style="display:none;margin-top:1rem"></div>
         <button class="btn btn-primary" id="ob-enter-btn" style="display:none;width:100%;margin-top:1.5rem;padding:0.9rem;font-size:1rem" onclick="enterApex(this)">
           Enter Apex ›
@@ -602,6 +666,7 @@
         document.getElementById("ob-complete-body").textContent = "Apex now understands who you are. Your dashboard is calibrated to your goals, lifestyle, and motivations.";
         buildSummary(job.profile || {});
         buildPlanPanel(job.targets || null);
+        showWorkoutSection();
         document.getElementById("ob-enter-btn").style.display = "";
       } catch (renderErr) {
         document.getElementById("ob-error").textContent = "Display error (profile saved): " + renderErr.message;
@@ -711,6 +776,90 @@
     html += '</div>';
     el.innerHTML = html;
     el.style.display = "";
+  }
+
+  // ── Workout plan generation ────────────────────────────
+  let generatedPlan = null;
+
+  function chipVal2(groupId) {
+    const el = document.getElementById(groupId);
+    if (!el) return null;
+    const active = el.querySelector(".chip.active");
+    return active ? active.dataset.val : null;
+  }
+
+  function renderWeeklyPlan(plan) {
+    const days = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+    let html = '';
+    days.forEach(d => {
+      const exercises = plan[d] || [];
+      if (!exercises.length) return;
+      html += '<div style="margin-bottom:0.6rem">';
+      html += '<div style="font-size:0.78rem;font-weight:600;color:var(--accent2);margin-bottom:0.25rem">' + d + '</div>';
+      exercises.forEach(ex => {
+        html += '<div style="font-size:0.82rem;color:var(--text);padding:0.15rem 0">' + ex.name + ' <span style="color:var(--muted)">' + (ex.sets || 3) + ' sets</span></div>';
+      });
+      html += '</div>';
+    });
+    return html || '<div style="color:var(--muted);font-size:0.84rem">No exercises generated.</div>';
+  }
+
+  function showWPState(state) {
+    document.getElementById("ob-wp-choice").style.display  = state === "choice"  ? "" : "none";
+    document.getElementById("ob-wp-loading").style.display = state === "loading" ? "" : "none";
+    document.getElementById("ob-wp-review").style.display  = state === "review"  ? "" : "none";
+    document.getElementById("ob-wp-done").style.display    = state === "done"    ? "" : "none";
+  }
+
+  function requestPlan() {
+    const days = parseInt(chipVal2("ob-wp-days-chips") || "4");
+    const exp  = chipVal2("ob-wp-exp-chips") || "beginner";
+    const goal = selectedGoal || "lose_weight";
+
+    showWPState("loading");
+    fetch("/api/generate-plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ goal: goal, days_per_week: days, experience: exp }),
+    })
+    .then(r => r.json())
+    .then(plan => {
+      if (plan.error) {
+        showWPState("choice");
+        alert("Could not generate plan: " + plan.error);
+        return;
+      }
+      generatedPlan = plan;
+      document.getElementById("ob-wp-preview").innerHTML = renderWeeklyPlan(plan);
+      showWPState("review");
+    })
+    .catch(() => {
+      showWPState("choice");
+      alert("Failed to generate plan. Please try again.");
+    });
+  }
+
+  document.getElementById("ob-wp-suggest-btn").addEventListener("click", requestPlan);
+  document.getElementById("ob-wp-regenerate-btn").addEventListener("click", requestPlan);
+
+  document.getElementById("ob-wp-accept-btn").addEventListener("click", () => {
+    if (generatedPlan) {
+      localStorage.setItem("weeklyPlan", JSON.stringify(generatedPlan));
+    }
+    document.getElementById("ob-wp-done-icon").textContent = "\u2713";
+    document.getElementById("ob-wp-done-text").textContent = "Plan saved!";
+    showWPState("done");
+  });
+
+  document.getElementById("ob-wp-skip-btn").addEventListener("click", () => {
+    document.getElementById("ob-wp-done-icon").textContent = "\u2192";
+    document.getElementById("ob-wp-done-text").textContent = "No problem — set it up in the Profile tab.";
+    showWPState("done");
+  });
+
+  // Show the workout section when plan panel is shown
+  function showWorkoutSection() {
+    document.getElementById("ob-workout-section").style.display = "";
   }
 
   window.enterApex = async function(btn) {

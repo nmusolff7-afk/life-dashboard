@@ -26,7 +26,7 @@ from db import (
     save_gmail_summary, get_gmail_summary,
     upsert_user_goal, get_user_goal,
 )
-from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, shorten_label, scan_meal_image, generate_momentum_insight, suggest_meal, identify_ingredients
+from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, generate_workout_plan, shorten_label, scan_meal_image, generate_momentum_insight, suggest_meal, identify_ingredients
 from claude_profile import generate_profile_map, compute_mind_insights, score_brief
 import garmin_sync
 import gmail_sync
@@ -782,6 +782,22 @@ def api_parse_workout_plan():
         return jsonify(parse_workout_plan(text))
     except Exception as e:
         _log.exception("parse-workout-plan failed")
+        return jsonify({"error": _AI_ERR}), 500
+
+
+@app.route("/api/generate-plan", methods=["POST"])
+@login_required
+def api_generate_plan():
+    """Generate a simple workout plan based on goal and preferences."""
+    data = request.get_json() or {}
+    goal       = data.get("goal", "lose_weight")
+    days       = int(data.get("days_per_week", 3))
+    experience = data.get("experience", "beginner")
+    try:
+        plan = generate_workout_plan(goal, days, experience)
+        return jsonify(plan)
+    except Exception as e:
+        _log.exception("generate-plan failed")
         return jsonify({"error": _AI_ERR}), 500
 
 

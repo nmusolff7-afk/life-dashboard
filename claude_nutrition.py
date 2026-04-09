@@ -421,6 +421,59 @@ Rules:
 _DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
+_GENERATE_PLAN_PROMPT = """You are a certified personal trainer creating a simple, beginner-friendly weekly workout plan.
+
+The user's goal is: {goal}
+Training days per week: {days_per_week}
+Experience level: {experience}
+
+Create a clear weekly plan. Respond ONLY with this exact JSON (no markdown, no explanation):
+{{
+  "Monday":    [{{"name": "<exercise>", "sets": <int>}}],
+  "Tuesday":   [...],
+  "Wednesday": [...],
+  "Thursday":  [...],
+  "Friday":    [...],
+  "Saturday":  [...],
+  "Sunday":    []
+}}
+
+Rules:
+- Include all 7 days. Use [] for rest days.
+- Spread {days_per_week} training days across the week with rest between hard days.
+- For fat loss: mix compound lifts with short conditioning. 3-4 exercises per session.
+- For muscle gain: focus on compound movements, progressive overload. 4-5 exercises per session.
+- For recomp: upper/lower or push/pull split. 4 exercises per session.
+- For maintenance: full-body sessions, 3-4 exercises each.
+- Use only common exercises that cannot be misinterpreted (e.g. "Squat", "Bench Press", "Deadlift", "Overhead Press", "Barbell Row", "Pull Up", "Dumbbell Curl", "Lat Pulldown", "Leg Press", "Plank").
+- Do NOT include reps in the name. Sets should be 3-4.
+- Exercise names must be clean title-case."""
+
+
+def generate_workout_plan(goal: str, days_per_week: int = 3, experience: str = "beginner") -> dict:
+    """Generate a simple weekly workout plan based on goal and preferences."""
+    goal_labels = {
+        "lose_weight": "fat loss — prioritize calorie burn and muscle preservation",
+        "build_muscle": "muscle gain — prioritize hypertrophy and progressive overload",
+        "recomp": "body recomposition — balance fat loss and muscle gain",
+        "maintain": "maintenance — preserve current fitness and body composition",
+    }
+    prompt = _GENERATE_PLAN_PROMPT.format(
+        goal=goal_labels.get(goal, goal),
+        days_per_week=days_per_week,
+        experience=experience,
+    )
+    response = _client().messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1024,
+        system=prompt,
+        messages=[{"role": "user", "content": "Generate my workout plan."}],
+    )
+    raw = next(b.text for b in response.content if b.type == "text")
+    data = _parse_json(raw)
+    return {d: data.get(d, []) for d in _DAYS}
+
+
 # ── Momentum pattern insight ──────────────────────────
 
 _MOMENTUM_INSIGHT_SYSTEM = (
