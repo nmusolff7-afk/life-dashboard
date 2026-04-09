@@ -257,14 +257,19 @@ def api_profile():
     }
     # Include computed goal targets if available
     if goal:
+        cfg = get_goal_config(goal["goal_key"])
         resp["goal_targets"] = {
             "goal_key":        goal["goal_key"],
+            "goal_label":      cfg["label"],
             "calorie_target":  goal["calorie_target"],
             "protein_g":       goal["protein_g"],
             "fat_g":           goal["fat_g"],
             "carbs_g":         goal["carbs_g"],
             "deficit_surplus":  goal["deficit_surplus"],
             "rmr":             goal["rmr"],
+            "sources":         cfg["sources"],
+            "description":     cfg["description"],
+            "rationale":       cfg["rationale"],
         }
     return jsonify(resp)
 
@@ -1125,6 +1130,53 @@ def api_momentum_insight():
     except Exception as e:
         _log.exception("momentum-insight failed")
         return jsonify({"error": _AI_ERR}), 500
+
+
+@app.route("/api/goal/update", methods=["POST"])
+@login_required
+def api_goal_update():
+    """Recompute and persist goal targets from body stats + goal key."""
+    data = request.get_json() or {}
+    goal_key = data.get("goal", "lose_weight")
+    try:
+        targets = compute_targets(
+            goal_key=goal_key,
+            weight_lbs=float(data.get("curWeight", 185)),
+            target_weight_lbs=float(data.get("tgtWeight", 170)),
+            height_ft=int(data.get("heightFt", 5)),
+            height_in=int(data.get("heightIn", 10)),
+            age=int(data.get("age", 28)),
+            sex=data.get("sex", "male"),
+            bf_pct=float(data.get("bfPct", 0)),
+            tdee=int(data.get("tdee", 0)),
+        )
+        upsert_user_goal(
+            user_id=uid(),
+            goal_key=targets["goal_key"],
+            calorie_target=targets["calorie_target"],
+            protein_g=targets["protein_g"],
+            fat_g=targets["fat_g"],
+            carbs_g=targets["carbs_g"],
+            deficit_surplus=targets["deficit_surplus"],
+            rmr=targets["rmr"],
+            rmr_method=targets["rmr_method"],
+            tdee_used=targets["tdee_used"],
+            config_json=json.dumps(targets["rationale"]),
+            sources_json=json.dumps(targets["sources"]),
+        )
+        return jsonify({"ok": True, "targets": {
+            "goal_key": targets["goal_key"],
+            "calorie_target": targets["calorie_target"],
+            "protein_g": targets["protein_g"],
+            "fat_g": targets["fat_g"],
+            "carbs_g": targets["carbs_g"],
+            "deficit_surplus": targets["deficit_surplus"],
+            "rmr": targets["rmr"],
+            "sources": targets["sources"],
+        }})
+    except Exception as e:
+        _log.exception("goal/update failed")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/momentum/summary", methods=["POST"])

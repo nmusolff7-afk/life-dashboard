@@ -2035,12 +2035,21 @@
         <div id="profile-summary-line" style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.5">
           Loading profile summary…
         </div>
-        <a href="/onboarding?edit=1" class="btn btn-ghost btn-full" style="text-decoration:none;display:flex;align-items:center;justify-content:center;gap:0.5rem">
-          <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-          </svg>
-          Edit My Profile
-        </a>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
+          <a href="/onboarding?edit=1" class="btn btn-ghost" style="text-decoration:none;display:flex;align-items:center;justify-content:center;gap:0.4rem;font-size:0.85rem">
+            <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+            Edit Profile
+          </a>
+          <button class="btn btn-ghost" id="view-plan-btn" style="font-size:0.85rem;display:flex;align-items:center;justify-content:center;gap:0.4rem">
+            <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+            View Plan
+          </button>
+        </div>
+        <div id="view-plan-panel" style="display:none;margin-top:0.85rem"></div>
       </div>
 
       <!-- Delete Account -->
@@ -2666,6 +2675,10 @@ fetch("/api/profile")
       if (saved.goal) {
         document.querySelectorAll(".goal-btn").forEach(b =>
           b.classList.toggle("active", b.dataset.val === saved.goal));
+      }
+      // Wire View Plan button
+      if (gt) {
+        window._goalTargetsFromServer = gt;
       }
     } catch(e) {}
   })
@@ -5043,7 +5056,7 @@ try {
       const tef   = calcTEF(CAL_CONSUMED, PROTEIN_CONSUMED, CARBS_CONSUMED, FAT_CONSUMED);
       const tdee  = rmr + neat + eat + tef;
       const targetCal = calcTargetCalories(tdee, inp.goal, rmr);
-      const adjust    = targetCal - tdee;  // negative = deficit, positive = surplus
+      const adjust    = targetCal - tdee;
       const macros    = calcMacros(targetCal, inp.curWeight, inp.tgtWeight, inp.goal);
       profile.rmr     = rmr;
       profile.deficit = adjust;
@@ -5056,6 +5069,17 @@ try {
       setSlider("carbs", macros.carbs);
       setSlider("fat", macros.fat);
       updatePreview();
+
+      // Persist targets to backend so daily score uses them
+      fetch("/api/goal/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          goal: inp.goal, curWeight: inp.curWeight, tgtWeight: inp.tgtWeight,
+          heightFt: inp.heightFt, heightIn: inp.heightIn, age: inp.age,
+          sex: inp.sex, bfPct: inp.bfPct, tdee: tdee,
+        }),
+      }).catch(() => {});  // fire-and-forget, localStorage is primary
     }
     localStorage.setItem("profileData", JSON.stringify(profile));
     applyProfileToMeals(profile);
@@ -7443,6 +7467,72 @@ if ("serviceWorker" in navigator) {
   });
 }
 
+
+// ══════════════════════════════════════════════════════
+//  VIEW PLAN PANEL
+// ══════════════════════════════════════════════════════
+(function() {
+  const btn   = document.getElementById("view-plan-btn");
+  const panel = document.getElementById("view-plan-panel");
+  if (!btn || !panel) return;
+
+  let planVisible = false;
+
+  function renderPlanPanel(gt) {
+    if (!gt) {
+      panel.innerHTML = '<div style="color:var(--muted);font-size:0.84rem">No plan available yet. Complete onboarding or save your profile to generate one.</div>';
+      return;
+    }
+    const goalLabels = { lose_weight: "Lose Weight", build_muscle: "Build Muscle", recomp: "Body Recomposition", maintain: "Maintain" };
+    const adjPct = { lose_weight: "-20%", build_muscle: "+10%", recomp: "-10%", maintain: "0%" };
+    const proGKG = { lose_weight: "2.0", build_muscle: "1.8", recomp: "2.2", maintain: "1.6" };
+    const gk = gt.goal_key || "lose_weight";
+    const ds = gt.deficit_surplus || 0;
+    const dsLabel = ds < 0 ? Math.abs(ds) + " kcal deficit" : ds > 0 ? ds + " kcal surplus" : "at maintenance";
+    const rat = gt.rationale || {};
+    const sources = gt.sources || [];
+
+    let html = '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1rem;font-size:0.82rem;line-height:1.6">';
+    html += '<div style="font-weight:700;color:var(--accent2);font-size:0.95rem;margin-bottom:0.15rem">' + (goalLabels[gk] || gk) + '</div>';
+    html += '<div style="color:var(--muted);margin-bottom:0.85rem">' + (gt.description || "") + '</div>';
+
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0.5rem;margin-bottom:0.75rem;text-align:center">';
+    html += '<div><div style="font-size:1.05rem;font-weight:800;color:var(--cal)">' + (gt.calorie_target || "—") + '</div><div style="font-size:0.68rem;color:var(--muted)">kcal · ' + dsLabel + '</div></div>';
+    html += '<div><div style="font-size:1.05rem;font-weight:800;color:var(--protein)">' + (gt.protein_g || "—") + 'g</div><div style="font-size:0.68rem;color:var(--muted)">protein</div></div>';
+    html += '<div><div style="font-size:1.05rem;font-weight:800;color:var(--fat)">' + (gt.fat_g || "—") + 'g</div><div style="font-size:0.68rem;color:var(--muted)">fat</div></div>';
+    html += '<div><div style="font-size:1.05rem;font-weight:800;color:var(--carbs)">' + (gt.carbs_g || "—") + 'g</div><div style="font-size:0.68rem;color:var(--muted)">carbs</div></div>';
+    html += '</div>';
+
+    // Rationale
+    if (rat.calories || rat.protein) {
+      html += '<div style="border-top:1px solid var(--border);padding-top:0.6rem;margin-top:0.3rem">';
+      if (rat.calories) html += '<div style="margin-bottom:0.4rem"><span style="font-weight:600">Calories:</span> <span style="color:var(--muted)">' + rat.calories + '</span></div>';
+      if (rat.protein)  html += '<div style="margin-bottom:0.4rem"><span style="font-weight:600">Protein:</span> <span style="color:var(--muted)">' + rat.protein + '</span></div>';
+      if (rat.fat)      html += '<div style="margin-bottom:0.4rem"><span style="font-weight:600">Fat:</span> <span style="color:var(--muted)">' + rat.fat + '</span></div>';
+      if (rat.carbs)    html += '<div style="margin-bottom:0.4rem"><span style="font-weight:600">Carbs:</span> <span style="color:var(--muted)">' + rat.carbs + '</span></div>';
+      html += '</div>';
+    }
+
+    if (sources.length) {
+      html += '<div style="font-size:0.7rem;color:var(--muted);border-top:1px solid var(--border);padding-top:0.5rem;margin-top:0.4rem">';
+      html += '<strong>Sources:</strong> ' + sources.join(' · ');
+      html += '</div>';
+    }
+    html += '</div>';
+    panel.innerHTML = html;
+  }
+
+  btn.addEventListener("click", () => {
+    planVisible = !planVisible;
+    if (planVisible) {
+      const gt = window._goalTargetsFromServer || null;
+      renderPlanPanel(gt);
+      panel.style.display = "";
+    } else {
+      panel.style.display = "none";
+    }
+  });
+})();
 
 // ══════════════════════════════════════════════════════
 //  THEME PICKER
