@@ -302,6 +302,7 @@ def api_profile():
         "target_weight_lbs":          raw.get("target_weight_lbs"),
         "height_ft":                  raw.get("height_ft"),
         "height_in":                  raw.get("height_in"),
+        "birthday":                   raw.get("birthday"),
         "age":                        raw.get("age"),
         "gender":                     raw.get("gender"),
         "work_style":                 raw.get("work_style"),

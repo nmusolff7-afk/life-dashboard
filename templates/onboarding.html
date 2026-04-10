@@ -194,7 +194,7 @@
         <label>What should we call you?</label>
         <input type="text" id="ob-first-name" placeholder="First name" autocomplete="given-name">
       </div>
-      <div class="input-row-3">
+      <div class="input-row" style="margin-top:0">
         <div class="field" style="margin-bottom:0">
           <label>Height (ft)</label>
           <input type="number" id="ob-height-ft" min="4" max="7" placeholder="5">
@@ -203,11 +203,13 @@
           <label>Height (in)</label>
           <input type="number" id="ob-height-in" min="0" max="11" placeholder="10">
         </div>
-        <div class="field" style="margin-bottom:0">
-          <label>Age</label>
-          <input type="number" id="ob-age" min="13" max="100" placeholder="28">
-        </div>
       </div>
+      <div class="field" style="margin-top:1.1rem">
+        <label>Birthday</label>
+        <input type="date" id="ob-birthday" style="width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-size:0.95rem;padding:0.7rem 0.95rem">
+      </div>
+      <!-- Hidden age computed from birthday -->
+      <input type="hidden" id="ob-age" value="">
       <div class="field" style="margin-top:1.1rem">
         <label>Current weight (lbs)</label>
         <input type="number" id="ob-cur-weight" min="80" max="500" placeholder="185">
@@ -217,9 +219,8 @@
       <div class="field" style="margin-top:1.1rem">
         <label>Sex <span style="color:var(--muted);font-weight:400;font-size:0.74rem">(used for calorie calculations)</span></label>
         <div class="chips" id="ob-gender-chips">
-          <div class="chip" data-val="male">Male</div>
-          <div class="chip" data-val="female">Female</div>
-          <div class="chip" data-val="other">Other / prefer not to say</div>
+          <div class="chip" data-val="male" style="flex:1;text-align:center">Male</div>
+          <div class="chip" data-val="female" style="flex:1;text-align:center">Female</div>
         </div>
       </div>
       <div id="ob-bmi-preview" style="display:none;margin-top:1rem;padding:0.75rem 1rem;
@@ -318,9 +319,9 @@
         <div id="gw-prompt" style="margin-top:1.25rem">
           <div id="gw-ask" style="text-align:center">
             <div style="font-size:0.88rem;color:var(--text);margin-bottom:0.75rem">Do you have a specific goal weight?</div>
-            <div style="display:flex;gap:0.5rem;justify-content:center">
-              <button class="btn btn-primary" id="gw-yes-btn" style="padding:0.55rem 1.5rem;font-size:0.88rem">Yes</button>
-              <button class="btn btn-ghost" id="gw-no-btn" style="padding:0.55rem 1.5rem;font-size:0.88rem">No</button>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;max-width:280px;margin:0 auto">
+              <button class="btn btn-primary" id="gw-yes-btn" style="padding:0.55rem;font-size:0.88rem">Yes</button>
+              <button class="btn btn-ghost" id="gw-no-btn" style="padding:0.55rem;font-size:0.88rem">No</button>
             </div>
           </div>
           <div id="gw-input-section" style="display:none">
@@ -396,16 +397,10 @@
                 How do you want to set up your training?
               </div>
 
-              <div style="margin-bottom:0.65rem">
-                <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.35rem">Training days per week</label>
-                <div class="chips" id="ob-wp-days-chips">
-                  <div class="chip" data-val="1" style="flex:1;text-align:center">1</div>
-                  <div class="chip" data-val="3" style="flex:1;text-align:center">3</div>
-                  <div class="chip active" data-val="4" style="flex:1;text-align:center">4</div>
-                  <div class="chip" data-val="5" style="flex:1;text-align:center">5</div>
-                  <div class="chip" data-val="6" style="flex:1;text-align:center">6</div>
-                  <div class="chip" data-val="7" style="flex:1;text-align:center">7</div>
-                </div>
+              <div class="slider-field" style="margin-bottom:0.65rem">
+                <label>Training days per week <span id="ob-wp-days-val" style="color:var(--accent2);font-weight:600">4</span></label>
+                <input type="range" id="ob-wp-days-slider" min="0" max="7" step="1" value="4" style="width:100%;accent-color:var(--accent2)">
+                <div class="slider-endpoints"><span>0</span><span>7</span></div>
               </div>
 
               <div style="margin-bottom:0.85rem">
@@ -502,6 +497,7 @@
     lbl.textContent = fmt(el.value);
   }
   bindSlider("ob-stress", "ob-stress-val", v => v + " / 10");
+  bindSlider("ob-wp-days-slider", "ob-wp-days-val", v => v);
   // energy and mood sliders removed — collected during daily check-ins instead
 
   // ── BMI preview on page 1 ──────────────────────────────────────
@@ -534,10 +530,30 @@
     return active.length === 0 ? null : active[0];
   }
 
+  function _ageFromBirthday(bday) {
+    if (!bday) return null;
+    const b = new Date(bday + "T00:00:00");
+    const now = new Date();
+    let age = now.getFullYear() - b.getFullYear();
+    const m = now.getMonth() - b.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < b.getDate())) age--;
+    return age > 0 ? age : null;
+  }
+
+  // Keep hidden age input in sync with birthday
+  const _bdayEl = document.getElementById("ob-birthday");
+  if (_bdayEl) {
+    _bdayEl.addEventListener("change", () => {
+      document.getElementById("ob-age").value = _ageFromBirthday(_bdayEl.value) || "";
+    });
+  }
+
   function collectAll() {
+    const bday = document.getElementById("ob-birthday").value || null;
     return {
       first_name:              document.getElementById("ob-first-name").value.trim() || null,
-      age:                     parseInt(document.getElementById("ob-age").value) || null,
+      birthday:                bday,
+      age:                     _ageFromBirthday(bday),
       gender:                  chipVal("ob-gender-chips"),
       height_ft:               parseFloat(document.getElementById("ob-height-ft").value) || null,
       height_in:               parseFloat(document.getElementById("ob-height-in").value) || null,
@@ -796,7 +812,7 @@
   }
 
   function requestPlan() {
-    const days = parseInt(chipVal2("ob-wp-days-chips") || "4");
+    const days = parseInt(document.getElementById("ob-wp-days-slider").value) || 4;
     const exp  = chipVal2("ob-wp-exp-chips") || "beginner";
     const goal = selectedGoal || "lose_weight";
 
@@ -855,6 +871,8 @@
       const res  = await fetch("/api/onboarding/status");
       const data = await res.json();
       if (data.complete) {
+        // Clear stale profile data so /api/profile seeds fresh values
+        try { localStorage.removeItem("profileData"); } catch(_) {}
         window.location.href = "/";
       } else {
         btn.disabled = false;
@@ -1068,7 +1086,8 @@
       });
     }
     setVal("ob-first-name", s.first_name);
-    setVal("ob-age", s.age);
+    setVal("ob-birthday", s.birthday);
+    if (s.birthday) document.getElementById("ob-age").value = _ageFromBirthday(s.birthday) || s.age || "";
     setChip("ob-gender-chips", s.gender);
     setVal("ob-height-ft", s.height_ft);
     setVal("ob-height-in", s.height_in);

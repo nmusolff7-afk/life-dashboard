@@ -2661,7 +2661,16 @@ fetch("/api/profile")
       _seed("tgtWeight", p.target_weight_lbs || null);  // null if no goal weight
       _seed("heightFt",  p.height_ft);
       _seed("heightIn",  p.height_in);
-      _seed("age",       p.age);
+      // Auto-compute age from birthday on every load
+      if (p.birthday) {
+        const b = new Date(p.birthday + "T00:00:00"), now = new Date();
+        let computedAge = now.getFullYear() - b.getFullYear();
+        const m = now.getMonth() - b.getMonth();
+        if (m < 0 || (m === 0 && now.getDate() < b.getDate())) computedAge--;
+        if (computedAge > 0) { saved.age = computedAge; changed = true; }
+      } else {
+        _seed("age", p.age);
+      }
       _seed("sex",       p.gender);
       _seed("occupation", { desk: "sedentary", standing: "standing", physical: "physical", remote: "sedentary", mixed: "standing" }[p.work_style] || null);
       _seed("goal",      p.primary_goal);
