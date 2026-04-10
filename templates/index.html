@@ -7407,10 +7407,7 @@ function fmtDate(iso) {
       if (key === "macros") {
         const mc = d.components || [];
         if (!mc.length) return "no goal";
-        return mc.map(m => {
-          const sign = m.actual > m.target ? "+" : "";
-          return m.name.charAt(0).toUpperCase() + " " + sign + Math.round(m.actual - m.target) + "g";
-        }).join(", ");
+        return mc.map(m => m.name[0].toUpperCase() + Math.round(m.actual) + "/" + m.target + "g").join(" ");
       }
       if (key === "workout") {
         if (d.rest_day) return "rest day";
@@ -7418,11 +7415,10 @@ function fmtDate(iso) {
         return "not done";
       }
       if (key === "checkin") {
-        if (d.morning && d.evening) return "both";
-        if (d.morning && d.evening_pending) return "AM done, PM pending";
-        if (d.morning) return "AM only";
-        if (d.evening) return "PM only";
-        return "none";
+        if (d.morning && d.evening) return "AM+PM";
+        if (d.morning) return "AM";
+        if (d.evening) return "PM";
+        return "—";
       }
       if (key === "tasks") {
         if (d.total === 0) return "none";
@@ -7512,13 +7508,16 @@ function fmtDate(iso) {
     try {
       const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
       const todayDay = dayNames[new Date().getDay()];
-      const plan = typeof getWorkoutPlan === "function" ? getWorkoutPlan() : {};
-      const todayExercises = plan[todayDay] || [];
+      let planned = true; // default: assume workout day
+      try {
+        const wp = JSON.parse(localStorage.getItem("weeklyPlan") || "null");
+        if (wp) planned = (wp[todayDay] || []).length > 0;
+      } catch(e) {}
       return {
         hour:                  new Date().getHours(),
         tdee:                  CURRENT_TDEE  || 0,
         cal_consumed:          CAL_CONSUMED  || 0,
-        planned_workout_today: todayExercises.length > 0,
+        planned_workout_today: planned,
       };
     } catch(e) { return {}; }
   }
