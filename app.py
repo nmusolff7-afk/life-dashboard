@@ -1080,8 +1080,11 @@ def api_gmail_connect():
     """Redirect user to Google OAuth consent screen."""
     if not gmail_sync.is_configured():
         return jsonify({"error": "Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET."}), 400
+    import secrets
+    oauth_state = secrets.token_urlsafe(32)
+    session["gmail_oauth_state"] = oauth_state
     redirect_uri = _gmail_redirect_uri()
-    auth_url = gmail_sync.get_auth_url(redirect_uri, state=str(uid()))
+    auth_url = gmail_sync.get_auth_url(redirect_uri, state=oauth_state)
     return redirect(auth_url)
 
 
@@ -1092,6 +1095,11 @@ def api_gmail_callback():
     error = request.args.get("error")
     if error:
         return redirect(url_for("index") + "?gmail_error=" + error)
+
+    returned_state = request.args.get("state", "")
+    expected_state = session.pop("gmail_oauth_state", None)
+    if not expected_state or returned_state != expected_state:
+        return redirect(url_for("index") + "?gmail_error=invalid_state")
 
     code = request.args.get("code", "")
     if not code:
