@@ -283,6 +283,7 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_user_goals_user          ON user_goals(user_id)",
             "CREATE INDEX IF NOT EXISTS idx_gmail_cache_user         ON gmail_cache(user_id)",
             "CREATE INDEX IF NOT EXISTS idx_gmail_summaries_user     ON gmail_summaries(user_id)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_workout_garmin_uniq  ON workout_logs(user_id, garmin_activity_id) WHERE garmin_activity_id IS NOT NULL AND garmin_activity_id != ''",
         ]:
             conn.execute(idx_sql)
 
