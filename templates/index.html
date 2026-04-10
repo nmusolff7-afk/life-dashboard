@@ -1764,9 +1764,9 @@
       </div>
 
       <!-- Save Profile (About You only) -->
-      <div style="display:flex;align-items:center;margin-bottom:1rem">
-        <button class="btn btn-primary btn-full" id="save-profile-btn">Save Profile</button>
-        <span class="save-confirm" id="save-confirm">✓ Saved</span>
+      <div style="text-align:center;margin-bottom:1rem;position:relative">
+        <button class="btn btn-primary" id="save-profile-btn" style="width:100%;max-width:320px;margin:0 auto">Save Profile</button>
+        <span class="save-confirm" id="save-confirm" style="position:absolute;right:0;top:50%;transform:translateY(-50%)">✓ Saved</span>
       </div>
 
       <!-- Calculated Goals -->
@@ -3053,6 +3053,25 @@ function deleteWorkout(id) {
     savePantry(existing);
     renderPantry();
   }
+  // Food categorization
+  const _FOOD_CATS = {
+    "Protein":    { icon: "🥩", color: "var(--protein)", keywords: ["chicken","beef","pork","turkey","fish","salmon","tuna","shrimp","steak","bacon","sausage","ham","lamb","tofu","tempeh","egg","eggs","ground","breast","thigh","wing"] },
+    "Dairy":      { icon: "🥛", color: "var(--fat)",     keywords: ["milk","cheese","yogurt","butter","cream","sour cream","cottage","mozzarella","cheddar","parmesan","whey"] },
+    "Grains":     { icon: "🌾", color: "var(--carbs)",   keywords: ["rice","pasta","bread","oats","oatmeal","cereal","flour","tortilla","noodle","quinoa","barley","bagel","wrap"] },
+    "Vegetables": { icon: "🥬", color: "var(--green)",   keywords: ["spinach","broccoli","carrot","pepper","onion","garlic","tomato","lettuce","kale","zucchini","cucumber","celery","mushroom","potato","sweet potato","corn","pea","bean","asparagus","cauliflower","cabbage","avocado"] },
+    "Fruit":      { icon: "🍎", color: "var(--amber)",   keywords: ["apple","banana","orange","berry","berries","strawberry","blueberry","grape","mango","pineapple","watermelon","peach","pear","lemon","lime"] },
+    "Other":      { icon: "🧂", color: "var(--muted)",   keywords: [] },
+  };
+
+  function _categorize(item) {
+    const low = item.toLowerCase();
+    for (const [cat, cfg] of Object.entries(_FOOD_CATS)) {
+      if (cat === "Other") continue;
+      if (cfg.keywords.some(kw => low.includes(kw))) return cat;
+    }
+    return "Other";
+  }
+
   function renderPantry() {
     const items = loadPantry();
     if (!items.length) {
@@ -3061,12 +3080,32 @@ function deleteWorkout(id) {
       return;
     }
     pantryEmptyHint.style.display = "none";
-    pantryChipsEl.innerHTML = items.map((item, i) =>
-      `<span style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.22rem 0.55rem;border-radius:99px;` +
-      `font-size:0.78rem;background:var(--surface);border:1px solid var(--border);color:var(--text)">${item}` +
-      `<button type="button" data-idx="${i}" style="background:none;border:none;color:var(--muted);cursor:pointer;` +
-      `font-size:0.68rem;padding:0;line-height:1;margin-left:0.15rem">&#x2715;</button></span>`
-    ).join("");
+
+    // Group by category
+    const groups = {};
+    items.forEach((item, i) => {
+      const cat = _categorize(item);
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push({ item, idx: i });
+    });
+
+    // Render grouped
+    const catOrder = ["Protein", "Vegetables", "Fruit", "Dairy", "Grains", "Other"];
+    let html = "";
+    catOrder.forEach(cat => {
+      const g = groups[cat];
+      if (!g || !g.length) return;
+      const cfg = _FOOD_CATS[cat];
+      html += `<div style="margin-bottom:0.45rem">`;
+      html += `<div style="font-size:0.68rem;color:var(--muted);margin-bottom:0.25rem">${cfg.icon} ${cat}</div>`;
+      html += `<div style="display:flex;flex-wrap:wrap;gap:0.3rem">`;
+      g.forEach(({ item, idx }) => {
+        html += `<span style="display:inline-flex;align-items:center;gap:0.2rem;padding:0.2rem 0.5rem;border-radius:99px;font-size:0.76rem;background:var(--surface);border:1px solid var(--border);color:var(--text)">${item}<button type="button" data-idx="${idx}" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.65rem;padding:0;line-height:1;margin-left:0.1rem">&#x2715;</button></span>`;
+      });
+      html += `</div></div>`;
+    });
+
+    pantryChipsEl.innerHTML = html;
     pantryChipsEl.querySelectorAll("button[data-idx]").forEach(btn => {
       btn.addEventListener("click", () => {
         const its = loadPantry(); its.splice(parseInt(btn.dataset.idx), 1);
