@@ -294,28 +294,27 @@ def init_db():
 
 def delete_account(user_id):
     """Permanently delete a user and all their data."""
+    tables = [
+        "meal_logs", "workout_logs", "daily_activity", "garmin_daily",
+        "sleep_logs", "mind_checkins", "mind_tasks", "daily_momentum",
+        "momentum_summaries", "user_goals", "user_onboarding",
+        "gmail_tokens", "gmail_cache", "gmail_summaries",
+    ]
     with get_conn() as conn:
-        conn.execute("DELETE FROM meal_logs          WHERE user_id = ?", (user_id,))
-        conn.execute("DELETE FROM workout_logs       WHERE user_id = ?", (user_id,))
-        conn.execute("DELETE FROM daily_activity     WHERE user_id = ?", (user_id,))
-        conn.execute("DELETE FROM garmin_daily       WHERE user_id = ?", (user_id,))
-        conn.execute("DELETE FROM sleep_logs         WHERE user_id = ?", (user_id,))
-        conn.execute("DELETE FROM mind_checkins      WHERE user_id = ?", (user_id,))
-        conn.execute("DELETE FROM mind_tasks         WHERE user_id = ?", (user_id,))
-        conn.execute("DELETE FROM daily_momentum     WHERE user_id = ?", (user_id,))
-        conn.execute("DELETE FROM momentum_summaries WHERE user_id = ?", (user_id,))
-        conn.execute("DELETE FROM user_goals         WHERE user_id = ?", (user_id,))
-        conn.execute("DELETE FROM user_onboarding    WHERE user_id = ?", (user_id,))
-        conn.execute("DELETE FROM gmail_tokens       WHERE user_id = ?", (user_id,))
-        conn.execute("DELETE FROM gmail_cache        WHERE user_id = ?", (user_id,))
-        conn.execute("DELETE FROM gmail_summaries    WHERE user_id = ?", (user_id,))
-        conn.execute("DELETE FROM users              WHERE id      = ?", (user_id,))
-        # Prevent SQLite from reusing this user_id — bump the sequence counter
-        conn.execute("""
-            INSERT INTO sqlite_sequence (name, seq)
-            VALUES ('users', (SELECT COALESCE(MAX(id), 0) FROM users))
-            ON CONFLICT(name) DO UPDATE SET seq = MAX(seq, excluded.seq)
-        """)
+        for table in tables:
+            try:
+                conn.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))
+            except sqlite3.OperationalError:
+                pass  # table may not exist on older DBs
+        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        try:
+            conn.execute("""
+                INSERT INTO sqlite_sequence (name, seq)
+                VALUES ('users', (SELECT COALESCE(MAX(id), 0) FROM users))
+                ON CONFLICT(name) DO UPDATE SET seq = MAX(seq, excluded.seq)
+            """)
+        except sqlite3.OperationalError:
+            pass
         conn.commit()
 
 
