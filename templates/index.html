@@ -1235,7 +1235,7 @@
           </div>
 
           <!-- Primary CTA -->
-          <button type="button" class="btn btn-green btn-full" id="macros-btn"
+          <button type="button" class="btn btn-primary btn-full" id="macros-btn"
             style="font-size:1rem;padding:0.8rem 1rem;margin-bottom:0.65rem">Get Macros</button>
 
           <!-- Or divider -->
@@ -1458,7 +1458,7 @@
         {% else %}
         <div id="strength-idle" class="strength-idle-inner">
           <p>Workout plan loaded from saved exercises. Edit anytime in Profile.</p>
-          <button class="btn btn-green" id="start-workout-btn" style="min-width:180px">Start Workout</button>
+          <button class="btn btn-primary" id="start-workout-btn" style="min-width:180px">Start Workout</button>
         </div>
         {% endif %}
         </div>
@@ -1478,7 +1478,7 @@
             <input type="number" id="activity-burn-val" min="0" step="1">
           </div>
         </div>
-        <button type="button" class="btn btn-green btn-full" id="activity-burn-btn"
+        <button type="button" class="btn btn-primary btn-full" id="activity-burn-btn"
           style="font-size:1rem;padding:0.8rem 1rem;margin-bottom:0.65rem">Get Burn Estimate</button>
         <button type="button" class="btn btn-primary btn-full" id="activity-log-btn" style="display:none">Log Activity</button>
       </div>
@@ -2708,7 +2708,11 @@ fetch("/api/profile")
       } else {
         _seed("rmr", p.rmr_kcal);
       }
-      if (changed) localStorage.setItem("profileData", JSON.stringify(saved));
+      if (changed) {
+        localStorage.setItem("profileData", JSON.stringify(saved));
+        // Re-populate profile form with the fresh data
+        if (typeof window._populateProfileForm === "function") window._populateProfileForm(saved);
+      }
       // Pre-select goal button if localStorage has it
       if (saved.goal) {
         document.querySelectorAll(".goal-btn").forEach(b =>
@@ -5250,6 +5254,9 @@ try {
   } catch(e) { recalcAll(); }
   _applyUnitUI();
 
+  // Expose so /api/profile fetch can re-populate after async seed
+  window._populateProfileForm = populateForm;
+
   // Expose so weight/steps save handlers can trigger a full TDEE recalc + preview refresh
   window._refreshProfilePreview = recalcAll;
 })();
@@ -6340,8 +6347,8 @@ function fmtDate(iso) {
         datasets: [{
           label: "Burned",
           data: vals,
-          backgroundColor: vals.map(v => v > 0 ? (_cv("--green") + "73") : (_cv("--green") + "1a")),
-          borderColor: _cv("--green"),
+          backgroundColor: vals.map(v => v > 0 ? (_cv("--chart-line") + "73") : (_cv("--chart-line") + "1a")),
+          borderColor: _cv("--chart-line"),
           borderWidth: 1,
           borderRadius: 4,
         }],
