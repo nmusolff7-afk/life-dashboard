@@ -577,11 +577,18 @@ def delete(meal_id):
     return redirect(url_for("index"))
 
 
+def _meal_response(cd=None):
+    cd = cd or client_today()
+    return jsonify({"meals": get_today_meals(uid(), cd), "totals": get_today_totals(uid(), cd)})
+
+def _workout_response(cd=None):
+    cd = cd or client_today()
+    return jsonify({"workouts": get_today_workouts(uid(), cd), "burn": get_today_workout_burn(uid(), cd)})
+
 @app.route("/api/today-nutrition")
 @login_required
 def api_today_nutrition():
-    cd = client_today()
-    return jsonify({"meals": get_today_meals(uid(), cd), "totals": get_today_totals(uid(), cd)})
+    return _meal_response()
 
 
 @app.route("/api/log-meal", methods=["POST"])
@@ -601,7 +608,7 @@ def api_log_meal():
         cd = data.get("client_date") or client_today()
         ct = data.get("client_time") or None
         insert_meal(uid(), description=description, log_date=cd, logged_at=ct, **nutrition)
-        return jsonify({"meals": get_today_meals(uid(), cd), "totals": get_today_totals(uid(), cd)})
+        return _meal_response(cd)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -621,35 +628,27 @@ def api_edit_meal(meal_id):
         carbs_g=float(data.get("carbs_g", 0)),
         fat_g=float(data.get("fat_g", 0)),
     )
-    cd = client_today()
-    return jsonify({"meals": get_today_meals(uid(), cd), "totals": get_today_totals(uid(), cd)})
+    return _meal_response()
 
 
 @app.route("/api/delete-meal/<int:meal_id>", methods=["POST"])
 @login_required
 def api_delete_meal(meal_id):
-    cd = client_today()
     delete_meal(meal_id, uid())
-    return jsonify({"meals": get_today_meals(uid(), cd), "totals": get_today_totals(uid(), cd)})
+    return _meal_response()
 
 
 @app.route("/api/delete-workout/<int:workout_id>", methods=["POST"])
 @login_required
 def api_delete_workout(workout_id):
-    cd = client_today()
     delete_workout(workout_id, uid())
-    workouts = get_today_workouts(uid(), cd)
-    burn = get_today_workout_burn(uid(), cd)
-    return jsonify({"workouts": workouts, "burn": burn})
+    return _workout_response()
 
 
 @app.route("/api/today-workouts")
 @login_required
 def api_today_workouts():
-    cd = client_today()
-    workouts = get_today_workouts(uid(), cd)
-    burn = get_today_workout_burn(uid(), cd)
-    return jsonify({"workouts": workouts, "burn": burn})
+    return _workout_response()
 
 
 @app.route("/api/scan-meal", methods=["POST"])
