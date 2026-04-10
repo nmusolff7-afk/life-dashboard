@@ -38,7 +38,7 @@ import logging as _log
 _AI_ERR = "Something went wrong, please try again later"
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "life-dashboard-default-secret-v1")
+app.secret_key = os.environ.get("SECRET_KEY") or os.urandom(32).hex()
 app.permanent_session_lifetime = timedelta(days=90)
 init_db()
 
