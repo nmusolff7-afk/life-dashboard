@@ -2517,6 +2517,11 @@ function getBriefSettings() {
   catch (_) { return {}; }
 }
 
+function getProfileData() {
+  try { return getProfileData(); }
+  catch (_) { return {}; }
+}
+
 function refreshAllUIs(mealTotals, workoutList) {
   if (typeof window._refreshDashboard === "function") window._refreshDashboard();
   if (typeof window._patchTodayInCharts === "function") window._patchTodayInCharts(mealTotals || null, workoutList || null);
@@ -2576,7 +2581,7 @@ function saveDayField(date, updates) {
 function syncWeightToProfile(weight) {
   if (!weight || weight < 50) return;
   try {
-    const profile = JSON.parse(localStorage.getItem("profileData") || "{}");
+    const profile = getProfileData();
     profile.curWeight = weight;
     // Recalculate RMR with new weight
     const hFt = profile.heightFt || 5, hIn = profile.heightIn || 10;
@@ -2710,7 +2715,7 @@ fetch("/api/profile")
     }
     // Seed localStorage with body stats + goal targets from backend
     try {
-      const saved = JSON.parse(localStorage.getItem("profileData") || "{}");
+      const saved = getProfileData();
       let changed = false;
 
       // Body stats from onboarding (seed if localStorage is empty)
@@ -3386,7 +3391,7 @@ function deleteWorkout(id) {
     loadingEl.style.display = "flex";
     resultEl.style.display  = "none";
 
-    const _prof = JSON.parse(localStorage.getItem("profileData") || "{}");
+    const _prof = getProfileData();
     const _goalPro  = _prof.protein || 175;
     const _goalCarb = _prof.carbs   || 250;
     const _goalFat  = _prof.fat     || 75;
@@ -4800,7 +4805,7 @@ try {
   function _autoSave() {
     clearTimeout(_autoSaveTimer);
     _autoSaveTimer = setTimeout(() => {
-      const existing = JSON.parse(localStorage.getItem("profileData") || "{}");
+      const existing = getProfileData();
       existing.rmr     = getSlider("rmr");
       existing.deficit = getSlider("deficit");
       existing.protein = getSlider("protein");
@@ -5134,7 +5139,7 @@ try {
   const TARGET_FIELDS = ["curWeight", "tgtWeight", "heightFt", "heightIn", "age", "sex", "bfPct", "goal"];
 
   function _targetsChanged(newProfile) {
-    const old = JSON.parse(localStorage.getItem("profileData") || "{}");
+    const old = getProfileData();
     return TARGET_FIELDS.some(f => {
       const o = old[f] ?? null, n = newProfile[f] ?? null;
       return String(o) !== String(n);
@@ -5210,7 +5215,7 @@ try {
 
   document.getElementById("save-profile-btn").addEventListener("click", () => {
     const inp      = readInputs();
-    const existing = JSON.parse(localStorage.getItem("profileData") || "{}");
+    const existing = getProfileData();
     // Record when the weight goal was set — reset only when target weight changes
     const goalSetDate = (!existing.goalSetDate || inp.tgtWeight !== existing.tgtWeight)
       ? localToday()
@@ -5309,7 +5314,7 @@ function fmtDate(iso) {
   // ── 1. Body Weight Trend ──────────────────────────
   function buildWeightChart() {
     const dailyLog  = JSON.parse(localStorage.getItem("dailyLog") || "{}");
-    const profile   = JSON.parse(localStorage.getItem("profileData") || "{}");
+    const profile   = getProfileData();
     // Only show target line if goal weight is set and different from current
     const _rawTgt   = profile.tgtWeight || null;
     const targetWt  = (_rawTgt && _rawTgt !== profile.curWeight) ? _rawTgt : null;
@@ -5452,7 +5457,7 @@ function fmtDate(iso) {
 
   // ── 2. Daily Deficit / Surplus ────────────────────
   function buildDeficitChart() {
-    const profile = JSON.parse(localStorage.getItem("profileData") || "{}");
+    const profile = getProfileData();
     const rmr     = profile.rmr || 1550;
     const targetD = profile.deficit || null;
 
@@ -5896,7 +5901,7 @@ function fmtDate(iso) {
     container.innerHTML = "";
 
     const today     = todayStr();
-    const profile   = JSON.parse(localStorage.getItem("profileData") || "{}");
+    const profile   = getProfileData();
     const rmr       = profile.rmr || SERVER_RMR;
     const CARDIO_KW = /run|ran|jog|walk|hike|treadmill|mile|cardio|bike|cycl|swim|row|ellip/;
 
@@ -6040,7 +6045,7 @@ function fmtDate(iso) {
     // Compute full TDEE: RMR + NEAT (occupation) + exercise burn + TEF (10% of intake)
     const localEntry = (ds === todayStr()) ? (getDayEntry(ds) || {}) : {};
     const _calPop    = cal ? parseInt(cal) : 0;
-    const _profPop   = (() => { try { return JSON.parse(localStorage.getItem("profileData") || "{}"); } catch(_) { return {}; } })();
+    const _profPop   = (() => { try { return getProfileData(); } catch(_) { return {}; } })();
     const _OCC       = { sedentary: 200, standing: 400, physical: 700 };
     const _neat      = _OCC[_profPop.occupation] || 200;
     const _tef       = Math.round(_calPop * 0.10);
@@ -6288,7 +6293,7 @@ function fmtDate(iso) {
     const serverWorkouts = (histData && histData.workouts) || {};
     const serverGarmin   = (histData && histData.garmin)   || {};
     const dailyLog = JSON.parse(localStorage.getItem("dailyLog") || "{}");
-    const profile  = JSON.parse(localStorage.getItem("profileData") || "{}");
+    const profile  = getProfileData();
     const rmr      = profile.rmr || SERVER_RMR || 0;
     const cutoff   = daysAgoStr(burnChartDays - 1);
 
@@ -6499,7 +6504,7 @@ function fmtDate(iso) {
         const activeBurn = gDay && gDay.active_calories
           ? gDay.active_calories
           : ws.reduce((s, w) => s + (w.calories_burned || 0), 0);
-        const profileRmr = (JSON.parse(localStorage.getItem("profileData") || "{}")).rmr || SERVER_RMR;
+        const profileRmr = (getProfileData()).rmr || SERVER_RMR;
         deficit = (profileRmr + activeBurn) - meals.calories;  // positive = deficit
       }
 
@@ -7851,7 +7856,7 @@ if ("serviceWorker" in navigator) {
   function refresh() {
     const today   = localToday();
     const entry   = getDayEntry(today) || {};
-    const profile = JSON.parse(localStorage.getItem("profileData") || "null");
+    const profile = getProfileData();
 
     // ── Calorie ring ──
     const tdee     = entry.tdee || SERVER_TDEE;
