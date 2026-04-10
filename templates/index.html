@@ -2512,6 +2512,11 @@ function localCutoff(days) {
     String(d.getDate()).padStart(2, "0");
 }
 
+function getBriefSettings() {
+  try { return JSON.parse(localStorage.getItem("briefSettings") || "{}"); }
+  catch (_) { return {}; }
+}
+
 // One-time cleanup: remove any entries that are ahead of today's local date
 // (written when the app incorrectly used UTC, rolling midnight forward)
 (function() {
@@ -8256,11 +8261,6 @@ if ("serviceWorker" in navigator) {
 //  HOME — MORNING BRIEF & EVENING DEBRIEF
 // ══════════════════════════════════════════════════════
 (function () {
-  function getBriefSettings() {
-    try { return JSON.parse(localStorage.getItem("briefSettings") || "{}"); }
-    catch (_) { return {}; }
-  }
-
   function timeToMinutes(str) {
     const [h, m] = (str || "00:00").split(":").map(Number);
     return h * 60 + (m || 0);
@@ -8437,11 +8437,6 @@ if ("serviceWorker" in navigator) {
 //  PROFILE — BRIEF SCHEDULE SETTINGS
 // ══════════════════════════════════════════════════════
 (function () {
-  function getBriefSettings() {
-    try { return JSON.parse(localStorage.getItem("briefSettings") || "{}"); }
-    catch (_) { return {}; }
-  }
-
   const s      = getBriefSettings();
   const mStart = document.getElementById("brief-morning-start");
   const mDur   = document.getElementById("brief-morning-dur");
@@ -8471,11 +8466,6 @@ if ("serviceWorker" in navigator) {
 //  BRIEF CHECK-IN REMINDER NOTIFICATIONS
 // ══════════════════════════════════════════════════════
 (function () {
-  function getBriefSettings() {
-    try { return JSON.parse(localStorage.getItem("briefSettings") || "{}"); }
-    catch (_) { return {}; }
-  }
-
   var _briefFiredKey = "briefNotifsFired_" + localToday();
   function hasFired(k) {
     try { return !!(JSON.parse(localStorage.getItem(_briefFiredKey) || "{}")[k]); }
