@@ -69,12 +69,11 @@ def generate_profile_map(raw_inputs: dict) -> dict:
         system=PROFILE_GENERATION_PROMPT,
         messages=[{"role": "user", "content": user_content}],
     )
+    import re
     text = next((b.text for b in response.content if b.type == "text"), "").strip()
-    if text.startswith("```"):
-        text = text.split("```")[1]
-        if text.startswith("json"):
-            text = text[4:]
-        text = text.strip()
+    m = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+    if m:
+        text = m.group(1).strip()
     data = json.loads(text)
     # Merge with schema defaults so all keys are always present
     result = dict(PROFILE_SCHEMA)

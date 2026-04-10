@@ -41,11 +41,11 @@ Rules:
 
 
 def _parse_json(text: str) -> dict:
+    import re
     text = text.strip()
-    if text.startswith("```"):
-        text = text.split("```")[1]
-        if text.startswith("json"):
-            text = text[4:]
+    m = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+    if m:
+        text = m.group(1)
     return json.loads(text.strip())
 
 
