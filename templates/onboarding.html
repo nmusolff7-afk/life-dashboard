@@ -268,6 +268,39 @@
             <div class="goal-card-desc">Maintain my current weight and body composition</div>
           </button>
         </div>
+        <button type="button" id="goal-quiz-start" style="background:none;border:none;color:var(--accent2);font-size:0.82rem;cursor:pointer;margin-top:0.85rem;padding:0;text-decoration:underline;display:block;width:100%;text-align:center">Not sure? Help me decide</button>
+      </div>
+
+      <!-- Quiz: help me decide -->
+      <div id="goal-quiz" style="display:none">
+        <button id="goal-quiz-back" style="background:none;border:none;color:var(--muted);font-size:0.82rem;cursor:pointer;margin-bottom:0.75rem;padding:0">&larr; Back to goals</button>
+
+        <div id="quiz-q1">
+          <div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.75rem">How do you feel about your current body fat level?</div>
+          <div style="display:flex;flex-direction:column;gap:0.45rem">
+            <button class="goal-card quiz-btn" data-q="1" data-a="high" style="text-align:left;padding:0.7rem 1rem"><div class="goal-card-title" style="margin:0">It's higher than I'd like</div></button>
+            <button class="goal-card quiz-btn" data-q="1" data-a="happy" style="text-align:left;padding:0.7rem 1rem"><div class="goal-card-title" style="margin:0">I'm happy with it</div></button>
+            <button class="goal-card quiz-btn" data-q="1" data-a="low" style="text-align:left;padding:0.7rem 1rem"><div class="goal-card-title" style="margin:0">I'd like to gain some size</div></button>
+          </div>
+        </div>
+
+        <div id="quiz-q2" style="display:none">
+          <div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.75rem">What matters more to you right now?</div>
+          <div style="display:flex;flex-direction:column;gap:0.45rem">
+            <button class="goal-card quiz-btn" data-q="2" data-a="lean" style="text-align:left;padding:0.7rem 1rem"><div class="goal-card-title" style="margin:0">Looking leaner</div></button>
+            <button class="goal-card quiz-btn" data-q="2" data-a="strong" style="text-align:left;padding:0.7rem 1rem"><div class="goal-card-title" style="margin:0">Getting stronger</div></button>
+            <button class="goal-card quiz-btn" data-q="2" data-a="both" style="text-align:left;padding:0.7rem 1rem"><div class="goal-card-title" style="margin:0">Both equally</div></button>
+          </div>
+        </div>
+
+        <div id="quiz-q3" style="display:none">
+          <div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.75rem">How long have you been training consistently?</div>
+          <div style="display:flex;flex-direction:column;gap:0.45rem">
+            <button class="goal-card quiz-btn" data-q="3" data-a="new" style="text-align:left;padding:0.7rem 1rem"><div class="goal-card-title" style="margin:0">I'm just getting started</div></button>
+            <button class="goal-card quiz-btn" data-q="3" data-a="some" style="text-align:left;padding:0.7rem 1rem"><div class="goal-card-title" style="margin:0">A few months</div></button>
+            <button class="goal-card quiz-btn" data-q="3" data-a="exp" style="text-align:left;padding:0.7rem 1rem"><div class="goal-card-title" style="margin:0">Over a year</div></button>
+          </div>
+        </div>
       </div>
 
       <!-- Phase 2: path selection (only shown for "both") -->
@@ -1074,6 +1107,73 @@
     document.getElementById("goal-phase-1").style.display = "";
   });
   document.getElementById("goal-change-btn").addEventListener("click", _resetGoal);
+
+  // ── "Help me decide" quiz ─────────────────────────────
+  let _quizAnswers = {};
+
+  document.getElementById("goal-quiz-start").addEventListener("click", () => {
+    document.getElementById("goal-phase-1").style.display = "none";
+    document.getElementById("goal-quiz").style.display = "";
+    _quizAnswers = {};
+    document.getElementById("quiz-q1").style.display = "";
+    document.getElementById("quiz-q2").style.display = "none";
+    document.getElementById("quiz-q3").style.display = "none";
+  });
+
+  document.getElementById("goal-quiz-back").addEventListener("click", () => {
+    document.getElementById("goal-quiz").style.display = "none";
+    document.getElementById("goal-phase-1").style.display = "";
+  });
+
+  document.querySelectorAll(".quiz-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const q = btn.dataset.q, a = btn.dataset.a;
+      _quizAnswers["q" + q] = a;
+
+      // Highlight selected
+      document.querySelectorAll('.quiz-btn[data-q="' + q + '"]').forEach(b => b.classList.remove("selected"));
+      btn.classList.add("selected");
+
+      if (q === "1") {
+        setTimeout(() => {
+          document.getElementById("quiz-q1").style.display = "none";
+          document.getElementById("quiz-q2").style.display = "";
+        }, 200);
+      } else if (q === "2") {
+        setTimeout(() => {
+          document.getElementById("quiz-q2").style.display = "none";
+          document.getElementById("quiz-q3").style.display = "";
+        }, 200);
+      } else if (q === "3") {
+        setTimeout(() => _resolveQuiz(), 200);
+      }
+    });
+  });
+
+  function _resolveQuiz() {
+    const fat = _quizAnswers.q1;    // high, happy, low
+    const pri = _quizAnswers.q2;    // lean, strong, both
+    const exp = _quizAnswers.q3;    // new, some, exp
+
+    let goal;
+    if (fat === "low") {
+      goal = "build_muscle";
+    } else if (fat === "high") {
+      if (pri === "lean")        goal = "lose_weight";
+      else if (pri === "strong") goal = exp === "new" ? "recomp" : "lose_weight";
+      else                       goal = "lose_weight";
+    } else {  // happy
+      if (pri === "lean")        goal = "maintain";
+      else if (pri === "strong") goal = "build_muscle";
+      else                       goal = exp === "new" ? "recomp" : "maintain";
+    }
+
+    // If new to training and not explicitly wanting to lose, bias toward recomp
+    if (exp === "new" && fat !== "high" && goal === "maintain") goal = "recomp";
+
+    document.getElementById("goal-quiz").style.display = "none";
+    _setGoal(goal);
+  }
 
   // ── Restore saved data if returning to onboarding ──────────────
   const saved = {{ saved | tojson }};
