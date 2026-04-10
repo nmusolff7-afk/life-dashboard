@@ -26,6 +26,7 @@ from db import (
     save_gmail_summary, get_gmail_summary,
     upsert_user_goal, get_user_goal,
     get_momentum_history_with_deltas, save_momentum_summary, get_momentum_summary,
+    get_insight_bundle,
 )
 from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, generate_workout_plan, shorten_label, scan_meal_image, generate_momentum_insight, generate_scale_summary, suggest_meal, identify_ingredients
 from claude_profile import generate_profile_map, compute_mind_insights, score_brief
@@ -1191,20 +1192,13 @@ def api_momentum_insight():
         tdee         = int(body.get("tdee") or 0) or None
         cal_consumed = int(body.get("cal_consumed") or 0)
         breakdown    = compute_momentum(uid(), today)
-        history      = get_momentum_history(uid(), 14)
         profile      = get_profile_map(uid())
-        meals        = get_today_meals(uid(), today)
-        workouts     = get_today_workouts(uid(), today)
-        garmin       = get_garmin_daily(uid(), today)
-        sleep        = get_sleep(uid(), today)
-        garmin_hist  = get_garmin_history(uid(), 14)
-        sleep_hist   = get_sleep_history(uid(), 14)
-        meal_hist    = get_meal_history(uid(), 14)
-        workout_hist = get_workout_history(uid(), 14)
+        bundle       = get_insight_bundle(uid(), today, 14)
         result       = generate_momentum_insight(
-            breakdown, history, profile, meals, workouts, garmin, sleep, hour,
-            garmin_hist=garmin_hist, sleep_hist=sleep_hist,
-            meal_hist=meal_hist, workout_hist=workout_hist,
+            breakdown, bundle["momentum_hist"], profile,
+            bundle["meals"], bundle["workouts"], bundle["garmin"], bundle["sleep"], hour,
+            garmin_hist=bundle["garmin_hist"], sleep_hist=bundle["sleep_hist"],
+            meal_hist=bundle["meal_hist"], workout_hist=bundle["workout_hist"],
             tdee=tdee, cal_consumed=cal_consumed,
         )
         return jsonify(result)

@@ -1092,6 +1092,44 @@ def get_momentum_history_with_deltas(user_id: int, days: int = 7) -> list:
     return [dict(r) for r in rows]
 
 
+def get_insight_bundle(user_id: int, today: str, hist_days: int = 14) -> dict:
+    """Load all data needed for momentum insight in a single DB connection."""
+    cutoff = (date.today() - timedelta(days=hist_days)).isoformat()
+    with get_conn() as conn:
+        def _fetchall(sql, params):
+            return [dict(r) for r in conn.execute(sql, params).fetchall()]
+        def _fetchone(sql, params):
+            r = conn.execute(sql, params).fetchone()
+            return dict(r) if r else None
+
+        meals = _fetchall(
+            "SELECT * FROM meal_logs WHERE user_id = ? AND log_date = ? ORDER BY id", (user_id, today))
+        workouts = _fetchall(
+            "SELECT * FROM workout_logs WHERE user_id = ? AND log_date = ? ORDER BY id", (user_id, today))
+        garmin = _fetchone(
+            "SELECT * FROM garmin_daily WHERE user_id = ? AND stat_date = ?", (user_id, today))
+        sleep = _fetchone(
+            "SELECT * FROM sleep_logs WHERE user_id = ? AND sleep_date = ?", (user_id, today))
+        garmin_hist = _fetchall(
+            "SELECT * FROM garmin_daily WHERE user_id = ? AND stat_date >= ? ORDER BY stat_date", (user_id, cutoff))
+        sleep_hist = _fetchall(
+            "SELECT * FROM sleep_logs WHERE user_id = ? AND sleep_date >= ? ORDER BY sleep_date", (user_id, cutoff))
+        meal_hist = _fetchall(
+            "SELECT log_date, SUM(calories) as calories, SUM(protein_g) as protein_g, SUM(carbs_g) as carbs_g, SUM(fat_g) as fat_g FROM meal_logs WHERE user_id = ? AND log_date >= ? GROUP BY log_date ORDER BY log_date", (user_id, cutoff))
+        workout_hist = _fetchall(
+            "SELECT log_date, SUM(calories_burned) as calories_burned, COUNT(*) as count FROM workout_logs WHERE user_id = ? AND log_date >= ? GROUP BY log_date ORDER BY log_date", (user_id, cutoff))
+        momentum_hist = _fetchall(
+            "SELECT score_date, momentum_score, nutrition_pct, activity_pct, checkin_done, task_rate, wellbeing_delta, computed_at FROM daily_momentum WHERE user_id = ? AND score_date >= ? ORDER BY score_date", (user_id, cutoff))
+
+    return {
+        "meals": meals, "workouts": workouts,
+        "garmin": garmin, "sleep": sleep,
+        "garmin_hist": garmin_hist, "sleep_hist": sleep_hist,
+        "meal_hist": meal_hist, "workout_hist": workout_hist,
+        "momentum_hist": momentum_hist,
+    }
+
+
 # ── Momentum summaries ─────────────────────────────────
 
 def save_momentum_summary(user_id: int, summary_date: str, scale: str, summary_text: str):
