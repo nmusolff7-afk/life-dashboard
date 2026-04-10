@@ -1201,13 +1201,9 @@ def api_momentum_insight():
         cal_consumed = int(body.get("cal_consumed") or 0)
         breakdown    = compute_momentum(uid(), today)
         profile      = get_profile_map(uid())
-        bundle       = get_insight_bundle(uid(), today, 14)
         result       = generate_momentum_insight(
-            breakdown, bundle["momentum_hist"], profile,
-            bundle["meals"], bundle["workouts"], bundle["garmin"], bundle["sleep"], hour,
-            garmin_hist=bundle["garmin_hist"], sleep_hist=bundle["sleep_hist"],
-            meal_hist=bundle["meal_hist"], workout_hist=bundle["workout_hist"],
-            tdee=tdee, cal_consumed=cal_consumed,
+            breakdown, [], profile,
+            hour=hour, tdee=tdee, cal_consumed=cal_consumed,
         )
         return jsonify(result)
     except Exception as e:
