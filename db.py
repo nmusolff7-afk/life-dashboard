@@ -270,6 +270,22 @@ def init_db():
         conn.execute("UPDATE meal_logs      SET user_id = 1 WHERE user_id IS NULL AND EXISTS (SELECT 1 FROM users WHERE id = 1)")
         conn.execute("UPDATE workout_logs   SET user_id = 1 WHERE user_id IS NULL AND EXISTS (SELECT 1 FROM users WHERE id = 1)")
         conn.execute("UPDATE daily_activity SET user_id = 1 WHERE user_id IS NULL AND EXISTS (SELECT 1 FROM users WHERE id = 1)")
+
+        # Indexes for user_id + date lookups (most-queried patterns)
+        for idx_sql in [
+            "CREATE INDEX IF NOT EXISTS idx_meal_logs_user_date      ON meal_logs(user_id, log_date)",
+            "CREATE INDEX IF NOT EXISTS idx_workout_logs_user_date   ON workout_logs(user_id, log_date)",
+            "CREATE INDEX IF NOT EXISTS idx_mind_checkins_user_date  ON mind_checkins(user_id, checkin_date)",
+            "CREATE INDEX IF NOT EXISTS idx_mind_tasks_user_date     ON mind_tasks(user_id, task_date)",
+            "CREATE INDEX IF NOT EXISTS idx_garmin_daily_user_date   ON garmin_daily(user_id, stat_date)",
+            "CREATE INDEX IF NOT EXISTS idx_sleep_logs_user_date     ON sleep_logs(user_id, sleep_date)",
+            "CREATE INDEX IF NOT EXISTS idx_daily_momentum_user_date ON daily_momentum(user_id, score_date)",
+            "CREATE INDEX IF NOT EXISTS idx_user_goals_user          ON user_goals(user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_gmail_cache_user         ON gmail_cache(user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_gmail_summaries_user     ON gmail_summaries(user_id)",
+        ]:
+            conn.execute(idx_sql)
+
         conn.commit()
 
 
