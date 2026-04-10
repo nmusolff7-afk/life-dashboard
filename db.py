@@ -843,12 +843,9 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
     """
     import json as _json
 
-    # Time-awareness: don't penalize unlogged data early in the day
-    # Before these hours, unlogged = "not yet" instead of "missed"
+    # Only forgive the evening check-in if its window hasn't opened yet
     _is_today = (date_str == date.today().isoformat())
-    _h = hour if hour is not None else 23  # default: end of day = full penalties
-    _meals_expected   = _is_today and _h < 11   # no meals before 11am is normal
-    _workout_expected = _is_today and _h < 15   # workout could happen later
+    _h = hour if hour is not None else 23
     _evening_expected = _is_today and _h < 19   # evening check-in unlocks at 7pm
 
     # ── gather inputs ────────────────────────────────────
@@ -900,16 +897,13 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
         cal_delta = cal_today - cal_goal
         cal_dev   = abs(cal_delta) / cal_goal
         cal_pen   = min(1.0, cal_dev / 0.25) * MOMENTUM_WEIGHTS["nutrition"]
-        raw_deltas["calories"] = {"target": cal_goal, "actual": cal_today, "delta": cal_delta, "pending": False}
-    elif cal_today == 0 and _meals_expected:
-        cal_pen = 0  # too early to penalize — meals haven't started yet
-        raw_deltas["calories"] = {"target": cal_goal, "actual": 0, "delta": 0, "pending": True}
-    elif cal_today == 0:
+        raw_deltas["calories"] = {"target": cal_goal, "actual": cal_today, "delta": cal_delta}
+    elif cal_today == 0 and cal_goal:
         cal_pen = MOMENTUM_WEIGHTS["nutrition"]
-        raw_deltas["calories"] = {"target": cal_goal, "actual": 0, "delta": -(cal_goal or 0), "pending": False}
+        raw_deltas["calories"] = {"target": cal_goal, "actual": 0, "delta": -(cal_goal or 0)}
     else:
         cal_pen = 0
-        raw_deltas["calories"] = {"target": None, "actual": cal_today, "delta": 0, "pending": False}
+        raw_deltas["calories"] = {"target": None, "actual": cal_today, "delta": 0}
     penalties["nutrition"] = round(cal_pen, 2)
 
     # 2. Protein (10 pts) — same scaled deviation
@@ -917,31 +911,25 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
         pro_delta = pro_today - pro_goal
         pro_dev   = abs(pro_delta) / pro_goal
         pro_pen   = min(1.0, pro_dev / 0.25) * MOMENTUM_WEIGHTS["protein"]
-        raw_deltas["protein"] = {"target": pro_goal, "actual": round(pro_today, 1), "delta": round(pro_delta, 1), "pending": False}
-    elif pro_today == 0 and _meals_expected:
-        pro_pen = 0
-        raw_deltas["protein"] = {"target": pro_goal, "actual": 0, "delta": 0, "pending": True}
+        raw_deltas["protein"] = {"target": pro_goal, "actual": round(pro_today, 1), "delta": round(pro_delta, 1)}
     elif pro_today == 0 and pro_goal:
         pro_pen = MOMENTUM_WEIGHTS["protein"]
-        raw_deltas["protein"] = {"target": pro_goal, "actual": 0, "delta": -pro_goal, "pending": False}
+        raw_deltas["protein"] = {"target": pro_goal, "actual": 0, "delta": -pro_goal}
     else:
         pro_pen = 0
-        raw_deltas["protein"] = {"target": None, "actual": round(pro_today, 1), "delta": 0, "pending": False}
+        raw_deltas["protein"] = {"target": None, "actual": round(pro_today, 1), "delta": 0}
     penalties["protein"] = round(pro_pen, 2)
 
-    # 3. Workout (10 pts)
+    # 3. Workout (10 pts) — full penalty if no workout logged
     workout_burn = get_today_workout_burn(user_id, date_str)
     garmin_active = (garmin.get("active_calories") or 0) if garmin else 0
     has_workout = workout_burn > 0 or garmin_active > 100
     if has_workout:
         activity_pen = 0
-        raw_deltas["workout"] = {"done": True, "burn": workout_burn, "garmin_active": garmin_active, "pending": False}
-    elif _workout_expected:
-        activity_pen = 0  # still time to work out
-        raw_deltas["workout"] = {"done": False, "burn": 0, "garmin_active": garmin_active, "pending": True}
+        raw_deltas["workout"] = {"done": True, "burn": workout_burn, "garmin_active": garmin_active}
     else:
         activity_pen = MOMENTUM_WEIGHTS["activity"]
-        raw_deltas["workout"] = {"done": False, "burn": 0, "garmin_active": garmin_active, "pending": False}
+        raw_deltas["workout"] = {"done": False, "burn": 0, "garmin_active": garmin_active}
     penalties["activity"] = round(activity_pen, 2)
 
     # 4. Check-in (5 pts) — 2.5 each for morning and evening

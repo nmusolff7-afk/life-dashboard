@@ -7323,7 +7323,6 @@ function fmtDate(iso) {
     function deltaDesc(key) {
       const d = deltas[key];
       if (!d) return "";
-      if (d.pending) return "pending";
       if (key === "calories") {
         if (d.target == null) return "no goal";
         if (d.actual === 0) return "not logged";
@@ -7342,7 +7341,7 @@ function fmtDate(iso) {
       }
       if (key === "checkin") {
         if (d.morning && d.evening) return "both";
-        if (d.morning && d.evening_pending) return "AM done";
+        if (d.morning && d.evening_pending) return "AM done, PM pending";
         if (d.morning) return "AM only";
         if (d.evening) return "PM only";
         return "none";
@@ -7364,20 +7363,17 @@ function fmtDate(iso) {
 
     const rows = DEDUCTIONS.map(d => {
       const pen   = penalties[d.key] || 0;
-      const delta = deltas[d.deltaKey] || {};
-      const isPending = delta.pending;
-      const color = isPending ? "var(--muted)" : penColor(pen, d.max);
+      const color = penColor(pen, d.max);
       const desc  = deltaDesc(d.deltaKey);
       const missing = (comps[d.key] && comps[d.key].missing)
         ? ' <span style="font-size:0.65rem;color:var(--muted)">?</span>' : "";
-      let penStr;
-      if (isPending) penStr = '<span style="color:var(--muted);font-size:0.7rem">--</span>';
-      else if (pen <= 0) penStr = '<span style="color:var(--green)">0</span>';
-      else penStr = '<span style="color:' + color + '">-' + pen.toFixed(1) + '</span>';
+      const penStr = pen <= 0
+        ? '<span style="color:var(--green)">0</span>'
+        : '<span style="color:' + color + '">-' + pen.toFixed(1) + '</span>';
       return `<div style="display:flex;align-items:baseline;gap:0.35rem;padding:0.3rem 0;border-bottom:1px solid var(--surface2)">
         <span style="font-size:0.78rem;color:var(--text);min-width:3.8rem">${d.label}${missing}</span>
         <span style="font-family:monospace;font-size:0.75rem;min-width:2.2rem;text-align:right;flex-shrink:0">${penStr}</span>
-        <span style="font-size:0.7rem;color:${isPending ? 'var(--accent2)' : 'var(--muted)'};text-align:right;flex:1">${desc}</span>
+        <span style="font-size:0.7rem;color:var(--muted);text-align:right;flex:1">${desc}</span>
       </div>`;
     }).join("");
 
