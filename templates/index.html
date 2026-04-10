@@ -2970,7 +2970,7 @@ function _loadMealsTab() {
       } catch(e) {}
       if (typeof window._refreshDashboard === "function") window._refreshDashboard();
     })
-    .catch(() => {});
+    .catch(e => console.warn("fetch error:", e));
 }
 window._onMealsActivate = _loadMealsTab;
 
@@ -3668,7 +3668,7 @@ function deleteWorkout(id) {
       body: JSON.stringify({description: val}) })
       .then(r => r.json())
       .then(d => { shortLabel = d.label || val; hDesc.value = shortLabel; })
-      .catch(() => {});
+      .catch(e => console.warn("fetch error:", e));
 
     fetch("/api/estimate", { method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({description: val}) })
@@ -3756,7 +3756,7 @@ function deleteWorkout(id) {
       body: JSON.stringify({description: val}) })
       .then(r => r.json())
       .then(d => { shortLabel = d.label || val; })
-      .catch(() => {});
+      .catch(e => console.warn("fetch error:", e));
 
     fetch("/api/burn-estimate", { method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({description: val}) })
@@ -5180,7 +5180,7 @@ try {
           heightFt: inp.heightFt, heightIn: inp.heightIn, age: inp.age,
           sex: inp.sex, bfPct: inp.bfPct, tdee: tdee,
         }),
-      }).catch(() => {});  // fire-and-forget, localStorage is primary
+      }).catch(e => console.warn("fetch error:", e));  // fire-and-forget, localStorage is primary
     }
     localStorage.setItem("profileData", JSON.stringify(profile));
     applyProfileToMeals(profile);
@@ -6416,7 +6416,7 @@ function fmtDate(iso) {
     fetch("/api/history").then(r => r.json()).then(data => {
       histData = data; window._appHistory = data;
       buildMealCalChart();
-    }).catch(() => {});
+    }).catch(e => console.warn("fetch error:", e));
   };
   window._onWorkoutActivate = function() {
     if (typeof origWorkoutActivate === "function") origWorkoutActivate();
@@ -6424,7 +6424,7 @@ function fmtDate(iso) {
     fetch("/api/history").then(r => r.json()).then(data => {
       histData = data; window._appHistory = data;
       buildBurnCalChart();
-    }).catch(() => {});
+    }).catch(e => console.warn("fetch error:", e));
   };
 
 })();
@@ -7538,7 +7538,7 @@ function fmtDate(iso) {
         renderTasks(data.tasks || []);
         loadMomentum();
       })
-      .catch(() => {});
+      .catch(e => console.warn("fetch error:", e));
   }
 
   // Add task controls
@@ -8396,7 +8396,7 @@ if ("serviceWorker" in navigator) {
         renderCard("morning", checkins, settings);
         renderCard("evening", checkins, settings);
       })
-      .catch(() => {});
+      .catch(e => console.warn("fetch error:", e));
   }
 
   initBriefs();
