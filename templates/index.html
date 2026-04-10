@@ -36,6 +36,8 @@
       --border:   #30363d;
       --accent:   #5c6bc0;
       --accent2:  #7986cb;
+      --btn-bg:   #5c6bc0;
+      --btn-bg2:  #7986cb;
       --text:     #e6edf3;
       --muted:    #8b949e;
       --cal:      #ffcc80;
@@ -57,6 +59,8 @@
       --border:   #b0c8f0;
       --accent:   #2563eb;
       --accent2:  #3b82f6;
+      --btn-bg:   #1a1a1a;
+      --btn-bg2:  #333333;
       --text:     #1a2744;
       --muted:    #5a7094;
       --cal:      #d97706;
@@ -76,6 +80,8 @@
       --border:   #e0c8d8;
       --accent:   #d4729c;
       --accent2:  #e091b4;
+      --btn-bg:   #1a1a1a;
+      --btn-bg2:  #333333;
       --text:     #3a2030;
       --muted:    #8a6878;
       --cal:      #e89840;
@@ -189,8 +195,8 @@
       font-size: 0.9rem; font-weight: 500; cursor: pointer;
       transition: background .15s, opacity .15s; white-space: nowrap; }
     .btn:disabled { opacity: .5; cursor: not-allowed; }
-    .btn-primary { background: var(--accent); color: #fff; }
-    .btn-primary:hover:not(:disabled) { background: var(--accent2); }
+    .btn-primary { background: var(--btn-bg); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--btn-bg2); }
     .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
     .btn-ghost:hover:not(:disabled) { border-color: var(--accent); }
     .btn-danger { background: transparent; color: var(--danger);
@@ -7071,7 +7077,7 @@ function fmtDate(iso) {
     card.classList.remove("gmail-connected");
     content.innerHTML = `<div style="text-align:center;padding:0.75rem 0">
       <div style="color:var(--muted);font-size:0.84rem;margin-bottom:0.75rem">Connect your Gmail to see a daily email summary and track unreplied messages.</div>
-      <a href="/api/gmail/connect" class="btn" style="background:var(--accent);text-decoration:none;display:inline-block;padding:0.5rem 1.2rem;font-size:0.85rem">Connect Gmail</a>
+      <a href="/api/gmail/connect" class="btn btn-primary" style="text-decoration:none;display:inline-block;padding:0.5rem 1.2rem;font-size:0.85rem">Connect Gmail</a>
     </div>`;
     headerActs.innerHTML = "";
   }
