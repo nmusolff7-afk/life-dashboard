@@ -431,58 +431,68 @@ def api_mind_today():
 @app.route("/api/mind/checkin", methods=["POST"])
 @login_required
 def api_mind_checkin():
+    data         = request.get_json(force=True) or {}
+    checkin_type = data.get("type", "morning")
+    goals        = data.get("goals", "").strip()
+    notes        = data.get("notes", "").strip()
+    if not notes:
+        return jsonify({"error": "notes required"}), 400
+
+    today_str = client_today()
+
+    # Persist bodyweight first (independent of AI — should never block checkin)
+    bodyweight_lbs = data.get("bodyweight_lbs")
+    if checkin_type == "morning" and bodyweight_lbs:
+        try:
+            save_daily_weight(uid(), today_str, float(bodyweight_lbs))
+        except Exception:
+            pass  # weight save failure should not block the checkin
+
+    def _clamp(v):
+        try:
+            return max(1, min(10, int(v))) if v is not None else None
+        except (ValueError, TypeError):
+            return None
+
+    energy_level  = _clamp(data.get("energy_level"))
+    stress_level  = _clamp(data.get("stress_level"))
+    sleep_quality = _clamp(data.get("sleep_quality"))
+    mood_level    = _clamp(data.get("mood_level"))
+    focus_level   = _clamp(data.get("focus_level"))
+
+    # AI scoring — use fallback if it fails so the checkin still saves
     try:
-        data         = request.get_json(force=True) or {}
-        checkin_type = data.get("type", "morning")
-        goals        = data.get("goals", "").strip()
-        notes        = data.get("notes", "").strip()
-        if not notes:
-            return jsonify({"error": "notes required"}), 400
-
-        # Persist bodyweight logged during morning brief
-        bodyweight_lbs = data.get("bodyweight_lbs")
-        today = date.today().isoformat()
-        if checkin_type == "morning" and bodyweight_lbs:
-            try:
-                save_daily_weight(uid(), today, float(bodyweight_lbs))
-            except (ValueError, TypeError):
-                pass
-
-        def _clamp(v):
-            try:
-                return max(1, min(10, int(v))) if v is not None else None
-            except (ValueError, TypeError):
-                return None
-
-        energy_level  = _clamp(data.get("energy_level"))
-        stress_level  = _clamp(data.get("stress_level"))
-        sleep_quality = _clamp(data.get("sleep_quality"))
-        mood_level    = _clamp(data.get("mood_level"))
-        focus_level   = _clamp(data.get("focus_level"))
-
-        today_str = client_today()
         scores = score_brief(checkin_type, notes, goals)
+    except Exception as e:
+        _log.warning("score_brief failed, using fallback: %s", e)
+        scores = {"focus": 5, "wellbeing": 5, "summary": "Check-in recorded.", "tasks": []}
+
+    try:
         insert_mind_checkin(uid(), checkin_type, goals, notes,
                             scores["focus"], scores["wellbeing"], scores["summary"],
                             energy_level=energy_level, stress_level=stress_level,
                             checkin_date=today_str,
                             sleep_quality=sleep_quality, mood_level=mood_level,
                             focus_level=focus_level)
-        # Evening tasks are for tomorrow; morning tasks are for today
-        from datetime import date as _date, timedelta as _td
-        task_date_str = ((_date.fromisoformat(today_str) + _td(days=1)).isoformat()
-                         if checkin_type == "evening" else today_str)
-        tasks_added = []
-        for task_text in scores.get("tasks", []):
-            if task_text:
+    except Exception as e:
+        _log.exception("mind/checkin DB insert failed")
+        return jsonify({"error": "Could not save check-in. Please try again."}), 500
+
+    # Evening tasks are for tomorrow; morning tasks are for today
+    from datetime import date as _date, timedelta as _td
+    task_date_str = ((_date.fromisoformat(today_str) + _td(days=1)).isoformat()
+                     if checkin_type == "evening" else today_str)
+    tasks_added = []
+    for task_text in scores.get("tasks", []):
+        if task_text:
+            try:
                 tid = insert_mind_task(uid(), task_text, source=checkin_type + "_brief",
                                        task_date=task_date_str)
                 tasks_added.append({"id": tid, "description": task_text})
-        return jsonify({**scores, "tasks_added": tasks_added,
-                        "bodyweight_lbs": float(bodyweight_lbs) if bodyweight_lbs else None})
-    except Exception as e:
-        _log.exception("mind/checkin failed")
-        return jsonify({"error": _AI_ERR}), 500
+            except Exception:
+                pass
+    return jsonify({**scores, "tasks_added": tasks_added,
+                    "bodyweight_lbs": float(bodyweight_lbs) if bodyweight_lbs else None})
 
 
 @app.route("/api/mind/task", methods=["POST"])
