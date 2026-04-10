@@ -1244,15 +1244,12 @@
                      align-items:center;justify-content:center;padding:0;flex-shrink:0">✕</button>
           </div>
 
-          <!-- Context + analyze (shown after photo selected) -->
-          <div id="scan-context-row" style="display:none;margin-top:0.65rem">
-            <textarea id="scan-context" rows="2"
-              style="width:100%;box-sizing:border-box;resize:none;background:var(--surface2);
-                     border:1px solid var(--border);border-radius:10px;color:var(--text);
-                     font-size:0.85rem;padding:0.55rem 0.75rem;font-family:inherit;margin-bottom:0.5rem"
-              placeholder="Add context (optional) — e.g. &quot;only ate half&quot;, &quot;large restaurant portion&quot;"></textarea>
-            <button type="button" class="btn btn-primary btn-full" id="analyze-btn">Analyze Photo</button>
+          <!-- Hidden context textarea (no longer shown — main input is used instead) -->
+          <div id="scan-context-row" style="display:none">
+            <textarea id="scan-context" rows="2" style="display:none"></textarea>
           </div>
+          <!-- Analyze button (shown after photo selected) -->
+          <button type="button" class="btn btn-primary btn-full" id="analyze-btn" style="display:none;margin-top:0.65rem">Analyze Photo</button>
 
           <!-- Log Meal (shown after macros populated) -->
           <button type="submit" class="btn btn-primary btn-full" id="log-btn"
@@ -3459,12 +3456,15 @@ function deleteWorkout(id) {
   }
 
   // ── Scan state helpers ────────────────────────────────
+  let _origPlaceholder = "";
   function enterScanMode() {
     macrosBtn.style.display     = "none";
     mealOrDivider.style.display = "none";
     photoScanRow.style.display  = "none";
-    mealInput.disabled          = true;
-    mealInput.style.opacity     = "0.45";
+    // Repurpose main input as context box instead of disabling it
+    _origPlaceholder = mealInput.placeholder;
+    mealInput.placeholder = 'Add context (optional) — e.g. "only ate half", "large portion"';
+    mealInput.value = "";
   }
 
   function exitScanMode() {
@@ -3475,9 +3475,9 @@ function deleteWorkout(id) {
     scanContextEl.value          = "";
     analyzeBtn.disabled          = false;
     analyzeBtn.textContent       = "Analyze Photo";
+    analyzeBtn.style.display     = "none";
     _pendingImage                = null;
-    mealInput.disabled           = false;
-    mealInput.style.opacity      = "";
+    mealInput.placeholder        = _origPlaceholder || "Describe what you ate…";
     mealInput.value              = "";
     hDesc.value                  = "";
     shortLabel                   = null;
@@ -3500,7 +3500,8 @@ function deleteWorkout(id) {
     if (!file) return;
     scanPreviewImg.src           = URL.createObjectURL(file);
     scanPreview.style.display    = "";
-    scanContextRow.style.display = "";
+    // Don't show separate context row — main input is repurposed
+    analyzeBtn.style.display     = "";
     enterScanMode();
     resizeAndEncode(file, (b64, mediaType) => { _pendingImage = {b64, mediaType}; });
   }
@@ -3510,7 +3511,7 @@ function deleteWorkout(id) {
     analyzeBtn.disabled    = true;
     analyzeBtn.textContent = "Analyzing…";
     scanStatus.style.display = "flex";
-    const context = scanContextEl.value.trim();
+    const context = mealInput.value.trim();  // main input repurposed as context
     fetch("/api/scan-meal", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
@@ -3523,7 +3524,7 @@ function deleteWorkout(id) {
     .then(r => r.json())
     .then(data => {
       scanStatus.style.display     = "none";
-      scanContextRow.style.display = "none";
+      analyzeBtn.style.display     = "none";
       analyzeBtn.disabled          = false;
       analyzeBtn.textContent       = "Analyze Photo";
       if (data.error) {
