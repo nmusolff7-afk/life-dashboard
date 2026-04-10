@@ -42,6 +42,10 @@
       --chart-fill: rgba(121,134,203,0.08);
       --chart-grid: #21262d;
       --chart-point-border: #0d1117;
+      --cal-strength: #3fb950;
+      --cal-cardio:   #58a6ff;
+      --cal-both:     #b48ade;
+      --cal-rest:     #484f58;
       --text:     #e6edf3;
       --muted:    #8b949e;
       --cal:      #ffcc80;
@@ -78,6 +82,10 @@
       --chart-fill: rgba(37,99,235,0.1);
       --chart-grid: #9bb0d0;
       --chart-point-border: #e4ecf7;
+      --cal-strength: #2563eb;
+      --cal-cardio:   #c06000;
+      --cal-both:     #7c3aed;
+      --cal-rest:     #b0bcc8;
       --theme-color: #d0ddf0;
     }
 
@@ -103,6 +111,10 @@
       --chart-fill: rgba(192,96,136,0.1);
       --chart-grid: #e0c8d8;
       --chart-point-border: #ffffff;
+      --cal-strength: #c06088;
+      --cal-cardio:   #b07020;
+      --cal-both:     #7c3aed;
+      --cal-rest:     #d0b8c8;
       --theme-color: #fef0f5;
     }
 
@@ -1645,10 +1657,10 @@
           <div class="card-title">Activity Calendar</div>
           <div id="cal-container"></div>
           <div class="cal-legend">
-            <span><span class="cal-dot" style="background:var(--green)"></span>Strength</span>
-            <span><span class="cal-dot" style="background:var(--accent)"></span>Cardio</span>
-            <span><span class="cal-dot" style="background:var(--protein)"></span>Both</span>
-            <span><span class="cal-dot" style="background:var(--muted)"></span>Rest</span>
+            <span><span class="cal-dot" style="background:var(--cal-strength)"></span>Strength</span>
+            <span><span class="cal-dot" style="background:var(--cal-cardio)"></span>Cardio</span>
+            <span><span class="cal-dot" style="background:var(--cal-both)"></span>Both</span>
+            <span><span class="cal-dot" style="background:var(--cal-rest)"></span>Rest</span>
             <span><span class="cal-dot" style="border:1px solid var(--border);background:var(--surface2)"></span>No data</span>
             <span><span class="cal-dot" style="background:transparent;box-shadow:inset 0 0 0 2px #c9a227,inset 0 1px 0 rgba(255,230,80,.45)"></span>Both check-ins completed</span>
             <span><span class="cal-dot" style="background:transparent;outline:2px dashed rgba(201,162,39,.65);outline-offset:-1px"></span>One check-in completed</span>
@@ -5973,11 +5985,11 @@ function fmtDate(iso) {
         let bg;
         if (isFuture)                      bg = "transparent";
         else if (!hasAnyData)              bg = "var(--surface2)";
-        else if (!ws.length)               bg = _cv("--muted");
-        else if (hasStrength && hasCardio) bg = _cv("--protein");
-        else if (hasStrength)              bg = _cv("--green");
-        else if (hasCardio)                bg = _cv("--accent");
-        else                               bg = _cv("--muted");
+        else if (!ws.length)               bg = _cv("--cal-rest");
+        else if (hasStrength && hasCardio) bg = _cv("--cal-both");
+        else if (hasStrength)              bg = _cv("--cal-strength");
+        else if (hasCardio)                bg = _cv("--cal-cardio");
+        else                               bg = _cv("--cal-rest");
 
         const briefTypes = (histData.briefs && histData.briefs[ds]) || [];
         const hasBothBriefs = briefTypes.includes("morning") && briefTypes.includes("evening");
