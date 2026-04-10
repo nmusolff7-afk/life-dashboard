@@ -418,6 +418,10 @@ def api_onboarding_poll():
     user = uid()
     job = _ob_jobs.get(user)
     if job is None:
+        # Fallback: check DB in case server restarted during generation
+        if is_onboarding_complete(user):
+            profile = get_profile_map(user)
+            return jsonify({"status": "done", "profile": profile, "targets": {}})
         return jsonify({"status": "not_started"})
     return jsonify(job)
 
