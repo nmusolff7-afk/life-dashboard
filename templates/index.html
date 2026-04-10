@@ -1516,9 +1516,9 @@
         <div style="font-size:0.78rem;color:var(--muted);margin-top:0.4rem" id="scale-saved-label"></div>
       </div>
 
-      <!-- Calories Burned Chart -->
+      <!-- Total Burn Chart -->
       <div class="card">
-        <div class="card-title">Calories Burned<span id="burn-chart-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0;margin-left:auto">7 days</span></div>
+        <div class="card-title">Total Daily Burn<span id="burn-chart-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0;margin-left:auto">7 days</span></div>
         <div class="chart-wrap"><canvas id="chart-burn-cal"></canvas></div>
         <div id="burn-chart-nodata" style="display:none" class="empty">No workout data yet.</div>
         <div class="chart-stats" id="burn-chart-stats"></div>
@@ -6218,6 +6218,8 @@ function fmtDate(iso) {
   function buildBurnCalChart() {
     const serverWorkouts = (histData && histData.workouts) || {};
     const serverGarmin   = (histData && histData.garmin)   || {};
+    const profile = JSON.parse(localStorage.getItem("profileData") || "{}");
+    const rmr = profile.rmr || SERVER_RMR || 0;
     const cutoff = daysAgoStr(burnChartDays - 1);
 
     const allDates = [];
@@ -6228,13 +6230,18 @@ function fmtDate(iso) {
     const nodataEl = document.getElementById("burn-chart-nodata");
     const statsEl  = document.getElementById("burn-chart-stats");
 
+    // Total burn = RMR + active burn (Garmin or logged workouts)
     const vals = allDates.map(d => {
-      // Prefer Garmin active calories if available
-      if (serverGarmin[d] && serverGarmin[d].active_calories) return serverGarmin[d].active_calories;
-      const ws = serverWorkouts[d] || [];
-      return ws.reduce((sum, w) => sum + (w.calories_burned || 0), 0);
+      let active = 0;
+      if (serverGarmin[d] && serverGarmin[d].active_calories) {
+        active = serverGarmin[d].active_calories;
+      } else {
+        const ws = serverWorkouts[d] || [];
+        active = ws.reduce((sum, w) => sum + (w.calories_burned || 0), 0);
+      }
+      return rmr + active;
     });
-    const hasAny = vals.some(v => v > 0);
+    const hasAny = rmr > 0;
 
     if (!hasAny) {
       canvas.style.display = "none";
@@ -6269,7 +6276,7 @@ function fmtDate(iso) {
           legend: { display: false },
           tooltip: {
             ...TOOLTIP_STYLE,
-            callbacks: { label: ctx => " " + ctx.parsed.y.toLocaleString() + " kcal burned" },
+            callbacks: { label: ctx => " " + ctx.parsed.y.toLocaleString() + " kcal total burn" },
           },
         },
         scales: {
@@ -6284,18 +6291,23 @@ function fmtDate(iso) {
       },
     });
 
+    const todayActive = todayV - rmr;
     statsEl.innerHTML = `
       <div class="chart-stat">
         <div class="chart-stat-val">${todayV.toLocaleString()}</div>
         <div class="chart-stat-lbl">Today</div>
       </div>
       <div class="chart-stat">
-        <div class="chart-stat-val">${avg.toLocaleString()}</div>
-        <div class="chart-stat-lbl">Avg / day</div>
+        <div class="chart-stat-val">${rmr.toLocaleString()}</div>
+        <div class="chart-stat-lbl">RMR</div>
       </div>
       <div class="chart-stat">
-        <div class="chart-stat-val">${maxVal.toLocaleString()}</div>
-        <div class="chart-stat-lbl">Peak</div>
+        <div class="chart-stat-val">${todayActive > 0 ? todayActive.toLocaleString() : "0"}</div>
+        <div class="chart-stat-lbl">Active</div>
+      </div>
+      <div class="chart-stat">
+        <div class="chart-stat-val">${avg.toLocaleString()}</div>
+        <div class="chart-stat-lbl">Avg / day</div>
       </div>`;
   }
 
