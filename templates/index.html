@@ -4147,7 +4147,7 @@ function deleteWorkout(id) {
       idleEl.innerHTML = `
         <p style="font-size:0.82rem;color:var(--muted);text-align:center;max-width:260px">
           No plan loaded. Add exercises as you go.</p>
-        <button class="btn btn-green btn-full" id="start-workout-btn">Start Workout</button>`;
+        <button class="btn btn-primary btn-full" id="start-workout-btn">Start Workout</button>`;
       document.getElementById("start-workout-btn").addEventListener("click", startQuickWorkout);
 
     } else if (todayExs.length === 0) {
@@ -4155,7 +4155,7 @@ function deleteWorkout(id) {
       idleEl.innerHTML = `
         <div class="rest-day-notice">
           <span>Rest day — no workout scheduled for ${dayName}.</span>
-          <button class="btn btn-green btn-full" id="start-workout-btn">Start Workout</button>
+          <button class="btn btn-primary btn-full" id="start-workout-btn">Start Workout</button>
           <button class="btn btn-ghost btn-full" id="change-workout-idle-btn"
             style="margin-top:0.4rem">Use Saved Plan</button>
         </div>`;
@@ -4178,7 +4178,7 @@ function deleteWorkout(id) {
       });
       planHtml += `</div>`;
       idleEl.innerHTML = planHtml
-        + `<button class="btn btn-green btn-full" id="start-workout-btn"
+        + `<button class="btn btn-primary btn-full" id="start-workout-btn"
              style="margin-top:0.25rem">Start ${dayName}'s Workout</button>
            <div class="btn-row" style="width:100%;gap:0.5rem;margin-top:0.5rem">
              <button class="btn btn-ghost" id="change-workout-idle-btn" style="flex:1">Different Day</button>
