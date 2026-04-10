@@ -213,7 +213,7 @@ def init_db():
         try:
             conn.execute("ALTER TABLE workout_logs ADD COLUMN garmin_activity_id TEXT")
             conn.commit()
-        except Exception:
+        except sqlite3.OperationalError:
             pass  # column already exists
 
         # Migrate: add user_id column to existing tables if absent
@@ -221,21 +221,21 @@ def init_db():
             try:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN user_id INTEGER REFERENCES users(id)")
                 conn.commit()
-            except Exception:
+            except sqlite3.OperationalError:
                 pass  # column already exists
 
         # Migrate: add user_id to daily_activity if absent
         try:
             conn.execute("ALTER TABLE daily_activity ADD COLUMN user_id INTEGER REFERENCES users(id)")
             conn.commit()
-        except Exception:
+        except sqlite3.OperationalError:
             pass  # column already exists
 
         # Migrate: add weight_lbs to daily_activity if absent
         try:
             conn.execute("ALTER TABLE daily_activity ADD COLUMN weight_lbs REAL")
             conn.commit()
-        except Exception:
+        except sqlite3.OperationalError:
             pass  # column already exists
 
         # Migrate: add energy_level, stress_level, sleep_quality, mood_level, focus_level to mind_checkins
@@ -245,7 +245,7 @@ def init_db():
             try:
                 conn.execute(f"ALTER TABLE mind_checkins ADD COLUMN {col}")
                 conn.commit()
-            except Exception:
+            except sqlite3.OperationalError:
                 pass
 
         # Momentum summaries — AI-generated at day/week/month scale, cached
@@ -263,7 +263,7 @@ def init_db():
         try:
             conn.execute("ALTER TABLE daily_momentum ADD COLUMN raw_deltas TEXT DEFAULT '{}'")
             conn.commit()
-        except Exception:
+        except sqlite3.OperationalError:
             pass
 
         # Migrate: assign orphaned rows (no user_id) to user 1 if they exist
@@ -702,7 +702,7 @@ def get_profile_map(user_id):
         return {}
     try:
         return json.loads(row["profile_map"])
-    except Exception:
+    except (json.JSONDecodeError, TypeError):
         return {}
 
 
