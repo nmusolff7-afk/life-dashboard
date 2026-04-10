@@ -18,7 +18,7 @@
       var t = localStorage.getItem("u" + uid + ":apex-theme") || localStorage.getItem("apex-theme") || "dark";
       document.documentElement.setAttribute("data-theme", t);
       var m = document.querySelector('meta[name="theme-color"]');
-      var tc = { dark: "#0d1117", medium: "#1e1e2e", light: "#fef0f5" };
+      var tc = { dark: "#0d1117", medium: "#e8f0fe", light: "#fef0f5" };
       if (m) m.setAttribute("content", tc[t] || tc.dark);
     })();
   </script>
@@ -51,22 +51,22 @@
     }
 
     [data-theme="medium"] {
-      --bg:       #1e1e2e;
-      --surface:  #27273a;
-      --surface2: #313148;
-      --border:   #44446a;
-      --accent:   #7c8ade;
-      --accent2:  #96a3f0;
-      --text:     #e8e8f0;
-      --muted:    #9898b0;
-      --cal:      #ffd699;
-      --protein:  #80d4c8;
-      --carbs:    #a8b0e0;
-      --fat:      #f0a0c0;
-      --danger:   #ff6b6b;
-      --green:    #5ed07a;
-      --amber:    #f0c860;
-      --theme-color: #1e1e2e;
+      --bg:       #e8f0fe;
+      --surface:  #ffffff;
+      --surface2: #d4e4fc;
+      --border:   #b0c8f0;
+      --accent:   #2563eb;
+      --accent2:  #3b82f6;
+      --text:     #1a2744;
+      --muted:    #5a7094;
+      --cal:      #d97706;
+      --protein:  #0d9488;
+      --carbs:    #4f5fd6;
+      --fat:      #d946a8;
+      --danger:   #dc2626;
+      --green:    #16a34a;
+      --amber:    #ca8a04;
+      --theme-color: #e8f0fe;
     }
 
     [data-theme="light"] {
@@ -102,6 +102,7 @@
     .header-brand { display: flex; align-items: center; gap: 0.55rem; }
     .header-logo { height: 34px; width: auto; display: block; }
     [data-theme="light"] .header-logo { filter: invert(1); }
+    [data-theme="medium"] .header-logo { filter: invert(1); }
     header h1 { font-family: 'Bebas Neue', 'Rajdhani', sans-serif;
       font-size: 1.65rem; font-weight: 400; letter-spacing: 0.12em;
       line-height: 1; color: var(--text); }
@@ -1968,10 +1969,10 @@
             <div style="font-size:0.78rem;font-weight:600;color:#e6edf3">Dark</div>
             <div style="font-size:0.65rem;color:#8b949e;margin-top:0.15rem">Default</div>
           </button>
-          <button class="theme-swatch" data-theme="medium" style="background:#1e1e2e;border:2px solid transparent;border-radius:10px;padding:0.65rem 0.5rem;cursor:pointer;text-align:center;transition:border-color .15s">
-            <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 0.4rem;background:linear-gradient(135deg,#27273a,#7c8ade)"></div>
-            <div style="font-size:0.78rem;font-weight:600;color:#e8e8f0">Medium</div>
-            <div style="font-size:0.65rem;color:#9898b0;margin-top:0.15rem">Balanced</div>
+          <button class="theme-swatch" data-theme="medium" style="background:#e8f0fe;border:2px solid transparent;border-radius:10px;padding:0.65rem 0.5rem;cursor:pointer;text-align:center;transition:border-color .15s">
+            <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 0.4rem;background:linear-gradient(135deg,#d4e4fc,#2563eb)"></div>
+            <div style="font-size:0.78rem;font-weight:600;color:#1a2744">Medium</div>
+            <div style="font-size:0.65rem;color:#5a7094;margin-top:0.15rem">Bold Blue</div>
           </button>
           <button class="theme-swatch" data-theme="light" style="background:#fef0f5;border:2px solid transparent;border-radius:10px;padding:0.65rem 0.5rem;cursor:pointer;text-align:center;transition:border-color .15s">
             <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 0.4rem;background:linear-gradient(135deg,#f5e6ee,#d4729c)"></div>
@@ -5194,11 +5195,12 @@ function fmtDate(iso) {
 
 (function() {
   // ── Dark-theme Chart.js defaults ──────────────────
-  const _isLight = document.documentElement.getAttribute("data-theme") === "light";
+  const _curTheme = document.documentElement.getAttribute("data-theme");
+  const _isLight = _curTheme === "light" || _curTheme === "medium";
   Chart.defaults.color          = _isLight ? "#8a6878" : "#8b949e";
   Chart.defaults.borderColor    = _isLight ? "#e0c8d8" : "#30363d";
   // Theme-aware grid color for charts
-  function _gc() { return document.documentElement.getAttribute("data-theme") === "light" ? "#e0c8d8" : "#21262d"; }
+  function _gc() { const t = document.documentElement.getAttribute("data-theme"); return (t === "light" || t === "medium") ? (t === "medium" ? "#b0c8f0" : "#e0c8d8") : "#21262d"; }
   Chart.defaults.font.family    = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   Chart.defaults.font.size      = 11;
 
@@ -5223,13 +5225,14 @@ function fmtDate(iso) {
   }
 
   function _tooltipStyle() {
-    const lt = document.documentElement.getAttribute("data-theme") === "light";
+    const t = document.documentElement.getAttribute("data-theme");
+    const lt = t === "light" || t === "medium";
     return {
       backgroundColor: lt ? "#ffffff" : "#21262d",
-      borderColor:     lt ? "#e0c8d8" : "#30363d",
+      borderColor:     lt ? (t === "medium" ? "#b0c8f0" : "#e0c8d8") : "#30363d",
       borderWidth: 1, padding: 10,
-      titleColor:  lt ? "#3a2030" : "#e6edf3",
-      bodyColor:   lt ? "#8a6878" : "#8b949e",
+      titleColor:  lt ? (t === "medium" ? "#1a2744" : "#3a2030") : "#e6edf3",
+      bodyColor:   lt ? (t === "medium" ? "#5a7094" : "#8a6878") : "#8b949e",
       xAlign: "left", yAlign: "bottom",
     };
   }
@@ -7573,7 +7576,7 @@ if ("serviceWorker" in navigator) {
 //  THEME PICKER
 // ══════════════════════════════════════════════════════
 (function() {
-  const THEME_COLORS = { dark: "#0d1117", medium: "#1e1e2e", light: "#fef0f5" };
+  const THEME_COLORS = { dark: "#0d1117", medium: "#e8f0fe", light: "#fef0f5" };
   const picker = document.getElementById("theme-picker");
   if (!picker) return;
 
@@ -7584,7 +7587,7 @@ if ("serviceWorker" in navigator) {
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute("content", THEME_COLORS[theme] || THEME_COLORS.dark);
     // Update Chart.js defaults for new theme
-    const isDark = theme !== "light";
+    const isDark = theme !== "light" && theme !== "medium";
     Chart.defaults.color = isDark ? "#8b949e" : "#8a6878";
     Chart.defaults.borderColor = isDark ? "#30363d" : "#e0c8d8";
     // Highlight active swatch
