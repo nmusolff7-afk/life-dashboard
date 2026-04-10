@@ -491,7 +491,7 @@
         <button class="btn btn-ghost" id="ob-retry-btn" style="display:none;width:100%;margin-top:0.75rem" onclick="runCompletion()">
           Try again
         </button>
-        <button class="btn btn-ghost" id="ob-back-to-edit" style="width:100%;margin-top:0.5rem" onclick="currentPage = TOTAL_PAGES; updateUI();">
+        <button class="btn btn-ghost" id="ob-back-to-edit" style="width:100%;margin-top:0.5rem" onclick="obBackToEdit()">
           ← Back to edit
         </button>
       </div>
@@ -634,6 +634,11 @@
 
   window.obBack = function() {
     if (currentPage > 1) { currentPage--; updateUI(); }
+  };
+
+  window.obBackToEdit = function() {
+    currentPage = TOTAL_PAGES;
+    updateUI();
   };
 
   window.obNext = async function() {
