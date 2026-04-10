@@ -1168,8 +1168,12 @@ def api_momentum_today():
         hour = int(hour) if hour is not None else None
     except (TypeError, ValueError):
         hour = None
+    planned_workout = body.get("planned_workout_today")
+    if planned_workout is not None:
+        planned_workout = bool(planned_workout)
     try:
-        breakdown = compute_momentum(uid(), today, calorie_goal_override=calorie_goal, hour=hour)
+        breakdown = compute_momentum(uid(), today, calorie_goal_override=calorie_goal, hour=hour,
+                                     planned_workout_today=planned_workout)
         return jsonify(breakdown)
     except Exception as e:
         return jsonify({"error": str(e)}), 500

@@ -7411,8 +7411,9 @@ function fmtDate(iso) {
         }).join(", ");
       }
       if (key === "workout") {
+        if (d.rest_day) return "rest day";
         if (d.done) return d.burn > 0 ? d.burn + " kcal" : "done";
-        return "none";
+        return "not done";
       }
       if (key === "checkin") {
         if (d.morning && d.evening) return "both";
@@ -7506,10 +7507,15 @@ function fmtDate(iso) {
 
   function _getMomentumPayload() {
     try {
+      const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+      const todayDay = dayNames[new Date().getDay()];
+      const plan = typeof getWorkoutPlan === "function" ? getWorkoutPlan() : {};
+      const todayExercises = plan[todayDay] || [];
       return {
-        hour:         new Date().getHours(),
-        tdee:         CURRENT_TDEE  || 0,
-        cal_consumed: CAL_CONSUMED  || 0,
+        hour:                  new Date().getHours(),
+        tdee:                  CURRENT_TDEE  || 0,
+        cal_consumed:          CAL_CONSUMED  || 0,
+        planned_workout_today: todayExercises.length > 0,
       };
     } catch(e) { return {}; }
   }

@@ -848,7 +848,7 @@ _SCORED_MAX = sum(MOMENTUM_WEIGHTS.values())  # 45
 
 
 def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | None = None,
-                     hour: int | None = None) -> dict:
+                     hour: int | None = None, planned_workout_today: bool | None = None) -> dict:
     """
     Compute a 0–100 daily score using a penalty-based system.
     Starts at 100, subtracts penalties for deviations from targets.
@@ -975,16 +975,23 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
         raw_deltas["macros"] = {"components": []}
     penalties["macros"] = round(macro_pen, 2)
 
-    # 3. Workout (10 pts) — full penalty if no workout logged
-    workout_burn = get_today_workout_burn(user_id, date_str)
+    # 3. Workout (10 pts) — based on whether planned workout was completed
+    #    If no workout is planned for today, no penalty.
+    #    planned_workout_today is sent by the frontend from the user's saved plan.
+    workout_burn_today = get_today_workout_burn(user_id, date_str)
     garmin_active = (garmin.get("active_calories") or 0) if garmin else 0
-    has_workout = workout_burn > 0 or garmin_active > 100
-    if has_workout:
+    has_workout = workout_burn_today > 0 or garmin_active > 100
+    workout_planned = planned_workout_today if planned_workout_today is not None else True
+
+    if not workout_planned:
+        activity_pen = 0  # rest day — no penalty
+        raw_deltas["workout"] = {"done": True, "burn": workout_burn_today, "garmin_active": garmin_active, "rest_day": True}
+    elif has_workout:
         activity_pen = 0
-        raw_deltas["workout"] = {"done": True, "burn": workout_burn, "garmin_active": garmin_active}
+        raw_deltas["workout"] = {"done": True, "burn": workout_burn_today, "garmin_active": garmin_active, "rest_day": False}
     else:
         activity_pen = MOMENTUM_WEIGHTS["activity"]
-        raw_deltas["workout"] = {"done": False, "burn": 0, "garmin_active": garmin_active}
+        raw_deltas["workout"] = {"done": False, "burn": 0, "garmin_active": garmin_active, "rest_day": False}
     penalties["activity"] = round(activity_pen, 2)
 
     # 4. Check-in (5 pts) — 2.5 each for morning and evening
