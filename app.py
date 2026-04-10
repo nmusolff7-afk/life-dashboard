@@ -122,10 +122,19 @@ def render_index(**kwargs):
     workout_burn = get_today_workout_burn(uid(), cd)
     server_rmr   = get_rmr()
     tdee         = server_rmr + workout_burn
+    profile_name = (get_profile_map(uid()).get("first_name") or "").strip()
+    if not profile_name:
+        ob = get_onboarding(uid())
+        if ob and ob.get("raw_inputs"):
+            try:
+                profile_name = (json.loads(ob["raw_inputs"]).get("first_name") or "").strip()
+            except Exception:
+                pass
     return render_template("index.html",
         meals=meals, totals=totals, workouts=workouts, tdee=tdee,
         workout_burn=workout_burn, server_rmr=server_rmr,
         user_id=uid(), username=session.get("username", ""),
+        display_name=profile_name,
         **kwargs)
 
 

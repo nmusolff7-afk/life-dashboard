@@ -110,8 +110,9 @@
     [data-theme="light"] .header-logo { filter: invert(1); }
     [data-theme="medium"] .header-logo { filter: invert(1); }
     header h1 { font-family: 'Bebas Neue', 'Rajdhani', sans-serif;
-      font-size: 1.65rem; font-weight: 400; letter-spacing: 0.12em;
-      line-height: 1; color: var(--text); }
+      font-size: clamp(1rem, 5vw, 1.65rem); font-weight: 400; letter-spacing: 0.12em;
+      line-height: 1; color: var(--text); white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; max-width: 55vw; }
     header .subtitle { font-family: 'Rajdhani', sans-serif;
       font-size: 0.72rem; font-weight: 500; color: var(--muted);
       letter-spacing: 0.08em; text-transform: uppercase; margin-top: 1px; }
@@ -904,7 +905,7 @@
     <div class="header-brand">
       <img src="/static/apex-logo.png" alt="Apex Fitness" class="header-logo">
       <div>
-        <h1>YOUR DASHBOARD</h1>
+        <h1>{% if display_name %}{{ display_name|upper }}'S DASHBOARD{% else %}YOUR DASHBOARD{% endif %}</h1>
         <div class="subtitle" id="header-date"></div>
       </div>
     </div>
