@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
 import requests
-import anthropic
+from ai_client import get_client as _ai_client
 
 logger = logging.getLogger(__name__)
 
@@ -267,7 +267,7 @@ Stats: {len(unreplied)} unread & unreplied, {len(replied)} replied, {len(emails)
 Return ONLY the bullet points, no intro text. Use • as bullet character."""
 
     try:
-        client = anthropic.Anthropic()
+        client = _ai_client()
         resp = client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=300,

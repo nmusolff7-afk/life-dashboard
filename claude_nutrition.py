@@ -1,12 +1,10 @@
 import json
 import logging
 import os
-import anthropic
+
+from ai_client import get_client as _client
 
 logger = logging.getLogger(__name__)
-
-def _client():
-    return anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
 # ── Nutrition estimation ───────────────────────────────
 
