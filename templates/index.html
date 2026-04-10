@@ -2517,6 +2517,12 @@ function getBriefSettings() {
   catch (_) { return {}; }
 }
 
+function refreshAllUIs(mealTotals, workoutList) {
+  if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+  if (typeof window._patchTodayInCharts === "function") window._patchTodayInCharts(mealTotals || null, workoutList || null);
+  if (typeof window._rebuildHistory === "function") window._rebuildHistory();
+}
+
 function resizeAndEncode(file, cb) {
   const img = new Image(), url = URL.createObjectURL(file);
   img.onload = () => {
@@ -2938,9 +2944,7 @@ function deleteMeal(id) {
         const p = localStorage.getItem("profileData");
         if (p) applyProfileToMeals(JSON.parse(p));
       } catch(e) {}
-      if (typeof window._refreshDashboard === "function") window._refreshDashboard();
-      if (typeof window._patchTodayInCharts === "function") window._patchTodayInCharts(data.totals, null);
-      if (typeof window._rebuildHistory === "function") window._rebuildHistory();
+      refreshAllUIs(data.totals, null);
       flashRed();
     });
 }
@@ -3039,9 +3043,7 @@ _editSaveBtn.addEventListener("click", () => {
         const p = localStorage.getItem("profileData");
         if (p) applyProfileToMeals(JSON.parse(p));
       } catch(e) {}
-      if (typeof window._refreshDashboard === "function") window._refreshDashboard();
-      if (typeof window._patchTodayInCharts === "function") window._patchTodayInCharts(data.totals, null);
-      if (typeof window._rebuildHistory === "function") window._rebuildHistory();
+      refreshAllUIs(data.totals, null);
       flashGreen();
     })
     .catch(() => {
@@ -3063,9 +3065,7 @@ function deleteWorkout(id) {
         const p = localStorage.getItem("profileData");
         if (p) applyProfileToMeals(JSON.parse(p));
       } catch(e) {}
-      if (typeof window._refreshDashboard === "function") window._refreshDashboard();
-      if (typeof window._patchTodayInCharts === "function") window._patchTodayInCharts(null, data.workouts);
-      if (typeof window._rebuildHistory === "function") window._rebuildHistory();
+      refreshAllUIs(null, data.workouts);
       flashRed();
     });
 }
@@ -3718,9 +3718,7 @@ function deleteWorkout(id) {
         const p = localStorage.getItem("profileData");
         if (p) applyProfileToMeals(JSON.parse(p));
       } catch(ex) {}
-      if (typeof window._refreshDashboard === "function") window._refreshDashboard();
-      if (typeof window._patchTodayInCharts === "function") window._patchTodayInCharts(data.totals, null);
-      if (typeof window._rebuildHistory === "function") window._rebuildHistory();
+      refreshAllUIs(data.totals, null);
       flashGreen();
     })
     .catch(() => { logBtn.disabled = false; logBtn.textContent = "Log Meal"; });
@@ -3792,9 +3790,7 @@ function deleteWorkout(id) {
           const p = localStorage.getItem("profileData");
           if (p) applyProfileToMeals(JSON.parse(p));
         } catch(e) {}
-        if (typeof window._refreshDashboard === "function") window._refreshDashboard();
-        if (typeof window._patchTodayInCharts === "function") window._patchTodayInCharts(null, data.workouts);
-        if (typeof window._rebuildHistory === "function") window._rebuildHistory();
+        refreshAllUIs(null, data.workouts);
         flashGreen();
       })
       .catch(() => { logBtn.disabled = false; logBtn.textContent = "Log Activity"; });
@@ -4311,9 +4307,7 @@ function deleteWorkout(id) {
         renderWorkoutList(data.workouts, data.burn);
         window.renderStrengthStatus(data.workouts);
         try { const p = localStorage.getItem("profileData"); if (p) applyProfileToMeals(JSON.parse(p)); } catch(e) {}
-        if (typeof window._refreshDashboard === "function") window._refreshDashboard();
-        if (typeof window._patchTodayInCharts === "function") window._patchTodayInCharts(null, data.workouts);
-        if (typeof window._rebuildHistory === "function") window._rebuildHistory();
+        refreshAllUIs(null, data.workouts);
         activateTab("workout");
         flashGreen();
       })
