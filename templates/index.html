@@ -6218,9 +6218,10 @@ function fmtDate(iso) {
   function buildBurnCalChart() {
     const serverWorkouts = (histData && histData.workouts) || {};
     const serverGarmin   = (histData && histData.garmin)   || {};
-    const profile = JSON.parse(localStorage.getItem("profileData") || "{}");
-    const rmr = profile.rmr || SERVER_RMR || 0;
-    const cutoff = daysAgoStr(burnChartDays - 1);
+    const dailyLog = JSON.parse(localStorage.getItem("dailyLog") || "{}");
+    const profile  = JSON.parse(localStorage.getItem("profileData") || "{}");
+    const rmr      = profile.rmr || SERVER_RMR || 0;
+    const cutoff   = daysAgoStr(burnChartDays - 1);
 
     const allDates = [];
     { const c = new Date(cutoff + "T00:00:00"), e = new Date(todayStr() + "T00:00:00");
@@ -6230,8 +6231,12 @@ function fmtDate(iso) {
     const nodataEl = document.getElementById("burn-chart-nodata");
     const statsEl  = document.getElementById("burn-chart-stats");
 
-    // Total burn = RMR + active burn (Garmin or logged workouts)
+    // Use stored Proj. Burn (full TDEE = RMR+NEAT+EAT+TEF) from dailyLog when available
+    // Fall back to RMR + active for days without a stored TDEE
     const vals = allDates.map(d => {
+      const entry = dailyLog[d];
+      if (entry && entry.tdee) return entry.tdee;
+      // Fallback: RMR + active burn
       let active = 0;
       if (serverGarmin[d] && serverGarmin[d].active_calories) {
         active = serverGarmin[d].active_calories;
@@ -6241,7 +6246,7 @@ function fmtDate(iso) {
       }
       return rmr + active;
     });
-    const hasAny = rmr > 0;
+    const hasAny = rmr > 0 || vals.some(v => v > 0);
 
     if (!hasAny) {
       canvas.style.display = "none";
