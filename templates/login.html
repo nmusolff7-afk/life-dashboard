@@ -155,7 +155,12 @@
         <button type="button" class="btn" id="reset-check-btn">Next</button>
       </div>
       <div id="reset-step-2" style="display:none">
-        <div style="font-size:0.84rem;color:var(--green);margin-bottom:1rem">Account found. Enter a new password.</div>
+        <div style="font-size:0.84rem;color:var(--green);margin-bottom:1rem">Account found. Enter your recovery key and a new password.</div>
+        <div class="field">
+          <label>Recovery key</label>
+          <input type="password" id="reset-recovery-key" autocomplete="off"
+            placeholder="set via RECOVERY_KEY env var">
+        </div>
         <div class="field">
           <label>New password</label>
           <input type="password" id="reset-new-pw" autocomplete="new-password"
@@ -232,13 +237,15 @@
     errEl.style.display = "none";
     sucEl.style.display = "none";
 
+    const rk = document.getElementById("reset-recovery-key").value;
+    if (!rk)            { errEl.textContent = "Recovery key is required."; errEl.style.display = ""; return; }
     if (pw1.length < 4) { errEl.textContent = "Password must be at least 4 characters."; errEl.style.display = ""; return; }
     if (pw1 !== pw2)    { errEl.textContent = "Passwords don't match."; errEl.style.display = ""; return; }
 
     fetch("/api/reset-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: _resetUsername, new_password: pw1 }),
+      body: JSON.stringify({ username: _resetUsername, new_password: pw1, recovery_key: rk }),
     })
     .then(r => r.json())
     .then(data => {

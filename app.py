@@ -190,8 +190,14 @@ def api_check_username():
 
 @app.route("/api/reset-password", methods=["POST"])
 def api_reset_password():
-    """Reset a user's password by username (no email verification)."""
+    """Reset a user's password — requires the server-side RECOVERY_KEY."""
+    recovery_key = os.environ.get("RECOVERY_KEY", "")
+    if not recovery_key:
+        return jsonify({"error": "Password reset is not configured on this server."}), 403
     data = request.get_json() or {}
+    provided_key = data.get("recovery_key", "")
+    if not provided_key or provided_key != recovery_key:
+        return jsonify({"error": "Invalid recovery key."}), 403
     username = (data.get("username") or "").strip().lower()
     new_password = data.get("new_password", "")
     if not username:
