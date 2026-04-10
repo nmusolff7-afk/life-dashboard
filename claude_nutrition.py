@@ -47,6 +47,16 @@ def _parse_json(text: str) -> dict:
     return json.loads(text.strip())
 
 
+def _parse_nutrition_items(data: dict) -> list[dict]:
+    return [{
+        "name":      item.get("name", ""),
+        "calories":  int(item.get("calories", 0)),
+        "protein_g": float(item.get("protein_g", 0)),
+        "carbs_g":   float(item.get("carbs_g", 0)),
+        "fat_g":     float(item.get("fat_g", 0)),
+    } for item in (data.get("items") or [])]
+
+
 def estimate_nutrition(meal_description: str, profile_map: dict | None = None) -> dict:
     user_content = meal_description
     if profile_map:
@@ -72,21 +82,12 @@ def estimate_nutrition(meal_description: str, profile_map: dict | None = None) -
     )
     text = next((b.text for b in response.content if b.type == "text"), "")
     data = _parse_json(text)
-    items = []
-    for item in (data.get("items") or []):
-        items.append({
-            "name":      item.get("name", ""),
-            "calories":  int(item.get("calories", 0)),
-            "protein_g": float(item.get("protein_g", 0)),
-            "carbs_g":   float(item.get("carbs_g", 0)),
-            "fat_g":     float(item.get("fat_g", 0)),
-        })
     return {
         "calories":  int(data["calories"]),
         "protein_g": float(data["protein_g"]),
         "carbs_g":   float(data["carbs_g"]),
         "fat_g":     float(data["fat_g"]),
-        "items":     items,
+        "items":     _parse_nutrition_items(data),
         "notes":     data.get("notes", ""),
     }
 
@@ -148,22 +149,13 @@ def scan_meal_image(image_b64: str, media_type: str, context: str = "") -> dict:
     )
     text = next((b.text for b in response.content if b.type == "text"), "")
     data = _parse_json(text)
-    items = []
-    for item in (data.get("items") or []):
-        items.append({
-            "name":      item.get("name", ""),
-            "calories":  int(item.get("calories", 0)),
-            "protein_g": float(item.get("protein_g", 0)),
-            "carbs_g":   float(item.get("carbs_g", 0)),
-            "fat_g":     float(item.get("fat_g", 0)),
-        })
     return {
         "description": data.get("description", "Meal from photo"),
         "calories":    int(data["calories"]),
         "protein_g":   float(data["protein_g"]),
         "carbs_g":     float(data["carbs_g"]),
         "fat_g":       float(data["fat_g"]),
-        "items":       items,
+        "items":       _parse_nutrition_items(data),
         "notes":       data.get("notes", ""),
     }
 
