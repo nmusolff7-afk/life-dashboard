@@ -14,7 +14,8 @@
   <script>
     // Apply saved theme BEFORE first paint to prevent flash
     (function() {
-      var t = localStorage.getItem("apex-theme") || "dark";
+      var uid = "{{ user_id|default('0') }}";
+      var t = localStorage.getItem("u" + uid + ":apex-theme") || localStorage.getItem("apex-theme") || "dark";
       document.documentElement.setAttribute("data-theme", t);
       var m = document.querySelector('meta[name="theme-color"]');
       var tc = { dark: "#0d1117", medium: "#1e1e2e", light: "#fef0f5" };
@@ -2357,7 +2358,9 @@ let TODAY_WORKOUT_DESCS = {{ workouts | map(attribute='description') | list | to
 const OCC_BASE = { sedentary: 200, standing: 400, physical: 700 };
 
 // ── Global unit helpers (available to all IIFEs) ────────
-function _userUnits() { return localStorage.getItem("apex-units") || "imperial"; }
+// User-scoped settings helpers
+function _uKey(k) { return "u" + USER_ID + ":" + k; }
+function _userUnits() { return localStorage.getItem(_uKey("apex-units")) || localStorage.getItem("apex-units") || "imperial"; }
 function _isUserMetric() { return _userUnits() === "metric"; }
 function _fmtWeight(lbs) {
   if (lbs == null) return "—";
@@ -2427,7 +2430,7 @@ function fmt12h(ts) {
 // Use local date everywhere — toISOString() is UTC and rolls over at 6-7pm Mountain Time.
 // Respects a manually chosen timezone stored in localStorage ("userTimezone").
 function localToday() {
-  const tz = localStorage.getItem("userTimezone");
+  const tz = localStorage.getItem(_uKey("userTimezone"));
   if (tz) {
     try {
       const parts = new Intl.DateTimeFormat("en-CA", {
@@ -2447,7 +2450,7 @@ function localToday() {
 // Local time as "YYYY-MM-DD HH:MM:SS" — used for logged_at timestamps so
 // entries display in the user's local time, not UTC.
 function localNow() {
-  const tz = localStorage.getItem("userTimezone");
+  const tz = localStorage.getItem(_uKey("userTimezone"));
   const pad = n => String(n).padStart(2, "0");
   if (tz) {
     try {
@@ -4757,7 +4760,7 @@ try {
   // ── Unit system toggle ──────────────────────────────
   const LBS_PER_KG = 2.20462;
   const CM_PER_IN  = 2.54;
-  let _units = localStorage.getItem("apex-units") || "imperial";
+  let _units = localStorage.getItem(_uKey("apex-units")) || localStorage.getItem("apex-units") || "imperial";
 
   function _isMetric() { return _units === "metric"; }
 
@@ -4787,7 +4790,7 @@ try {
     const curW = parseFloat(document.getElementById("p-cur-weight").value) || 0;
     const tgtW = parseFloat(document.getElementById("p-tgt-weight").value) || 0;
     _units = newUnit;
-    localStorage.setItem("apex-units", _units);
+    localStorage.setItem(_uKey("apex-units"), _units);
 
     // Convert weight values in the inputs
     if (wasMetric && newUnit === "imperial") {
@@ -7576,7 +7579,7 @@ if ("serviceWorker" in navigator) {
 
   function applyTheme(theme) {
     document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("apex-theme", theme);
+    localStorage.setItem(_uKey("apex-theme"), theme);
     // Update status bar color
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute("content", THEME_COLORS[theme] || THEME_COLORS.dark);
@@ -7591,7 +7594,7 @@ if ("serviceWorker" in navigator) {
   }
 
   // Highlight current theme on load
-  const current = localStorage.getItem("apex-theme") || "dark";
+  const current = localStorage.getItem(_uKey("apex-theme")) || localStorage.getItem("apex-theme") || "dark";
   picker.querySelectorAll(".theme-swatch").forEach(s => {
     s.style.borderColor = s.dataset.theme === current ? "var(--accent2)" : "transparent";
     s.addEventListener("click", () => applyTheme(s.dataset.theme));
@@ -7629,7 +7632,7 @@ if ("serviceWorker" in navigator) {
   const dateEl      = document.getElementById("tz-current-date");
 
   const systemTz    = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const savedTz     = localStorage.getItem("userTimezone");
+  const savedTz     = localStorage.getItem(_uKey("userTimezone"));
   const isManual    = !!savedTz;
 
   // Populate select
@@ -7648,7 +7651,7 @@ if ("serviceWorker" in navigator) {
   }
 
   function updateUI() {
-    const manual = !!localStorage.getItem("userTimezone");
+    const manual = !!localStorage.getItem(_uKey("userTimezone"));
     autoBtn.style.background   = manual ? "" : "var(--accent)";
     autoBtn.style.color        = manual ? "" : "#fff";
     manualBtn.style.background = manual ? "var(--accent)" : "";
@@ -7662,18 +7665,18 @@ if ("serviceWorker" in navigator) {
   }
 
   autoBtn.addEventListener("click", () => {
-    localStorage.removeItem("userTimezone");
+    localStorage.removeItem(_uKey("userTimezone"));
     updateUI();
   });
 
   manualBtn.addEventListener("click", () => {
-    localStorage.setItem("userTimezone", tzSelect.value);
+    localStorage.setItem(_uKey("userTimezone"), tzSelect.value);
     updateUI();
   });
 
   tzSelect.addEventListener("change", () => {
-    if (localStorage.getItem("userTimezone")) {
-      localStorage.setItem("userTimezone", tzSelect.value);
+    if (localStorage.getItem(_uKey("userTimezone"))) {
+      localStorage.setItem(_uKey("userTimezone"), tzSelect.value);
       updateUI();
     }
   });
@@ -8116,11 +8119,25 @@ if ("serviceWorker" in navigator) {
   confirmBtn.addEventListener("click", () => {
     confirmBtn.disabled = true;
     confirmBtn.textContent = "Deleting…";
-    try { localStorage.clear(); } catch(e) {}
-    try { sessionStorage.clear(); } catch(e) {}
-    // Wait for delete to complete, then redirect
+    // Wait for server to confirm deletion, THEN clear local data and redirect
     fetch("/api/delete-account", { method: "POST" })
-      .finally(() => { window.location.href = "/logout"; });
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          try { localStorage.clear(); } catch(e) {}
+          try { sessionStorage.clear(); } catch(e) {}
+          window.location.href = "/logout";
+        } else {
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = "Yes, delete my account";
+          alert("Delete failed — please try again.");
+        }
+      })
+      .catch(() => {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = "Yes, delete my account";
+        alert("Could not reach server — please try again.");
+      });
   });
 })();
 

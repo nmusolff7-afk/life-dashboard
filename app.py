@@ -854,8 +854,18 @@ def _garmin_save(user_id: int, date_str: str, result: dict) -> None:
                               logged_at=logged_at)
 
 
-# Start background poll on app startup (user_id=1 for this personal app)
-garmin_sync.start_background_poll(_garmin_save, user_id=1)
+# Start background poll for the first user in the DB (Garmin creds are global for now)
+def _get_garmin_user_id():
+    """Find the first user to associate Garmin data with."""
+    try:
+        from db import get_conn
+        with get_conn() as conn:
+            row = conn.execute("SELECT id FROM users ORDER BY id LIMIT 1").fetchone()
+            return row["id"] if row else 1
+    except Exception:
+        return 1
+
+garmin_sync.start_background_poll(_garmin_save, user_id=_get_garmin_user_id())
 
 
 @app.route("/api/garmin")

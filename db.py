@@ -293,6 +293,12 @@ def delete_account(user_id):
         conn.execute("DELETE FROM gmail_cache        WHERE user_id = ?", (user_id,))
         conn.execute("DELETE FROM gmail_summaries    WHERE user_id = ?", (user_id,))
         conn.execute("DELETE FROM users              WHERE id      = ?", (user_id,))
+        # Prevent SQLite from reusing this user_id — bump the sequence counter
+        conn.execute("""
+            INSERT INTO sqlite_sequence (name, seq)
+            VALUES ('users', (SELECT COALESCE(MAX(id), 0) FROM users))
+            ON CONFLICT(name) DO UPDATE SET seq = MAX(seq, excluded.seq)
+        """)
         conn.commit()
 
 
