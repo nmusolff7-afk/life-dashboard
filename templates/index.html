@@ -18,7 +18,7 @@
       var t = localStorage.getItem("u" + uid + ":apex-theme") || localStorage.getItem("apex-theme") || "dark";
       document.documentElement.setAttribute("data-theme", t);
       var m = document.querySelector('meta[name="theme-color"]');
-      var tc = { dark: "#0d1117", medium: "#e8f0fe", light: "#fef0f5" };
+      var tc = { dark: "#0d1117", medium: "#d0ddf0", light: "#fef0f5" };
       if (m) m.setAttribute("content", tc[t] || tc.dark);
     })();
   </script>
@@ -38,6 +38,10 @@
       --accent2:  #7986cb;
       --btn-bg:   #5c6bc0;
       --btn-bg2:  #7986cb;
+      --chart-line: #7986cb;
+      --chart-fill: rgba(121,134,203,0.08);
+      --chart-grid: #21262d;
+      --chart-point-border: #0d1117;
       --text:     #e6edf3;
       --muted:    #8b949e;
       --cal:      #ffcc80;
@@ -53,24 +57,28 @@
     }
 
     [data-theme="medium"] {
-      --bg:       #e8f0fe;
-      --surface:  #ffffff;
-      --surface2: #d4e4fc;
-      --border:   #b0c8f0;
+      --bg:       #d0ddf0;
+      --surface:  #e4ecf7;
+      --surface2: #c2d0e6;
+      --border:   #9bb0d0;
       --accent:   #2563eb;
       --accent2:  #3b82f6;
       --btn-bg:   #1a1a1a;
       --btn-bg2:  #333333;
-      --text:     #1a2744;
-      --muted:    #5a7094;
-      --cal:      #d97706;
-      --protein:  #0d9488;
-      --carbs:    #4f5fd6;
-      --fat:      #d946a8;
-      --danger:   #dc2626;
-      --green:    #16a34a;
-      --amber:    #ca8a04;
-      --theme-color: #e8f0fe;
+      --text:     #141e30;
+      --muted:    #4a6080;
+      --cal:      #c06800;
+      --protein:  #0c7e74;
+      --carbs:    #3d4db8;
+      --fat:      #b83890;
+      --danger:   #c02020;
+      --green:    #148040;
+      --amber:    #a07000;
+      --chart-line: #2563eb;
+      --chart-fill: rgba(37,99,235,0.1);
+      --chart-grid: #9bb0d0;
+      --chart-point-border: #e4ecf7;
+      --theme-color: #d0ddf0;
     }
 
     [data-theme="light"] {
@@ -78,19 +86,23 @@
       --surface:  #ffffff;
       --surface2: #f5e6ee;
       --border:   #e0c8d8;
-      --accent:   #d4729c;
-      --accent2:  #e091b4;
+      --accent:   #c06088;
+      --accent2:  #d47898;
       --btn-bg:   #1a1a1a;
       --btn-bg2:  #333333;
       --text:     #3a2030;
       --muted:    #8a6878;
-      --cal:      #e89840;
-      --protein:  #3aaa96;
-      --carbs:    #6a78c0;
-      --fat:      #d45080;
-      --danger:   #d04050;
-      --green:    #40a860;
-      --amber:    #d0a030;
+      --cal:      #c08030;
+      --protein:  #2a8a78;
+      --carbs:    #5a68b0;
+      --fat:      #c04878;
+      --danger:   #c03040;
+      --green:    #2a8a50;
+      --amber:    #b08820;
+      --chart-line: #c06088;
+      --chart-fill: rgba(192,96,136,0.1);
+      --chart-grid: #e0c8d8;
+      --chart-point-border: #ffffff;
       --theme-color: #fef0f5;
     }
 
@@ -203,8 +215,10 @@
     .btn-danger { background: transparent; color: var(--danger);
       border: 1px solid transparent; padding: 0.3rem 0.55rem; font-size: 1rem; }
     .btn-danger:hover { border-color: var(--danger); }
-    .btn-green { background: var(--green); color: #0d1117; font-weight: 700; }
+    .btn-green { background: var(--green); color: #fff; font-weight: 700; }
     .btn-green:hover:not(:disabled) { opacity: .85; }
+    .btn-accent { background: var(--btn-bg); color: #fff; font-weight: 600; }
+    .btn-accent:hover:not(:disabled) { background: var(--btn-bg2); }
     .btn-full { width: 100%; justify-content: center; }
     .btn-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
@@ -1050,7 +1064,7 @@
               style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;resize:none;box-sizing:border-box"
               placeholder="Mood, energy, what's on your mind…"></textarea>
           </div>
-          <button class="btn" id="home-morning-submit" style="background:var(--accent);width:100%">Submit Morning Check-in</button>
+          <button class="btn" id="home-morning-submit" style="background:var(--btn-bg);width:100%;color:#fff">Submit Morning Check-in</button>
           <div id="home-morning-submitting" style="display:none;text-align:center;color:var(--muted);font-size:0.85rem;margin-top:0.5rem">Scoring and extracting tasks…</div>
           <div id="home-morning-err" style="display:none;font-size:0.8rem;color:var(--danger);margin-top:0.4rem;padding:0.4rem 0.6rem;background:rgba(239,68,68,.1);border-radius:6px"></div>
         </div>
@@ -1106,7 +1120,7 @@
               style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;resize:none;box-sizing:border-box"
               placeholder="Anything you want to plan for tomorrow?"></textarea>
           </div>
-          <button class="btn" id="home-evening-submit" style="background:var(--accent);width:100%">Submit Evening Review</button>
+          <button class="btn" id="home-evening-submit" style="background:var(--btn-bg);width:100%;color:#fff">Submit Evening Review</button>
           <div id="home-evening-submitting" style="display:none;text-align:center;color:var(--muted);font-size:0.85rem;margin-top:0.5rem">Scoring and extracting tasks…</div>
         </div>
       </div>
@@ -1631,10 +1645,10 @@
           <div class="card-title">Activity Calendar</div>
           <div id="cal-container"></div>
           <div class="cal-legend">
-            <span><span class="cal-dot" style="background:#3fb950"></span>Strength</span>
-            <span><span class="cal-dot" style="background:#58a6ff"></span>Cardio</span>
-            <span><span class="cal-dot" style="background:#3dcfbf"></span>Both</span>
-            <span><span class="cal-dot" style="background:#484f58"></span>Rest</span>
+            <span><span class="cal-dot" style="background:var(--green)"></span>Strength</span>
+            <span><span class="cal-dot" style="background:var(--accent)"></span>Cardio</span>
+            <span><span class="cal-dot" style="background:var(--protein)"></span>Both</span>
+            <span><span class="cal-dot" style="background:var(--muted)"></span>Rest</span>
             <span><span class="cal-dot" style="border:1px solid var(--border);background:var(--surface2)"></span>No data</span>
             <span><span class="cal-dot" style="background:transparent;box-shadow:inset 0 0 0 2px #c9a227,inset 0 1px 0 rgba(255,230,80,.45)"></span>Both check-ins completed</span>
             <span><span class="cal-dot" style="background:transparent;outline:2px dashed rgba(201,162,39,.65);outline-offset:-1px"></span>One check-in completed</span>
@@ -1973,10 +1987,10 @@
             <div style="font-size:0.78rem;font-weight:600;color:#e6edf3">Dark</div>
             <div style="font-size:0.65rem;color:#8b949e;margin-top:0.15rem">Default</div>
           </button>
-          <button class="theme-swatch" data-theme="medium" style="background:#e8f0fe;border:2px solid transparent;border-radius:10px;padding:0.65rem 0.5rem;cursor:pointer;text-align:center;transition:border-color .15s">
-            <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 0.4rem;background:linear-gradient(135deg,#d4e4fc,#2563eb)"></div>
-            <div style="font-size:0.78rem;font-weight:600;color:#1a2744">Medium</div>
-            <div style="font-size:0.65rem;color:#5a7094;margin-top:0.15rem">Bold Blue</div>
+          <button class="theme-swatch" data-theme="medium" style="background:#d0ddf0;border:2px solid transparent;border-radius:10px;padding:0.65rem 0.5rem;cursor:pointer;text-align:center;transition:border-color .15s">
+            <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 0.4rem;background:linear-gradient(135deg,#c2d0e6,#2563eb)"></div>
+            <div style="font-size:0.78rem;font-weight:600;color:#141e30">Medium</div>
+            <div style="font-size:0.65rem;color:#4a6080;margin-top:0.15rem">Neutral</div>
           </button>
           <button class="theme-swatch" data-theme="light" style="background:#fef0f5;border:2px solid transparent;border-radius:10px;padding:0.65rem 0.5rem;cursor:pointer;text-align:center;transition:border-color .15s">
             <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 0.4rem;background:linear-gradient(135deg,#f5e6ee,#d4729c)"></div>
@@ -2114,7 +2128,7 @@
           <div style="display:flex;gap:0.5rem">
             <input type="text" id="mind-new-task" placeholder="Describe the task…"
               style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.55rem 0.75rem;color:var(--text);font-size:0.9rem">
-            <button class="btn" id="mind-add-save" style="background:var(--accent)">Add</button>
+            <button class="btn" id="mind-add-save" style="background:var(--btn-bg);color:#fff">Add</button>
             <button class="btn btn-ghost" id="mind-add-cancel">✕</button>
           </div>
         </div>
@@ -3260,9 +3274,9 @@ function deleteWorkout(id) {
   function macroChips(opt) {
     return [
       `<span class="mac-chip" style="color:var(--amber)">${opt.calories} kcal</span>`,
-      `<span class="mac-chip" style="color:#80cbc4">${opt.protein_g}g protein</span>`,
-      `<span class="mac-chip" style="color:#9fa8da">${opt.carbs_g}g carbs</span>`,
-      `<span class="mac-chip" style="color:#f48fb1">${opt.fat_g}g fat</span>`,
+      `<span class="mac-chip" style="color:var(--protein)">${opt.protein_g}g protein</span>`,
+      `<span class="mac-chip" style="color:var(--carbs)">${opt.carbs_g}g carbs</span>`,
+      `<span class="mac-chip" style="color:var(--fat)">${opt.fat_g}g fat</span>`,
     ].join("");
   }
 
@@ -5253,10 +5267,12 @@ function fmtDate(iso) {
   // ── Dark-theme Chart.js defaults ──────────────────
   const _curTheme = document.documentElement.getAttribute("data-theme");
   const _isLight = _curTheme === "light" || _curTheme === "medium";
-  Chart.defaults.color          = _isLight ? "#8a6878" : "#8b949e";
-  Chart.defaults.borderColor    = _isLight ? "#e0c8d8" : "#30363d";
+  // Theme-aware chart color helpers
+  function _cv(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  Chart.defaults.color          = _cv("--muted") || "#8b949e";
+  Chart.defaults.borderColor    = _cv("--border") || "#30363d";
   // Theme-aware grid color for charts
-  function _gc() { const t = document.documentElement.getAttribute("data-theme"); return (t === "light" || t === "medium") ? (t === "medium" ? "#b0c8f0" : "#e0c8d8") : "#21262d"; }
+  function _gc() { return getComputedStyle(document.documentElement).getPropertyValue("--chart-grid").trim() || "#21262d"; }
   Chart.defaults.font.family    = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   Chart.defaults.font.size      = 11;
 
@@ -5281,14 +5297,13 @@ function fmtDate(iso) {
   }
 
   function _tooltipStyle() {
-    const t = document.documentElement.getAttribute("data-theme");
-    const lt = t === "light" || t === "medium";
+    const s = k => getComputedStyle(document.documentElement).getPropertyValue(k).trim();
     return {
-      backgroundColor: lt ? "#ffffff" : "#21262d",
-      borderColor:     lt ? (t === "medium" ? "#b0c8f0" : "#e0c8d8") : "#30363d",
+      backgroundColor: s("--surface") || "#21262d",
+      borderColor:     s("--border") || "#30363d",
       borderWidth: 1, padding: 10,
-      titleColor:  lt ? (t === "medium" ? "#1a2744" : "#3a2030") : "#e6edf3",
-      bodyColor:   lt ? (t === "medium" ? "#5a7094" : "#8a6878") : "#8b949e",
+      titleColor:  s("--text") || "#e6edf3",
+      bodyColor:   s("--muted") || "#8b949e",
       xAlign: "left", yAlign: "bottom",
     };
   }
@@ -5349,13 +5364,13 @@ function fmtDate(iso) {
       label: "Weight",
       data,
       spanGaps: true,
-      borderColor: "#7986cb",
-      backgroundColor: "rgba(121,134,203,0.08)",
+      borderColor: _cv("--chart-line"),
+      backgroundColor: _cv("--chart-fill"),
       fill: true,
       tension: 0,
       pointRadius: ptRadius,
-      pointBackgroundColor: "#7986cb",
-      pointBorderColor: "#0d1117",
+      pointBackgroundColor: _cv("--chart-line"),
+      pointBorderColor: _cv("--chart-point-border"),
       pointBorderWidth: 2,
     }];
 
@@ -5363,7 +5378,7 @@ function fmtDate(iso) {
       datasets.push({
         label: "Target",
         data: allDates.map(() => targetWt),
-        borderColor: "#3fb950",
+        borderColor: _cv("--green"),
         borderDash: [6, 4],
         borderWidth: 1.5,
         pointRadius: 0,
@@ -5509,8 +5524,8 @@ function fmtDate(iso) {
     const tolerance = targetD ? Math.abs(targetD) * 0.30 : null;
     const ptColors  = deficits.map(v => {
       if (v === null) return "transparent";
-      if (tolerance !== null) return Math.abs(v - (-Math.abs(targetD))) <= tolerance ? "#3fb950" : "#f85149";
-      return v <= 0 ? "#3fb950" : "#f85149";
+      if (tolerance !== null) return Math.abs(v - (-Math.abs(targetD))) <= tolerance ? _cv("--green") : _cv("--danger");
+      return v <= 0 ? _cv("--green") : _cv("--danger");
     });
     const ptRadius  = deficits.map(v => v !== null ? 3 : 0);
 
@@ -5518,8 +5533,8 @@ function fmtDate(iso) {
       label: "Deficit / Surplus",
       data: deficits,
       spanGaps: true,
-      borderColor: "#7986cb",
-      backgroundColor: "rgba(121,134,203,0.08)",
+      borderColor: _cv("--chart-line"),
+      backgroundColor: _cv("--chart-fill"),
       borderWidth: 2,
       pointRadius: ptRadius,
       pointBackgroundColor: ptColors,
@@ -5532,7 +5547,7 @@ function fmtDate(iso) {
       datasets.push({
         label: "Target",
         data: allDates.map(() => -Math.abs(targetD)),
-        borderColor: "#3fb950",
+        borderColor: _cv("--green"),
         borderDash: [6, 4],
         borderWidth: 1.5,
         pointRadius: 0,
@@ -5570,7 +5585,7 @@ function fmtDate(iso) {
           }},
           y: {
             min: -yPad, max: yPad,
-            grid: { color: ctx => ctx.tick.value === 0 ? "rgba(255,255,255,0.2)" : "#21262d" },
+            grid: { color: ctx => ctx.tick.value === 0 ? (_isLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.2)") : _gc() },
             ticks: { callback: v => v === 0 ? "0" : (v > 0 ? "+" : "") + Math.round(v) },
           },
         },
@@ -5690,13 +5705,13 @@ function fmtDate(iso) {
         datasets: [{
           label: exerciseName,
           data,
-          borderColor: "#ffcc80",
+          borderColor: _cv("--cal"),
           backgroundColor: "rgba(255,204,128,0.07)",
           fill: true,
           tension: 0.2,
           pointRadius: 5,
-          pointBackgroundColor: "#ffcc80",
-          pointBorderColor: "#0d1117",
+          pointBackgroundColor: _cv("--cal"),
+          pointBorderColor: _cv("--chart-point-border"),
           pointBorderWidth: 2,
         }],
       },
@@ -5771,12 +5786,12 @@ function fmtDate(iso) {
       label: "Score",
       data: vals,
       spanGaps: true,
-      borderColor: "#7986cb",
-      backgroundColor: "rgba(121,134,203,0.08)",
+      borderColor: _cv("--chart-line"),
+      backgroundColor: _cv("--chart-fill"),
       fill: true,
       tension: 0.3,
       pointRadius: ptRadius,
-      pointBackgroundColor: "#7986cb",
+      pointBackgroundColor: _cv("--chart-line"),
       pointBorderColor: "var(--surface)",
       pointBorderWidth: 2,
       borderWidth: 2,
@@ -5787,7 +5802,7 @@ function fmtDate(iso) {
         label: "7D Rolling Avg",
         data: rollingAvg(vals, 7),
         spanGaps: true,
-        borderColor: "#3fb950",
+        borderColor: _cv("--green"),
         borderWidth: 1.5,
         borderDash: [5, 3],
         pointRadius: 0,
@@ -5800,7 +5815,7 @@ function fmtDate(iso) {
         label: "30D Rolling Avg",
         data: rollingAvg(vals, 30),
         spanGaps: true,
-        borderColor: "#e3b341",
+        borderColor: _cv("--amber"),
         borderWidth: 1.5,
         borderDash: [5, 3],
         pointRadius: 0,
@@ -5951,11 +5966,11 @@ function fmtDate(iso) {
         let bg;
         if (isFuture)                      bg = "transparent";
         else if (!hasAnyData)              bg = "var(--surface2)";
-        else if (!ws.length)               bg = "#484f58";
-        else if (hasStrength && hasCardio) bg = "#3dcfbf";
-        else if (hasStrength)              bg = "#3fb950";
-        else if (hasCardio)                bg = "#58a6ff";
-        else                               bg = "#6e7681";
+        else if (!ws.length)               bg = _cv("--muted");
+        else if (hasStrength && hasCardio) bg = _cv("--protein");
+        else if (hasStrength)              bg = _cv("--green");
+        else if (hasCardio)                bg = _cv("--accent");
+        else                               bg = _cv("--muted");
 
         const briefTypes = (histData.briefs && histData.briefs[ds]) || [];
         const hasBothBriefs = briefTypes.includes("morning") && briefTypes.includes("evening");
@@ -6216,8 +6231,8 @@ function fmtDate(iso) {
         datasets: [{
           label: "Calories",
           data: vals,
-          backgroundColor: vals.map(v => v > 0 ? "rgba(121,134,203,0.55)" : "rgba(121,134,203,0.1)"),
-          borderColor: "rgba(121,134,203,0.8)",
+          backgroundColor: vals.map(v => v > 0 ? (_cv("--chart-line") + "88") : (_cv("--chart-line") + "1a")),
+          borderColor: _cv("--chart-line"),
           borderWidth: 1,
           borderRadius: 4,
         }],
@@ -6325,8 +6340,8 @@ function fmtDate(iso) {
         datasets: [{
           label: "Burned",
           data: vals,
-          backgroundColor: vals.map(v => v > 0 ? "rgba(63,185,80,0.45)" : "rgba(63,185,80,0.1)"),
-          borderColor: "rgba(63,185,80,0.7)",
+          backgroundColor: vals.map(v => v > 0 ? (_cv("--green") + "73") : (_cv("--green") + "1a")),
+          borderColor: _cv("--green"),
           borderWidth: 1,
           borderRadius: 4,
         }],
@@ -7645,7 +7660,7 @@ if ("serviceWorker" in navigator) {
 //  THEME PICKER
 // ══════════════════════════════════════════════════════
 (function() {
-  const THEME_COLORS = { dark: "#0d1117", medium: "#e8f0fe", light: "#fef0f5" };
+  const THEME_COLORS = { dark: "#0d1117", medium: "#d0ddf0", light: "#fef0f5" };
   const picker = document.getElementById("theme-picker");
   if (!picker) return;
 
@@ -7656,9 +7671,13 @@ if ("serviceWorker" in navigator) {
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute("content", THEME_COLORS[theme] || THEME_COLORS.dark);
     // Update Chart.js defaults for new theme
-    const isDark = theme !== "light" && theme !== "medium";
-    Chart.defaults.color = isDark ? "#8b949e" : "#8a6878";
-    Chart.defaults.borderColor = isDark ? "#30363d" : "#e0c8d8";
+    const isDark = theme === "dark";
+    // Read from newly applied CSS variables
+    setTimeout(() => {
+      const s = k => getComputedStyle(document.documentElement).getPropertyValue(k).trim();
+      Chart.defaults.color       = s("--muted") || "#8b949e";
+      Chart.defaults.borderColor = s("--border") || "#30363d";
+    }, 0);
     // Highlight active swatch
     picker.querySelectorAll(".theme-swatch").forEach(s => {
       s.style.borderColor = s.dataset.theme === theme ? "var(--accent2)" : "transparent";
