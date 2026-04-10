@@ -915,15 +915,29 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
     raw_deltas = {}
     penalties = {}
 
-    # 1. Calories (15 pts) — penalty scales with % deviation from target
-    if cal_goal and cal_goal > 0 and cal_today > 0:
-        cal_delta = cal_today - cal_goal
-        cal_dev   = abs(cal_delta) / cal_goal
-        cal_pen   = min(1.0, cal_dev / 0.25) * MOMENTUM_WEIGHTS["nutrition"]
-        raw_deltas["calories"] = {"target": cal_goal, "actual": cal_today, "delta": cal_delta}
+    # 1. Calories (15 pts) — penalty based on how close actual deficit is to goal deficit
+    #    goal_deficit = tdee - calorie_target;  actual_deficit = tdee - cal_today
+    #    score = how close actual_deficit is to goal_deficit
+    tdee = (goal.get("tdee_used") or 0) if goal else 0
+    if not tdee and garmin:
+        tdee = garmin.get("total_calories") or 0
+    if not tdee:
+        rmr_val = profile.get("rmr_kcal") or 0
+        active = (garmin.get("active_calories") or 0) if garmin else workout_burn
+        tdee = rmr_val + active if rmr_val else 0
+    goal_deficit = (goal.get("deficit_surplus") or 0) if goal else (profile.get("calorie_deficit_target") or 0)
+
+    if cal_goal and cal_goal > 0 and cal_today > 0 and tdee > 0:
+        actual_deficit = tdee - cal_today
+        deficit_delta = actual_deficit - goal_deficit  # positive = deeper deficit than goal
+        # Normalize: 250 kcal off = full penalty
+        cal_dev = abs(deficit_delta) / 250
+        cal_pen = min(1.0, cal_dev) * MOMENTUM_WEIGHTS["nutrition"]
+        raw_deltas["calories"] = {"target": cal_goal, "actual": cal_today, "delta": deficit_delta,
+                                  "tdee": tdee, "goal_deficit": goal_deficit, "actual_deficit": actual_deficit}
     elif cal_today == 0 and cal_goal:
         cal_pen = MOMENTUM_WEIGHTS["nutrition"]
-        raw_deltas["calories"] = {"target": cal_goal, "actual": 0, "delta": -(cal_goal or 0)}
+        raw_deltas["calories"] = {"target": cal_goal, "actual": 0, "delta": 0, "tdee": tdee, "goal_deficit": goal_deficit}
     else:
         cal_pen = 0
         raw_deltas["calories"] = {"target": None, "actual": cal_today, "delta": 0}
