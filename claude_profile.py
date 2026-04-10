@@ -46,6 +46,7 @@ Fill in the JSON fields below. Keep it concise:
 - "personalized_insight": 1-2 sentences that show you understand their specific situation
 - "biggest_leverage_point": the single most impactful change they could make
 - Copy over raw input fields directly (first_name, age, gender, height, weight, goal, etc.)
+- If target_weight_lbs is null or missing, that means the user did NOT enter a goal weight — it does NOT mean they want to maintain their current weight. Do not assume their goal is weight maintenance just because no target was given.
 - Leave fields as null only if there is no data to derive them from
 
 Respond ONLY with a valid JSON object. No markdown, no explanation."""
