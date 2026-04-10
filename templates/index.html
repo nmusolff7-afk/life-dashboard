@@ -7381,15 +7381,17 @@ function fmtDate(iso) {
       return;
     }
     const score      = data.momentum_score;
-    const scoreColor = _momentumColor(score);
+    const mainScoreColor = _momentumColor(score);
     const penalties  = data.penalties || {};
     const deltas     = data.raw_deltas || {};
     const comps      = data.components || {};
 
     // Build deduction rows
-    function penColor(pen, max) {
-      if (pen <= 0) return "var(--green)";
-      if (pen < max * 0.5) return "var(--amber)";
+    function scoreColor(earned, max) {
+      if (max <= 0) return "var(--muted)";
+      const pct = earned / max;
+      if (pct >= 0.75) return "var(--green)";
+      if (pct >= 0.25) return "var(--amber)";
       return "var(--danger)";
     }
 
@@ -7438,31 +7440,32 @@ function fmtDate(iso) {
     ];
 
     const rows = DEDUCTIONS.map(d => {
-      const pen   = penalties[d.key] || 0;
-      const color = penColor(pen, d.max);
-      const desc  = deltaDesc(d.deltaKey);
+      const pen    = penalties[d.key] || 0;
+      const earned = Math.max(0, d.max - pen);
+      const color  = scoreColor(earned, d.max);
+      const desc   = deltaDesc(d.deltaKey);
       const missing = (comps[d.key] && comps[d.key].missing)
         ? ' <span style="font-size:0.65rem;color:var(--muted)">?</span>' : "";
-      const penStr = pen <= 0
-        ? '<span style="color:var(--green)">0</span>'
-        : '<span style="color:' + color + '">-' + pen.toFixed(1) + '</span>';
+      const earnStr = `<span style="color:${color}">${earned.toFixed(1)}</span>` +
+        `<span style="color:var(--muted);font-size:0.65rem">/${d.max}</span>`;
       return `<div style="display:flex;align-items:baseline;gap:0.35rem;padding:0.3rem 0;border-bottom:1px solid var(--surface2)">
-        <span style="font-size:0.78rem;color:var(--text);min-width:3.8rem">${d.label}${missing}</span>
-        <span style="font-family:monospace;font-size:0.75rem;min-width:2.2rem;text-align:right;flex-shrink:0">${penStr}</span>
+        <span style="font-size:0.78rem;color:var(--text);min-width:4.2rem">${d.label}${missing}</span>
+        <span style="font-family:monospace;font-size:0.75rem;min-width:3.2rem;text-align:right;flex-shrink:0">${earnStr}</span>
         <span style="font-size:0.7rem;color:var(--muted);text-align:right;flex:1">${desc}</span>
       </div>`;
     }).join("");
 
-    const totalPen = Object.values(penalties).reduce((a, b) => a + b, 0);
+    const totalMax = DEDUCTIONS.reduce((a, d) => a + d.max, 0);
+    const totalEarned = DEDUCTIONS.reduce((a, d) => a + Math.max(0, d.max - (penalties[d.key] || 0)), 0);
 
     el.innerHTML = `
       <div style="display:flex;align-items:center;gap:1.25rem;margin-bottom:0.75rem">
         <div style="text-align:center;min-width:4.5rem">
-          <div class="mind-score-big" style="font-size:3rem;color:${scoreColor}">${score}</div>
+          <div class="mind-score-big" style="font-size:3rem;color:${mainScoreColor}">${score}</div>
           <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:0.1rem">/ 100</div>
         </div>
         <div style="flex:1">
-          <div style="font-size:0.78rem;color:var(--muted);margin-bottom:0.4rem">100 − ${totalPen.toFixed(1)} penalties = ${score}</div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-bottom:0.4rem">${totalEarned.toFixed(1)} / ${totalMax} scored points</div>
           ${rows}
         </div>
       </div>
