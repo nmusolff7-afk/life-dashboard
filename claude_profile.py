@@ -69,7 +69,7 @@ def generate_profile_map(raw_inputs: dict) -> dict:
         system=PROFILE_GENERATION_PROMPT,
         messages=[{"role": "user", "content": user_content}],
     )
-    text = next(b.text for b in response.content if b.type == "text").strip()
+    text = next((b.text for b in response.content if b.type == "text"), "").strip()
     if text.startswith("```"):
         text = text.split("```")[1]
         if text.startswith("json"):

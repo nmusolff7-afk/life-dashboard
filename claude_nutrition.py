@@ -72,7 +72,7 @@ def estimate_nutrition(meal_description: str, profile_map: dict | None = None) -
         system=NUTRITION_PROMPT,
         messages=[{"role": "user", "content": user_content}],
     )
-    text = next(b.text for b in response.content if b.type == "text")
+    text = next((b.text for b in response.content if b.type == "text"), "")
     data = _parse_json(text)
     items = []
     for item in (data.get("items") or []):
@@ -148,7 +148,7 @@ def scan_meal_image(image_b64: str, media_type: str, context: str = "") -> dict:
             ]
         }],
     )
-    text = next(b.text for b in response.content if b.type == "text")
+    text = next((b.text for b in response.content if b.type == "text"), "")
     data = _parse_json(text)
     items = []
     for item in (data.get("items") or []):
@@ -195,7 +195,7 @@ def identify_ingredients(images: list) -> list[str]:
         max_tokens=400,
         messages=[{"role": "user", "content": content}],
     )
-    text = next(b.text for b in response.content if b.type == "text").strip()
+    text = next((b.text for b in response.content if b.type == "text"), "").strip()
     start, end = text.find("{"), text.rfind("}") + 1
     if start == -1 or end == 0:
         return []
@@ -293,7 +293,7 @@ def suggest_meal(
         system=SUGGEST_PROMPT,
         messages=[{"role": "user", "content": content}],
     )
-    text = next(b.text for b in response.content if b.type == "text")
+    text = next((b.text for b in response.content if b.type == "text"), "")
     data = _parse_json(text)
     raw_options = data.get("options") or []
     options = []
@@ -369,7 +369,7 @@ def estimate_burn(workout_description: str, profile_map: dict | None = None) -> 
         system=BURN_PROMPT,
         messages=[{"role": "user", "content": user_content}],
     )
-    text = next(b.text for b in response.content if b.type == "text")
+    text = next((b.text for b in response.content if b.type == "text"), "")
     data = _parse_json(text)
     return {
         "calories_burned": int(data["calories_burned"]),
@@ -397,7 +397,7 @@ def shorten_label(description: str) -> str:
         system=SHORTEN_PROMPT,
         messages=[{"role": "user", "content": description}],
     )
-    return next(b.text for b in response.content if b.type == "text").strip()
+    return next((b.text for b in response.content if b.type == "text"), "").strip()
 
 
 # ── Workout plan parsing ───────────────────────────────
@@ -485,7 +485,7 @@ def generate_workout_plan(goal: str, days_per_week: int = 3, experience: str = "
         system=prompt,
         messages=[{"role": "user", "content": "Generate my workout plan."}],
     )
-    raw = next(b.text for b in response.content if b.type == "text")
+    raw = next((b.text for b in response.content if b.type == "text"), "")
     data = _parse_json(raw)
     return {d: data.get(d, []) for d in _DAYS}
 
@@ -719,7 +719,7 @@ Scan all of the above data — today and every historical row — for a genuine 
         system=_MOMENTUM_INSIGHT_SYSTEM,
         messages=[{"role": "user", "content": user_msg}],
     )
-    insight_text = next(b.text for b in response.content if b.type == "text").strip()
+    insight_text = next((b.text for b in response.content if b.type == "text"), "").strip()
 
     return {
         "insight":      insight_text,
@@ -734,6 +734,6 @@ def parse_workout_plan(text: str) -> dict:
         system=PLAN_PROMPT,
         messages=[{"role": "user", "content": text}],
     )
-    raw = next(b.text for b in response.content if b.type == "text")
+    raw = next((b.text for b in response.content if b.type == "text"), "")
     data = _parse_json(raw)
     return {d: data.get(d, []) for d in _DAYS}
