@@ -102,6 +102,7 @@
     <div class="tabs">
       <button class="tab-btn active" id="tab-login-btn">Sign In</button>
       <button class="tab-btn" id="tab-register-btn">Create Account</button>
+      <button class="tab-btn" id="tab-reset-btn">Reset</button>
     </div>
 
     {% if error %}
@@ -142,29 +143,120 @@
       <button type="submit" class="btn">Create Account</button>
     </form>
 
+    <!-- Reset password form -->
+    <div class="form-panel" id="panel-reset">
+      <div id="reset-step-1">
+        <div class="field">
+          <label>Username</label>
+          <input type="text" id="reset-username" autocomplete="username"
+            autocorrect="off" autocapitalize="none" spellcheck="false"
+            placeholder="your username">
+        </div>
+        <button type="button" class="btn" id="reset-check-btn">Next</button>
+      </div>
+      <div id="reset-step-2" style="display:none">
+        <div style="font-size:0.84rem;color:var(--green);margin-bottom:1rem">Account found. Enter a new password.</div>
+        <div class="field">
+          <label>New password</label>
+          <input type="password" id="reset-new-pw" autocomplete="new-password"
+            placeholder="at least 4 characters">
+        </div>
+        <div class="field">
+          <label>Confirm new password</label>
+          <input type="password" id="reset-confirm-pw" autocomplete="new-password"
+            placeholder="type it again">
+        </div>
+        <button type="button" class="btn" id="reset-submit-btn">Reset Password</button>
+      </div>
+      <div id="reset-error" class="error" style="display:none"></div>
+      <div id="reset-success" style="display:none;color:var(--green);font-size:0.84rem;text-align:center;margin-top:1rem"></div>
+    </div>
+
     <div class="hint">Your data is stored privately and never shared.</div>
   </div>
 </div>
 
 <script>
-  const loginBtn    = document.getElementById("tab-login-btn");
-  const registerBtn = document.getElementById("tab-register-btn");
-  const loginPanel  = document.getElementById("panel-login");
-  const regPanel    = document.getElementById("panel-register");
+  const tabs   = document.querySelectorAll(".tab-btn");
+  const panels = document.querySelectorAll(".form-panel");
 
-  loginBtn.addEventListener("click", () => {
-    loginBtn.classList.add("active");    registerBtn.classList.remove("active");
-    loginPanel.classList.add("active");  regPanel.classList.remove("active");
-  });
-  registerBtn.addEventListener("click", () => {
-    registerBtn.classList.add("active"); loginBtn.classList.remove("active");
-    regPanel.classList.add("active");    loginPanel.classList.remove("active");
-  });
+  function showTab(tabId) {
+    const map = { "tab-login-btn": "panel-login", "tab-register-btn": "panel-register", "tab-reset-btn": "panel-reset" };
+    tabs.forEach(t => t.classList.toggle("active", t.id === tabId));
+    panels.forEach(p => p.classList.toggle("active", p.id === map[tabId]));
+  }
+
+  tabs.forEach(t => t.addEventListener("click", () => showTab(t.id)));
 
   // If the error was on register, show that tab
   {% if error and request.form.get('action') == 'register' %}
-  registerBtn.click();
+  showTab("tab-register-btn");
   {% endif %}
+
+  // ── Reset password flow ──
+  let _resetUsername = "";
+
+  document.getElementById("reset-check-btn").addEventListener("click", () => {
+    const user = document.getElementById("reset-username").value.trim();
+    const errEl = document.getElementById("reset-error");
+    errEl.style.display = "none";
+    if (!user) { errEl.textContent = "Enter your username."; errEl.style.display = ""; return; }
+
+    fetch("/api/check-username", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: user }),
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.exists) {
+        _resetUsername = user;
+        document.getElementById("reset-step-1").style.display = "none";
+        document.getElementById("reset-step-2").style.display = "";
+      } else {
+        errEl.textContent = "No account found with that username.";
+        errEl.style.display = "";
+      }
+    })
+    .catch(() => {
+      errEl.textContent = "Could not reach server. Try again.";
+      errEl.style.display = "";
+    });
+  });
+
+  document.getElementById("reset-submit-btn").addEventListener("click", () => {
+    const pw1 = document.getElementById("reset-new-pw").value;
+    const pw2 = document.getElementById("reset-confirm-pw").value;
+    const errEl = document.getElementById("reset-error");
+    const sucEl = document.getElementById("reset-success");
+    errEl.style.display = "none";
+    sucEl.style.display = "none";
+
+    if (pw1.length < 4) { errEl.textContent = "Password must be at least 4 characters."; errEl.style.display = ""; return; }
+    if (pw1 !== pw2)    { errEl.textContent = "Passwords don't match."; errEl.style.display = ""; return; }
+
+    fetch("/api/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: _resetUsername, new_password: pw1 }),
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        document.getElementById("reset-step-2").style.display = "none";
+        sucEl.textContent = "Password reset! You can now sign in.";
+        sucEl.style.display = "";
+        setTimeout(() => showTab("tab-login-btn"), 2000);
+      } else {
+        errEl.textContent = data.error || "Reset failed.";
+        errEl.style.display = "";
+      }
+    })
+    .catch(() => {
+      errEl.textContent = "Could not reach server. Try again.";
+      errEl.style.display = "";
+    });
+  });
 </script>
 </body>
 </html>

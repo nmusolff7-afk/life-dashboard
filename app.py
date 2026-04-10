@@ -166,6 +166,41 @@ def login_page():
     return render_template("login.html", error=error)
 
 
+@app.route("/api/check-username", methods=["POST"])
+def api_check_username():
+    """Check if a username exists (for password reset flow)."""
+    data = request.get_json() or {}
+    username = (data.get("username") or "").strip().lower()
+    if not username:
+        return jsonify({"exists": False})
+    from db import get_conn
+    with get_conn() as conn:
+        row = conn.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
+    return jsonify({"exists": row is not None})
+
+
+@app.route("/api/reset-password", methods=["POST"])
+def api_reset_password():
+    """Reset a user's password by username (no email verification)."""
+    data = request.get_json() or {}
+    username = (data.get("username") or "").strip().lower()
+    new_password = data.get("new_password", "")
+    if not username:
+        return jsonify({"error": "Username required."}), 400
+    if len(new_password) < 4:
+        return jsonify({"error": "Password must be at least 4 characters."}), 400
+    from db import get_conn
+    from werkzeug.security import generate_password_hash
+    with get_conn() as conn:
+        row = conn.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
+        if not row:
+            return jsonify({"error": "No account found."}), 404
+        conn.execute("UPDATE users SET password_hash = ? WHERE id = ?",
+                     (generate_password_hash(new_password), row["id"]))
+        conn.commit()
+    return jsonify({"ok": True})
+
+
 @app.route("/logout")
 def logout():
     session.clear()
