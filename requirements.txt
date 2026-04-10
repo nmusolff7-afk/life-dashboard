@@ -6,5 +6,6 @@ garminconnect
 garth
 requests
 werkzeug
+flask-limiter
 google-auth
 google-auth-oauthlib

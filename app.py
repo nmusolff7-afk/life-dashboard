@@ -34,12 +34,15 @@ import gmail_sync
 from goal_config import compute_targets, get_goal_config
 import json
 import logging as _log
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 _AI_ERR = "Something went wrong, please try again later"
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY") or os.urandom(32).hex()
 app.permanent_session_lifetime = timedelta(days=90)
+limiter = Limiter(get_remote_address, app=app, default_limits=[], storage_uri="memory://")
 init_db()
 
 
@@ -141,6 +144,7 @@ def render_index(**kwargs):
 # ── Auth routes ─────────────────────────────────────────
 
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit("10/minute", methods=["POST"])
 def login_page():
     if "user_id" in session:
         return redirect(url_for("index"))
@@ -176,6 +180,7 @@ def login_page():
 
 
 @app.route("/api/check-username", methods=["POST"])
+@limiter.limit("10/minute")
 def api_check_username():
     """Check if a username exists (for password reset flow)."""
     data = request.get_json() or {}
@@ -189,6 +194,7 @@ def api_check_username():
 
 
 @app.route("/api/reset-password", methods=["POST"])
+@limiter.limit("5/minute")
 def api_reset_password():
     """Reset a user's password — requires the server-side RECOVERY_KEY."""
     recovery_key = os.environ.get("RECOVERY_KEY", "")
