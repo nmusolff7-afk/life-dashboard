@@ -177,6 +177,12 @@
   </div>
 
   <div class="ob-header">
+    {% if editing %}
+    <a href="/" style="position:absolute;top:1rem;right:1rem;font-size:0.82rem;color:var(--muted);text-decoration:none;display:flex;align-items:center;gap:0.3rem;z-index:10">
+      <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      Back to app
+    </a>
+    {% endif %}
     <div class="ob-logo">
       <img src="/static/apex-logo.png" alt="Apex Fitness">
       <div class="ob-logo-name">APEX</div>

@@ -252,7 +252,8 @@ def onboarding():
             pass
     return render_template("onboarding.html",
                            username=session.get("username", ""),
-                           saved=raw)
+                           saved=raw,
+                           editing=editing)
 
 
 @app.route("/api/onboarding/save", methods=["POST"])
