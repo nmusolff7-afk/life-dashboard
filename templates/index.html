@@ -1011,6 +1011,25 @@
         </div>
       </div>
 
+      <!-- Task list (moved from Status tab) -->
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+          <div class="card-title" style="margin:0;flex:1">Today's Tasks</div>
+          <button class="btn btn-ghost" id="mind-add-btn" style="font-size:0.8rem;padding:0.35rem 0.8rem">+ Add</button>
+        </div>
+        <div id="mind-add-form" style="display:none;margin-bottom:0.75rem">
+          <div style="display:flex;gap:0.5rem">
+            <input type="text" id="mind-new-task" placeholder="Describe the task…"
+              style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.55rem 0.75rem;color:var(--text);font-size:0.9rem">
+            <button class="btn" id="mind-add-save" style="background:var(--btn-bg);color:#fff">Add</button>
+            <button class="btn btn-ghost" id="mind-add-cancel">✕</button>
+          </div>
+        </div>
+        <div id="mind-task-list">
+          <div style="color:var(--muted);font-size:0.85rem;padding:0.5rem 0">No tasks yet — submit a brief or add one manually.</div>
+        </div>
+      </div>
+
       <!-- Macros Card -->
       <div class="card" id="dash-macro-card" style="cursor:pointer">
         <div class="card-title">Macros</div>
@@ -2127,25 +2146,6 @@
             </div>
             <div id="mind-score-label" style="font-size:0.78rem;color:var(--muted);margin-top:0.4rem">No tasks yet today</div>
           </div>
-        </div>
-      </div>
-
-      <!-- Task list -->
-      <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
-          <div class="card-title" style="margin:0;flex:1">Today's Tasks</div>
-          <button class="btn btn-ghost" id="mind-add-btn" style="font-size:0.8rem;padding:0.35rem 0.8rem">+ Add</button>
-        </div>
-        <div id="mind-add-form" style="display:none;margin-bottom:0.75rem">
-          <div style="display:flex;gap:0.5rem">
-            <input type="text" id="mind-new-task" placeholder="Describe the task…"
-              style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.55rem 0.75rem;color:var(--text);font-size:0.9rem">
-            <button class="btn" id="mind-add-save" style="background:var(--btn-bg);color:#fff">Add</button>
-            <button class="btn btn-ghost" id="mind-add-cancel">✕</button>
-          </div>
-        </div>
-        <div id="mind-task-list">
-          <div style="color:var(--muted);font-size:0.85rem;padding:0.5rem 0">No tasks yet — submit a brief or add one manually.</div>
         </div>
       </div>
 
