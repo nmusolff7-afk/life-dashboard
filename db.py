@@ -885,6 +885,13 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
         ).fetchall()
         tasks = [dict(r) for r in task_rows]
 
+        # Fetch workout burn in same connection (used as fallback when no garmin)
+        workout_burn_row = conn.execute(
+            "SELECT COALESCE(SUM(calories_burned), 0) as total FROM workout_logs WHERE user_id = ? AND log_date = ?",
+            (user_id, date_str)
+        ).fetchone()
+        workout_burn = int(workout_burn_row["total"])
+
     # ── resolve targets ──────────────────────────────────
     # Prefer user_goals table, fall back to profile, then client override
     if goal:
@@ -895,7 +902,7 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
         deficit_target = profile.get("calorie_deficit_target") or 0
         if rmr_kcal:
             active_burned = (garmin.get("active_calories") or 0) if garmin \
-                            else get_today_workout_burn(user_id, date_str)
+                            else workout_burn
             cal_goal = int(rmr_kcal + active_burned - deficit_target)
         else:
             cal_goal = profile.get("daily_calorie_goal") or calorie_goal_override
