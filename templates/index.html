@@ -2517,6 +2517,20 @@ function getBriefSettings() {
   catch (_) { return {}; }
 }
 
+function resizeAndEncode(file, cb) {
+  const img = new Image(), url = URL.createObjectURL(file);
+  img.onload = () => {
+    const MAX = 1200; let w = img.width, h = img.height;
+    if (w > MAX || h > MAX) { const r = Math.min(MAX/w, MAX/h); w = Math.round(w*r); h = Math.round(h*r); }
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+    URL.revokeObjectURL(url);
+    cb(canvas.toDataURL("image/jpeg", 0.85).split(",")[1], "image/jpeg");
+  };
+  img.src = url;
+}
+
 // One-time cleanup: remove any entries that are ahead of today's local date
 // (written when the app incorrectly used UTC, rolling midnight forward)
 (function() {
@@ -3181,20 +3195,6 @@ function deleteWorkout(id) {
   pantryAddOk.addEventListener("click", commitPantryAdd);
   pantryAddInput.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); commitPantryAdd(); } });
 
-  // \u2500\u2500 Image resize \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-  function resizeAndEncode(file, cb) {
-    const img = new Image(), url = URL.createObjectURL(file);
-    img.onload = () => {
-      const MAX = 1200; let w = img.width, h = img.height;
-      if (w > MAX || h > MAX) { const r = Math.min(MAX/w, MAX/h); w = Math.round(w*r); h = Math.round(h*r); }
-      const canvas = document.createElement("canvas");
-      canvas.width = w; canvas.height = h;
-      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-      URL.revokeObjectURL(url);
-      cb(canvas.toDataURL("image/jpeg", 0.85).split(",")[1], "image/jpeg");
-    };
-    img.src = url;
-  }
 
   // \u2500\u2500 Photo slots \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   function renderSlots() {
@@ -3523,27 +3523,6 @@ function deleteWorkout(id) {
   let shortLabel    = null;
   let _pendingImage = null; // {b64, mediaType} stored after resize, used by analyzeBtn
 
-  // ── Resize image to max dimension before sending ──────
-  function resizeAndEncode(file, cb) {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const MAX = 1200;
-      let w = img.width, h = img.height;
-      if (w > MAX || h > MAX) {
-        const r = Math.min(MAX / w, MAX / h);
-        w = Math.round(w * r); h = Math.round(h * r);
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = w; canvas.height = h;
-      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-      URL.revokeObjectURL(url);
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-      const b64 = dataUrl.split(",")[1];
-      cb(b64, "image/jpeg");
-    };
-    img.src = url;
-  }
 
   // ── Scan state helpers ────────────────────────────────
   let _origPlaceholder = "";
