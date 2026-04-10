@@ -895,8 +895,8 @@ def api_generate_plan():
 
 # ── Garmin ──────────────────────────────────────────────
 
-def _garmin_save(user_id: int, date_str: str, result: dict) -> None:
-    """Callback used by the background poll thread to persist fetched data."""
+def _garmin_save(user_id: int, date_str: str, result: dict) -> list[str]:
+    """Persist Garmin daily stats, sleep, and activities. Returns imported activity names."""
     upsert_garmin_daily(
         user_id, date_str,
         result["steps"],
@@ -910,15 +910,16 @@ def _garmin_save(user_id: int, date_str: str, result: dict) -> None:
                      sleep["total_seconds"], sleep["deep_seconds"],
                      sleep["light_seconds"], sleep["rem_seconds"],
                      sleep["awake_seconds"], sleep.get("sleep_score"))
+    imported = []
     for act in result.get("activities", []):
-        gid = act.get("garmin_activity_id", "")
+        gid = act.get("garmin_activity_id", "") or act.get("garmin_id", "")
         if gid and garmin_activity_exists(user_id, gid):
             continue
-        # Use the activity's own local start time so logged_at reflects when
-        # the activity happened, not when the sync ran
         logged_at = act.get("start_time_local") or None
         insert_garmin_workout(user_id, date_str, act["description"], act["calories"], gid,
                               logged_at=logged_at)
+        imported.append(act["description"])
+    return imported
 
 
 # Start background poll for the first user in the DB (Garmin creds are global for now)
@@ -986,36 +987,7 @@ def api_garmin_sync():
     except Exception as e:
         return jsonify({"error": str(e)}), 502
 
-    # Persist daily stats
-    upsert_garmin_daily(
-        uid(), sync_date,
-        result["steps"],
-        result["active_calories"],
-        result["total_calories"],
-        result["resting_hr"],
-    )
-
-    # Save sleep if present
-    sleep = result.get("sleep")
-    if sleep:
-        upsert_sleep(uid(), sync_date,
-                     sleep["total_seconds"], sleep["deep_seconds"],
-                     sleep["light_seconds"], sleep["rem_seconds"],
-                     sleep["awake_seconds"], sleep.get("sleep_score"))
-
-    # Import activities as workout_log entries (skip duplicates)
-    imported = []
-    for act in result["activities"]:
-        gid = act["garmin_activity_id"] if "garmin_activity_id" in act else act.get("garmin_id", "")
-        if gid and garmin_activity_exists(uid(), gid):
-            continue
-        insert_garmin_workout(
-            uid(), sync_date,
-            act["description"],
-            act["calories"],
-            gid,
-        )
-        imported.append(act["description"])
+    imported = _garmin_save(uid(), sync_date, result)
 
     return jsonify({
         "date":            sync_date,
