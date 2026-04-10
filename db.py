@@ -837,7 +837,7 @@ _momentum_logger = _logging.getLogger(__name__)
 
 MOMENTUM_WEIGHTS = {
     "nutrition": 15,
-    "protein":   10,
+    "macros":    10,
     "activity":  10,
     "checkin":    5,
     "tasks":      5,
@@ -895,8 +895,10 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
     # ── resolve targets ──────────────────────────────────
     # Prefer user_goals table, fall back to profile, then client override
     if goal:
-        cal_goal = goal["calorie_target"]
-        pro_goal = goal["protein_g"]
+        cal_goal   = goal["calorie_target"]
+        pro_goal   = goal["protein_g"]
+        fat_goal   = goal.get("fat_g") or None
+        carbs_goal = goal.get("carbs_g") or None
     else:
         rmr_kcal       = profile.get("rmr_kcal") or 0
         deficit_target = profile.get("calorie_deficit_target") or 0
@@ -906,10 +908,14 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
             cal_goal = int(rmr_kcal + active_burned - deficit_target)
         else:
             cal_goal = profile.get("daily_calorie_goal") or calorie_goal_override
-        pro_goal = profile.get("daily_protein_goal_g") or None
+        pro_goal   = profile.get("daily_protein_goal_g") or None
+        fat_goal   = None
+        carbs_goal = None
 
-    cal_today = totals["total_calories"]
-    pro_today = totals.get("total_protein", 0)
+    cal_today  = totals["total_calories"]
+    pro_today  = totals.get("total_protein", 0)
+    carbs_today = totals.get("total_carbs", 0)
+    fat_today   = totals.get("total_fat", 0)
 
     # ── penalty calculations ─────────────────────────────
     raw_deltas = {}
@@ -943,19 +949,31 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
         raw_deltas["calories"] = {"target": None, "actual": cal_today, "delta": 0}
     penalties["nutrition"] = round(cal_pen, 2)
 
-    # 2. Protein (10 pts) — same scaled deviation
-    if pro_goal and pro_goal > 0 and pro_today > 0:
-        pro_delta = pro_today - pro_goal
-        pro_dev   = abs(pro_delta) / pro_goal
-        pro_pen   = min(1.0, pro_dev / 0.25) * MOMENTUM_WEIGHTS["protein"]
-        raw_deltas["protein"] = {"target": pro_goal, "actual": round(pro_today, 1), "delta": round(pro_delta, 1)}
-    elif pro_today == 0 and pro_goal:
-        pro_pen = MOMENTUM_WEIGHTS["protein"]
-        raw_deltas["protein"] = {"target": pro_goal, "actual": 0, "delta": -pro_goal}
+    # 2. Macros (10 pts) — weighted combination: protein 40%, carbs 30%, fat 30%
+    macro_components = []
+    if pro_goal and pro_goal > 0:
+        macro_components.append({"name": "protein", "target": pro_goal, "actual": round(pro_today, 1),
+                                 "weight": 0.4, "dev": abs(pro_today - pro_goal) / pro_goal if pro_today > 0 else 1.0})
+    if carbs_goal and carbs_goal > 0:
+        macro_components.append({"name": "carbs", "target": carbs_goal, "actual": round(carbs_today, 1),
+                                 "weight": 0.3, "dev": abs(carbs_today - carbs_goal) / carbs_goal if carbs_today > 0 else 1.0})
+    if fat_goal and fat_goal > 0:
+        macro_components.append({"name": "fat", "target": fat_goal, "actual": round(fat_today, 1),
+                                 "weight": 0.3, "dev": abs(fat_today - fat_goal) / fat_goal if fat_today > 0 else 1.0})
+
+    if macro_components:
+        # Normalize weights to sum to 1.0 in case some macros are missing
+        total_weight = sum(m["weight"] for m in macro_components)
+        weighted_dev = sum(min(1.0, m["dev"] / 0.25) * (m["weight"] / total_weight) for m in macro_components)
+        macro_pen = weighted_dev * MOMENTUM_WEIGHTS["macros"]
+        raw_deltas["macros"] = {"components": macro_components}
+    elif cal_today == 0:
+        macro_pen = MOMENTUM_WEIGHTS["macros"]
+        raw_deltas["macros"] = {"components": []}
     else:
-        pro_pen = 0
-        raw_deltas["protein"] = {"target": None, "actual": round(pro_today, 1), "delta": 0}
-    penalties["protein"] = round(pro_pen, 2)
+        macro_pen = 0
+        raw_deltas["macros"] = {"components": []}
+    penalties["macros"] = round(macro_pen, 2)
 
     # 3. Workout (10 pts) — full penalty if no workout logged
     workout_burn = get_today_workout_burn(user_id, date_str)
@@ -1022,13 +1040,17 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
                 "weighted":        weighted["nutrition"],
                 "missing":         cal_goal is None,
             },
-            "protein": {
+            "macros": {
                 "protein_logged":  round(pro_today, 1),
                 "protein_goal":    pro_goal,
-                "penalty":         penalties["protein"],
-                "pct":             _comp_pct("protein"),
-                "weighted":        weighted["protein"],
-                "missing":         pro_goal is None,
+                "carbs_logged":    round(carbs_today, 1),
+                "carbs_goal":      carbs_goal,
+                "fat_logged":      round(fat_today, 1),
+                "fat_goal":        fat_goal,
+                "penalty":         penalties["macros"],
+                "pct":             _comp_pct("macros"),
+                "weighted":        weighted["macros"],
+                "missing":         pro_goal is None and carbs_goal is None and fat_goal is None,
             },
             "activity": {
                 "has_workout":      has_workout,

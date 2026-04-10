@@ -7402,11 +7402,13 @@ function fmtDate(iso) {
         const sign = d.delta > 0 ? "+" : "";
         return sign + d.delta + " kcal";
       }
-      if (key === "protein") {
-        if (d.target == null) return "no goal";
-        if (d.actual === 0) return "not logged";
-        const sign = d.delta > 0 ? "+" : "";
-        return sign + Math.round(d.delta) + "g";
+      if (key === "macros") {
+        const mc = d.components || [];
+        if (!mc.length) return "no goal";
+        return mc.map(m => {
+          const sign = m.actual > m.target ? "+" : "";
+          return m.name.charAt(0).toUpperCase() + " " + sign + Math.round(m.actual - m.target) + "g";
+        }).join(", ");
       }
       if (key === "workout") {
         if (d.done) return d.burn > 0 ? d.burn + " kcal" : "done";
@@ -7428,7 +7430,7 @@ function fmtDate(iso) {
 
     const DEDUCTIONS = [
       { key: "nutrition", deltaKey: "calories", label: "Calories", max: 15 },
-      { key: "protein",   deltaKey: "protein",  label: "Protein", max: 10 },
+      { key: "macros",    deltaKey: "macros",   label: "Macros",   max: 10 },
       { key: "activity",  deltaKey: "workout",  label: "Workout",  max: 10 },
       { key: "checkin",   deltaKey: "checkin",  label: "Check-in", max:  5 },
       { key: "tasks",     deltaKey: "tasks",    label: "Tasks",    max:  5 },
