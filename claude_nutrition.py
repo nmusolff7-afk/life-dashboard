@@ -487,53 +487,53 @@ def generate_workout_plan(goal: str, days_per_week: int = 3, experience: str = "
 
 
 def generate_comprehensive_plan(payload: dict) -> dict:
-    """Generate a full strength + cardio plan from the workout builder quiz payload."""
-    prompt = f"""You are an evidence-based certified personal trainer and exercise scientist.
-You have been given a comprehensive user profile and quiz payload. Generate a complete
-weekly training plan — both a STRENGTH plan and a CARDIO plan — as two separate JSON objects.
+    """Generate a full weekly plan from the workout builder quiz payload."""
+    prompt = f"""You are an evidence-based personal trainer. Generate a weekly training plan.
 
 USER PAYLOAD:
 {json.dumps(payload, indent=2)}
 
-INSTRUCTIONS:
-1. Read every field in the payload carefully. The aiFlags object contains critical
-   programming constraints — respect all of them.
-2. The schedule.trainingDays array contains the SPECIFIC days the user can train.
-   Map your plan to those exact days.
-3. If selectedExercises is non-empty, you MUST include every listed exercise at least
-   once per week. Do not omit or substitute unless physicalConstraints directly
-   contraindicate it — in that case, flag the conflict explicitly.
-4. If physicalConstraints is not null, treat it as a mandatory constraint. Exclude any
-   exercise that directly loads the affected structure. Substitute a safe alternative
-   and add a note explaining the substitution.
-5. Use the experience level to calibrate coaching cue density, progression model,
-   and exercise complexity.
-6. Respect all volume adjustments from aiFlags (sleep, stress, activity reductions).
-7. For cardio: respect the cardio.preference and cardio.committedCardioType. If
-   committedCardioType is "running", schedule resistance and running on separate days
-   where possible, resistance first if same-day, 6hr minimum separation.
+CRITICAL RULES:
+- The schedule.trainingDays array contains the EXACT days to program. Use them.
+- Training days need 5-8 exercises each. Do NOT skimp on exercises.
+- If selectedExercises is non-empty, include EVERY one at least once per week.
+- If physicalConstraints is set, exclude contraindicated exercises and substitute.
+- Respect all aiFlags (volume reductions, equipment limits, etc.).
+- sessionLength controls exercise count: under_30=3-4, 30_to_60=5-6, 60_to_90=6-8, 90_plus=8+.
 
-RESPONSE FORMAT — respond ONLY with valid JSON, no markdown fencing, no explanation:
-The JSON must have three top-level keys: "strengthPlan", "cardioPlan", "planNotes".
+RESPONSE — valid JSON only, no markdown, no commentary:
+{{
+  "weeklyPlan": {{
+    "Monday": {{
+      "label": "Push Day",
+      "exercises": [
+        {{"name": "Barbell Bench Press", "sets": 4, "reps": "8-12", "rest": "90s", "notes": null}},
+        {{"name": "Incline Dumbbell Press", "sets": 3, "reps": "10-12", "rest": "75s", "notes": null}},
+        {{"name": "Cable Fly", "sets": 3, "reps": "12-15", "rest": "60s", "notes": null}},
+        {{"name": "Overhead Press", "sets": 3, "reps": "8-10", "rest": "90s", "notes": null}},
+        {{"name": "Lateral Raise", "sets": 3, "reps": "12-15", "rest": "60s", "notes": null}},
+        {{"name": "Tricep Pushdown", "sets": 3, "reps": "12-15", "rest": "60s", "notes": null}}
+      ],
+      "cardio": {{"type": "LISS Walk", "duration": "20 min", "intensity": "Zone 2", "committed": false}}
+    }},
+    "Tuesday": {{
+      "label": "Rest Day",
+      "exercises": [],
+      "cardio": {{"type": "Easy Run", "duration": "30 min", "intensity": "Zone 2", "committed": true}}
+    }},
+    "Wednesday": null
+  }},
+  "planNotes": ["Deload week 4", "Upper body prioritized due to running volume"]
+}}
 
-strengthPlan: object with all 7 day keys (Monday through Sunday).
-  Training days: {{"label": "Push Day", "exercises": [{{"name": "Bench Press", "sets": 4, "reps": "8-12", "rest": "90s", "notes": null}}]}}
-  Rest days: null
-
-cardioPlan: object with all 7 day keys (Monday through Sunday).
-  Cardio days: {{"type": "Easy Run", "duration": "30 min", "intensity": "Zone 2", "notes": null, "committed": false}}
-  No-cardio days: null
-
-planNotes: array of strings with key programming decisions.
-
-Rules:
-- Include all 7 days in both strengthPlan and cardioPlan.
-- Use null for rest/off days, not empty objects.
-- Exercise names must be clean title-case.
-- If the user selected 0 training days (recoveryOnly flag), return a mobility/recovery plan instead.
-- Rep ranges should be goal-appropriate: strength 3-6, hypertrophy 8-15, endurance 15-20.
-- Rest periods: compound 2-3min, isolation 60-90s, circuits 30-45s.
-- Respect sessionLength constraints on exercise count.
+FORMAT RULES:
+- Include ALL 7 days (Monday through Sunday).
+- Training days: label + exercises array (5-8 exercises!) + optional cardio object.
+- Rest days with cardio: label "Rest Day", empty exercises array, cardio object.
+- Pure rest days: null.
+- cardio object: only include if there IS cardio that day. Omit the key if no cardio.
+- If cardio.committedCardioType is set, mark those sessions committed: true.
+- Exercise names: clean title-case, no reps in name.
 """
 
     response = _client().messages.create(
@@ -542,28 +542,58 @@ Rules:
         messages=[{"role": "user", "content": prompt}],
     )
     raw = next((b.text for b in response.content if b.type == "text"), "")
-    return _parse_json(raw)
+    data = _parse_json(raw)
+    # Normalize: accept either old {strengthPlan,cardioPlan} or new {weeklyPlan} format
+    if "weeklyPlan" in data:
+        return data
+    if "strengthPlan" in data:
+        # Convert old format to unified
+        sp = data.get("strengthPlan", {})
+        cp = data.get("cardioPlan", {})
+        unified = {}
+        for d in _DAYS:
+            s = sp.get(d)
+            c = cp.get(d)
+            if s and isinstance(s, dict):
+                if c and isinstance(c, dict):
+                    s["cardio"] = c
+                unified[d] = s
+            elif c and isinstance(c, dict):
+                unified[d] = {"label": "Rest Day", "exercises": [], "cardio": c}
+            else:
+                unified[d] = None
+        data["weeklyPlan"] = unified
+    return data
 
 
 def generate_plan_understanding(payload: dict) -> str:
     """Generate a short AI paragraph demonstrating understanding of the user's plan."""
-    prompt = f"""You are a personal trainer who just finished designing a workout plan for a client.
-Write a 3-5 sentence paragraph that:
-- Demonstrates you understood their specific goals, constraints, and lifestyle
-- Acknowledges any notable tensions (e.g. daily running + hypertrophy goal, minimal equipment + mass goal)
-- Briefly explains key programming choices you made
-- Is personal, direct, written in second person
-- Does NOT use filler phrases like "Great news!" or "I'd be happy to..."
-- Does NOT read like a form letter
+    # Build a minimal summary instead of sending full payload
+    goal = payload.get("primaryGoal", "")
+    exp = payload.get("experience", "")
+    days = payload.get("schedule", {}).get("trainingDays", [])
+    equip = payload.get("equipment", "")
+    cardio_pref = payload.get("cardio", {}).get("preference", "")
+    committed = payload.get("cardio", {}).get("committedCardioType", "")
+    constraints = payload.get("physicalConstraints", "")
+    sleep = payload.get("recovery", {}).get("sleepHours", "")
+    stress = payload.get("recovery", {}).get("stressLevel", "")
 
-USER PAYLOAD:
-{json.dumps(payload, indent=2)}
+    prompt = f"""Write EXACTLY 3 sentences about this person's workout plan. Second person. No filler.
 
-Respond with ONLY the paragraph text — no quotes, no labels, no markdown."""
+Goal: {goal}, Experience: {exp}, Days: {', '.join(days)}, Equipment: {equip}
+Cardio preference: {cardio_pref}, Committed cardio: {committed or 'none'}
+Sleep: {sleep}, Stress: {stress}, Constraints: {constraints or 'none'}
+
+Sentence 1: What you understood about their situation.
+Sentence 2: The key programming decision you made.
+Sentence 3: What to expect.
+
+No quotes, no markdown, no labels. Just the 3 sentences."""
 
     response = _client().messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=300,
+        max_tokens=200,
         messages=[{"role": "user", "content": prompt}],
     )
     return next((b.text for b in response.content if b.type == "text"), "").strip()
@@ -571,22 +601,15 @@ Respond with ONLY the paragraph text — no quotes, no labels, no markdown."""
 
 def revise_plan(payload: dict, current_plan: dict, change_request: str) -> dict:
     """Revise an existing plan based on user feedback."""
-    prompt = f"""You are an evidence-based personal trainer. The user wants to modify their workout plan.
-
-ORIGINAL PAYLOAD:
-{json.dumps(payload, indent=2)}
+    prompt = f"""You are an evidence-based personal trainer. Modify this workout plan per the user's request.
 
 CURRENT PLAN:
 {json.dumps(current_plan, indent=2)}
 
-USER'S CHANGE REQUEST:
-{change_request}
+CHANGE REQUEST: {change_request}
 
-Apply the requested changes while keeping the rest of the plan intact. Respect all
-original constraints from the payload (physical constraints, equipment, etc.).
-
-Respond ONLY with the same JSON structure as the current plan — strengthPlan, cardioPlan,
-and planNotes. No markdown, no explanation outside the JSON."""
+Apply the changes. Keep everything else the same. Respond with ONLY valid JSON in the same
+format (weeklyPlan + planNotes). No markdown. 5-8 exercises per training day."""
 
     response = _client().messages.create(
         model="claude-haiku-4-5-20251001",

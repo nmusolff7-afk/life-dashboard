@@ -445,7 +445,7 @@
 
         <!-- Fullscreen workout builder quiz overlay -->
         <div id="wb-quiz-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:9999;overflow-y:auto">
-          <div style="max-width:480px;margin:0 auto;padding:1.5rem 1.25rem;padding-top:calc(env(safe-area-inset-top,0px) + 2rem);padding-bottom:3rem;min-height:100vh;display:flex;flex-direction:column;justify-content:center">
+          <div style="max-width:480px;margin:0 auto;padding:1.25rem;padding-top:calc(env(safe-area-inset-top,0px) + 1.25rem);padding-bottom:3rem">
             <div id="wb-quiz-content"></div>
           </div>
         </div>
@@ -1455,15 +1455,15 @@
   }
 
   function _wbSaveLegacyPlan(plan) {
-    // Convert strengthPlan to the legacy weeklyPlan format: {Monday: [{name, sets}], ...}
-    const sp = plan.strengthPlan || plan;
+    // Convert unified weeklyPlan or old strengthPlan to legacy format: {Monday: [{name, sets}], ...}
+    const wp = plan.weeklyPlan || plan.strengthPlan || plan;
     const legacy = {};
     ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].forEach(d => {
-      const day = sp[d];
-      if (day && day.exercises) {
+      const day = wp[d];
+      if (day && day.exercises && day.exercises.length) {
         legacy[d] = day.exercises.map(e => ({ name: e.name, sets: e.sets || 3 }));
       } else if (Array.isArray(day)) {
-        legacy[d] = day; // already in legacy format
+        legacy[d] = day;
       } else {
         legacy[d] = [];
       }
@@ -1474,67 +1474,69 @@
   // ── Output Screen ──
   function _wbOutputHTML() {
     const days = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
-    const sp = (wbPlanResult || {}).strengthPlan || {};
-    const cp = (wbPlanResult || {}).cardioPlan || {};
+    const wp = (wbPlanResult || {}).weeklyPlan || {};
     const notes = (wbPlanResult || {}).planNotes || [];
 
     let html = `<div style="font-family:'Rajdhani',sans-serif;font-size:1.7rem;font-weight:700;letter-spacing:0.03em;line-height:1.1;margin-bottom:0.25rem">Your Plan</div>`;
 
-    // Understanding paragraph
     if (wbUnderstanding) {
       html += `<div style="font-size:0.85rem;color:var(--muted);line-height:1.6;margin-bottom:1.25rem">${wbUnderstanding}</div>`;
     } else {
       html += `<div style="margin-bottom:1rem"></div>`;
     }
 
-    // Tabs
-    html += `<div style="display:flex;gap:0.25rem;margin-bottom:0.75rem">
-      <button class="btn wb-plan-tab active" data-tab="strength" style="flex:1;font-size:0.82rem;padding:0.5rem;background:var(--accent2);color:#fff;border:none;border-radius:8px">Strength</button>
-      <button class="btn wb-plan-tab" data-tab="cardio" style="flex:1;font-size:0.82rem;padding:0.5rem;background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:8px">Cardio</button>
-    </div>`;
-
-    // Strength plan — 2-column grid matching the existing plan preview
-    html += `<div id="wb-tab-strength" style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">`;
+    // Unified daily view — each day shows everything (lifting + cardio)
     days.forEach(d => {
-      const day = sp[d];
-      const label = day ? (day.label || '') : '';
-      const exercises = day ? (day.exercises || []) : [];
-      html += `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.55rem 0.7rem">
-        <div style="font-weight:600;font-size:0.8rem;color:var(--accent2);margin-bottom:0.2rem">${d}</div>`;
-      if (label) html += `<div style="font-size:0.7rem;color:var(--muted);margin-bottom:0.2rem">${label}</div>`;
+      const day = wp[d];
+      if (!day) {
+        // Pure rest day
+        html += `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:0.65rem 0.85rem;margin-bottom:0.5rem">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-weight:600;font-size:0.85rem;color:var(--text)">${d}</span>
+            <span style="font-size:0.78rem;color:var(--muted)">Rest</span>
+          </div>
+        </div>`;
+        return;
+      }
+      const label = day.label || '';
+      const exercises = day.exercises || [];
+      const cardio = day.cardio;
+
+      html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:0.75rem 0.85rem;margin-bottom:0.5rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${exercises.length || cardio ? '0.5rem' : '0'}">
+          <span style="font-weight:600;font-size:0.85rem;color:var(--accent2)">${d}</span>
+          ${label ? `<span style="font-size:0.75rem;color:var(--muted)">${label}</span>` : ''}
+        </div>`;
+
       if (exercises.length) {
-        html += `<div style="font-size:0.75rem;color:var(--text);line-height:1.5">${exercises.map(ex => `${ex.name} \u00d7${ex.sets || 3}`).join('<br>')}</div>`;
-      } else {
-        html += `<div style="font-size:0.75rem;color:var(--muted);font-style:italic">Rest</div>`;
+        exercises.forEach(ex => {
+          html += `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:0.2rem 0">
+            <span style="font-size:0.82rem;color:var(--text)">${ex.name}</span>
+            <span style="font-size:0.75rem;color:var(--muted);white-space:nowrap;margin-left:0.5rem">${ex.sets || 3}\u00d7${ex.reps || '8-12'}</span>
+          </div>`;
+        });
       }
-      html += `</div>`;
-    });
-    html += `</div>`;
 
-    // Cardio plan — same grid
-    html += `<div id="wb-tab-cardio" style="display:none;grid-template-columns:1fr 1fr;gap:0.5rem">`;
-    days.forEach(d => {
-      const session = cp[d];
-      html += `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.55rem 0.7rem">
-        <div style="font-weight:600;font-size:0.8rem;color:var(--accent2);margin-bottom:0.2rem">${d}</div>`;
-      if (session) {
-        html += `<div style="font-size:0.75rem;color:var(--text);line-height:1.5">${session.type || 'Cardio'}`;
-        if (session.duration) html += `<br>${session.duration}`;
-        if (session.intensity) html += ` \u00b7 ${session.intensity}`;
-        html += `</div>`;
-        if (session.committed) html += `<div style="font-size:0.68rem;color:var(--accent2);margin-top:0.15rem">Non-negotiable</div>`;
-      } else {
-        html += `<div style="font-size:0.75rem;color:var(--muted);font-style:italic">Rest</div>`;
+      if (cardio) {
+        if (exercises.length) html += `<div style="height:1px;background:var(--border);margin:0.4rem 0"></div>`;
+        html += `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:0.2rem 0">
+          <span style="font-size:0.82rem;color:var(--text)">${cardio.type || 'Cardio'}</span>
+          <span style="font-size:0.75rem;color:var(--muted)">${cardio.duration || ''}${cardio.intensity ? ' \u00b7 ' + cardio.intensity : ''}</span>
+        </div>`;
+        if (cardio.committed) html += `<div style="font-size:0.7rem;color:var(--accent2)">Non-negotiable</div>`;
       }
+
+      if (!exercises.length && !cardio) {
+        html += `<div style="font-size:0.8rem;color:var(--muted);font-style:italic">Rest Day</div>`;
+      }
+
       html += `</div>`;
     });
-    html += `</div>`;
 
     // Plan notes
     if (notes.length) {
-      html += `<div style="margin-top:0.85rem;padding:0.65rem;background:var(--surface);border:1px solid var(--border);border-radius:8px">
-        <div style="font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:0.35rem">Plan Notes</div>`;
-      notes.forEach(n => { html += `<div style="font-size:0.78rem;color:var(--text);line-height:1.5;padding:0.15rem 0">\u2022 ${n}</div>`; });
+      html += `<div style="margin-top:0.5rem;padding:0.65rem;background:var(--surface2);border:1px solid var(--border);border-radius:10px">`;
+      notes.forEach(n => { html += `<div style="font-size:0.78rem;color:var(--muted);line-height:1.5;padding:0.1rem 0">\u2022 ${n}</div>`; });
       html += `</div>`;
     }
 
@@ -1554,16 +1556,6 @@
   }
 
   function _wbBindOutput() {
-    // Tab switching
-    document.querySelectorAll(".wb-plan-tab").forEach(tab => {
-      tab.addEventListener("click", () => {
-        document.querySelectorAll(".wb-plan-tab").forEach(t => { t.classList.remove("active"); t.style.background = "var(--surface2)"; t.style.color = "var(--muted)"; });
-        tab.classList.add("active"); tab.style.background = "var(--accent2)"; tab.style.color = "#fff";
-        document.getElementById("wb-tab-strength").style.display = tab.dataset.tab === "strength" ? "grid" : "none";
-        document.getElementById("wb-tab-cardio").style.display = tab.dataset.tab === "cardio" ? "grid" : "none";
-      });
-    });
-
     // Revise plan
     document.getElementById("wb-revise-btn").addEventListener("click", () => {
       const input = document.getElementById("wb-revise-input");
