@@ -444,8 +444,8 @@
         </div>
 
         <!-- Fullscreen workout builder quiz overlay -->
-        <div id="wb-quiz-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:9999;overflow-y:auto;padding:1.25rem;padding-top:env(safe-area-inset-top,0)">
-          <div style="max-width:480px;margin:0 auto">
+        <div id="wb-quiz-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:9999;overflow-y:auto">
+          <div style="max-width:480px;margin:0 auto;padding:1.5rem 1.25rem;padding-top:calc(env(safe-area-inset-top,0px) + 2rem);padding-bottom:3rem;min-height:100vh;display:flex;flex-direction:column;justify-content:center">
             <div id="wb-quiz-content"></div>
           </div>
         </div>
@@ -857,7 +857,7 @@
     sessionLength: null,
     equipment: null,
     sleepHours: null,
-    preferredTime: null,
+    preferredTime: [],
     trainingStyle: [],
     cardioPreference: null,
     committedCardio: null,
@@ -1106,7 +1106,7 @@
       if (step === 1 && !wbData.experience) return;
       if (step === 2 && !wbData.sessionLength) return;
       if (step === 3 && !wbData.equipment) return;
-      if (step === 4 && (!wbData.sleepHours || !wbData.preferredTime)) return;
+      if (step === 4 && (!wbData.sleepHours || !wbData.preferredTime.length)) return;
       if (step === 6 && (!wbData.cardioPreference || !wbData.committedCardio)) return;
       if (step === 7) {
         const ta = document.getElementById("wb-constraints");
@@ -1157,11 +1157,23 @@
     }
     if (step === 4) {
       _wbCard("wb-s4-sleep", "sleepHours");
-      _wbCard("wb-s4-time", "preferredTime");
+      // Multi-select for preferred training time
+      setTimeout(() => {
+        document.querySelectorAll("#wb-s4-time .wb-card").forEach(c => {
+          if (wbData.preferredTime.includes(c.dataset.val)) c.classList.add("active");
+          c.addEventListener("click", () => {
+            const val = c.dataset.val;
+            const idx = wbData.preferredTime.indexOf(val);
+            if (idx >= 0) { wbData.preferredTime.splice(idx, 1); c.classList.remove("active"); }
+            else { wbData.preferredTime.push(val); c.classList.add("active"); }
+            checkResponse();
+          });
+        });
+      }, 0);
       // Recovery response line
       const checkResponse = () => {
         const rl = document.getElementById("wb-s4-response");
-        if (!wbData.sleepHours || !wbData.preferredTime) return;
+        if (!wbData.sleepHours || !wbData.preferredTime.length) return;
         const stress = _mapStress(parseInt(document.getElementById("ob-stress").value) || 5);
         const activity = WB_ACTIVITY_MAP[chipVal("ob-work-style-chips")] || "lightly_active";
         if (wbData.sleepHours === "under_6" && (stress === "high" || stress === "very_high")) {
@@ -1172,7 +1184,7 @@
           rl.textContent = "With your activity level, we'll make sure training adds to your life, not drains it."; rl.style.display = "";
         } else { rl.style.display = "none"; }
       };
-      document.querySelectorAll("#wb-s4-sleep .wb-card, #wb-s4-time .wb-card").forEach(c => c.addEventListener("click", () => setTimeout(checkResponse, 10)));
+      document.querySelectorAll("#wb-s4-sleep .wb-card").forEach(c => c.addEventListener("click", () => setTimeout(checkResponse, 10)));
     }
     if (step === 5) {
       // Multi-select for training style
@@ -1276,7 +1288,7 @@
     html += row("Session Length", slLabels[wbData.sessionLength] || wbData.sessionLength);
     html += row("Equipment", eqLabels[wbData.equipment] || wbData.equipment);
     html += row("Sleep", sleepLabels[wbData.sleepHours] || wbData.sleepHours);
-    html += row("Training Time", timeLabels[wbData.preferredTime] || wbData.preferredTime);
+    html += row("Training Time", wbData.preferredTime.length ? wbData.preferredTime.map(t => timeLabels[t] || t).join(", ") : "No preference");
     html += row("Style", wbData.trainingStyle.length ? wbData.trainingStyle.map(s => styleLabels[s] || s).join(", ") : "No preference");
     html += row("Cardio", cardLabels[wbData.cardioPreference] || wbData.cardioPreference);
     html += row("Committed Cardio", commitLabels[wbData.committedCardio] || wbData.committedCardio);
@@ -1417,22 +1429,25 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(wbPayload),
     })
-    .then(r => r.json())
+    .then(r => {
+      if (!r.ok) return r.text().then(t => { throw new Error("Server error " + r.status + ": " + t.substring(0, 200)); });
+      return r.json();
+    })
     .then(data => {
       clearInterval(msgTimer);
       clearTimeout(slowTimer);
       if (data.error) { alert("Plan generation failed: " + data.error); wbStep = 9; wbRender(); return; }
       wbPlanResult = data.plan;
       wbUnderstanding = data.understanding;
-      // Save strength plan to localStorage.weeklyPlan in legacy format
       _wbSaveLegacyPlan(wbPlanResult);
       wbStep = 11;
       wbRender();
     })
-    .catch(() => {
+    .catch(err => {
       clearInterval(msgTimer);
       clearTimeout(slowTimer);
-      alert("Failed to generate plan. Please try again.");
+      console.error("Plan generation error:", err);
+      alert("Plan generation failed: " + (err.message || "Unknown error. Check your connection and try again."));
       wbStep = 9;
       wbRender();
     });

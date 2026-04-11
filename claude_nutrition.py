@@ -41,9 +41,15 @@ Rules:
 def _parse_json(text: str) -> dict:
     import re
     text = text.strip()
+    # Try markdown fenced block first
     m = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
     if m:
-        text = m.group(1)
+        text = m.group(1).strip()
+    # If still not valid JSON, try to find the outermost { ... }
+    if not text.startswith("{"):
+        m2 = re.search(r"\{[\s\S]*\}", text)
+        if m2:
+            text = m2.group(0)
     return json.loads(text.strip())
 
 
@@ -531,7 +537,7 @@ Rules:
 """
 
     response = _client().messages.create(
-        model="claude-sonnet-4-6",
+        model="claude-haiku-4-5-20251001",
         max_tokens=8192,
         messages=[{"role": "user", "content": prompt}],
     )
@@ -583,8 +589,8 @@ Respond ONLY with the same JSON structure as the current plan — strengthPlan, 
 and planNotes. No markdown, no explanation outside the JSON."""
 
     response = _client().messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=4096,
+        model="claude-haiku-4-5-20251001",
+        max_tokens=8192,
         messages=[{"role": "user", "content": prompt}],
     )
     raw = next((b.text for b in response.content if b.type == "text"), "")
