@@ -480,6 +480,137 @@ def generate_workout_plan(goal: str, days_per_week: int = 3, experience: str = "
     return {d: data.get(d, []) for d in _DAYS}
 
 
+def generate_comprehensive_plan(payload: dict) -> dict:
+    """Generate a full strength + cardio plan from the workout builder quiz payload."""
+    prompt = f"""You are an evidence-based certified personal trainer and exercise scientist.
+You have been given a comprehensive user profile and quiz payload. Generate a complete
+weekly training plan — both a STRENGTH plan and a CARDIO plan — as two separate JSON objects.
+
+USER PAYLOAD:
+{json.dumps(payload, indent=2)}
+
+INSTRUCTIONS:
+1. Read every field in the payload carefully. The aiFlags object contains critical
+   programming constraints — respect all of them.
+2. The schedule.trainingDays array contains the SPECIFIC days the user can train.
+   Map your plan to those exact days.
+3. If selectedExercises is non-empty, you MUST include every listed exercise at least
+   once per week. Do not omit or substitute unless physicalConstraints directly
+   contraindicate it — in that case, flag the conflict explicitly.
+4. If physicalConstraints is not null, treat it as a mandatory constraint. Exclude any
+   exercise that directly loads the affected structure. Substitute a safe alternative
+   and add a note explaining the substitution.
+5. Use the experience level to calibrate coaching cue density, progression model,
+   and exercise complexity.
+6. Respect all volume adjustments from aiFlags (sleep, stress, activity reductions).
+7. For cardio: respect the cardio.preference and cardio.committedCardioType. If
+   committedCardioType is "running", schedule resistance and running on separate days
+   where possible, resistance first if same-day, 6hr minimum separation.
+
+RESPONSE FORMAT — respond ONLY with this exact JSON structure, no markdown:
+{{
+  "strengthPlan": {{
+    "Monday": {{
+      "label": "<session label e.g. Push Day>",
+      "exercises": [
+        {{
+          "name": "<exercise name>",
+          "sets": <int>,
+          "reps": "<rep range e.g. 8-12>",
+          "rest": "<rest period e.g. 90s>",
+          "notes": "<coaching cue or null>"
+        }}
+      ]
+    }},
+    "Tuesday": null,
+    ... (null for rest days, object for training days — include all 7 days)
+  }},
+  "cardioPlan": {{
+    "Monday": null,
+    "Tuesday": {{
+      "type": "<e.g. Easy Run, HIIT Bike, LISS Cycling>",
+      "duration": "<e.g. 30 min>",
+      "intensity": "<e.g. Zone 2, conversational pace, 85%+ max effort>",
+      "notes": "<any notes or null>",
+      "committed": <true if this is a non-negotiable committed session, false otherwise>
+    }},
+    ... (null for no-cardio days — include all 7 days)
+  }},
+  "planNotes": [<array of string notes about the plan — deload schedule, key decisions, warnings>]
+}}
+
+Rules:
+- Include all 7 days in both strengthPlan and cardioPlan.
+- Use null for rest/off days, not empty objects.
+- Exercise names must be clean title-case.
+- If the user selected 0 training days (recoveryOnly flag), return a mobility/recovery plan instead.
+- Rep ranges should be goal-appropriate: strength 3-6, hypertrophy 8-15, endurance 15-20.
+- Rest periods: compound 2-3min, isolation 60-90s, circuits 30-45s.
+- Respect sessionLength constraints on exercise count.
+"""
+
+    response = _client().messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=4096,
+        system=prompt,
+        messages=[{"role": "user", "content": "Generate my complete training plan based on the payload provided."}],
+    )
+    raw = next((b.text for b in response.content if b.type == "text"), "")
+    return _parse_json(raw)
+
+
+def generate_plan_understanding(payload: dict) -> str:
+    """Generate a short AI paragraph demonstrating understanding of the user's plan."""
+    prompt = f"""You are a personal trainer who just finished designing a workout plan for a client.
+Write a 3-5 sentence paragraph that:
+- Demonstrates you understood their specific goals, constraints, and lifestyle
+- Acknowledges any notable tensions (e.g. daily running + hypertrophy goal, minimal equipment + mass goal)
+- Briefly explains key programming choices you made
+- Is personal, direct, written in second person
+- Does NOT use filler phrases like "Great news!" or "I'd be happy to..."
+- Does NOT read like a form letter
+
+USER PAYLOAD:
+{json.dumps(payload, indent=2)}
+
+Respond with ONLY the paragraph text — no quotes, no labels, no markdown."""
+
+    response = _client().messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=300,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return next((b.text for b in response.content if b.type == "text"), "").strip()
+
+
+def revise_plan(payload: dict, current_plan: dict, change_request: str) -> dict:
+    """Revise an existing plan based on user feedback."""
+    prompt = f"""You are an evidence-based personal trainer. The user wants to modify their workout plan.
+
+ORIGINAL PAYLOAD:
+{json.dumps(payload, indent=2)}
+
+CURRENT PLAN:
+{json.dumps(current_plan, indent=2)}
+
+USER'S CHANGE REQUEST:
+{change_request}
+
+Apply the requested changes while keeping the rest of the plan intact. Respect all
+original constraints from the payload (physical constraints, equipment, etc.).
+
+Respond ONLY with the same JSON structure as the current plan — strengthPlan, cardioPlan,
+and planNotes. No markdown, no explanation outside the JSON."""
+
+    response = _client().messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=4096,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    raw = next((b.text for b in response.content if b.type == "text"), "")
+    return _parse_json(raw)
+
+
 # ── Multi-scale momentum summary ─────────────────────
 
 _SCALE_SUMMARY_PROMPT = """You are a concise health data reporter for a personal fitness app. You summarize the user's tracking data at a specific time scale.

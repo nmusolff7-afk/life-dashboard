@@ -28,7 +28,7 @@ from db import (
     get_momentum_history_with_deltas, save_momentum_summary, get_momentum_summary,
     get_insight_bundle,
 )
-from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, generate_workout_plan, shorten_label, scan_meal_image, generate_momentum_insight, generate_scale_summary, suggest_meal, identify_ingredients
+from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, generate_workout_plan, generate_comprehensive_plan, generate_plan_understanding, revise_plan, shorten_label, scan_meal_image, generate_momentum_insight, generate_scale_summary, suggest_meal, identify_ingredients
 from claude_profile import generate_profile_map, compute_mind_insights, score_brief
 import garmin_sync
 import gmail_sync
@@ -895,6 +895,38 @@ def api_generate_plan():
         return jsonify(plan)
     except Exception as e:
         _log.exception("generate-plan failed")
+        return jsonify({"error": _AI_ERR}), 500
+
+
+@app.route("/api/generate-comprehensive-plan", methods=["POST"])
+@login_required
+def api_generate_comprehensive_plan():
+    """Generate a full strength + cardio plan from the workout builder quiz payload."""
+    payload = request.get_json() or {}
+    try:
+        plan = generate_comprehensive_plan(payload)
+        understanding = generate_plan_understanding(payload)
+        return jsonify({"plan": plan, "understanding": understanding})
+    except Exception as e:
+        _log.exception("comprehensive-plan generation failed")
+        return jsonify({"error": _AI_ERR}), 500
+
+
+@app.route("/api/revise-plan", methods=["POST"])
+@login_required
+def api_revise_plan():
+    """Revise an existing plan based on user feedback."""
+    data = request.get_json() or {}
+    payload = data.get("payload", {})
+    current_plan = data.get("currentPlan", {})
+    change_request = data.get("changeRequest", "").strip()
+    if not change_request:
+        return jsonify({"error": "No change request provided"}), 400
+    try:
+        revised = revise_plan(payload, current_plan, change_request)
+        return jsonify({"plan": revised})
+    except Exception as e:
+        _log.exception("plan-revision failed")
         return jsonify({"error": _AI_ERR}), 500
 
 

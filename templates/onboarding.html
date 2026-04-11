@@ -116,6 +116,9 @@
     .summary-row .k { color: var(--muted); }
     .summary-row .v { font-weight: 600; color: var(--accent2); }
 
+    .wb-card.active { border-color: var(--accent2) !important; background: rgba(121,134,203,0.1) !important; }
+    .wb-card:hover { border-color: var(--accent2); }
+
     .ob-plan { background: var(--surface); border: 1px solid var(--border);
       border-radius: 12px; padding: 1.25rem; text-align: left; }
     .ob-plan-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .07em;
@@ -425,64 +428,8 @@
         <div class="ob-profile-summary" id="ob-profile-summary"></div>
         <div id="ob-plan-section" style="display:none;margin-top:1.25rem"></div>
 
-        <!-- Workout plan choice -->
-        <div id="ob-workout-section" style="display:none;margin-top:1.25rem">
-          <div class="ob-plan">
-            <div class="ob-plan-title">Workout Plan</div>
-
-            <!-- Initial choice -->
-            <div id="ob-wp-choice">
-              <div style="font-size:0.84rem;color:var(--muted);margin-bottom:0.85rem;line-height:1.5">
-                How do you want to set up your training?
-              </div>
-
-              <div class="slider-field" style="margin-bottom:0.65rem">
-                <label>Training days per week <span id="ob-wp-days-val" style="color:var(--accent2);font-weight:600">4</span></label>
-                <input type="range" id="ob-wp-days-slider" min="0" max="7" step="1" value="4" style="width:100%;accent-color:var(--accent2)">
-                <div class="slider-endpoints"><span>0</span><span>7</span></div>
-              </div>
-
-              <div style="margin-bottom:0.85rem">
-                <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.35rem">Experience level</label>
-                <div class="chips" id="ob-wp-exp-chips">
-                  <div class="chip active" data-val="beginner" style="flex:1;text-align:center">Beginner</div>
-                  <div class="chip" data-val="intermediate" style="flex:1;text-align:center">Intermediate</div>
-                  <div class="chip" data-val="advanced" style="flex:1;text-align:center">Advanced</div>
-                </div>
-              </div>
-
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
-                <button class="btn btn-primary" id="ob-wp-suggest-btn" style="font-size:0.88rem;padding:0.7rem">Suggest a Plan</button>
-                <button class="btn btn-ghost" id="ob-wp-skip-btn" style="font-size:0.88rem;padding:0.7rem">I'll do my own</button>
-              </div>
-            </div>
-
-            <!-- Loading state -->
-            <div id="ob-wp-loading" style="display:none;text-align:center;padding:1rem 0;color:var(--muted);font-size:0.85rem">
-              <div style="animation:spin 1.2s linear infinite;display:inline-block;margin-bottom:0.5rem">&#9881;</div>
-              <div>Generating your plan...</div>
-            </div>
-
-            <!-- Generated plan review -->
-            <div id="ob-wp-review" style="display:none">
-              <div style="font-size:0.84rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.5">
-                Here's a simple plan based on your goal. Review it below.
-              </div>
-              <div id="ob-wp-preview" style="margin-bottom:0.85rem"></div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
-                <button class="btn btn-primary" id="ob-wp-accept-btn" style="font-size:0.88rem;padding:0.7rem">Use This Plan</button>
-                <button class="btn btn-ghost" id="ob-wp-regenerate-btn" style="font-size:0.88rem;padding:0.7rem">Try Again</button>
-              </div>
-            </div>
-
-            <!-- Accepted / skipped confirmation -->
-            <div id="ob-wp-done" style="display:none;text-align:center;padding:0.5rem 0">
-              <div style="font-size:1.2rem;margin-bottom:0.3rem" id="ob-wp-done-icon">&#10003;</div>
-              <div style="font-size:0.88rem;font-weight:600;color:var(--text)" id="ob-wp-done-text">Plan saved!</div>
-              <div style="font-size:0.78rem;color:var(--muted);margin-top:0.2rem">You can edit it anytime in the Profile tab.</div>
-            </div>
-          </div>
-        </div>
+        <!-- Workout Builder Quiz -->
+        <div id="ob-workout-section" style="display:none;margin-top:1.25rem"></div>
 
         <div class="error-msg" id="ob-error" style="display:none;margin-top:1rem"></div>
         <button class="btn btn-primary" id="ob-enter-btn" style="display:none;width:100%;margin-top:1.5rem;padding:0.9rem;font-size:1rem" onclick="enterApex(this)">
@@ -822,106 +769,786 @@
     el.style.display = "";
   }
 
-  // ── Workout plan generation ────────────────────────────
-  let generatedPlan = null;
+  // ── Workout Builder Quiz ────────────────────────────────
+  // Scientific sources — stored as constant, rendered in "How We Built Your Plan"
+  const WB_SOURCES = [
+    {shortName:"Schoenfeld & Krieger 2016",fullCitation:"Schoenfeld BJ, Ogborn D, Krieger JW. Effects of Resistance Training Frequency on Measures of Muscle Hypertrophy: A Systematic Review and Meta-Analysis. Sports Medicine. 2016;46(11):1689\u20131697.",url:"https://link.springer.com/article/10.1007/s40279-016-0543-8",relevantTo:["training_frequency","split_selection"]},
+    {shortName:"Schoenfeld & Krieger 2019",fullCitation:"Schoenfeld BJ, Ogborn D, Krieger JW. How many times per week should a muscle be trained to maximize muscle hypertrophy? Journal of Sports Sciences. 2019;37(11):1286\u20131295.",url:"https://pubmed.ncbi.nlm.nih.gov/30558493/",relevantTo:["training_frequency","volume_priority"]},
+    {shortName:"Pelland et al. 2025",fullCitation:"Pelland J, Robinson Z, Remmert J, et al. The Resistance Training Dose Response: Meta-Regressions Exploring the Effects of Weekly Volume and Frequency. Sports Medicine. 2025.",url:"https://pubmed.ncbi.nlm.nih.gov/41343037/",relevantTo:["training_volume","dose_response"]},
+    {shortName:"Schoenfeld et al. 2017 (Volume)",fullCitation:"Schoenfeld BJ, Ogborn D, Krieger JW. Dose-response relationship between weekly resistance training volume and increases in muscle mass. Journal of Sports Sciences. 2017;35(11):1073\u20131082.",url:"https://pubmed.ncbi.nlm.nih.gov/27433992/",relevantTo:["training_volume","hypertrophy"]},
+    {shortName:"Krieger 2010",fullCitation:"Krieger JW. Single vs. multiple sets of resistance exercise for muscle hypertrophy: a meta-analysis. JSCR. 2010;24(4):1150\u20131159.",url:"https://pubmed.ncbi.nlm.nih.gov/20300012/",relevantTo:["training_volume","set_volume"]},
+    {shortName:"Lamon et al. 2021",fullCitation:"Lamon S, Morabito A, Arentson-Lantz E, et al. The effect of acute sleep deprivation on skeletal muscle protein synthesis and the hormonal environment. Physiological Reports. 2021;9(1):e14660.",url:"https://pubmed.ncbi.nlm.nih.gov/33400856/",relevantTo:["sleep","recovery","protein_synthesis"]},
+    {shortName:"Saner et al. 2020",fullCitation:"Saner NJ, Lee MJC, Pitchford NW, et al. The effect of sleep restriction on myofibrillar protein synthesis in healthy young men. Journal of Physiology. 2020;598(8):1523\u20131536.",url:"https://pmc.ncbi.nlm.nih.gov/articles/PMC7217042/",relevantTo:["sleep","recovery","volume_adjustment"]},
+    {shortName:"Knowles et al. 2022",fullCitation:"Knowles OE, Drinkwater EJ, Urwin CS, Lamon S, Aisbett B. Sustained Sleep Restriction Reduces Resistance Exercise Quality and Quantity in Females. MSSE. 2022;54(12):2054\u20132064.",url:"https://pubmed.ncbi.nlm.nih.gov/36136596/",relevantTo:["sleep","performance","volume_adjustment"]},
+    {shortName:"Stults-Kolehmainen & Bartholomew 2012",fullCitation:"Stults-Kolehmainen MA, Bartholomew JB. Psychological stress impairs short-term muscular recovery from resistance exercise. MSSE. 2012;44(11):2220\u20132227.",url:"https://pubmed.ncbi.nlm.nih.gov/22688829/",relevantTo:["stress","recovery","volume_adjustment"]},
+    {shortName:"Bartholomew et al. 2008",fullCitation:"Bartholomew JB, Stults-Kolehmainen MA, Elrod CC, Todd JS. Strength gains after resistance training: the effect of stressful, negative life events. JSCR. 2008;22(4):1215\u20131221.",url:"https://journals.lww.com/nsca-jscr/fulltext/2008/07000/strength_gains_after_resistance_training__the.26.aspx",relevantTo:["stress","long_term_adaptations"]},
+    {shortName:"Schumann et al. 2022",fullCitation:"Schumann M, et al. Compatibility of Concurrent Aerobic and Strength Training for Skeletal Muscle Size and Function. Sports Medicine. 2022;52(3):601\u2013612.",url:"https://pubmed.ncbi.nlm.nih.gov/34757594/",relevantTo:["concurrent_training","cardio_interference","hypertrophy"]},
+    {shortName:"Wilson et al. 2012",fullCitation:"Wilson JM, et al. Concurrent training: a meta-analysis examining interference of aerobic and resistance exercises. JSCR. 2012;26(8):2293\u20132307.",url:"https://pubmed.ncbi.nlm.nih.gov/22002517/",relevantTo:["concurrent_training","running_interference"]},
+    {shortName:"Robineau et al. 2016",fullCitation:"Robineau J, et al. Specific Training Effects of Concurrent Aerobic and Strength Exercises Depend on Recovery Duration. JSCR. 2016;30(3):672\u2013683.",url:"https://www.semanticscholar.org/paper/745aa1a9c8ec56a8815895fe71b4cd5feeea9722",relevantTo:["concurrent_training","session_timing"]},
+    {shortName:"Wewege et al. 2017",fullCitation:"Wewege M, et al. The effects of HIIT vs. MICT on body composition in overweight and obese adults. Obesity Reviews. 2017;18(6):635\u2013646.",url:"https://pubmed.ncbi.nlm.nih.gov/28401638/",relevantTo:["HIIT","LISS","fat_loss","cardio_programming"]},
+    {shortName:"Rhea & Alderman 2004",fullCitation:"Rhea MR, Alderman BL. A meta-analysis of periodized versus nonperiodized strength and power training programs. RQES. 2004;75(4):413\u2013422.",url:"https://pubmed.ncbi.nlm.nih.gov/15673040/",relevantTo:["periodization","progressive_overload"]},
+    {shortName:"Nunes et al. 2021",fullCitation:"Nunes JP, et al. What influence does resistance exercise order have on muscular strength gains and muscle hypertrophy? EJSS. 2021;21(2):149\u2013157.",url:"https://www.tandfonline.com/doi/full/10.1080/17461391.2020.1733672",relevantTo:["exercise_order","exercise_selection"]},
+    {shortName:"Barakat et al. 2020",fullCitation:"Barakat C, et al. Body Recomposition: Can Trained Individuals Build Muscle and Lose Fat at the Same Time? SCJ. 2020;42(5):7\u201321.",url:"https://journals.lww.com/nsca-scj/fulltext/2020/10000/body_recomposition__can_trained_individuals_build.3.aspx",relevantTo:["recomposition","simultaneous_goals"]},
+    {shortName:"Levine et al. 1999 (NEAT)",fullCitation:"Levine JA, Eberhardt NL, Jensen MD. Role of Nonexercise Activity Thermogenesis in Resistance to Fat Gain in Humans. Science. 1999;283(5399):212\u2013214.",url:"https://www.science.org/doi/10.1126/science.283.5399.212",relevantTo:["NEAT","fat_loss","occupational_activity"]},
+    {shortName:"Holtermann et al. 2018",fullCitation:"Holtermann A, et al. The physical activity paradox: six reasons why occupational physical activity does not confer the cardiovascular health benefits. BJSM. 2018;52(3):149\u2013150.",url:"https://pubmed.ncbi.nlm.nih.gov/28798040/",relevantTo:["occupational_activity","work_style","recovery"]},
+    {shortName:"ACSM Position Stand 2009",fullCitation:"Ratamess NA, et al. ACSM Position Stand: Progression Models in Resistance Training for Healthy Adults. MSSE. 2009;41(3):687\u2013708.",url:"https://tourniquets.org/wp-content/uploads/PDFs/ACSM-Progression-models-in-resistance-training-for-healthy-adults-2009.pdf",relevantTo:["general_programming","beginner_advanced","split_selection"]},
+    {shortName:"Hayden et al. 2021 (Cochrane)",fullCitation:"Hayden JA, et al. Exercise therapy for chronic low back pain. Cochrane Database Syst Rev. 2021;(10):CD009790.",url:"https://www.cochrane.org/evidence/CD009790_exercise-treatment-chronic-low-back-pain",relevantTo:["injury_modification","low_back_pain"]},
+    {shortName:"Wang et al. 2012 (Core)",fullCitation:"Wang XQ, et al. A meta-analysis of core stability exercise versus general exercise for chronic low back pain. PLoS ONE. 2012;7(12):e52082.",url:"https://pmc.ncbi.nlm.nih.gov/articles/PMC3524111/",relevantTo:["injury_modification","core_training","low_back_pain"]},
+    {shortName:"Schoenfeld et al. 2017 (Load)",fullCitation:"Schoenfeld BJ, et al. Strength and Hypertrophy Adaptations Between Low- vs. High-Load Resistance Training. JSCR. 2017;31(12):3508\u20133523.",url:"https://journals.lww.com/nsca-jscr/fulltext/2017/12000/strength_and_hypertrophy_adaptations_between_low_.31.aspx",relevantTo:["injury_modification","low_load_training","rehabilitation"]},
+    {shortName:"IUSCA Position Stand 2021",fullCitation:"Schoenfeld BJ, et al. Resistance Training Recommendations to Maximize Muscle Hypertrophy in an Athletic Population. IJSC. 2021;1(1).",url:"https://journal.iusca.org/index.php/Journal/article/view/81",relevantTo:["hypertrophy","volume","frequency","exercise_selection"]},
+  ];
 
-  function chipVal2(groupId) {
-    const el = document.getElementById(groupId);
-    if (!el) return null;
-    const active = el.querySelector(".chip.active");
-    return active ? active.dataset.val : null;
+  // Exercise categories for the picker
+  const WB_EXERCISES = {
+    "Chest": ["Barbell Bench Press","Dumbbell Bench Press","Incline Barbell Press","Incline Dumbbell Press","Decline Press","Cable Fly","Dumbbell Fly","Chest Dip","Push-Up","Machine Chest Press","Pec Dec / Butterfly"],
+    "Back": ["Barbell Deadlift","Romanian Deadlift","Barbell Row","Dumbbell Row","Cable Row","Lat Pulldown","Pull-Up","Chin-Up","Face Pull","Straight-Arm Pulldown","T-Bar Row","Trap Bar Deadlift","Back Extension"],
+    "Shoulders": ["Overhead Barbell Press","Seated Dumbbell Press","Arnold Press","Lateral Raise","Front Raise","Cable Lateral Raise","Upright Row","Rear Delt Fly","Machine Shoulder Press"],
+    "Biceps": ["Barbell Curl","Dumbbell Curl","Hammer Curl","Incline Dumbbell Curl","Cable Curl","Preacher Curl","Concentration Curl","Zottman Curl"],
+    "Triceps": ["Close-Grip Bench Press","Skull Crusher","Tricep Pushdown (Cable)","Overhead Tricep Extension","Dips (Tricep-focused)","Diamond Push-Up","Kickback"],
+    "Legs \u2014 Quads": ["Barbell Back Squat","Front Squat","Goblet Squat","Leg Press","Hack Squat","Bulgarian Split Squat","Lunge","Step-Up","Leg Extension","Wall Sit"],
+    "Legs \u2014 Hamstrings and Glutes": ["Hip Thrust","Romanian Deadlift","Leg Curl (Machine)","Nordic Curl","Glute Bridge","Cable Kickback","Good Morning","Sumo Deadlift","Single-Leg RDL"],
+    "Legs \u2014 Calves and General": ["Standing Calf Raise","Seated Calf Raise","Donkey Calf Raise","Box Jump","Broad Jump"],
+    "Core": ["Plank","Side Plank","Dead Bug","Pallof Press","Cable Crunch","Hanging Leg Raise","Ab Wheel Rollout","Russian Twist","V-Up","Hollow Body Hold","McGill Curl-Up","Bird Dog","Suitcase Carry"],
+    "Compound and Full Body": ["Power Clean","Push Press","Thruster","Farmers Carry","Sandbag Carry","Battle Ropes","Kettlebell Swing","Turkish Get-Up","Medicine Ball Slam"],
+    "Cardio and Conditioning": ["Running \u2014 outdoor","Treadmill Running","Cycling \u2014 outdoor","Stationary Bike","Rowing Machine","Stairmaster","Jump Rope","Swimming","Assault Bike / Air Bike","Hiking","Elliptical","HIIT Circuit","Sled Push","Sled Pull"],
+    "Mobility and Recovery": ["Foam Rolling","Hip Flexor Stretch","Pigeon Pose","World's Greatest Stretch","Thoracic Extension","Band Pull-Apart","Cat-Cow","Deep Squat Hold"],
+  };
+
+  // Goal label mapping
+  const WB_GOAL_LABELS = {fat_loss:"Get Leaner",hypertrophy:"Get Bigger",recomp:"Lean & Muscular",maintenance:"Stay Healthy"};
+  // Map onboarding goal keys to quiz keys
+  const WB_GOAL_MAP = {lose_weight:"fat_loss",build_muscle:"hypertrophy",recomp:"recomp",maintain:"maintenance"};
+
+  // WorkStyle → outsideActivity mapping
+  const WB_ACTIVITY_MAP = {desk_seated:"sedentary",standing_moving:"lightly_active",physically_demanding:"very_active",remote_home:"lightly_active",mixed:"moderately_active"};
+
+  // Stress mapping from 1-10 slider
+  function _mapStress(val) {
+    if (val <= 3) return "low";
+    if (val <= 5) return "moderate";
+    if (val <= 7) return "high";
+    return "very_high";
   }
 
-  function renderWeeklyPlan(plan) {
-    const days = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
-    let html = '';
-    days.forEach(d => {
-      const exercises = plan[d] || [];
-      if (!exercises.length) return;
-      html += '<div style="margin-bottom:0.6rem">';
-      html += '<div style="font-size:0.78rem;font-weight:600;color:var(--accent2);margin-bottom:0.25rem">' + d + '</div>';
-      exercises.forEach(ex => {
-        html += '<div style="font-size:0.82rem;color:var(--text);padding:0.15rem 0">' + ex.name + ' <span style="color:var(--muted)">' + (ex.sets || 3) + ' sets</span></div>';
-      });
-      html += '</div>';
-    });
-    return html || '<div style="color:var(--muted);font-size:0.84rem">No exercises generated.</div>';
-  }
+  // ── Quiz State ──
+  let wbStep = 0; // 0 = not started, 1-7 = steps, 8 = exercise picker, 9 = summary, 10 = loading, 11 = output
+  const wbData = {
+    experience: null,
+    trainingDays: [],
+    sessionLength: null,
+    equipment: null,
+    sleepHours: null,
+    preferredTime: null,
+    trainingStyle: null,
+    cardioPreference: null,
+    committedCardio: null,
+    physicalConstraints: null,
+    selectedExercises: [],
+  };
+  let wbPlanResult = null;
+  let wbUnderstanding = null;
+  let wbPayload = null;
 
-  function showWPState(state) {
-    document.getElementById("ob-wp-choice").style.display  = state === "choice"  ? "" : "none";
-    document.getElementById("ob-wp-loading").style.display = state === "loading" ? "" : "none";
-    document.getElementById("ob-wp-review").style.display  = state === "review"  ? "" : "none";
-    document.getElementById("ob-wp-done").style.display    = state === "done"    ? "" : "none";
-  }
-
-  function requestPlan() {
-    const days = parseInt(document.getElementById("ob-wp-days-slider").value) || 4;
-    const exp  = chipVal2("ob-wp-exp-chips") || "beginner";
-    const goal = selectedGoal || "lose_weight";
-
-    showWPState("loading");
-    fetch("/api/generate-plan", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ goal: goal, days_per_week: days, experience: exp }),
-    })
-    .then(r => r.json())
-    .then(plan => {
-      if (plan.error) {
-        showWPState("choice");
-        alert("Could not generate plan: " + plan.error);
-        return;
-      }
-      generatedPlan = plan;
-      document.getElementById("ob-wp-preview").innerHTML = renderWeeklyPlan(plan);
-      showWPState("review");
-    })
-    .catch(() => {
-      showWPState("choice");
-      alert("Failed to generate plan. Please try again.");
-    });
-  }
-
-  document.getElementById("ob-wp-suggest-btn").addEventListener("click", requestPlan);
-  document.getElementById("ob-wp-regenerate-btn").addEventListener("click", requestPlan);
-
-  document.getElementById("ob-wp-accept-btn").addEventListener("click", () => {
-    if (generatedPlan) {
-      localStorage.setItem("weeklyPlan", JSON.stringify(generatedPlan));
-    }
-    document.getElementById("ob-wp-done-icon").textContent = "\u2713";
-    document.getElementById("ob-wp-done-text").textContent = "Plan saved!";
-    showWPState("done");
-    document.getElementById("ob-enter-btn").style.display = "";
-  });
-
-  document.getElementById("ob-wp-skip-btn").addEventListener("click", () => {
-    document.getElementById("ob-wp-done-icon").textContent = "\u2192";
-    document.getElementById("ob-wp-done-text").textContent = "No problem — set it up in the Profile tab.";
-    showWPState("done");
-    document.getElementById("ob-enter-btn").style.display = "";
-  });
-
-  // Show the workout section when plan panel is shown
   function showWorkoutSection() {
     document.getElementById("ob-workout-section").style.display = "";
+    wbStep = 1;
+    wbRender();
+  }
+
+  // ── Response lines (experience × goal) ──
+  const WB_RESPONSE_LINES = {
+    "beginner\u00d7fat_loss":"No worries \u2014 we'll keep it simple and build habits that stick.",
+    "beginner\u00d7hypertrophy":"Everyone starts somewhere. We'll lay the right foundation.",
+    "beginner\u00d7recomp":"Great time to start \u2014 your body will adapt quickly.",
+    "beginner\u00d7maintenance":"Perfect \u2014 we'll build something easy to stick to long term.",
+    "intermediate\u00d7fat_loss":"Good \u2014 you know how to move. Now we make it count.",
+    "intermediate\u00d7hypertrophy":"Solid base. Time to push past where you've been.",
+    "intermediate\u00d7recomp":"You've got the fundamentals. This is where it gets interesting.",
+    "intermediate\u00d7maintenance":"You know what works. We'll keep it consistent.",
+    "advanced\u00d7fat_loss":"You know your body. We'll dial in the details.",
+    "advanced\u00d7hypertrophy":"At your level, specificity is everything. We'll get specific.",
+    "advanced\u00d7recomp":"Recomp at your level takes precision. We'll program accordingly.",
+    "advanced\u00d7maintenance":"You've put in the work. Let's keep you sharp.",
+    "elite\u00d7fat_loss":"You've done the work. This is about refinement.",
+    "elite\u00d7hypertrophy":"Advanced programming for advanced goals. Let's get to work.",
+    "elite\u00d7recomp":"You know the game. We'll optimize every variable.",
+    "elite\u00d7maintenance":"Keeping an elite base healthy \u2014 we'll respect what you've built.",
+  };
+
+  function _wbGoal() {
+    return WB_GOAL_MAP[selectedGoal] || "fat_loss";
+  }
+
+  // ── Card selection helper ──
+  function _wbCard(containerId, field) {
+    setTimeout(() => {
+      document.querySelectorAll(`#${containerId} .wb-card`).forEach(c => {
+        c.addEventListener("click", () => {
+          document.querySelectorAll(`#${containerId} .wb-card`).forEach(x => x.classList.remove("active"));
+          c.classList.add("active");
+          wbData[field] = c.dataset.val;
+          // Show response line if exists
+          const rl = document.getElementById(containerId + "-response");
+          if (rl) {
+            const key = wbData[field] + "\u00d7" + _wbGoal();
+            const text = WB_RESPONSE_LINES[key];
+            if (text) { rl.textContent = text; rl.style.display = ""; }
+            else { rl.style.display = "none"; }
+          }
+        });
+      });
+    }, 0);
+  }
+
+  // ── Main Render ──
+  function wbRender() {
+    const el = document.getElementById("ob-workout-section");
+    const g = _wbGoal();
+    // Hide onboarding controls during quiz
+    document.getElementById("ob-enter-btn").style.display = "none";
+    document.getElementById("ob-back-to-edit").style.display = wbStep === 0 ? "" : "none";
+    document.getElementById("ob-retry-btn").style.display = "none";
+    document.getElementById("ob-error").style.display = "none";
+
+    if (wbStep >= 1 && wbStep <= 7) {
+      el.innerHTML = _wbStepHTML(wbStep, g);
+      _wbBindStep(wbStep, g);
+    } else if (wbStep === 8) {
+      el.innerHTML = _wbExercisePickerHTML();
+      _wbBindExercisePicker();
+    } else if (wbStep === 9) {
+      el.innerHTML = _wbSummaryHTML(g);
+      _wbBindSummary();
+    } else if (wbStep === 10) {
+      el.innerHTML = _wbLoadingHTML();
+      _wbStartGeneration();
+    } else if (wbStep === 11) {
+      el.innerHTML = _wbOutputHTML();
+      _wbBindOutput();
+    }
+  }
+
+  function _wbNav(showBack) {
+    const backBtn = showBack ? `<button class="btn btn-ghost wb-back-btn" style="font-size:0.88rem;padding:0.7rem">\u2190 Back</button>` : '';
+    return `<div style="display:flex;gap:0.5rem;margin-top:1rem">
+      ${backBtn}
+      <button class="btn btn-primary wb-next-btn" style="font-size:0.88rem;padding:0.7rem;flex:1">Continue \u2192</button>
+    </div>`;
+  }
+
+  function _wbProgress() {
+    if (wbStep < 1 || wbStep > 7) return '';
+    const pct = Math.round((wbStep / 7) * 100);
+    return `<div style="margin-bottom:1rem">
+      <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.35rem">Step ${wbStep} of 7</div>
+      <div style="height:3px;background:var(--surface2);border-radius:2px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:var(--accent2);transition:width 0.3s"></div>
+      </div>
+    </div>`;
+  }
+
+  function _wbCardHTML(val, title, subtitle, isActive) {
+    return `<div class="wb-card${isActive ? ' active' : ''}" data-val="${val}" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:0.75rem 0.85rem;cursor:pointer;transition:border-color 0.15s">
+      <div style="font-size:0.88rem;font-weight:600;color:var(--text)">${title}</div>
+      <div style="font-size:0.78rem;color:var(--muted);margin-top:0.15rem">${subtitle}</div>
+    </div>`;
+  }
+
+  // ── Step HTML generators ──
+  function _wbStepHTML(step, g) {
+    let html = _wbProgress();
+    if (step === 1) {
+      const labels = {fat_loss:"How long have you been working on your fitness?",hypertrophy:"How much time have you put in under the bar?",recomp:"What does your training background look like?",maintenance:"How active have you been over the past year?"};
+      html += `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.75rem">${labels[g]}</div>
+        <div id="wb-s1-cards" style="display:flex;flex-direction:column;gap:0.5rem">
+          ${_wbCardHTML("beginner","Just Starting Out","Little to no consistent training history",false)}
+          ${_wbCardHTML("intermediate","Some Experience","6 months to 2 years of regular training",false)}
+          ${_wbCardHTML("advanced","Well Trained","2 to 4 years of consistent structured training",false)}
+          ${_wbCardHTML("elite","Highly Experienced","4+ years, familiar with periodization and progressive overload",false)}
+        </div>
+        <div id="wb-s1-cards-response" style="display:none;font-size:0.82rem;color:var(--accent2);margin-top:0.65rem;line-height:1.5"></div>`;
+      html += _wbNav(false);
+    } else if (step === 2) {
+      const slLabels = {fat_loss:"How long do you have per session? We can make 30 minutes count.",hypertrophy:"How much time are you putting into each session?",recomp:"What's a realistic session length for you?",maintenance:"How long are you comfortable spending per session?"};
+      const dayNames = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+      const dayFull = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+      const pills = dayFull.map((d,i) => {
+        const sel = wbData.trainingDays.includes(d);
+        return `<div class="wb-day-pill${sel?' active':''}" data-day="${d}" style="flex:1;text-align:center;padding:0.5rem 0.25rem;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:600;background:${sel?'var(--accent2)':'var(--surface2)'};color:${sel?'#fff':'var(--muted)'};border:1px solid ${sel?'var(--accent2)':'var(--border)'};transition:all 0.15s">${dayNames[i]}</div>`;
+      }).join('');
+      html += `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.5rem">Which days can you train?</div>
+        <div style="text-align:center;margin-bottom:0.5rem">
+          <span id="wb-day-count" style="font-size:1.8rem;font-weight:700;color:var(--accent2)">${wbData.trainingDays.length}</span>
+          <span id="wb-day-label" style="font-size:0.82rem;color:var(--muted);margin-left:0.35rem">${wbData.trainingDays.length === 1 ? 'Day' : 'Days'}</span>
+        </div>
+        <div id="wb-day-pills" style="display:flex;gap:0.35rem;margin-bottom:0.75rem">${pills}</div>
+        <div id="wb-day-warning" style="display:none;background:rgba(255,180,0,0.1);border:1px solid rgba(255,180,0,0.3);border-radius:8px;padding:0.65rem;font-size:0.8rem;color:var(--text);line-height:1.5;margin-bottom:0.75rem"></div>
+        <div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.75rem;margin-top:0.75rem">${slLabels[g]}</div>
+        <div id="wb-s2-sl-cards" style="display:flex;flex-direction:column;gap:0.5rem">
+          ${_wbCardHTML("under_30","Quick","Under 30 minutes",wbData.sessionLength==="under_30")}
+          ${_wbCardHTML("30_to_60","Standard","30 to 60 minutes",wbData.sessionLength==="30_to_60")}
+          ${_wbCardHTML("60_to_90","Extended","60 to 90 minutes",wbData.sessionLength==="60_to_90")}
+          ${_wbCardHTML("90_plus","As Long as It Takes","90 minutes or more",wbData.sessionLength==="90_plus")}
+        </div>`;
+      html += _wbNav(true);
+    } else if (step === 3) {
+      const labels = {fat_loss:"What equipment do you have access to?",hypertrophy:"What are you working with? This shapes your entire program.",recomp:"What equipment is available to you?",maintenance:"What's easiest for you to access consistently?"};
+      html += `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.75rem">${labels[g]}</div>
+        <div id="wb-s3-cards" style="display:flex;flex-direction:column;gap:0.5rem">
+          ${_wbCardHTML("full_gym","Commercial Gym","Full access \u2014 barbells, cables, machines, dumbbells, cardio equipment",false)}
+          ${_wbCardHTML("home_weights","Home Gym with Weights","Dumbbells, a barbell, or cables \u2014 no full machine rack",false)}
+          ${_wbCardHTML("minimal","Minimal Equipment","Bodyweight, resistance bands, or a few light weights",false)}
+          ${_wbCardHTML("mixed","Mixed \u2014 It Varies","Gym some days, home or travel on others",false)}
+        </div>
+        <div id="wb-s3-warning" style="display:none;background:rgba(255,180,0,0.1);border:1px solid rgba(255,180,0,0.3);border-radius:8px;padding:0.65rem;font-size:0.8rem;color:var(--text);line-height:1.5;margin-top:0.65rem"></div>`;
+      html += _wbNav(true);
+    } else if (step === 4) {
+      const sleepLabels = {fat_loss:"Fat loss happens outside the gym too. How much are you sleeping?",hypertrophy:"Muscle is built while you rest. What's your average nightly sleep?",recomp:"Recovery drives recomp. How much sleep are you getting?",maintenance:"How much sleep do you get on average?"};
+      html += `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.75rem">${sleepLabels[g]}</div>
+        <div id="wb-s4-sleep" style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem">
+          ${_wbCardHTML("under_6","Under 6 Hours","",false)}
+          ${_wbCardHTML("6_to_7","6 to 7 Hours","",false)}
+          ${_wbCardHTML("7_to_8","7 to 8 Hours","",false)}
+          ${_wbCardHTML("8_plus","8 Hours or More","",false)}
+        </div>
+        <div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.75rem">When do you prefer to train?</div>
+        <div id="wb-s4-time" style="display:flex;flex-direction:column;gap:0.5rem">
+          ${_wbCardHTML("morning","Morning","Before work or early in the day",false)}
+          ${_wbCardHTML("midday","Midday or Lunch","During a break in the day",false)}
+          ${_wbCardHTML("evening","Evening or After Work","End of the day",false)}
+          ${_wbCardHTML("flexible","No Preference","I train when I can",false)}
+        </div>
+        <div id="wb-s4-response" style="display:none;font-size:0.82rem;color:var(--accent2);margin-top:0.65rem;line-height:1.5"></div>`;
+      html += _wbNav(true);
+    } else if (step === 5) {
+      const labels = {fat_loss:"Is there a style of training you enjoy \u2014 or want to avoid?",hypertrophy:"What style of training do you gravitate toward?",recomp:"Do you have a training style you prefer?",maintenance:"What kind of movement do you actually enjoy?"};
+      html += `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.75rem">${labels[g]}</div>
+        <div id="wb-s5-cards" style="display:flex;flex-direction:column;gap:0.5rem">
+          ${_wbCardHTML("compound_focused","Heavy Compound Lifting","Squat, deadlift, press \u2014 barbell and dumbbell focused",false)}
+          ${_wbCardHTML("bodybuilding_style","Bodybuilding Style","Mix of compounds and machines, pump-focused",false)}
+          ${_wbCardHTML("circuit_hiit","Circuit or HIIT Style","Fast-paced, minimal rest, cardio mixed in",false)}
+          ${_wbCardHTML("functional_athletic","Functional or Athletic","Kettlebells, carries, movement-based training",false)}
+        </div>
+        <button id="wb-s5-skip" style="background:none;border:none;color:var(--muted);font-size:0.82rem;cursor:pointer;margin-top:0.65rem;text-decoration:underline;display:block;width:100%;text-align:center">No preference \u2014 optimize for my goal</button>`;
+      html += _wbNav(true);
+    } else if (step === 6) {
+      const cardLabels = {fat_loss:"How do you feel about cardio?",hypertrophy:"How much cardio do you want in your plan?",recomp:"What's your relationship with cardio?",maintenance:"How much do you enjoy cardiovascular training?"};
+      html += `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.75rem">${cardLabels[g]}</div>
+        <div id="wb-s6-pref" style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem">
+          ${_wbCardHTML("cardio_positive","I Enjoy It","Cardio is welcome \u2014 I'll show up for it",false)}
+          ${_wbCardHTML("cardio_minimal","Only If It Helps \u2014 Keep It Minimal","Fine with some, but not the focus",false)}
+          ${_wbCardHTML("cardio_avoid","I'd Rather Not \u2014 Lifting Only","Skip cardio entirely",false)}
+          ${_wbCardHTML("cardio_primary","Cardio Is My Main Thing","Running, cycling, or sport \u2014 lifting is secondary",false)}
+        </div>
+        <div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.35rem">Do you have any cardio you plan to do no matter what?</div>
+        <div style="font-size:0.78rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.4">Be honest \u2014 we'll build your lifting plan around it, not against it.</div>
+        <div id="wb-s6-committed" style="display:flex;flex-direction:column;gap:0.5rem">
+          ${_wbCardHTML("none","No \u2014 I'll follow the plan","",false)}
+          ${_wbCardHTML("running_regular","Running \u2014 regularly","",false)}
+          ${_wbCardHTML("cycling_rowing_regular","Cycling or Rowing \u2014 regularly","",false)}
+          ${_wbCardHTML("other_sport","Other \u2014 sport, swim, or mixed","",false)}
+        </div>
+        <div id="wb-s6-warning" style="display:none;background:rgba(255,180,0,0.1);border:1px solid rgba(255,180,0,0.3);border-radius:8px;padding:0.65rem;font-size:0.8rem;color:var(--text);line-height:1.5;margin-top:0.65rem"></div>`;
+      html += _wbNav(true);
+    } else if (step === 7) {
+      html += `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.25rem">Anything we should know?</div>
+        <div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.4">This is optional \u2014 but anything you share helps us keep your plan safe and effective. The more specific, the better.</div>
+        <textarea id="wb-constraints" maxlength="500" placeholder="Tell us anything relevant \u2014 injuries, pain, surgeries, mobility restrictions, or anything a trainer should know before programming for you." style="width:100%;min-height:100px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.65rem;color:var(--text);font-size:0.88rem;resize:vertical;font-family:inherit">${wbData.physicalConstraints || ''}</textarea>
+        <div style="text-align:right;font-size:0.72rem;color:var(--muted);margin-top:0.25rem"><span id="wb-char-count">${(wbData.physicalConstraints || '').length}</span>/500</div>
+        <div style="font-size:0.75rem;color:var(--muted);margin-top:0.35rem;line-height:1.5">e.g. Bad left knee \u2014 avoid deep squats<br>e.g. Lower back pain \u2014 no heavy deadlifts<br>e.g. Right shoulder impingement \u2014 no overhead pressing</div>`;
+      html += _wbNav(true);
+    }
+    return html;
+  }
+
+  // ── Bind step interactions ──
+  function _wbBindStep(step, g) {
+    // Back button
+    const backBtn = document.querySelector(".wb-back-btn");
+    if (backBtn) backBtn.addEventListener("click", () => { wbStep--; wbRender(); });
+    // Next button
+    const nextBtn = document.querySelector(".wb-next-btn");
+    if (nextBtn) nextBtn.addEventListener("click", () => {
+      // Validate
+      if (step === 1 && !wbData.experience) return;
+      if (step === 2 && !wbData.sessionLength) return;
+      if (step === 3 && !wbData.equipment) return;
+      if (step === 4 && (!wbData.sleepHours || !wbData.preferredTime)) return;
+      if (step === 6 && (!wbData.cardioPreference || !wbData.committedCardio)) return;
+      if (step === 7) {
+        const ta = document.getElementById("wb-constraints");
+        wbData.physicalConstraints = ta && ta.value.trim() ? ta.value.trim() : null;
+      }
+      wbStep++;
+      wbRender();
+    });
+
+    if (step === 1) _wbCard("wb-s1-cards", "experience");
+    if (step === 2) {
+      _wbCard("wb-s2-sl-cards", "sessionLength");
+      // Day pills
+      document.querySelectorAll(".wb-day-pill").forEach(p => {
+        p.addEventListener("click", () => {
+          const day = p.dataset.day;
+          const idx = wbData.trainingDays.indexOf(day);
+          if (idx >= 0) { wbData.trainingDays.splice(idx, 1); p.classList.remove("active"); p.style.background = "var(--surface2)"; p.style.color = "var(--muted)"; p.style.borderColor = "var(--border)"; }
+          else { wbData.trainingDays.push(day); p.classList.add("active"); p.style.background = "var(--accent2)"; p.style.color = "#fff"; p.style.borderColor = "var(--accent2)"; }
+          const n = wbData.trainingDays.length;
+          document.getElementById("wb-day-count").textContent = n;
+          document.getElementById("wb-day-label").textContent = n === 1 ? "Day" : "Days";
+          // Warnings
+          const warn = document.getElementById("wb-day-warning");
+          if (n === 0) { warn.textContent = "With no training days we can't build a workout plan \u2014 but we can put together a recovery and mobility routine."; warn.style.display = ""; }
+          else if (n === 7) { warn.textContent = "Training every day without rest raises injury risk. We recommend at least one rest day \u2014 but we'll build around whatever you choose."; warn.style.display = ""; }
+          else { warn.style.display = "none"; }
+        });
+      });
+    }
+    if (step === 3) {
+      _wbCard("wb-s3-cards", "equipment");
+      // Equipment warnings
+      const observer = new MutationObserver(() => {
+        const w = document.getElementById("wb-s3-warning");
+        if (wbData.equipment === "minimal" && (g === "hypertrophy")) { w.textContent = "Building significant muscle with minimal equipment is possible but slower. Even a set of adjustable dumbbells will make a real difference."; w.style.display = ""; }
+        else if (wbData.equipment === "minimal" && g === "recomp") { w.textContent = "Recomp with minimal equipment is achievable. Your plan will lean on progressive bodyweight work and cardio."; w.style.display = ""; }
+        else { w.style.display = "none"; }
+      });
+      document.querySelectorAll("#wb-s3-cards .wb-card").forEach(c => c.addEventListener("click", () => {
+        setTimeout(() => {
+          const w = document.getElementById("wb-s3-warning");
+          if (wbData.equipment === "minimal" && g === "hypertrophy") { w.textContent = "Building significant muscle with minimal equipment is possible but slower. Even a set of adjustable dumbbells will make a real difference."; w.style.display = ""; }
+          else if (wbData.equipment === "minimal" && g === "recomp") { w.textContent = "Recomp with minimal equipment is achievable. Your plan will lean on progressive bodyweight work and cardio."; w.style.display = ""; }
+          else if (w) { w.style.display = "none"; }
+        }, 10);
+      }));
+    }
+    if (step === 4) {
+      _wbCard("wb-s4-sleep", "sleepHours");
+      _wbCard("wb-s4-time", "preferredTime");
+      // Recovery response line
+      const checkResponse = () => {
+        const rl = document.getElementById("wb-s4-response");
+        if (!wbData.sleepHours || !wbData.preferredTime) return;
+        const stress = _mapStress(parseInt(document.getElementById("ob-stress").value) || 5);
+        const activity = WB_ACTIVITY_MAP[chipVal("ob-work-style-chips")] || "lightly_active";
+        if (wbData.sleepHours === "under_6" && (stress === "high" || stress === "very_high")) {
+          rl.textContent = "Your recovery is stretched right now \u2014 we'll program smart, not hard."; rl.style.display = "";
+        } else if (wbData.sleepHours === "8_plus" && stress === "low") {
+          rl.textContent = "Great recovery baseline \u2014 you can handle solid volume."; rl.style.display = "";
+        } else if (activity === "very_active") {
+          rl.textContent = "With your activity level, we'll make sure training adds to your life, not drains it."; rl.style.display = "";
+        } else { rl.style.display = "none"; }
+      };
+      document.querySelectorAll("#wb-s4-sleep .wb-card, #wb-s4-time .wb-card").forEach(c => c.addEventListener("click", () => setTimeout(checkResponse, 10)));
+    }
+    if (step === 5) {
+      _wbCard("wb-s5-cards", "trainingStyle");
+      document.getElementById("wb-s5-skip").addEventListener("click", () => { wbData.trainingStyle = null; wbStep++; wbRender(); });
+    }
+    if (step === 6) {
+      _wbCard("wb-s6-pref", "cardioPreference");
+      _wbCard("wb-s6-committed", "committedCardio");
+      // Warning for running + hypertrophy
+      document.querySelectorAll("#wb-s6-committed .wb-card").forEach(c => c.addEventListener("click", () => {
+        setTimeout(() => {
+          const w = document.getElementById("wb-s6-warning");
+          if (wbData.committedCardio === "running_regular" && g === "hypertrophy") {
+            w.textContent = "Running every day while trying to build significant muscle creates a real tension. We'll build your lifting plan around your running \u2014 but your muscle gains will be slower than if you replaced some running with rest or cycling."; w.style.display = "";
+          } else if (w) { w.style.display = "none"; }
+        }, 10);
+      }));
+    }
+    if (step === 7) {
+      const ta = document.getElementById("wb-constraints");
+      const counter = document.getElementById("wb-char-count");
+      if (ta && counter) ta.addEventListener("input", () => { counter.textContent = ta.value.length; });
+    }
+  }
+
+  // ── Exercise Picker ──
+  function _wbExercisePickerHTML() {
+    let html = `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.25rem">Pick your favorites</div>
+      <div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.15rem;line-height:1.4">These will always be in your plan. Select as many as you want.</div>
+      <div style="font-size:0.75rem;color:var(--muted);margin-bottom:0.65rem">Every exercise you select is guaranteed to appear in your plan.</div>
+      <div style="font-size:0.82rem;color:var(--accent2);font-weight:600;margin-bottom:0.75rem"><span id="wb-ex-count">${wbData.selectedExercises.length}</span> exercises selected</div>`;
+    for (const [cat, exs] of Object.entries(WB_EXERCISES)) {
+      html += `<div style="margin-bottom:0.75rem">
+        <div style="font-size:0.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:0.35rem">${cat}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:0.35rem">`;
+      exs.forEach(ex => {
+        const sel = wbData.selectedExercises.includes(ex);
+        html += `<span class="wb-ex-pill${sel ? ' active' : ''}" data-ex="${ex}" style="padding:0.35rem 0.65rem;border-radius:99px;font-size:0.78rem;cursor:pointer;border:1px solid ${sel ? 'var(--accent2)' : 'var(--border)'};background:${sel ? 'var(--accent2)' : 'var(--surface2)'};color:${sel ? '#fff' : 'var(--text)'};transition:all 0.15s">${ex}</span>`;
+      });
+      html += `</div></div>`;
+    }
+    html += `<div style="display:flex;gap:0.5rem;margin-top:1rem">
+      <button class="btn btn-ghost wb-back-btn" style="font-size:0.88rem;padding:0.7rem">\u2190 Back</button>
+      <button class="btn btn-primary wb-next-btn" style="font-size:0.88rem;padding:0.7rem;flex:1">Continue \u2192</button>
+    </div>`;
+    return html;
+  }
+
+  function _wbBindExercisePicker() {
+    document.querySelectorAll(".wb-ex-pill").forEach(p => {
+      p.addEventListener("click", () => {
+        const ex = p.dataset.ex;
+        const idx = wbData.selectedExercises.indexOf(ex);
+        if (idx >= 0) { wbData.selectedExercises.splice(idx, 1); p.classList.remove("active"); p.style.background = "var(--surface2)"; p.style.color = "var(--text)"; p.style.borderColor = "var(--border)"; }
+        else { wbData.selectedExercises.push(ex); p.classList.add("active"); p.style.background = "var(--accent2)"; p.style.color = "#fff"; p.style.borderColor = "var(--accent2)"; }
+        document.getElementById("wb-ex-count").textContent = wbData.selectedExercises.length;
+      });
+    });
+    document.querySelector(".wb-back-btn").addEventListener("click", () => { wbStep = 7; wbRender(); });
+    document.querySelector(".wb-next-btn").addEventListener("click", () => { wbStep = 9; wbRender(); });
+  }
+
+  // ── Summary Screen ──
+  function _wbSummaryHTML(g) {
+    const all = collectAll();
+    const expLabels = {beginner:"Just Starting Out",intermediate:"Some Experience",advanced:"Well Trained",elite:"Highly Experienced"};
+    const slLabels = {under_30:"Under 30 min","30_to_60":"30\u201360 min","60_to_90":"60\u201390 min","90_plus":"90+ min"};
+    const eqLabels = {full_gym:"Commercial Gym",home_weights:"Home Gym with Weights",minimal:"Minimal Equipment",mixed:"Mixed"};
+    const sleepLabels = {under_6:"Under 6 hours","6_to_7":"6\u20137 hours","7_to_8":"7\u20138 hours","8_plus":"8+ hours"};
+    const timeLabels = {morning:"Morning",midday:"Midday",evening:"Evening",flexible:"No Preference"};
+    const styleLabels = {compound_focused:"Heavy Compound Lifting",bodybuilding_style:"Bodybuilding Style",circuit_hiit:"Circuit / HIIT",functional_athletic:"Functional / Athletic"};
+    const cardLabels = {cardio_positive:"Enjoys Cardio",cardio_minimal:"Minimal Cardio",cardio_avoid:"Lifting Only",cardio_primary:"Cardio Primary"};
+    const commitLabels = {none:"None",running_regular:"Running",cycling_rowing_regular:"Cycling / Rowing",other_sport:"Other Sport"};
+
+    const row = (k,v) => `<div style="display:flex;justify-content:space-between;padding:0.35rem 0;border-bottom:1px solid var(--surface2)"><span style="font-size:0.8rem;color:var(--muted)">${k}</span><span style="font-size:0.8rem;color:var(--text);text-align:right">${v}</span></div>`;
+
+    let html = `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.85rem">Here's what we've got</div>`;
+    html += `<div style="font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:0.35rem">Your Profile</div>`;
+    html += row("Age", all.age || "\u2014");
+    html += row("Sex", all.gender || "\u2014");
+    html += row("Weight", all.current_weight_lbs ? all.current_weight_lbs + " lbs" : "\u2014");
+    html += row("Height", all.height_ft && all.height_in != null ? all.height_ft + "'" + all.height_in + '"' : "\u2014");
+
+    html += `<div style="font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:0.85rem;margin-bottom:0.35rem">Your Goal</div>`;
+    html += row("Goal", WB_GOAL_LABELS[g] || g);
+
+    html += `<div style="font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:0.85rem;margin-bottom:0.35rem">Your Plan</div>`;
+    html += row("Experience", expLabels[wbData.experience] || wbData.experience);
+    html += row("Training Days", wbData.trainingDays.length ? wbData.trainingDays.join(", ") : "None");
+    html += row("Session Length", slLabels[wbData.sessionLength] || wbData.sessionLength);
+    html += row("Equipment", eqLabels[wbData.equipment] || wbData.equipment);
+    html += row("Sleep", sleepLabels[wbData.sleepHours] || wbData.sleepHours);
+    html += row("Training Time", timeLabels[wbData.preferredTime] || wbData.preferredTime);
+    html += row("Style", wbData.trainingStyle ? (styleLabels[wbData.trainingStyle] || wbData.trainingStyle) : "No preference");
+    html += row("Cardio", cardLabels[wbData.cardioPreference] || wbData.cardioPreference);
+    html += row("Committed Cardio", commitLabels[wbData.committedCardio] || wbData.committedCardio);
+
+    if (wbData.selectedExercises.length) {
+      html += `<div style="font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:0.85rem;margin-bottom:0.35rem">Exercises Selected</div>`;
+      html += `<div style="display:flex;flex-wrap:wrap;gap:0.25rem;margin-bottom:0.35rem">${wbData.selectedExercises.map(e => `<span style="padding:0.2rem 0.5rem;border-radius:99px;font-size:0.72rem;background:var(--surface2);border:1px solid var(--border);color:var(--text)">${e}</span>`).join('')}</div>`;
+    }
+
+    if (wbData.physicalConstraints) {
+      html += `<div style="font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:0.85rem;margin-bottom:0.35rem">Physical Notes</div>`;
+      html += `<div style="font-size:0.8rem;color:var(--text);line-height:1.5">${wbData.physicalConstraints}</div>`;
+    }
+
+    html += `<button class="btn btn-primary" id="wb-build-btn" style="width:100%;margin-top:1.25rem;padding:0.85rem;font-size:1rem">Build My Plan \u2192</button>`;
+    html += `<div style="font-size:0.75rem;color:var(--muted);text-align:center;margin-top:0.5rem">Your plan is generated using evidence-based exercise science.</div>`;
+    html += `<button id="wb-sources-btn" style="background:none;border:none;color:var(--accent2);font-size:0.78rem;cursor:pointer;margin-top:0.35rem;text-decoration:underline;display:block;width:100%;text-align:center">How we build your plan \u2197</button>`;
+    html += `<div id="wb-sources-panel" style="display:none;margin-top:0.75rem;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:0.85rem;max-height:50vh;overflow-y:auto">
+      <div style="font-size:0.88rem;font-weight:600;color:var(--text);margin-bottom:0.25rem">How We Built Your Plan</div>
+      <div style="font-size:0.75rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.4">Your plan is built on peer-reviewed research, not generic templates.</div>
+      ${WB_SOURCES.map(s => `<div style="margin-bottom:0.75rem;padding-bottom:0.65rem;border-bottom:1px solid var(--surface2)">
+        <div style="font-size:0.82rem;font-weight:600;color:var(--text)">${s.shortName}</div>
+        <div style="font-size:0.72rem;color:var(--muted);margin-top:0.15rem;line-height:1.4">${s.fullCitation}</div>
+        <a href="${s.url}" target="_blank" style="font-size:0.72rem;color:var(--accent2);text-decoration:underline;margin-top:0.15rem;display:inline-block">Read the research</a>
+        <div style="margin-top:0.15rem">${s.relevantTo.map(t => `<span style="font-size:0.65rem;padding:0.1rem 0.35rem;border-radius:99px;background:var(--surface2);color:var(--muted);margin-right:0.2rem">${t}</span>`).join('')}</div>
+      </div>`).join('')}
+    </div>`;
+    html += `<div style="display:flex;gap:0.5rem;margin-top:0.75rem">
+      <button class="btn btn-ghost wb-back-btn" style="font-size:0.88rem;padding:0.7rem;width:100%">\u2190 Back</button>
+    </div>`;
+    return html;
+  }
+
+  function _wbBindSummary() {
+    document.querySelector(".wb-back-btn").addEventListener("click", () => { wbStep = 8; wbRender(); });
+    document.getElementById("wb-build-btn").addEventListener("click", () => { wbStep = 10; wbRender(); });
+    document.getElementById("wb-sources-btn").addEventListener("click", () => {
+      const p = document.getElementById("wb-sources-panel");
+      p.style.display = p.style.display === "none" ? "" : "none";
+    });
+  }
+
+  // ── Loading Screen ──
+  const WB_LOADING_MSGS = [
+    "Analyzing your training history...",
+    "Calculating your optimal weekly volume...",
+    "Scheduling your recovery days...",
+    "Building your exercise sequence...",
+    "Calibrating cardio around your lifting...",
+    "Applying your exercise preferences...",
+    "Reviewing your physical notes...",
+    "Finalizing your plan...",
+  ];
+
+  function _wbLoadingHTML() {
+    return `<div style="text-align:center;padding:2rem 0">
+      <div class="spinner-ring" style="margin:0 auto 1rem"></div>
+      <div id="wb-loading-msg" style="font-size:0.88rem;color:var(--text);font-weight:500"></div>
+      <div id="wb-loading-slow" style="display:none;font-size:0.78rem;color:var(--muted);margin-top:0.75rem">Almost there \u2014 complex plans take a moment to get right.</div>
+    </div>`;
+  }
+
+  function _wbBuildPayload() {
+    const all = collectAll();
+    const g = _wbGoal();
+    const stress = _mapStress(parseInt(document.getElementById("ob-stress").value) || 5);
+    const workStyle = chipVal("ob-work-style-chips") || "desk_seated";
+    const outsideActivity = WB_ACTIVITY_MAP[workStyle] || "lightly_active";
+    const effectiveSession = (stress === "very_high") ? "30_to_60" : wbData.sessionLength;
+
+    const flags = {
+      recoveryOnly: wbData.trainingDays.length === 0,
+      noRestDays: wbData.trainingDays.length === 7,
+      forcedFullBody: wbData.trainingDays.length <= 2 && wbData.trainingDays.length > 0,
+      beginnerOnHighFrequency: (wbData.experience === "beginner" || wbData.experience === "intermediate") && wbData.trainingDays.length >= 6,
+      equipmentLimitation: wbData.equipment === "minimal" || wbData.equipment === "home_weights",
+      equipmentLimitationWithMassGoal: wbData.equipment === "minimal" && (g === "hypertrophy" || g === "recomp"),
+      volumeReductionFromSleep: wbData.sleepHours === "under_6" || wbData.sleepHours === "6_to_7",
+      volumeReductionFromStress: stress === "high" || stress === "very_high",
+      volumeReductionFromActivity: outsideActivity === "very_active",
+      sessionLengthOverride: stress === "very_high" && wbData.sessionLength !== "under_30" && wbData.sessionLength !== "30_to_60",
+      severeRecoveryFlag: wbData.sleepHours === "under_6" && (stress === "high" || stress === "very_high"),
+      hasPhysicalConstraints: !!wbData.physicalConstraints,
+      cardioConflict: wbData.cardioPreference === "cardio_primary" && g === "hypertrophy",
+      committedRunningWithHypertrophy: wbData.committedCardio === "running_regular" && g === "hypertrophy",
+      adherenceTradeoff: wbData.trainingStyle === "circuit_hiit" && g === "hypertrophy",
+    };
+
+    // Determine relevant sources
+    const relevantSources = new Set();
+    WB_SOURCES.forEach(s => {
+      s.relevantTo.forEach(tag => {
+        if (tag === "training_frequency" || tag === "split_selection" || tag === "general_programming") relevantSources.add(s.shortName);
+        if (tag === "sleep" && flags.volumeReductionFromSleep) relevantSources.add(s.shortName);
+        if (tag === "stress" && flags.volumeReductionFromStress) relevantSources.add(s.shortName);
+        if (tag === "running_interference" && wbData.committedCardio === "running_regular") relevantSources.add(s.shortName);
+        if (tag === "concurrent_training" && wbData.committedCardio && wbData.committedCardio !== "none") relevantSources.add(s.shortName);
+        if (tag === "injury_modification" && flags.hasPhysicalConstraints) relevantSources.add(s.shortName);
+        if (tag === "hypertrophy" && g === "hypertrophy") relevantSources.add(s.shortName);
+        if (tag === "recomposition" && g === "recomp") relevantSources.add(s.shortName);
+        if (tag === "fat_loss" && g === "fat_loss") relevantSources.add(s.shortName);
+        if (tag === "periodization") relevantSources.add(s.shortName);
+      });
+    });
+
+    return {
+      userProfile: { age: all.age, sex: all.gender, weightLbs: all.current_weight_lbs, heightIn: (all.height_ft || 0) * 12 + (all.height_in || 0) },
+      primaryGoal: g,
+      experience: wbData.experience,
+      schedule: { daysPerWeek: wbData.trainingDays.length, trainingDays: wbData.trainingDays, sessionLength: effectiveSession, preferredTime: wbData.preferredTime },
+      equipment: wbData.equipment,
+      recovery: { sleepHours: wbData.sleepHours, stressLevel: stress, outsideActivity: outsideActivity },
+      trainingStyle: wbData.trainingStyle,
+      cardio: { preference: wbData.cardioPreference, committedCardioType: wbData.committedCardio === "none" ? null : wbData.committedCardio, committedCardioFrequency: null },
+      physicalConstraints: wbData.physicalConstraints,
+      selectedExercises: wbData.selectedExercises,
+      aiFlags: flags,
+      scientificSources: [...relevantSources],
+    };
+  }
+
+  function _wbStartGeneration() {
+    wbPayload = _wbBuildPayload();
+    let msgIdx = 0;
+    const msgEl = document.getElementById("wb-loading-msg");
+    if (msgEl) msgEl.textContent = WB_LOADING_MSGS[0];
+    const msgTimer = setInterval(() => {
+      msgIdx = (msgIdx + 1) % WB_LOADING_MSGS.length;
+      if (msgEl) msgEl.textContent = WB_LOADING_MSGS[msgIdx];
+    }, 2500);
+    const slowTimer = setTimeout(() => {
+      const el = document.getElementById("wb-loading-slow");
+      if (el) el.style.display = "";
+    }, 30000);
+
+    fetch("/api/generate-comprehensive-plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(wbPayload),
+    })
+    .then(r => r.json())
+    .then(data => {
+      clearInterval(msgTimer);
+      clearTimeout(slowTimer);
+      if (data.error) { alert("Plan generation failed: " + data.error); wbStep = 9; wbRender(); return; }
+      wbPlanResult = data.plan;
+      wbUnderstanding = data.understanding;
+      // Save strength plan to localStorage.weeklyPlan in legacy format
+      _wbSaveLegacyPlan(wbPlanResult);
+      wbStep = 11;
+      wbRender();
+    })
+    .catch(() => {
+      clearInterval(msgTimer);
+      clearTimeout(slowTimer);
+      alert("Failed to generate plan. Please try again.");
+      wbStep = 9;
+      wbRender();
+    });
+  }
+
+  function _wbSaveLegacyPlan(plan) {
+    // Convert strengthPlan to the legacy weeklyPlan format: {Monday: [{name, sets}], ...}
+    const sp = plan.strengthPlan || plan;
+    const legacy = {};
+    ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].forEach(d => {
+      const day = sp[d];
+      if (day && day.exercises) {
+        legacy[d] = day.exercises.map(e => ({ name: e.name, sets: e.sets || 3 }));
+      } else if (Array.isArray(day)) {
+        legacy[d] = day; // already in legacy format
+      } else {
+        legacy[d] = [];
+      }
+    });
+    localStorage.setItem("weeklyPlan", JSON.stringify(legacy));
+  }
+
+  // ── Output Screen ──
+  function _wbOutputHTML() {
+    const days = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+    const sp = (wbPlanResult || {}).strengthPlan || {};
+    const cp = (wbPlanResult || {}).cardioPlan || {};
+    const notes = (wbPlanResult || {}).planNotes || [];
+
+    // Understanding paragraph
+    let html = '';
+    if (wbUnderstanding) {
+      html += `<div style="font-size:0.85rem;color:var(--text);line-height:1.6;margin-bottom:1rem;padding:0.75rem;background:var(--surface);border:1px solid var(--border);border-radius:10px">${wbUnderstanding}</div>`;
+    }
+
+    // Tabs
+    html += `<div style="display:flex;gap:0.25rem;margin-bottom:0.75rem">
+      <button class="btn wb-plan-tab active" data-tab="strength" style="flex:1;font-size:0.82rem;padding:0.45rem;background:var(--accent2);color:#fff;border:none;border-radius:8px 8px 0 0">Strength</button>
+      <button class="btn wb-plan-tab" data-tab="cardio" style="flex:1;font-size:0.82rem;padding:0.45rem;background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:8px 8px 0 0">Cardio</button>
+    </div>`;
+
+    // Strength plan
+    html += `<div id="wb-tab-strength" style="background:var(--surface);border:1px solid var(--border);border-radius:0 0 10px 10px;padding:0.75rem">`;
+    days.forEach(d => {
+      const day = sp[d];
+      if (!day) {
+        html += `<div style="padding:0.35rem 0;border-bottom:1px solid var(--surface2)"><span style="font-size:0.8rem;font-weight:600;color:var(--muted)">${d}</span> <span style="font-size:0.78rem;color:var(--muted);\u2014 Rest Day</span></div>`;
+        return;
+      }
+      const label = day.label || "";
+      const exercises = day.exercises || [];
+      html += `<div style="margin-bottom:0.65rem">
+        <div style="font-size:0.82rem;font-weight:600;color:var(--accent2)">${d}${label ? ' \u2014 ' + label : ''}</div>`;
+      exercises.forEach(ex => {
+        html += `<div style="font-size:0.8rem;color:var(--text);padding:0.2rem 0;padding-left:0.5rem">${ex.name} <span style="color:var(--muted)">${ex.sets || 3}\u00d7${ex.reps || '8-12'} \u00b7 ${ex.rest || '90s'}</span></div>`;
+        if (ex.notes) html += `<div style="font-size:0.72rem;color:var(--muted);padding-left:0.5rem;margin-bottom:0.15rem">${ex.notes}</div>`;
+      });
+      html += `</div>`;
+    });
+    html += `</div>`;
+
+    // Cardio plan
+    html += `<div id="wb-tab-cardio" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:0 0 10px 10px;padding:0.75rem">`;
+    days.forEach(d => {
+      const session = cp[d];
+      if (!session) {
+        html += `<div style="padding:0.35rem 0;border-bottom:1px solid var(--surface2)"><span style="font-size:0.8rem;font-weight:600;color:var(--muted)">${d}</span> <span style="font-size:0.78rem;color:var(--muted)">\u2014 No cardio</span></div>`;
+        return;
+      }
+      html += `<div style="padding:0.4rem 0;border-bottom:1px solid var(--surface2)">
+        <div style="font-size:0.82rem;font-weight:600;color:var(--accent2)">${d} \u2014 ${session.type || 'Cardio'}</div>
+        <div style="font-size:0.78rem;color:var(--text);padding-left:0.5rem">${session.duration || ''} \u00b7 ${session.intensity || ''}</div>
+        ${session.committed ? '<div style="font-size:0.72rem;color:var(--accent2);padding-left:0.5rem">Non-negotiable \u2014 already in your schedule</div>' : ''}
+        ${session.notes ? '<div style="font-size:0.72rem;color:var(--muted);padding-left:0.5rem">' + session.notes + '</div>' : ''}
+      </div>`;
+    });
+    html += `</div>`;
+
+    // Plan notes
+    if (notes.length) {
+      html += `<div style="margin-top:0.75rem">`;
+      notes.forEach(n => { html += `<div style="font-size:0.78rem;color:var(--muted);line-height:1.5;padding:0.2rem 0">\u2022 ${n}</div>`; });
+      html += `</div>`;
+    }
+
+    // Adjust plan
+    html += `<div style="margin-top:1rem;border-top:1px solid var(--border);padding-top:0.85rem">
+      <div style="font-size:0.82rem;font-weight:600;color:var(--text);margin-bottom:0.35rem">Want to change something?</div>
+      <div style="display:flex;gap:0.5rem">
+        <input type="text" id="wb-revise-input" placeholder="Tell us what to adjust" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.55rem 0.75rem;color:var(--text);font-size:0.85rem">
+        <button class="btn btn-primary" id="wb-revise-btn" style="padding:0.55rem 0.85rem;font-size:0.85rem">Send</button>
+      </div>
+      <div id="wb-revise-status" style="display:none;font-size:0.78rem;color:var(--muted);margin-top:0.35rem"></div>
+    </div>`;
+
+    // Accept button
+    html += `<button class="btn btn-primary" id="wb-accept-btn" style="width:100%;margin-top:1rem;padding:0.85rem;font-size:1rem">Save & Enter Apex \u203A</button>`;
+    return html;
+  }
+
+  function _wbBindOutput() {
+    // Tab switching
+    document.querySelectorAll(".wb-plan-tab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".wb-plan-tab").forEach(t => { t.classList.remove("active"); t.style.background = "var(--surface2)"; t.style.color = "var(--muted)"; });
+        tab.classList.add("active"); tab.style.background = "var(--accent2)"; tab.style.color = "#fff";
+        document.getElementById("wb-tab-strength").style.display = tab.dataset.tab === "strength" ? "" : "none";
+        document.getElementById("wb-tab-cardio").style.display = tab.dataset.tab === "cardio" ? "" : "none";
+      });
+    });
+
+    // Revise plan
+    document.getElementById("wb-revise-btn").addEventListener("click", () => {
+      const input = document.getElementById("wb-revise-input");
+      const req = input.value.trim();
+      if (!req) return;
+      const btn = document.getElementById("wb-revise-btn");
+      const status = document.getElementById("wb-revise-status");
+      btn.disabled = true; btn.textContent = "Revising...";
+      status.textContent = "Applying changes..."; status.style.display = "";
+      fetch("/api/revise-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payload: wbPayload, currentPlan: wbPlanResult, changeRequest: req }),
+      })
+      .then(r => r.json())
+      .then(data => {
+        btn.disabled = false; btn.textContent = "Send";
+        if (data.error) { status.textContent = "Revision failed: " + data.error; return; }
+        wbPlanResult = data.plan;
+        _wbSaveLegacyPlan(wbPlanResult);
+        input.value = "";
+        status.textContent = "Plan updated!";
+        setTimeout(() => { status.style.display = "none"; }, 2000);
+        wbRender(); // Re-render output
+      })
+      .catch(() => { btn.disabled = false; btn.textContent = "Send"; status.textContent = "Revision failed."; });
+    });
+
+    // Accept / Enter Apex
+    document.getElementById("wb-accept-btn").addEventListener("click", function() {
+      _wbSaveLegacyPlan(wbPlanResult);
+      this.disabled = true; this.textContent = "Verifying...";
+      window.enterApex(this);
+    });
   }
 
   window.enterApex = async function(btn) {
     btn.disabled = true;
-    btn.textContent = "Verifying…";
+    btn.textContent = "Verifying\u2026";
     try {
       const res  = await fetch("/api/onboarding/status");
       const data = await res.json();
       if (data.complete) {
-        // Clear stale profile data so /api/profile seeds fresh values
         try { localStorage.removeItem("profileData"); } catch(_) {}
         window.location.href = "/";
       } else {
         btn.disabled = false;
-        btn.textContent = "Enter Apex ›";
-        document.getElementById("ob-error").textContent = "Profile not yet saved — please tap 'Try again' above.";
+        btn.textContent = "Enter Apex \u203A";
+        document.getElementById("ob-error").textContent = "Profile not yet saved \u2014 please tap 'Try again' above.";
         document.getElementById("ob-error").style.display = "";
       }
     } catch (_) {
