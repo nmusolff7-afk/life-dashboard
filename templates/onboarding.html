@@ -1272,7 +1272,8 @@
 
     const row = (k,v) => `<div style="display:flex;justify-content:space-between;padding:0.35rem 0;border-bottom:1px solid var(--surface2)"><span style="font-size:0.8rem;color:var(--muted)">${k}</span><span style="font-size:0.8rem;color:var(--text);text-align:right">${v}</span></div>`;
 
-    let html = `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.85rem">Here's what we've got</div>`;
+    let html = `<div style="font-family:'Rajdhani',sans-serif;font-size:1.7rem;font-weight:700;letter-spacing:0.03em;line-height:1.1;margin-bottom:0.25rem">Your Plan Summary</div>
+      <div style="font-size:0.85rem;color:var(--muted);margin-bottom:1.25rem">Review everything before we build your plan.</div>`;
     html += `<div style="font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:0.35rem">Your Profile</div>`;
     html += row("Age", all.age || "\u2014");
     html += row("Sex", all.gender || "\u2014");
@@ -1477,59 +1478,63 @@
     const cp = (wbPlanResult || {}).cardioPlan || {};
     const notes = (wbPlanResult || {}).planNotes || [];
 
+    let html = `<div style="font-family:'Rajdhani',sans-serif;font-size:1.7rem;font-weight:700;letter-spacing:0.03em;line-height:1.1;margin-bottom:0.25rem">Your Plan</div>`;
+
     // Understanding paragraph
-    let html = '';
     if (wbUnderstanding) {
-      html += `<div style="font-size:0.85rem;color:var(--text);line-height:1.6;margin-bottom:1rem;padding:0.75rem;background:var(--surface);border:1px solid var(--border);border-radius:10px">${wbUnderstanding}</div>`;
+      html += `<div style="font-size:0.85rem;color:var(--muted);line-height:1.6;margin-bottom:1.25rem">${wbUnderstanding}</div>`;
+    } else {
+      html += `<div style="margin-bottom:1rem"></div>`;
     }
 
     // Tabs
     html += `<div style="display:flex;gap:0.25rem;margin-bottom:0.75rem">
-      <button class="btn wb-plan-tab active" data-tab="strength" style="flex:1;font-size:0.82rem;padding:0.45rem;background:var(--accent2);color:#fff;border:none;border-radius:8px 8px 0 0">Strength</button>
-      <button class="btn wb-plan-tab" data-tab="cardio" style="flex:1;font-size:0.82rem;padding:0.45rem;background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:8px 8px 0 0">Cardio</button>
+      <button class="btn wb-plan-tab active" data-tab="strength" style="flex:1;font-size:0.82rem;padding:0.5rem;background:var(--accent2);color:#fff;border:none;border-radius:8px">Strength</button>
+      <button class="btn wb-plan-tab" data-tab="cardio" style="flex:1;font-size:0.82rem;padding:0.5rem;background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:8px">Cardio</button>
     </div>`;
 
-    // Strength plan
-    html += `<div id="wb-tab-strength" style="background:var(--surface);border:1px solid var(--border);border-radius:0 0 10px 10px;padding:0.75rem">`;
+    // Strength plan — 2-column grid matching the existing plan preview
+    html += `<div id="wb-tab-strength" style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">`;
     days.forEach(d => {
       const day = sp[d];
-      if (!day) {
-        html += `<div style="padding:0.35rem 0;border-bottom:1px solid var(--surface2)"><span style="font-size:0.8rem;font-weight:600;color:var(--muted)">${d}</span> <span style="font-size:0.78rem;color:var(--muted);\u2014 Rest Day</span></div>`;
-        return;
+      const label = day ? (day.label || '') : '';
+      const exercises = day ? (day.exercises || []) : [];
+      html += `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.55rem 0.7rem">
+        <div style="font-weight:600;font-size:0.8rem;color:var(--accent2);margin-bottom:0.2rem">${d}</div>`;
+      if (label) html += `<div style="font-size:0.7rem;color:var(--muted);margin-bottom:0.2rem">${label}</div>`;
+      if (exercises.length) {
+        html += `<div style="font-size:0.75rem;color:var(--text);line-height:1.5">${exercises.map(ex => `${ex.name} \u00d7${ex.sets || 3}`).join('<br>')}</div>`;
+      } else {
+        html += `<div style="font-size:0.75rem;color:var(--muted);font-style:italic">Rest</div>`;
       }
-      const label = day.label || "";
-      const exercises = day.exercises || [];
-      html += `<div style="margin-bottom:0.65rem">
-        <div style="font-size:0.82rem;font-weight:600;color:var(--accent2)">${d}${label ? ' \u2014 ' + label : ''}</div>`;
-      exercises.forEach(ex => {
-        html += `<div style="font-size:0.8rem;color:var(--text);padding:0.2rem 0;padding-left:0.5rem">${ex.name} <span style="color:var(--muted)">${ex.sets || 3}\u00d7${ex.reps || '8-12'} \u00b7 ${ex.rest || '90s'}</span></div>`;
-        if (ex.notes) html += `<div style="font-size:0.72rem;color:var(--muted);padding-left:0.5rem;margin-bottom:0.15rem">${ex.notes}</div>`;
-      });
       html += `</div>`;
     });
     html += `</div>`;
 
-    // Cardio plan
-    html += `<div id="wb-tab-cardio" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:0 0 10px 10px;padding:0.75rem">`;
+    // Cardio plan — same grid
+    html += `<div id="wb-tab-cardio" style="display:none;grid-template-columns:1fr 1fr;gap:0.5rem">`;
     days.forEach(d => {
       const session = cp[d];
-      if (!session) {
-        html += `<div style="padding:0.35rem 0;border-bottom:1px solid var(--surface2)"><span style="font-size:0.8rem;font-weight:600;color:var(--muted)">${d}</span> <span style="font-size:0.78rem;color:var(--muted)">\u2014 No cardio</span></div>`;
-        return;
+      html += `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.55rem 0.7rem">
+        <div style="font-weight:600;font-size:0.8rem;color:var(--accent2);margin-bottom:0.2rem">${d}</div>`;
+      if (session) {
+        html += `<div style="font-size:0.75rem;color:var(--text);line-height:1.5">${session.type || 'Cardio'}`;
+        if (session.duration) html += `<br>${session.duration}`;
+        if (session.intensity) html += ` \u00b7 ${session.intensity}`;
+        html += `</div>`;
+        if (session.committed) html += `<div style="font-size:0.68rem;color:var(--accent2);margin-top:0.15rem">Non-negotiable</div>`;
+      } else {
+        html += `<div style="font-size:0.75rem;color:var(--muted);font-style:italic">Rest</div>`;
       }
-      html += `<div style="padding:0.4rem 0;border-bottom:1px solid var(--surface2)">
-        <div style="font-size:0.82rem;font-weight:600;color:var(--accent2)">${d} \u2014 ${session.type || 'Cardio'}</div>
-        <div style="font-size:0.78rem;color:var(--text);padding-left:0.5rem">${session.duration || ''} \u00b7 ${session.intensity || ''}</div>
-        ${session.committed ? '<div style="font-size:0.72rem;color:var(--accent2);padding-left:0.5rem">Non-negotiable \u2014 already in your schedule</div>' : ''}
-        ${session.notes ? '<div style="font-size:0.72rem;color:var(--muted);padding-left:0.5rem">' + session.notes + '</div>' : ''}
-      </div>`;
+      html += `</div>`;
     });
     html += `</div>`;
 
     // Plan notes
     if (notes.length) {
-      html += `<div style="margin-top:0.75rem">`;
-      notes.forEach(n => { html += `<div style="font-size:0.78rem;color:var(--muted);line-height:1.5;padding:0.2rem 0">\u2022 ${n}</div>`; });
+      html += `<div style="margin-top:0.85rem;padding:0.65rem;background:var(--surface);border:1px solid var(--border);border-radius:8px">
+        <div style="font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:0.35rem">Plan Notes</div>`;
+      notes.forEach(n => { html += `<div style="font-size:0.78rem;color:var(--text);line-height:1.5;padding:0.15rem 0">\u2022 ${n}</div>`; });
       html += `</div>`;
     }
 
@@ -1554,8 +1559,8 @@
       tab.addEventListener("click", () => {
         document.querySelectorAll(".wb-plan-tab").forEach(t => { t.classList.remove("active"); t.style.background = "var(--surface2)"; t.style.color = "var(--muted)"; });
         tab.classList.add("active"); tab.style.background = "var(--accent2)"; tab.style.color = "#fff";
-        document.getElementById("wb-tab-strength").style.display = tab.dataset.tab === "strength" ? "" : "none";
-        document.getElementById("wb-tab-cardio").style.display = tab.dataset.tab === "cardio" ? "" : "none";
+        document.getElementById("wb-tab-strength").style.display = tab.dataset.tab === "strength" ? "grid" : "none";
+        document.getElementById("wb-tab-cardio").style.display = tab.dataset.tab === "cardio" ? "grid" : "none";
       });
     });
 
