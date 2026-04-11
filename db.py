@@ -921,6 +921,10 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
     raw_deltas = {}
     penalties = {}
 
+    # Time-of-day scaling: early in day = more forgiving for nutrition scores
+    # 0.33 at 6am → 1.0 at 9pm
+    day_progress = min(1.0, max(0.33, (_h - 6) / 15))
+
     # 1. Calories (15 pts) — penalty based on how close actual deficit is to goal deficit
     #    goal_deficit = tdee - calorie_target;  actual_deficit = tdee - cal_today
     #    score = how close actual_deficit is to goal_deficit
@@ -935,11 +939,12 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
 
     if cal_goal and cal_goal > 0 and cal_today > 0 and tdee > 0:
         actual_deficit = tdee - cal_today
-        deficit_delta = actual_deficit - goal_deficit  # positive = deeper deficit than goal
-        # Normalize: 250 kcal off = full penalty
-        cal_dev = abs(deficit_delta) / 250
-        cal_pen = min(1.0, cal_dev) * MOMENTUM_WEIGHTS["nutrition"]
-        raw_deltas["calories"] = {"target": cal_goal, "actual": cal_today, "delta": deficit_delta,
+        # Pro-rate target by time of day: compare eaten vs expected-eaten-by-now
+        prorated_target = cal_goal * day_progress
+        cal_delta = cal_today - prorated_target
+        cal_dev = abs(cal_delta) / max(prorated_target, 1)
+        cal_pen = min(1.0, cal_dev / 0.50) * MOMENTUM_WEIGHTS["nutrition"]
+        raw_deltas["calories"] = {"target": cal_goal, "actual": cal_today, "delta": round(cal_delta),
                                   "tdee": tdee, "goal_deficit": goal_deficit, "actual_deficit": actual_deficit}
     elif cal_today == 0 and cal_goal:
         cal_pen = MOMENTUM_WEIGHTS["nutrition"]
@@ -950,21 +955,28 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
     penalties["nutrition"] = round(cal_pen, 2)
 
     # 2. Macros (10 pts) — weighted combination: protein 40%, carbs 30%, fat 30%
+    # Pro-rate macro targets by time of day (same as calories)
     macro_components = []
     if pro_goal and pro_goal > 0:
+        prorated = pro_goal * day_progress
+        dev = abs(pro_today - prorated) / max(prorated, 1) if pro_today > 0 else 1.0
         macro_components.append({"name": "protein", "target": pro_goal, "actual": round(pro_today, 1),
-                                 "weight": 0.4, "dev": abs(pro_today - pro_goal) / pro_goal if pro_today > 0 else 1.0})
+                                 "weight": 0.4, "dev": dev})
     if carbs_goal and carbs_goal > 0:
+        prorated = carbs_goal * day_progress
+        dev = abs(carbs_today - prorated) / max(prorated, 1) if carbs_today > 0 else 1.0
         macro_components.append({"name": "carbs", "target": carbs_goal, "actual": round(carbs_today, 1),
-                                 "weight": 0.3, "dev": abs(carbs_today - carbs_goal) / carbs_goal if carbs_today > 0 else 1.0})
+                                 "weight": 0.3, "dev": dev})
     if fat_goal and fat_goal > 0:
+        prorated = fat_goal * day_progress
+        dev = abs(fat_today - prorated) / max(prorated, 1) if fat_today > 0 else 1.0
         macro_components.append({"name": "fat", "target": fat_goal, "actual": round(fat_today, 1),
-                                 "weight": 0.3, "dev": abs(fat_today - fat_goal) / fat_goal if fat_today > 0 else 1.0})
+                                 "weight": 0.3, "dev": dev})
 
     if macro_components:
         # Normalize weights to sum to 1.0 in case some macros are missing
         total_weight = sum(m["weight"] for m in macro_components)
-        weighted_dev = sum(min(1.0, m["dev"] / 0.25) * (m["weight"] / total_weight) for m in macro_components)
+        weighted_dev = sum(min(1.0, m["dev"] / 0.50) * (m["weight"] / total_weight) for m in macro_components)
         macro_pen = weighted_dev * MOMENTUM_WEIGHTS["macros"]
         raw_deltas["macros"] = {"components": macro_components}
     elif cal_today == 0:

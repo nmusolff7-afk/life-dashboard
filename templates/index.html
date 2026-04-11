@@ -7401,8 +7401,7 @@ function fmtDate(iso) {
       if (key === "calories") {
         if (d.target == null) return "no goal";
         if (d.actual === 0) return "not logged";
-        const sign = d.delta > 0 ? "+" : "";
-        return sign + d.delta + " kcal";
+        return Math.round(d.actual) + "/" + d.target;
       }
       if (key === "macros") {
         const mc = d.components || [];
