@@ -905,11 +905,15 @@ def api_generate_comprehensive_plan():
     payload = request.get_json() or {}
     try:
         plan = generate_comprehensive_plan(payload)
-        understanding = generate_plan_understanding(payload)
-        return jsonify({"plan": plan, "understanding": understanding})
     except Exception as e:
         _log.exception("comprehensive-plan generation failed")
-        return jsonify({"error": _AI_ERR}), 500
+        return jsonify({"error": str(e)}), 500
+    try:
+        understanding = generate_plan_understanding(payload)
+    except Exception:
+        _log.warning("plan understanding generation failed, continuing without it")
+        understanding = ""
+    return jsonify({"plan": plan, "understanding": understanding})
 
 
 @app.route("/api/revise-plan", methods=["POST"])

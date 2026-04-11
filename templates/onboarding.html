@@ -429,7 +429,26 @@
         <div id="ob-plan-section" style="display:none;margin-top:1.25rem"></div>
 
         <!-- Workout Builder Quiz -->
-        <div id="ob-workout-section" style="display:none;margin-top:1.25rem"></div>
+        <!-- Workout plan choice -->
+        <div id="ob-workout-section" style="display:none;margin-top:1.25rem">
+          <div class="ob-plan">
+            <div class="ob-plan-title">Workout Plan</div>
+            <div style="font-size:0.84rem;color:var(--muted);margin-bottom:0.85rem;line-height:1.5">
+              How do you want to set up your training?
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
+              <button class="btn btn-primary" id="ob-wp-suggest-btn" style="font-size:0.88rem;padding:0.7rem">Build My Plan</button>
+              <button class="btn btn-ghost" id="ob-wp-skip-btn" style="font-size:0.88rem;padding:0.7rem">I'll do my own</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fullscreen workout builder quiz overlay -->
+        <div id="wb-quiz-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:9999;overflow-y:auto;padding:1.25rem;padding-top:env(safe-area-inset-top,0)">
+          <div style="max-width:480px;margin:0 auto">
+            <div id="wb-quiz-content"></div>
+          </div>
+        </div>
 
         <div class="error-msg" id="ob-error" style="display:none;margin-top:1rem"></div>
         <button class="btn btn-primary" id="ob-enter-btn" style="display:none;width:100%;margin-top:1.5rem;padding:0.9rem;font-size:1rem" onclick="enterApex(this)">
@@ -850,9 +869,18 @@
   let wbPayload = null;
 
   function showWorkoutSection() {
-    document.getElementById("ob-workout-section").style.display = "";
-    wbStep = 1;
-    wbRender();
+    const section = document.getElementById("ob-workout-section");
+    section.style.display = "";
+    // Wire up buttons
+    document.getElementById("ob-wp-suggest-btn").addEventListener("click", () => {
+      wbStep = 1;
+      wbRender();
+      document.getElementById("wb-quiz-overlay").style.display = "";
+    });
+    document.getElementById("ob-wp-skip-btn").addEventListener("click", () => {
+      section.innerHTML = '<div class="ob-plan" style="text-align:center;padding:1rem"><div style="font-size:1.2rem;margin-bottom:0.3rem">\u2192</div><div style="font-size:0.88rem;font-weight:600;color:var(--text)">No problem \u2014 set it up in the Profile tab.</div><div style="font-size:0.78rem;color:var(--muted);margin-top:0.2rem">You can build your plan anytime.</div></div>';
+      document.getElementById("ob-enter-btn").style.display = "";
+    });
   }
 
   // ── Response lines (experience × goal) ──
@@ -902,13 +930,8 @@
 
   // ── Main Render ──
   function wbRender() {
-    const el = document.getElementById("ob-workout-section");
+    const el = document.getElementById("wb-quiz-content");
     const g = _wbGoal();
-    // Hide onboarding controls during quiz
-    document.getElementById("ob-enter-btn").style.display = "none";
-    document.getElementById("ob-back-to-edit").style.display = wbStep === 0 ? "" : "none";
-    document.getElementById("ob-retry-btn").style.display = "none";
-    document.getElementById("ob-error").style.display = "none";
 
     if (wbStep >= 1 && wbStep <= 7) {
       el.innerHTML = _wbStepHTML(wbStep, g);
@@ -936,16 +959,26 @@
     </div>`;
   }
 
+  function _wbCloseQuiz() {
+    document.getElementById("wb-quiz-overlay").style.display = "none";
+    wbStep = 0;
+  }
+
   function _wbProgress() {
     if (wbStep < 1 || wbStep > 7) return '';
     const pct = Math.round((wbStep / 7) * 100);
     return `<div style="margin-bottom:1rem">
-      <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.35rem">Step ${wbStep} of 7</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem">
+        <div style="font-size:0.72rem;color:var(--muted)">Step ${wbStep} of 7</div>
+        <button onclick="_wbCloseQuiz()" style="background:none;border:none;color:var(--muted);font-size:0.78rem;cursor:pointer">\u2715 Close</button>
+      </div>
       <div style="height:3px;background:var(--surface2);border-radius:2px;overflow:hidden">
         <div style="width:${pct}%;height:100%;background:var(--accent2);transition:width 0.3s"></div>
       </div>
     </div>`;
   }
+
+  window._wbCloseQuiz = _wbCloseQuiz;
 
   function _wbCardHTML(val, title, subtitle, isActive) {
     return `<div class="wb-card${isActive ? ' active' : ''}" data-val="${val}" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:0.75rem 0.85rem;cursor:pointer;transition:border-color 0.15s">

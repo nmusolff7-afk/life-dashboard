@@ -507,37 +507,18 @@ INSTRUCTIONS:
    committedCardioType is "running", schedule resistance and running on separate days
    where possible, resistance first if same-day, 6hr minimum separation.
 
-RESPONSE FORMAT — respond ONLY with this exact JSON structure, no markdown:
-{{
-  "strengthPlan": {{
-    "Monday": {{
-      "label": "<session label e.g. Push Day>",
-      "exercises": [
-        {{
-          "name": "<exercise name>",
-          "sets": <int>,
-          "reps": "<rep range e.g. 8-12>",
-          "rest": "<rest period e.g. 90s>",
-          "notes": "<coaching cue or null>"
-        }}
-      ]
-    }},
-    "Tuesday": null,
-    ... (null for rest days, object for training days — include all 7 days)
-  }},
-  "cardioPlan": {{
-    "Monday": null,
-    "Tuesday": {{
-      "type": "<e.g. Easy Run, HIIT Bike, LISS Cycling>",
-      "duration": "<e.g. 30 min>",
-      "intensity": "<e.g. Zone 2, conversational pace, 85%+ max effort>",
-      "notes": "<any notes or null>",
-      "committed": <true if this is a non-negotiable committed session, false otherwise>
-    }},
-    ... (null for no-cardio days — include all 7 days)
-  }},
-  "planNotes": [<array of string notes about the plan — deload schedule, key decisions, warnings>]
-}}
+RESPONSE FORMAT — respond ONLY with valid JSON, no markdown fencing, no explanation:
+The JSON must have three top-level keys: "strengthPlan", "cardioPlan", "planNotes".
+
+strengthPlan: object with all 7 day keys (Monday through Sunday).
+  Training days: {{"label": "Push Day", "exercises": [{{"name": "Bench Press", "sets": 4, "reps": "8-12", "rest": "90s", "notes": null}}]}}
+  Rest days: null
+
+cardioPlan: object with all 7 day keys (Monday through Sunday).
+  Cardio days: {{"type": "Easy Run", "duration": "30 min", "intensity": "Zone 2", "notes": null, "committed": false}}
+  No-cardio days: null
+
+planNotes: array of strings with key programming decisions.
 
 Rules:
 - Include all 7 days in both strengthPlan and cardioPlan.
@@ -551,9 +532,8 @@ Rules:
 
     response = _client().messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=4096,
-        system=prompt,
-        messages=[{"role": "user", "content": "Generate my complete training plan based on the payload provided."}],
+        max_tokens=8192,
+        messages=[{"role": "user", "content": prompt}],
     )
     raw = next((b.text for b in response.content if b.type == "text"), "")
     return _parse_json(raw)
