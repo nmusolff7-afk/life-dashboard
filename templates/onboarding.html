@@ -839,7 +839,7 @@
     equipment: null,
     sleepHours: null,
     preferredTime: null,
-    trainingStyle: null,
+    trainingStyle: [],
     cardioPreference: null,
     committedCardio: null,
     physicalConstraints: null,
@@ -1142,8 +1142,19 @@
       document.querySelectorAll("#wb-s4-sleep .wb-card, #wb-s4-time .wb-card").forEach(c => c.addEventListener("click", () => setTimeout(checkResponse, 10)));
     }
     if (step === 5) {
-      _wbCard("wb-s5-cards", "trainingStyle");
-      document.getElementById("wb-s5-skip").addEventListener("click", () => { wbData.trainingStyle = null; wbStep++; wbRender(); });
+      // Multi-select for training style
+      setTimeout(() => {
+        document.querySelectorAll("#wb-s5-cards .wb-card").forEach(c => {
+          if (wbData.trainingStyle.includes(c.dataset.val)) c.classList.add("active");
+          c.addEventListener("click", () => {
+            const val = c.dataset.val;
+            const idx = wbData.trainingStyle.indexOf(val);
+            if (idx >= 0) { wbData.trainingStyle.splice(idx, 1); c.classList.remove("active"); }
+            else { wbData.trainingStyle.push(val); c.classList.add("active"); }
+          });
+        });
+      }, 0);
+      document.getElementById("wb-s5-skip").addEventListener("click", () => { wbData.trainingStyle = []; wbStep++; wbRender(); });
     }
     if (step === 6) {
       _wbCard("wb-s6-pref", "cardioPreference");
@@ -1233,7 +1244,7 @@
     html += row("Equipment", eqLabels[wbData.equipment] || wbData.equipment);
     html += row("Sleep", sleepLabels[wbData.sleepHours] || wbData.sleepHours);
     html += row("Training Time", timeLabels[wbData.preferredTime] || wbData.preferredTime);
-    html += row("Style", wbData.trainingStyle ? (styleLabels[wbData.trainingStyle] || wbData.trainingStyle) : "No preference");
+    html += row("Style", wbData.trainingStyle.length ? wbData.trainingStyle.map(s => styleLabels[s] || s).join(", ") : "No preference");
     html += row("Cardio", cardLabels[wbData.cardioPreference] || wbData.cardioPreference);
     html += row("Committed Cardio", commitLabels[wbData.committedCardio] || wbData.committedCardio);
 
@@ -1318,7 +1329,7 @@
       hasPhysicalConstraints: !!wbData.physicalConstraints,
       cardioConflict: wbData.cardioPreference === "cardio_primary" && g === "hypertrophy",
       committedRunningWithHypertrophy: wbData.committedCardio === "running_regular" && g === "hypertrophy",
-      adherenceTradeoff: wbData.trainingStyle === "circuit_hiit" && g === "hypertrophy",
+      adherenceTradeoff: wbData.trainingStyle.includes("circuit_hiit") && g === "hypertrophy",
     };
 
     // Determine relevant sources
