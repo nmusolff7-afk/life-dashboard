@@ -2037,28 +2037,30 @@
         <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.5">
           Set when your morning check-in and evening review unlock on the home page.
         </p>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem">
-          <div>
-            <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.35rem">Morning opens</label>
+        <div style="font-size:0.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:0.4rem">Morning</div>
+        <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem">
+          <div style="flex:1">
+            <label style="font-size:0.75rem;color:var(--muted);display:block;margin-bottom:0.25rem">Opens at</label>
             <input type="time" id="brief-morning-start" value="06:00"
-              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.55rem 0.75rem;color:var(--text);font-size:0.9rem;box-sizing:border-box">
+              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.5rem 0.6rem;color:var(--text);font-size:0.85rem;box-sizing:border-box">
           </div>
-          <div>
-            <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.35rem">Duration (hours)</label>
+          <div style="flex:1">
+            <label style="font-size:0.75rem;color:var(--muted);display:block;margin-bottom:0.25rem">Hours open</label>
             <input type="number" id="brief-morning-dur" value="4" min="0.5" max="12" step="0.5"
-              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.55rem 0.75rem;color:var(--text);font-size:0.9rem;box-sizing:border-box">
+              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.5rem 0.6rem;color:var(--text);font-size:0.85rem;box-sizing:border-box">
           </div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem">
-          <div>
-            <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.35rem">Evening opens</label>
+        <div style="font-size:0.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:0.4rem">Evening</div>
+        <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem">
+          <div style="flex:1">
+            <label style="font-size:0.75rem;color:var(--muted);display:block;margin-bottom:0.25rem">Opens at</label>
             <input type="time" id="brief-evening-start" value="19:00"
-              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.55rem 0.75rem;color:var(--text);font-size:0.9rem;box-sizing:border-box">
+              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.5rem 0.6rem;color:var(--text);font-size:0.85rem;box-sizing:border-box">
           </div>
-          <div>
-            <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.35rem">Duration (hours)</label>
+          <div style="flex:1">
+            <label style="font-size:0.75rem;color:var(--muted);display:block;margin-bottom:0.25rem">Hours open</label>
             <input type="number" id="brief-evening-dur" value="3" min="0.5" max="12" step="0.5"
-              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.55rem 0.75rem;color:var(--text);font-size:0.9rem;box-sizing:border-box">
+              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.5rem 0.6rem;color:var(--text);font-size:0.85rem;box-sizing:border-box">
           </div>
         </div>
         <button class="btn btn-primary btn-full" id="save-brief-schedule-btn">Save Schedule</button>

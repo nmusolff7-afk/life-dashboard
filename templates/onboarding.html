@@ -1540,6 +1540,50 @@
       html += `</div>`;
     }
 
+    // "Built on Science" collapsible section
+    html += `<div id="wb-science-toggle" style="margin-top:0.75rem;cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:0.65rem 0.85rem;background:var(--surface2);border:1px solid var(--border);border-radius:10px">
+      <div>
+        <div style="font-size:0.82rem;font-weight:600;color:var(--text)">Built on Science, Not Templates</div>
+        <div style="font-size:0.72rem;color:var(--muted)">24 peer-reviewed studies shaped this plan</div>
+      </div>
+      <span id="wb-science-arrow" style="font-size:0.75rem;color:var(--muted);transition:transform 0.2s">\u25B6</span>
+    </div>
+    <div id="wb-science-body" style="display:none;padding:0.85rem;background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px">
+      <div style="font-size:0.82rem;color:var(--text);line-height:1.6;margin-bottom:0.85rem">
+        Every decision in your plan \u2014 how many days you train, which exercises, how much volume, when to back off \u2014 is grounded in published exercise science.
+      </div>
+
+      <div style="margin-bottom:0.65rem">
+        <div style="font-size:0.78rem;font-weight:600;color:var(--accent2);margin-bottom:0.2rem">\uD83D\uDCCA Training Volume & Frequency</div>
+        <div style="font-size:0.78rem;color:var(--muted);line-height:1.5">How many sets per muscle, how often to hit each muscle group. Based on meta-analyses of thousands of lifters.</div>
+        <div style="font-size:0.68rem;color:var(--muted);opacity:0.7;margin-top:0.15rem">Schoenfeld 2016, 2019 \u00b7 Pelland 2025 \u00b7 Krieger 2010</div>
+      </div>
+
+      <div style="margin-bottom:0.65rem">
+        <div style="font-size:0.78rem;font-weight:600;color:var(--accent2);margin-bottom:0.2rem">\uD83D\uDE34 Recovery Adjustments</div>
+        <div style="font-size:0.78rem;color:var(--muted);line-height:1.5">Sleep and stress affect how much you can handle. Your plan volume was calibrated to your recovery capacity.</div>
+        <div style="font-size:0.68rem;color:var(--muted);opacity:0.7;margin-top:0.15rem">Lamon 2021 \u00b7 Saner 2020 \u00b7 Knowles 2022</div>
+      </div>
+
+      <div style="margin-bottom:0.65rem">
+        <div style="font-size:0.78rem;font-weight:600;color:var(--accent2);margin-bottom:0.2rem">\uD83C\uDFC3 Cardio & Lifting Balance</div>
+        <div style="font-size:0.78rem;color:var(--muted);line-height:1.5">Running interferes with muscle gains more than cycling. Session order and timing were scheduled around this.</div>
+        <div style="font-size:0.68rem;color:var(--muted);opacity:0.7;margin-top:0.15rem">Wilson 2012 \u00b7 Robineau 2016 \u00b7 Schumann 2022</div>
+      </div>
+
+      <div style="margin-bottom:0.65rem">
+        <div style="font-size:0.78rem;font-weight:600;color:var(--accent2);margin-bottom:0.2rem">\uD83D\uDCC8 Progression & Periodization</div>
+        <div style="font-size:0.78rem;color:var(--muted);line-height:1.5">Progression model and deload timing matched to your experience level.</div>
+        <div style="font-size:0.68rem;color:var(--muted);opacity:0.7;margin-top:0.15rem">Rhea 2004 \u00b7 ACSM 2009 \u00b7 IUSCA 2021</div>
+      </div>
+
+      <div>
+        <div style="font-size:0.78rem;font-weight:600;color:var(--accent2);margin-bottom:0.2rem">\uD83D\uDEE1 Injury-Aware Programming</div>
+        <div style="font-size:0.78rem;color:var(--muted);line-height:1.5">Physical constraints are taken seriously \u2014 exercises are substituted using evidence for safe loading.</div>
+        <div style="font-size:0.68rem;color:var(--muted);opacity:0.7;margin-top:0.15rem">Hayden 2021 \u00b7 Wang 2012 \u00b7 Schoenfeld 2017</div>
+      </div>
+    </div>`;
+
     // Adjust plan
     html += `<div style="margin-top:1rem;border-top:1px solid var(--border);padding-top:0.85rem">
       <div style="font-size:0.82rem;font-weight:600;color:var(--text);margin-bottom:0.35rem">Want to change something?</div>
@@ -1556,6 +1600,18 @@
   }
 
   function _wbBindOutput() {
+    // Science panel toggle
+    const sciToggle = document.getElementById("wb-science-toggle");
+    if (sciToggle) {
+      sciToggle.addEventListener("click", () => {
+        const body = document.getElementById("wb-science-body");
+        const arrow = document.getElementById("wb-science-arrow");
+        const open = body.style.display === "none";
+        body.style.display = open ? "" : "none";
+        arrow.style.transform = open ? "rotate(90deg)" : "";
+      });
+    }
+
     // Revise plan
     document.getElementById("wb-revise-btn").addEventListener("click", () => {
       const input = document.getElementById("wb-revise-input");
