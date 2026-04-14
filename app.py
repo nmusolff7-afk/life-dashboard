@@ -1087,7 +1087,7 @@ def api_gmail_status():
     for e in cached:
         e["importance_score"] = score_email_importance(e.get("sender", ""), rules) if rules else 0
     important = [e for e in cached if e.get("importance_score", 0) > 0]
-    stream = [e for e in cached if e.get("importance_score", 0) <= 0]
+    stream = [e for e in cached if e.get("importance_score", 0) == 0]  # only unknown, not dismissed
     return jsonify({
         "configured": gmail_sync.is_configured(),
         "connected":  connected,
@@ -1096,7 +1096,6 @@ def api_gmail_status():
         "emails":     cached,
         "important":  important,
         "stream":     stream,
-        "unreplied":  unreplied,
     })
 
 
@@ -1218,9 +1217,9 @@ def api_gmail_sync():
     for e in emails:
         e["importance_score"] = score_email_importance(e["sender"], rules)
 
-    # Split into important vs stream
+    # Split: important (positive), stream (unknown/zero only), dismissed (negative) hidden
     important = [e for e in emails if e.get("importance_score", 0) > 0]
-    stream = [e for e in emails if e.get("importance_score", 0) <= 0]
+    stream = [e for e in emails if e.get("importance_score", 0) == 0]
 
     # AI summary only for important emails
     summary_text = ""
