@@ -5023,22 +5023,9 @@ try {
     const inp   = readInputs();
     const steps = getTodaySteps();
     const rmr   = calcRMR(inp.curWeight, inp.heightFt, inp.heightIn, inp.age, inp.sex, inp.bfPct);
-    const { neat } = calcNEAT(inp.occupation, steps, TODAY_WORKOUT_DESCS);
-    const eat   = WORKOUT_BURN_TODAY;
-    const tef   = calcTEF(CAL_CONSUMED, PROTEIN_CONSUMED, CARBS_CONSUMED, FAT_CONSUMED);
-    const tdee  = rmr + neat + eat + tef;
-    // Always update RMR (computed, not user-editable)
+    // Only update RMR — never touch deficit/protein/carbs/fat sliders.
+    // Those are set by populateForm on load and by user interaction only.
     setSlider("rmr", rmr);
-    // If user is actively editing sliders, don't touch them
-    if (goalsEditing) { updatePreview(); return; }
-    // Restore saved slider values if they exist — never overwrite user's choices
-    const saved = getProfileData();
-    if (saved.deficit != null) {
-      setSlider("deficit", saved.deficit);
-    }
-    if (saved.protein != null) setSlider("protein", saved.protein);
-    if (saved.carbs != null)   setSlider("carbs", saved.carbs);
-    if (saved.fat != null)     setSlider("fat", saved.fat);
     updatePreview();
   }
 
