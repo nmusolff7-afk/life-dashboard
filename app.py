@@ -1269,9 +1269,10 @@ def api_momentum_today():
     planned_workout = body.get("planned_workout_today")
     if planned_workout is not None:
         planned_workout = bool(planned_workout)
+    client_tdee = int(body.get("tdee") or 0) or None
     try:
         breakdown = compute_momentum(uid(), today, calorie_goal_override=calorie_goal, hour=hour,
-                                     planned_workout_today=planned_workout)
+                                     planned_workout_today=planned_workout, client_tdee=client_tdee)
         return jsonify(breakdown)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1295,26 +1296,25 @@ def api_momentum_insight():
     except (TypeError, ValueError):
         hour = None
     try:
-        breakdown    = compute_momentum(uid(), today)
+        # Use client TDEE directly — single source of truth
+        tdee = int(body.get("tdee") or 0) or None
         profile      = get_profile_map(uid())
-        goal         = get_user_goal(uid())
         totals       = get_today_totals(uid(), today)
-        workout_burn = get_today_workout_burn(uid(), today)
-
-        # TDEE from RMR + workout burn (Garmin disconnected)
-        rmr = (goal.get("rmr") if goal else None) or profile.get("rmr_kcal") or 0
-        if rmr:
-            tdee = rmr + workout_burn
-        else:
-            tdee = int(body.get("tdee") or 0) or None
-
         cal_consumed = totals["total_calories"]
 
-        # Get the calorie target from the breakdown (computed using today's TDEE)
-        cal_target = breakdown.get("raw_deltas", {}).get("calories", {}).get("target")
+        # Compute calorie target from live TDEE (same logic as compute_momentum)
+        goal = get_user_goal(uid())
+        if tdee and tdee > 0:
+            goal_key = goal.get("goal_key", "lose_weight") if goal else "lose_weight"
+            cal_adjust_map = {"lose_weight": -0.20, "build_muscle": 0.10, "recomp": -0.10, "maintain": 0.0}
+            cal_target = round(tdee * (1 + cal_adjust_map.get(goal_key, -0.20)))
+        elif goal:
+            cal_target = goal["calorie_target"]
+        else:
+            cal_target = None
 
         result       = generate_momentum_insight(
-            breakdown, [], profile,
+            {}, [], profile,
             hour=hour, tdee=tdee, cal_consumed=cal_consumed, cal_target=cal_target,
         )
         return jsonify(result)

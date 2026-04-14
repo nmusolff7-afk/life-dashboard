@@ -180,7 +180,7 @@ def fetch_recent_emails(access_token: str, max_results: int = 20) -> list[dict]:
             msg_resp = requests.get(
                 f"{GMAIL_API_BASE}/messages/{msg_ref['id']}",
                 headers={"Authorization": f"Bearer {access_token}"},
-                params={"format": "metadata", "metadataHeaders": "From,Subject,Date"},
+                params={"format": "metadata", "metadataHeaders": ["From", "Subject", "Date"]},
                 timeout=10,
             )
             msg_resp.raise_for_status()

@@ -869,7 +869,8 @@ _SCORED_MAX = sum(MOMENTUM_WEIGHTS.values())  # 45
 
 
 def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | None = None,
-                     hour: int | None = None, planned_workout_today: bool | None = None) -> dict:
+                     hour: int | None = None, planned_workout_today: bool | None = None,
+                     client_tdee: int | None = None) -> dict:
     """
     Compute a 0–100 daily score using a penalty-based system.
     Starts at 100, subtracts penalties for deviations from targets.
@@ -914,30 +915,24 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
         workout_burn = int(workout_burn_row["total"])
 
     # ── resolve TDEE and targets ───────────────────────────
-    # TDEE must reflect TODAY's actual burn, not the stale onboarding value.
-    # Priority: Garmin total burn > RMR + active burn > stored goal value
-    if garmin and garmin.get("total_calories"):
-        tdee = garmin["total_calories"]
-    else:
+    # client_tdee is the LIVE projected burn from the frontend dashboard.
+    # It is the single source of truth — includes RMR + NEAT + exercise + TEF.
+    # Fall back to RMR + workout burn only if client didn't send it.
+    tdee = client_tdee or 0
+    if not tdee:
         rmr_val = (goal.get("rmr") if goal else None) or profile.get("rmr_kcal") or 0
-        active = (garmin.get("active_calories") or 0) if garmin else workout_burn
-        tdee = rmr_val + active if rmr_val else 0
+        tdee = rmr_val + workout_burn if rmr_val else 0
 
-    # Get the deficit/surplus adjustment from goals
+    # Compute calorie target from live TDEE
     goal_deficit = (goal.get("deficit_surplus") or 0) if goal else (profile.get("calorie_deficit_target") or 0)
-
-    # Compute calorie target from TODAY's TDEE, not the stale stored target.
-    # The stored goal["calorie_target"] was computed at onboarding with possibly
-    # no activity data (just RMR). Recompute using actual TDEE every time.
     if tdee > 0:
-        # Apply the same cal_adjust logic as goal_config.compute_targets
         goal_key = goal.get("goal_key", "lose_weight") if goal else "lose_weight"
         cal_adjust_map = {"lose_weight": -0.20, "build_muscle": 0.10, "recomp": -0.10, "maintain": 0.0}
         cal_adjust = cal_adjust_map.get(goal_key, -0.20)
         rmr_floor = (goal.get("rmr") if goal else None) or profile.get("rmr_kcal") or 0
         cal_goal = max(round(tdee * (1 + cal_adjust)), rmr_floor) if rmr_floor else round(tdee * (1 + cal_adjust))
     elif goal:
-        cal_goal = goal["calorie_target"]  # fallback to stored if no TDEE
+        cal_goal = goal["calorie_target"]
     else:
         cal_goal = calorie_goal_override
 
