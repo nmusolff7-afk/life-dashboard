@@ -7221,16 +7221,51 @@ function fmtDate(iso) {
         ev.stopPropagation();
         const sender = btn.dataset.sender;
         const label = btn.dataset.label;
-        btn.style.opacity = "0.4";
+        const row = btn.closest("div[style*='border-bottom']");
+
+        // Immediately remove the row from the stream
+        if (row) {
+          row.style.transition = "opacity 0.3s";
+          row.style.opacity = "0";
+          setTimeout(() => row.remove(), 300);
+        }
+
+        // Send label to backend
         fetch("/api/gmail/label", {
           method: "POST",
           headers: {"Content-Type": "application/json"},
           body: JSON.stringify({ sender, label }),
         }).then(r => r.json()).then(() => {
-          // Flash feedback
-          btn.textContent = label === "important" ? "\u2713" : "\u2713";
-          btn.style.color = label === "important" ? "var(--green)" : "var(--muted)";
-          setTimeout(() => loadGmail(), 500);
+          // Silently refresh in background — update counts and important section
+          // but preserve stream tab position
+          fetch("/api/gmail/status")
+            .then(r => r.json())
+            .then(data => {
+              if (!data.connected) return;
+              // Update important section content without switching tabs
+              const impEl = document.getElementById("gmail-view-important");
+              const important = data.important || [];
+              if (impEl) {
+                impEl.innerHTML = important.length
+                  ? renderEmailRows(important, false)
+                  : '<div style="color:var(--muted);font-size:0.82rem;padding:0.75rem 0;text-align:center">No important emails yet.</div>';
+              }
+              // Update tab counts
+              const tabs = document.querySelectorAll(".gmail-view-tab");
+              const stream = data.stream || [];
+              tabs.forEach(t => {
+                if (t.dataset.view === "important") t.textContent = "\u2605 Important" + (important.length ? " (" + important.length + ")" : "");
+                if (t.dataset.view === "stream") t.textContent = "Stream (" + stream.length + ")";
+              });
+              // Update stream content (rebind label buttons for new rows)
+              const streamEl = document.getElementById("gmail-view-stream");
+              if (streamEl) {
+                const hint = streamEl.querySelector("div[style*='0.68rem']");
+                const hintHTML = hint ? hint.outerHTML : '';
+                streamEl.innerHTML = hintHTML + renderEmailRows(stream, true);
+                _bindLabelButtons();
+              }
+            }).catch(e => console.warn("gmail refresh:", e));
         }).catch(e => console.warn("label error:", e));
       });
     });
