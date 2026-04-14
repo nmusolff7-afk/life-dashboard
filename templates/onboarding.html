@@ -1032,14 +1032,15 @@
       const dayFull = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
       const pills = dayFull.map((d,i) => {
         const sel = wbData.trainingDays.includes(d);
-        return `<div class="wb-day-pill${sel?' active':''}" data-day="${d}" style="flex:1;text-align:center;padding:0.5rem 0.25rem;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:600;background:${sel?'var(--accent2)':'var(--surface2)'};color:${sel?'#fff':'var(--muted)'};border:1px solid ${sel?'var(--accent2)':'var(--border)'};transition:all 0.15s">${dayNames[i]}</div>`;
+        return `<div class="wb-day-pill${sel?' active':''}" data-day="${d}" style="flex:1;text-align:center;padding:0.7rem 0.2rem;border-radius:10px;cursor:pointer;font-size:0.85rem;font-weight:700;background:${sel?'var(--accent2)':'var(--surface2)'};color:${sel?'#fff':'var(--muted)'};border:2px solid ${sel?'var(--accent2)':'var(--border)'};transition:all 0.15s">${dayNames[i]}</div>`;
       }).join('');
-      html += `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.5rem">Which days can you train?</div>
-        <div style="text-align:center;margin-bottom:0.5rem">
-          <span id="wb-day-count" style="font-size:1.8rem;font-weight:700;color:var(--accent2)">${wbData.trainingDays.length}</span>
-          <span id="wb-day-label" style="font-size:0.82rem;color:var(--muted);margin-left:0.35rem">${wbData.trainingDays.length === 1 ? 'Day' : 'Days'}</span>
+      html += `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.25rem">Which days can you train?</div>
+        <div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.65rem">Tap each day you're available. You can always change this later.</div>
+        <div id="wb-day-pills" style="display:flex;gap:0.35rem;margin-bottom:0.5rem">${pills}</div>
+        <div style="text-align:center;margin-bottom:0.75rem">
+          <span id="wb-day-count" style="font-size:1.4rem;font-weight:700;color:${wbData.trainingDays.length ? 'var(--accent2)' : 'var(--muted)'}">${wbData.trainingDays.length}</span>
+          <span id="wb-day-label" style="font-size:0.82rem;color:var(--muted);margin-left:0.25rem">${wbData.trainingDays.length === 1 ? 'day selected' : 'days selected'}</span>
         </div>
-        <div id="wb-day-pills" style="display:flex;gap:0.35rem;margin-bottom:0.75rem">${pills}</div>
         <div id="wb-day-warning" style="display:none;background:rgba(255,180,0,0.1);border:1px solid rgba(255,180,0,0.3);border-radius:8px;padding:0.65rem;font-size:0.8rem;color:var(--text);line-height:1.5;margin-bottom:0.75rem"></div>
         <div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.75rem;margin-top:0.75rem">${slLabels[g]}</div>
         <div id="wb-s2-sl-cards" style="display:flex;flex-direction:column;gap:0.5rem">
@@ -1180,7 +1181,13 @@
     if (nextBtn) nextBtn.addEventListener("click", () => {
       // Validate
       if (step === 1 && !wbData.experience) return;
-      if (step === 2 && !wbData.sessionLength) return;
+      if (step === 2 && (!wbData.trainingDays.length || !wbData.sessionLength)) {
+        if (!wbData.trainingDays.length) {
+          const warn = document.getElementById("wb-day-warning");
+          if (warn) { warn.textContent = "Tap the days you can train before continuing."; warn.style.display = ""; }
+        }
+        return;
+      }
       if (step === 3 && !wbData.equipment) return;
       if (step === 4 && (!wbData.sleepHours || !wbData.preferredTime.length)) return;
       if (step === 7) return; // cardio sub-steps handle their own navigation
@@ -1203,8 +1210,10 @@
           if (idx >= 0) { wbData.trainingDays.splice(idx, 1); p.classList.remove("active"); p.style.background = "var(--surface2)"; p.style.color = "var(--muted)"; p.style.borderColor = "var(--border)"; }
           else { wbData.trainingDays.push(day); p.classList.add("active"); p.style.background = "var(--accent2)"; p.style.color = "#fff"; p.style.borderColor = "var(--accent2)"; }
           const n = wbData.trainingDays.length;
-          document.getElementById("wb-day-count").textContent = n;
-          document.getElementById("wb-day-label").textContent = n === 1 ? "Day" : "Days";
+          const countEl = document.getElementById("wb-day-count");
+          countEl.textContent = n;
+          countEl.style.color = n ? "var(--accent2)" : "var(--muted)";
+          document.getElementById("wb-day-label").textContent = n === 1 ? "day selected" : "days selected";
           // Warnings
           const warn = document.getElementById("wb-day-warning");
           if (n === 0) { warn.textContent = "With no training days we can't build a workout plan \u2014 but we can put together a recovery and mobility routine."; warn.style.display = ""; }
