@@ -5700,12 +5700,7 @@ function fmtDate(iso) {
 
   function getExercisesFromHistory() {
     const names = new Set();
-    // From saved weekly plan
-    try {
-      const plan = JSON.parse(localStorage.getItem("weeklyPlan") || "null");
-      if (plan) Object.values(plan).forEach(exs => exs.forEach(e => names.add(e.name)));
-    } catch (e) {}
-    // From logged workout descriptions
+    // Only from logged workout descriptions — not from the plan
     if (histData) {
       Object.values(histData.workouts).forEach(ws => ws.forEach(w => {
         if (!w.description.startsWith("Strength workout")) return;
