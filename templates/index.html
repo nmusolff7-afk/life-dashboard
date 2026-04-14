@@ -7403,6 +7403,9 @@ function fmtDate(iso) {
       });
   }
 
+  // Auto-refresh every 60s (status only, no AI summary call)
+  setInterval(() => { if (gmailLoaded) loadGmail(); }, 60000);
+
   // Expose for Mind tab to call on activation
   window._gmailLoad   = () => { if (!gmailLoaded) loadGmail(); };
   window._gmailReload = loadGmail;

@@ -1079,15 +1079,14 @@ def api_gmail_status():
     connected = tokens is not None
     today = client_today()
     summary = get_gmail_summary(uid(), today) if connected else None
-    cached = get_gmail_cache(uid(), limit=30) if connected else []
-    unreplied = sum(1 for e in cached if not e["has_replied"] and not e["is_read"])
-    # Split by importance
+    cached = get_gmail_cache(uid(), limit=100) if connected else []
+    # Split by importance — score every cached email
     from db import get_importance_rules, score_email_importance
     rules = get_importance_rules(uid()) if connected else {}
     for e in cached:
         e["importance_score"] = score_email_importance(e.get("sender", ""), rules) if rules else 0
-    important = [e for e in cached if e.get("importance_score", 0) > 0]
-    stream = [e for e in cached if e.get("importance_score", 0) == 0]  # only unknown, not dismissed
+    important = [e for e in cached if e.get("importance_score", 0) > 0][:20]
+    stream = [e for e in cached if e.get("importance_score", 0) == 0][:20]  # unlabeled only, cap at 20
     return jsonify({
         "configured": gmail_sync.is_configured(),
         "connected":  connected,
@@ -1201,8 +1200,7 @@ def api_gmail_sync():
     for e in emails[:3]:
         _log.info("Gmail email: sender=%s subject=%s", e.get("sender","?")[:30], e.get("subject","?")[:50])
 
-    # Cache emails
-    clear_gmail_cache(uid())
+    # Cache emails (upsert — don't clear, let the pool grow)
     for e in emails:
         upsert_gmail_cache(
             uid(), e["thread_id"], e["message_id"],
@@ -1217,9 +1215,9 @@ def api_gmail_sync():
     for e in emails:
         e["importance_score"] = score_email_importance(e["sender"], rules)
 
-    # Split: important (positive), stream (unknown/zero only), dismissed (negative) hidden
-    important = [e for e in emails if e.get("importance_score", 0) > 0]
-    stream = [e for e in emails if e.get("importance_score", 0) == 0]
+    # Split: important (positive), stream (unlabeled only), dismissed (negative) hidden
+    important = [e for e in emails if e.get("importance_score", 0) > 0][:20]
+    stream = [e for e in emails if e.get("importance_score", 0) == 0][:20]
 
     # AI summary only for important emails
     summary_text = ""
