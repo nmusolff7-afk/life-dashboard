@@ -7574,7 +7574,9 @@ function fmtDate(iso) {
   function renderMomentum(data) {
     const el = document.getElementById("momentum-content");
     if (!data || data.error) {
-      el.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:0.25rem 0">Complete your profile to enable Daily Score tracking.</div>';
+      const msg = data && data.error ? data.error : "Could not load score";
+      console.error("Momentum error:", msg);
+      el.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:0.25rem 0">Score unavailable — ' + msg.substring(0, 100) + '</div>';
       return;
     }
     const score      = data.momentum_score;
@@ -7708,11 +7710,18 @@ function fmtDate(iso) {
         const wp = JSON.parse(localStorage.getItem("weeklyPlan") || "null");
         if (wp) planned = (wp[todayDay] || []).length > 0;
       } catch(e) {}
+      // Fallback target: compute from profile if Live Preview hasn't run yet
+      let targetIntake = window._LIVE_TARGET_INTAKE || 0;
+      let tdee = window._LIVE_TDEE || CURRENT_TDEE || 0;
+      if (!targetIntake && tdee > 0) {
+        const p = getProfileData();
+        targetIntake = Math.round(tdee + (p.deficit ?? 0));
+      }
       return {
         hour:                  new Date().getHours(),
-        tdee:                  window._LIVE_TDEE || CURRENT_TDEE || 0,
+        tdee:                  tdee,
         cal_consumed:          CAL_CONSUMED  || 0,
-        target_intake:         window._LIVE_TARGET_INTAKE || 0,
+        target_intake:         targetIntake,
         planned_workout_today: planned,
       };
     } catch(e) { return {}; }
