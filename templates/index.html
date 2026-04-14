@@ -4902,16 +4902,17 @@ try {
       localStorage.setItem("profileData", JSON.stringify(profile));
       applyProfileToMeals(profile);
       flashGreen();
-      // Send goal update to backend (fire and forget)
-      const g = profile.goal || "lose_weight";
+      // Send exact slider values to backend (fire and forget)
       fetch("/api/goal/update", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({
-          goal: g, curWeight: profile.curWeight || 185, tgtWeight: profile.tgtWeight || 170,
-          heightFt: profile.heightFt || 5, heightIn: profile.heightIn || 10,
-          age: profile.age || 25, sex: profile.sex || "male", bfPct: profile.bfPct || 0,
-          tdee: profile.rmr || 0, deficit: profile.deficit || 0,
+          goal: profile.goal || "lose_weight",
+          rmr: profile.rmr || 0,
+          deficit: profile.deficit ?? 0,
+          protein: profile.protein || 150,
+          carbs: profile.carbs || 200,
+          fat: profile.fat || 65,
         }),
       }).catch(e => console.warn("goal update:", e));
     }, 600);  // debounce

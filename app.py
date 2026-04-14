@@ -1333,44 +1333,41 @@ def api_momentum_insight():
 @app.route("/api/goal/update", methods=["POST"])
 @login_required
 def api_goal_update():
-    """Recompute and persist goal targets from body stats + goal key."""
+    """Persist goal targets — uses the user's exact slider values."""
     data = request.get_json() or {}
     goal_key = data.get("goal", "lose_weight")
     try:
-        targets = compute_targets(
-            goal_key=goal_key,
-            weight_lbs=float(data.get("curWeight", 185)),
-            target_weight_lbs=float(data.get("tgtWeight", 170)),
-            height_ft=int(data.get("heightFt", 5)),
-            height_in=int(data.get("heightIn", 10)),
-            age=int(data.get("age", 28)),
-            sex=data.get("sex", "male"),
-            bf_pct=float(data.get("bfPct", 0)),
-            tdee=int(data.get("tdee", 0)),
-        )
+        rmr = int(data.get("rmr") or data.get("tdee") or 0)
+        deficit = int(data.get("deficit", 0))
+        protein = int(data.get("protein", 150))
+        carbs = int(data.get("carbs", 200))
+        fat = int(data.get("fat", 65))
+        # Calorie target = TDEE + deficit (deficit is negative for cut)
+        tdee_val = rmr  # RMR is the closest we have to TDEE from client
+        cal_target = max(tdee_val + deficit, rmr) if tdee_val > 0 else 2000
+
         upsert_user_goal(
             user_id=uid(),
-            goal_key=targets["goal_key"],
-            calorie_target=targets["calorie_target"],
-            protein_g=targets["protein_g"],
-            fat_g=targets["fat_g"],
-            carbs_g=targets["carbs_g"],
-            deficit_surplus=targets["deficit_surplus"],
-            rmr=targets["rmr"],
-            rmr_method=targets["rmr_method"],
-            tdee_used=targets["tdee_used"],
-            config_json=json.dumps(targets["rationale"]),
-            sources_json=json.dumps(targets["sources"]),
+            goal_key=goal_key,
+            calorie_target=cal_target,
+            protein_g=protein,
+            fat_g=fat,
+            carbs_g=carbs,
+            deficit_surplus=deficit,
+            rmr=rmr,
+            rmr_method="client",
+            tdee_used=tdee_val,
+            config_json="{}",
+            sources_json="[]",
         )
         return jsonify({"ok": True, "targets": {
-            "goal_key": targets["goal_key"],
-            "calorie_target": targets["calorie_target"],
-            "protein_g": targets["protein_g"],
-            "fat_g": targets["fat_g"],
-            "carbs_g": targets["carbs_g"],
-            "deficit_surplus": targets["deficit_surplus"],
-            "rmr": targets["rmr"],
-            "sources": targets["sources"],
+            "goal_key": goal_key,
+            "calorie_target": cal_target,
+            "protein_g": protein,
+            "fat_g": fat,
+            "carbs_g": carbs,
+            "deficit_surplus": deficit,
+            "rmr": rmr,
         }})
     except Exception as e:
         _log.exception("goal/update failed")
