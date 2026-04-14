@@ -7165,19 +7165,53 @@ function fmtDate(iso) {
     headerActs.innerHTML = "";
   }
 
-  function renderEmailRows(emails) {
-    if (!emails || !emails.length) return '<div style="color:var(--muted);font-size:0.84rem">No recent emails.</div>';
-    return emails.slice(0, 8).map(e => {
-      let badge = "";
-      if (!e.is_read) badge = '<span class="gmail-email-badge gmail-badge-unread">new</span>';
-      else if (!e.has_replied) badge = '<span class="gmail-email-badge gmail-badge-unreplied">unreplied</span>';
-      else badge = '<span class="gmail-email-badge gmail-badge-replied">replied</span>';
-      return `<div class="gmail-email-row">
-        <span class="gmail-email-sender" title="${e.sender}">${e.sender}</span>
-        <span class="gmail-email-subject" title="${e.subject}">${e.subject}</span>
-        ${badge}
-      </div>`;
-    }).join("");
+  function _esc(s) { return (s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  function renderEmailRow(e, showLabels) {
+    let badge = "";
+    if (!e.is_read) badge = '<span class="gmail-email-badge gmail-badge-unread">new</span>';
+    else if (!e.has_replied) badge = '<span class="gmail-email-badge gmail-badge-unreplied">unreplied</span>';
+    const sender = _esc(e.sender);
+    const subject = _esc(e.subject);
+    const labelBtns = showLabels ? `<div style="display:flex;gap:0.2rem;margin-top:0.2rem;flex-shrink:0">
+      <button class="gmail-imp-btn" data-sender="${sender}" data-label="important" title="Important" style="background:none;border:none;cursor:pointer;font-size:0.7rem;padding:0.15rem 0.3rem;border-radius:4px;color:var(--green)">\u2605</button>
+      <button class="gmail-imp-btn" data-sender="${sender}" data-label="unimportant" title="Not important" style="background:none;border:none;cursor:pointer;font-size:0.7rem;padding:0.15rem 0.3rem;border-radius:4px;color:var(--muted)">\u2716</button>
+    </div>` : '';
+    return `<div class="gmail-email-row" style="display:flex;align-items:flex-start;gap:0.35rem">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;gap:0.35rem;align-items:center">
+          <span class="gmail-email-sender" title="${sender}">${sender}</span>${badge}
+        </div>
+        <span class="gmail-email-subject" title="${subject}" style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${subject}</span>
+      </div>
+      ${labelBtns}
+    </div>`;
+  }
+
+  function renderEmailRows(emails, showLabels) {
+    if (!emails || !emails.length) return '<div style="color:var(--muted);font-size:0.84rem">No emails.</div>';
+    return emails.slice(0, 15).map(e => renderEmailRow(e, showLabels)).join("");
+  }
+
+  function _bindLabelButtons() {
+    document.querySelectorAll(".gmail-imp-btn").forEach(btn => {
+      btn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const sender = btn.dataset.sender;
+        const label = btn.dataset.label;
+        btn.style.opacity = "0.4";
+        fetch("/api/gmail/label", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ sender, label }),
+        }).then(r => r.json()).then(() => {
+          // Flash feedback
+          btn.textContent = label === "important" ? "\u2713" : "\u2713";
+          btn.style.color = label === "important" ? "var(--green)" : "var(--muted)";
+          setTimeout(() => loadGmail(), 500);
+        }).catch(e => console.warn("label error:", e));
+      });
+    });
   }
 
   function renderConnected(data) {
@@ -7216,18 +7250,33 @@ function fmtDate(iso) {
       </div>`;
     }
 
+    const important = data.important || [];
+    const stream    = data.stream || emails;
+
+    let importantSection = '';
+    if (important.length) {
+      importantSection = `<div style="margin-bottom:0.75rem">
+        <div style="font-size:0.72rem;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.04em;margin-bottom:0.35rem">\u2605 Important (${important.length})</div>
+        ${renderEmailRows(important, false)}
+      </div>`;
+    }
+
     content.innerHTML = `
       ${banner}
+      ${importantSection}
       ${summaryHtml}
-      <details style="margin-top:0.75rem">
-        <summary style="font-size:0.78rem;color:var(--muted);cursor:pointer;user-select:none">Recent emails (${emails.length})</summary>
-        <div style="margin-top:0.5rem">${renderEmailRows(emails)}</div>
-      </details>
+      <div style="margin-top:0.75rem">
+        <div style="font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:0.35rem">All Mail (${stream.length})</div>
+        <div style="font-size:0.68rem;color:var(--muted);margin-bottom:0.35rem">Tap \u2605 to mark important, \u2716 to dismiss</div>
+        ${renderEmailRows(stream, true)}
+      </div>
       <div style="margin-top:0.75rem;display:flex;justify-content:flex-end">
         <button class="btn btn-ghost" id="gmail-refresh-btn" style="font-size:0.8rem;padding:0.35rem 0.8rem">
           <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;vertical-align:-1px;margin-right:0.3rem"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Refresh
         </button>
       </div>`;
+
+    _bindLabelButtons();
 
     document.getElementById("gmail-refresh-btn").addEventListener("click", () => {
       const btn = document.getElementById("gmail-refresh-btn");

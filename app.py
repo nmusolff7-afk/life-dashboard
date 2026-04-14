@@ -1078,14 +1078,23 @@ def api_gmail_status():
     connected = tokens is not None
     today = client_today()
     summary = get_gmail_summary(uid(), today) if connected else None
-    cached = get_gmail_cache(uid(), limit=15) if connected else []
+    cached = get_gmail_cache(uid(), limit=30) if connected else []
     unreplied = sum(1 for e in cached if not e["has_replied"] and not e["is_read"])
+    # Split by importance
+    from db import get_importance_rules, score_email_importance
+    rules = get_importance_rules(uid()) if connected else {}
+    for e in cached:
+        e["importance_score"] = score_email_importance(e.get("sender", ""), rules) if rules else 0
+    important = [e for e in cached if e.get("importance_score", 0) > 0]
+    stream = [e for e in cached if e.get("importance_score", 0) <= 0]
     return jsonify({
         "configured": gmail_sync.is_configured(),
         "connected":  connected,
         "email":      tokens.get("email_address", "") if tokens else "",
         "summary":    summary,
         "emails":     cached,
+        "important":  important,
+        "stream":     stream,
         "unreplied":  unreplied,
     })
 
@@ -1197,17 +1206,45 @@ def api_gmail_sync():
             e["received_at"], e["has_replied"], e["is_read"],
         )
 
+    # Score importance for all cached emails
+    from db import update_email_importance_scores, get_importance_rules, score_email_importance
+    update_email_importance_scores(uid())
+    rules = get_importance_rules(uid())
+    for e in emails:
+        e["importance_score"] = score_email_importance(e["sender"], rules)
+
     # Generate AI summary
     today = client_today()
     summary_text = gmail_sync.summarize_emails(emails)
     unreplied = sum(1 for e in emails if not e["has_replied"] and not e["is_read"])
     save_gmail_summary(uid(), today, summary_text, len(emails), unreplied)
 
+    # Split into important vs stream
+    important = [e for e in emails if e.get("importance_score", 0) > 0]
+    stream = [e for e in emails if e.get("importance_score", 0) <= 0]
+
     return jsonify({
         "emails":     emails,
+        "important":  important,
+        "stream":     stream,
         "summary":    {"summary_text": summary_text, "email_count": len(emails), "unreplied": unreplied},
         "unreplied":  unreplied,
     })
+
+
+@app.route("/api/gmail/label", methods=["POST"])
+@login_required
+def api_gmail_label():
+    """Mark an email sender as important or unimportant."""
+    from db import label_email_importance, update_email_importance_scores
+    data = request.get_json() or {}
+    sender = data.get("sender", "").strip()
+    label = data.get("label", "")  # "important" or "unimportant"
+    if not sender or label not in ("important", "unimportant"):
+        return jsonify({"error": "sender and label (important/unimportant) required"}), 400
+    label_email_importance(uid(), sender, label)
+    update_email_importance_scores(uid())
+    return jsonify({"ok": True})
 
 
 # ── Momentum ─────────────────────────────────────────────

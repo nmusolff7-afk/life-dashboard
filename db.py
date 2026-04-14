@@ -173,6 +173,27 @@ def init_db():
                 PRIMARY KEY (user_id, summary_date)
             )
         """)
+        # Gmail importance labels — user-trained sender/topic importance
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS gmail_importance (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER REFERENCES users(id),
+                sender      TEXT NOT NULL,
+                sender_domain TEXT DEFAULT '',
+                label       TEXT NOT NULL CHECK(label IN ('important', 'unimportant')),
+                count       INTEGER DEFAULT 1,
+                created_at  TIMESTAMP NOT NULL,
+                updated_at  TIMESTAMP NOT NULL,
+                UNIQUE(user_id, sender, label)
+            )
+        """)
+        # Migrate: add importance_score to gmail_cache
+        try:
+            conn.execute("ALTER TABLE gmail_cache ADD COLUMN importance_score REAL DEFAULT 0")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
         # User goals — stores the active goal and computed targets
         conn.execute("""
             CREATE TABLE IF NOT EXISTS user_goals (
@@ -298,7 +319,7 @@ def delete_account(user_id):
         "meal_logs", "workout_logs", "daily_activity", "garmin_daily",
         "sleep_logs", "mind_checkins", "mind_tasks", "daily_momentum",
         "momentum_summaries", "user_goals", "user_onboarding",
-        "gmail_tokens", "gmail_cache", "gmail_summaries",
+        "gmail_tokens", "gmail_cache", "gmail_summaries", "gmail_importance",
     ]
     with get_conn() as conn:
         for table in tables:
@@ -1339,6 +1360,67 @@ def get_gmail_summary(user_id: int, summary_date: str):
             (user_id, summary_date)
         ).fetchone()
     return dict(row) if row else None
+
+
+# ── Gmail importance ──────────────────────────────────
+
+def label_email_importance(user_id: int, sender: str, label: str):
+    """Record that a user marked a sender as important or unimportant."""
+    domain = sender.split("@")[-1].lower() if "@" in sender else ""
+    sender_clean = sender.strip().lower()
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO gmail_importance (user_id, sender, sender_domain, label, count, created_at, updated_at)
+            VALUES (?, ?, ?, ?, 1, ?, ?)
+            ON CONFLICT(user_id, sender, label) DO UPDATE SET
+                count = count + 1, updated_at = excluded.updated_at
+        """, (user_id, sender_clean, domain, label, now, now))
+        conn.commit()
+
+
+def get_importance_rules(user_id: int) -> dict:
+    """Return importance rules as {sender: score} where positive = important, negative = unimportant."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT sender, sender_domain, label, count FROM gmail_importance WHERE user_id = ?",
+            (user_id,)
+        ).fetchall()
+    rules = {}
+    for r in rows:
+        sender = r["sender"]
+        score = r["count"] if r["label"] == "important" else -r["count"]
+        rules[sender] = rules.get(sender, 0) + score
+        # Also track domain-level scores
+        domain = r["sender_domain"]
+        if domain:
+            dk = "@" + domain
+            rules[dk] = rules.get(dk, 0) + (score * 0.5)  # domain is weaker signal
+    return rules
+
+
+def score_email_importance(sender: str, rules: dict) -> float:
+    """Score an email's importance based on learned rules. 0 = unknown, >0 = important, <0 = unimportant."""
+    sender_clean = sender.strip().lower()
+    score = rules.get(sender_clean, 0)
+    # Check domain
+    domain = sender_clean.split("@")[-1] if "@" in sender_clean else ""
+    if domain:
+        score += rules.get("@" + domain, 0)
+    return score
+
+
+def update_email_importance_scores(user_id: int):
+    """Recalculate importance_score for all cached emails based on current rules."""
+    rules = get_importance_rules(user_id)
+    if not rules:
+        return
+    with get_conn() as conn:
+        rows = conn.execute("SELECT id, sender FROM gmail_cache WHERE user_id = ?", (user_id,)).fetchall()
+        for r in rows:
+            score = score_email_importance(r["sender"], rules)
+            conn.execute("UPDATE gmail_cache SET importance_score = ? WHERE id = ?", (score, r["id"]))
+        conn.commit()
 
 
 # ── User goals ─────────────────────────────────────────

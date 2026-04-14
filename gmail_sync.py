@@ -164,7 +164,7 @@ def fetch_recent_emails(access_token: str, max_results: int = 20) -> list[dict]:
         params={
             "maxResults": max_results,
             "labelIds":   "INBOX",
-            "q":          "newer_than:2d",
+            "q":          "category:primary newer_than:7d",
         },
         timeout=15,
     )
