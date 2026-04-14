@@ -7983,12 +7983,10 @@ if ("serviceWorker" in navigator) {
     const calories = CAL_CONSUMED;
     const actualDeficit = tdee - calories;  // raw deficit (for equation)
 
-    // Calorie target = TDEE adjusted for goal
-    // profile.deficit stores the raw deficit/surplus value
-    // Use goal adjustment to get the actual target
-    const goalKey = profile.goal || "lose_weight";
-    const calAdjust = {lose_weight: -0.20, build_muscle: 0.10, recomp: -0.10, maintain: 0.0}[goalKey] || -0.20;
-    const calTarget = tdee > 0 ? Math.round(tdee * (1 + calAdjust)) : 0;
+    // Calorie target = TDEE minus the user's actual goal deficit
+    // profile.deficit is the user's set deficit value (e.g. 500)
+    const goalDeficit = Math.abs(profile.deficit || 0);
+    const calTarget = tdee > 0 ? Math.round(tdee - goalDeficit) : 0;
     const remaining = calTarget - calories;  // positive = can still eat, negative = over target
 
     // ── RING: distance from current consumption to target consumption ──
