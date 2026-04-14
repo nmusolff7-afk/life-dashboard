@@ -1882,14 +1882,15 @@
         setTimeout(() => {
           document.getElementById("quiz-q1").style.display = "none";
           document.getElementById("quiz-q2").style.display = "";
-        }, 200);
+        }, 300);
       } else if (q === "2") {
         setTimeout(() => {
           document.getElementById("quiz-q2").style.display = "none";
           document.getElementById("quiz-q3").style.display = "";
-        }, 200);
+        }, 300);
       } else if (q === "3") {
-        setTimeout(() => _resolveQuiz(), 200);
+        // Wait for the selection to register visually before showing result
+        setTimeout(() => _resolveQuiz(), 600);
       }
     });
   });
