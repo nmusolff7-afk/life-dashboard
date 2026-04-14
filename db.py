@@ -857,11 +857,11 @@ import logging as _logging
 _momentum_logger = _logging.getLogger(__name__)
 
 MOMENTUM_WEIGHTS = {
-    "nutrition": 15,
-    "macros":    10,
-    "activity":  10,
+    "nutrition": 40,
+    "macros":    25,
+    "activity":  25,
     "checkin":    0,
-    "tasks":      5,
+    "tasks":     10,
 }
 # Remaining 55 pts are reserved for future metrics (sleep, etc.)
 # For now they are "free" — no penalty assessed, score starts at 100.
@@ -997,7 +997,7 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
     if macro_components:
         # Normalize weights to sum to 1.0 in case some macros are missing
         total_weight = sum(m["weight"] for m in macro_components)
-        weighted_dev = sum(min(1.0, m["dev"] / 0.50) * (m["weight"] / total_weight) for m in macro_components)
+        weighted_dev = sum(min(1.0, m["dev"] / 0.75) * (m["weight"] / total_weight) for m in macro_components)
         macro_pen = weighted_dev * MOMENTUM_WEIGHTS["macros"]
         raw_deltas["macros"] = {"components": macro_components}
     elif cal_today == 0:
