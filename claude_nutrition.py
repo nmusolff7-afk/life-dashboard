@@ -514,24 +514,35 @@ RESPONSE — valid JSON only, no markdown, no commentary:
         {{"name": "Lateral Raise", "sets": 3, "reps": "12-15", "rest": "60s", "notes": null}},
         {{"name": "Tricep Pushdown", "sets": 3, "reps": "12-15", "rest": "60s", "notes": null}}
       ],
-      "cardio": {{"type": "LISS Walk", "duration": "20 min", "intensity": "Zone 2", "committed": false}}
+      "cardio": {{"type": "Easy Run", "committed": false}}
     }},
     "Tuesday": {{
       "label": "Rest Day",
       "exercises": [],
-      "cardio": {{"type": "Easy Run", "duration": "30 min", "intensity": "Zone 2", "committed": true}}
+      "cardio": {{"type": "Tempo Run", "committed": true}}
     }},
     "Wednesday": null
   }},
   "planNotes": ["Deload week 4", "Upper body prioritized due to running volume"]
 }}
 
+CARDIO SESSION TYPES — use ONLY these labels for the "type" field:
+  Running: "Easy Run", "Tempo Run", "Interval Run", "Long Run", "Recovery Run", "Hill Repeats", "Fartlek"
+  Cycling: "Easy Ride", "Tempo Ride", "Interval Ride", "Long Ride", "Recovery Ride"
+  Rowing: "Easy Row", "Interval Row", "Long Row"
+  Other: "HIIT Circuit", "LISS Walk", "Incline Walk", "Swimming", "Jump Rope", "Stairmaster"
+Pick the type based on the user's experience level:
+  beginner: mostly Easy/Recovery sessions, one Long per week max
+  intermediate: mix of Easy, Tempo, and one Interval per week
+  advanced/elite: full variety including Tempo, Interval, Fartlek, Hill Repeats
+Do NOT include duration, distance, or pace. Just the session type.
+
 FORMAT RULES:
 - Include ALL 7 days (Monday through Sunday).
 - Training days: label + exercises array (5-8 exercises!) + optional cardio object.
 - Rest days with cardio: label "Rest Day", empty exercises array, cardio object.
 - Pure rest days: null.
-- cardio object: only include if there IS cardio that day. Omit the key if no cardio.
+- cardio object: {{"type": "<session type>", "committed": <bool>}}. No duration/distance/intensity fields.
 - If cardio.committedCardioType is set, mark those sessions committed: true.
 - Exercise names: clean title-case, no reps in name.
 """

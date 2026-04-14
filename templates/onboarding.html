@@ -948,12 +948,19 @@
     const el = document.getElementById("wb-quiz-content");
     const g = _wbGoal();
 
-    if (wbStep >= 1 && wbStep <= 7) {
+    // Step order: 1-5 quiz, 6 exercise picker, 7 cardio, 8 constraints, 9 summary
+    if (wbStep >= 1 && wbStep <= 5) {
       el.innerHTML = _wbStepHTML(wbStep, g);
       _wbBindStep(wbStep, g);
-    } else if (wbStep === 8) {
+    } else if (wbStep === 6) {
       el.innerHTML = _wbExercisePickerHTML();
       _wbBindExercisePicker();
+    } else if (wbStep === 7) {
+      el.innerHTML = _wbStepHTML(7, g); // cardio (was step 6 content)
+      _wbBindStep(7, g);
+    } else if (wbStep === 8) {
+      el.innerHTML = _wbStepHTML(8, g); // constraints (was step 7 content)
+      _wbBindStep(8, g);
     } else if (wbStep === 9) {
       el.innerHTML = _wbSummaryHTML(g);
       _wbBindSummary();
@@ -979,12 +986,13 @@
     wbStep = 0;
   }
 
+  const WB_TOTAL_STEPS = 8;
   function _wbProgress() {
-    if (wbStep < 1 || wbStep > 7) return '';
-    const pct = Math.round((wbStep / 7) * 100);
+    if (wbStep < 1 || wbStep > WB_TOTAL_STEPS) return '';
+    const pct = Math.round((wbStep / WB_TOTAL_STEPS) * 100);
     return `<div style="margin-bottom:1rem">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem">
-        <div style="font-size:0.72rem;color:var(--muted)">Step ${wbStep} of 7</div>
+        <div style="font-size:0.72rem;color:var(--muted)">Step ${wbStep} of ${WB_TOTAL_STEPS}</div>
         <button onclick="_wbCloseQuiz()" style="background:none;border:none;color:var(--muted);font-size:0.78rem;cursor:pointer">\u2715 Close</button>
       </div>
       <div style="height:3px;background:var(--surface2);border-radius:2px;overflow:hidden">
@@ -1079,7 +1087,7 @@
         </div>
         <button id="wb-s5-skip" style="background:none;border:none;color:var(--muted);font-size:0.82rem;cursor:pointer;margin-top:0.65rem;text-decoration:underline;display:block;width:100%;text-align:center">No preference \u2014 optimize for my goal</button>`;
       html += _wbNav(true);
-    } else if (step === 6) {
+    } else if (step === 7) {
       if (wbCardioSub === 0) {
         // Fork: own plan or build one
         html += `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.35rem">What about cardio?</div>
@@ -1146,7 +1154,7 @@
         html += `</div>`;
         html += _wbNav(true);
       }
-    } else if (step === 7) {
+    } else if (step === 8) {
       html += `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.25rem">Anything we should know?</div>
         <div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.4">This is optional \u2014 but anything you share helps us keep your plan safe and effective. The more specific, the better.</div>
         <textarea id="wb-constraints" maxlength="500" placeholder="Tell us anything relevant \u2014 injuries, pain, surgeries, mobility restrictions, or anything a trainer should know before programming for you." style="width:100%;min-height:100px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.65rem;color:var(--text);font-size:0.88rem;resize:vertical;font-family:inherit">${wbData.physicalConstraints || ''}</textarea>
@@ -1173,8 +1181,8 @@
       if (step === 2 && !wbData.sessionLength) return;
       if (step === 3 && !wbData.equipment) return;
       if (step === 4 && (!wbData.sleepHours || !wbData.preferredTime.length)) return;
-      if (step === 6) return; // step 6 sub-steps handle their own navigation
-      if (step === 7) {
+      if (step === 7) return; // cardio sub-steps handle their own navigation
+      if (step === 8) {
         const ta = document.getElementById("wb-constraints");
         wbData.physicalConstraints = ta && ta.value.trim() ? ta.value.trim() : null;
       }
@@ -1267,7 +1275,7 @@
       }, 0);
       document.getElementById("wb-s5-skip").addEventListener("click", () => { wbData.trainingStyle = []; wbStep++; wbRender(); });
     }
-    if (step === 6) {
+    if (step === 7) {
       if (wbCardioSub === 0) {
         // Fork selection
         setTimeout(() => {
@@ -1353,7 +1361,7 @@
         }
       }
     }
-    if (step === 7) {
+    if (step === 8) {
       const ta = document.getElementById("wb-constraints");
       const counter = document.getElementById("wb-char-count");
       if (ta && counter) ta.addEventListener("input", () => { counter.textContent = ta.value.length; });
@@ -1362,7 +1370,8 @@
 
   // ── Exercise Picker ──
   function _wbExercisePickerHTML() {
-    let html = `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.25rem">Pick your favorites</div>
+    let html = _wbProgress();
+    html += `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.25rem">Pick your favorites</div>
       <div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.15rem;line-height:1.4">These will always be in your plan. Select as many as you want.</div>
       <div style="font-size:0.75rem;color:var(--muted);margin-bottom:0.65rem">Every exercise you select is guaranteed to appear in your plan.</div>
       <div style="font-size:0.82rem;color:var(--accent2);font-weight:600;margin-bottom:0.75rem"><span id="wb-ex-count">${wbData.selectedExercises.length}</span> exercises selected</div>`;
@@ -1393,8 +1402,8 @@
         document.getElementById("wb-ex-count").textContent = wbData.selectedExercises.length;
       });
     });
-    document.querySelector(".wb-back-btn").addEventListener("click", () => { wbStep = 7; wbRender(); });
-    document.querySelector(".wb-next-btn").addEventListener("click", () => { wbStep = 9; wbRender(); });
+    document.querySelector(".wb-back-btn").addEventListener("click", () => { wbStep = 5; wbRender(); });
+    document.querySelector(".wb-next-btn").addEventListener("click", () => { wbStep = 7; wbRender(); });
   }
 
   // ── Summary Screen ──
@@ -1446,12 +1455,12 @@
     }
 
     if (wbData.selectedExercises.length) {
-      html += secHeader("Exercises Selected", 8);
+      html += secHeader("Exercises Selected", 6);
       html += `<div style="display:flex;flex-wrap:wrap;gap:0.25rem;margin-bottom:0.35rem">${wbData.selectedExercises.map(e => `<span style="padding:0.2rem 0.5rem;border-radius:99px;font-size:0.72rem;background:var(--surface2);border:1px solid var(--border);color:var(--text)">${e}</span>`).join('')}</div>`;
     }
 
     if (wbData.physicalConstraints) {
-      html += secHeader("Physical Notes", 7);
+      html += secHeader("Physical Notes", 8);
       html += `<div style="font-size:0.8rem;color:var(--text);line-height:1.5">${wbData.physicalConstraints}</div>`;
     }
 
@@ -1697,9 +1706,8 @@
         if (exercises.length) html += `<div style="height:1px;background:var(--border);margin:0.4rem 0"></div>`;
         html += `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:0.2rem 0">
           <span style="font-size:0.82rem;color:var(--text)">${cardio.type || 'Cardio'}</span>
-          <span style="font-size:0.75rem;color:var(--muted)">${cardio.duration || ''}${cardio.intensity ? ' \u00b7 ' + cardio.intensity : ''}</span>
+          ${cardio.committed ? '<span style="font-size:0.7rem;color:var(--accent2)">yours</span>' : ''}
         </div>`;
-        if (cardio.committed) html += `<div style="font-size:0.7rem;color:var(--accent2)">Non-negotiable</div>`;
       }
 
       if (!exercises.length && !cardio) {
