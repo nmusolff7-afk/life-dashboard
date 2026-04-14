@@ -760,6 +760,7 @@ def generate_momentum_insight(
     workout_hist: dict | None = None,
     tdee: int | None = None,
     cal_consumed: int = 0,
+    cal_target: int | None = None,
 ) -> dict:
     """
     Generate a 1-2 sentence pattern insight using Claude Haiku.
@@ -802,11 +803,8 @@ def generate_momentum_insight(
     n = comps.get("nutrition", {})
 
     # ── calorie numbers ──
-    # Use values passed directly from the client (CURRENT_TDEE and CAL_CONSUMED),
-    # which already incorporate the full TDEE formula (RMR + NEAT + exercise + TEF).
-    deficit    = profile.get("calorie_deficit_target") or 0
-    adj_target = (tdee - deficit) if tdee else None
     cal_logged = cal_consumed
+    adj_target = cal_target or ((tdee - (profile.get("calorie_deficit_target") or 0)) if tdee else None)
     remaining  = (adj_target - cal_logged) if adj_target is not None else "unknown"
     hours_left = max(0, 21 - hour) if hour is not None else "unknown"
     active_burned = (garmin.get("active_calories") or 0) if garmin else \
@@ -855,12 +853,12 @@ def generate_momentum_insight(
 
 TODAY
 TDEE (total daily burn): {tdee or 'unknown'} kcal
-Calories consumed: {cal_logged} kcal
-Balance (consumed − burned): {balance_label}
-Goal deficit target: {deficit} kcal
+Calorie target: {adj_target or 'unknown'} kcal
+Calories consumed so far: {cal_logged} kcal
+Remaining: {remaining} kcal
 Hours left in eating window: ~{hours_left}h
 
-Give a brief, practical observation about today's calorie balance relative to the goal. Anchor to the current time ({time_label}). Cite specific numbers. One to two sentences max."""
+Give a brief, practical observation about where they stand on calories right now. Cite the specific numbers. One to two sentences max."""
 
     response = _client().messages.create(
         model="claude-haiku-4-5-20251001",

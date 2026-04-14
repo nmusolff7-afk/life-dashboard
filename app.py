@@ -1313,9 +1313,12 @@ def api_momentum_insight():
 
         cal_consumed = totals["total_calories"]
 
+        # Get the calorie target from the breakdown (computed using today's TDEE)
+        cal_target = breakdown.get("raw_deltas", {}).get("calories", {}).get("target")
+
         result       = generate_momentum_insight(
             breakdown, [], profile,
-            hour=hour, tdee=tdee, cal_consumed=cal_consumed,
+            hour=hour, tdee=tdee, cal_consumed=cal_consumed, cal_target=cal_target,
         )
         return jsonify(result)
     except Exception as e:
