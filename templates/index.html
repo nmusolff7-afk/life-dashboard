@@ -7167,15 +7167,15 @@ function fmtDate(iso) {
     if (!e.is_read) badge = ' <span class="gmail-email-badge gmail-badge-unread">new</span>';
     else if (!e.has_replied) badge = ' <span class="gmail-email-badge gmail-badge-unreplied">unreplied</span>';
     const sender = _esc(e.sender || '');
-    const subject = _esc(e.subject || '(no subject)');
+    const subject = _esc(e.subject || e.snippet || '(no subject)');
     const labelBtns = showLabels ? `<div style="display:flex;gap:0.15rem;flex-shrink:0;align-self:center">
       <button class="gmail-imp-btn" data-sender="${sender}" data-label="important" title="Important" style="background:none;border:none;cursor:pointer;font-size:0.85rem;padding:0.1rem 0.25rem;color:var(--green)">\u2605</button>
       <button class="gmail-imp-btn" data-sender="${sender}" data-label="unimportant" title="Not important" style="background:none;border:none;cursor:pointer;font-size:0.85rem;padding:0.1rem 0.25rem;color:var(--muted)">\u2716</button>
     </div>` : '';
-    return `<div style="display:flex;align-items:flex-start;gap:0.5rem;padding:0.4rem 0;border-bottom:1px solid var(--surface2)">
+    return `<div style="display:flex;align-items:flex-start;gap:0.5rem;padding:0.45rem 0;border-bottom:1px solid var(--surface2)">
       <div style="flex:1;min-width:0;overflow:hidden">
         <div style="font-size:0.82rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sender}${badge}</div>
-        <div style="font-size:0.78rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${subject}</div>
+        <div style="font-size:0.82rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0.7">${subject}</div>
       </div>
       ${labelBtns}
     </div>`;

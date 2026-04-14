@@ -888,7 +888,7 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
     # ── gather inputs ────────────────────────────────────
     totals  = get_today_totals(user_id, date_str)
     profile = get_profile_map(user_id)
-    garmin  = get_garmin_daily(user_id, date_str)
+    garmin  = None  # Garmin disconnected — use manual data only
     goal    = get_user_goal(user_id)
 
     with get_conn() as conn:

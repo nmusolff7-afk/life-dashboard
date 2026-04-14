@@ -856,7 +856,7 @@ def api_shorten():
 def api_day(date_str):
     detail = get_day_detail(uid(), date_str)
     detail["sleep"]  = get_sleep(uid(), date_str)
-    detail["garmin"] = get_garmin_daily(uid(), date_str)
+    detail["garmin"] = None  # Garmin disconnected
     return jsonify(detail)
 
 
@@ -888,7 +888,7 @@ def api_history():
         "briefs":   briefs,
         "sleep":    get_sleep_history(uid(), 90),
         "momentum": momentum,
-        "garmin":   get_garmin_history(uid(), 90),
+        "garmin":   {},  # Garmin disconnected
     })
 
 
@@ -998,7 +998,8 @@ def _get_garmin_user_id():
     except Exception:
         return 1
 
-garmin_sync.start_background_poll(_garmin_save, user_id=_get_garmin_user_id())
+# Garmin background poll disabled — not connected
+# garmin_sync.start_background_poll(_garmin_save, user_id=_get_garmin_user_id())
 
 
 @app.route("/api/garmin")
@@ -1298,18 +1299,14 @@ def api_momentum_insight():
         profile      = get_profile_map(uid())
         goal         = get_user_goal(uid())
         totals       = get_today_totals(uid(), today)
-        garmin       = get_garmin_daily(uid(), today)
         workout_burn = get_today_workout_burn(uid(), today)
 
-        # Build accurate TDEE from all available sources
+        # TDEE from RMR + workout burn (Garmin disconnected)
         rmr = (goal.get("rmr") if goal else None) or profile.get("rmr_kcal") or 0
-        if garmin and garmin.get("total_calories"):
-            tdee = garmin["total_calories"]  # Garmin total burn is the best TDEE estimate
-        elif rmr:
-            active = (garmin.get("active_calories") or 0) if garmin else workout_burn
-            tdee = rmr + active
+        if rmr:
+            tdee = rmr + workout_burn
         else:
-            tdee = int(body.get("tdee") or 0) or None  # fall back to client value
+            tdee = int(body.get("tdee") or 0) or None
 
         cal_consumed = totals["total_calories"]
 
