@@ -212,6 +212,7 @@
       padding: 0.6rem 0.85rem; outline: none; transition: border-color .15s;
       -webkit-appearance: none; }
     textarea { resize: vertical; min-height: 72px; line-height: 1.5; font-family: inherit; }
+    textarea::placeholder { text-align: center; }
     input:focus, textarea:focus, select:focus { border-color: var(--accent); }
 
     /* ── Buttons ── */
@@ -359,6 +360,7 @@
     .w-icon { font-size: 1.2rem; flex-shrink: 0; margin-top: 1px; }
     .w-body { flex: 1; }
     .w-desc { font-size: 0.88rem; line-height: 1.4; color: var(--text); }
+    .wb-ex-detail.wb-open { display: block !important; }
     .w-meta { font-size: 0.75rem; color: var(--muted); margin-top: 3px; }
     .w-cal  { font-size: 0.82rem; font-weight: 700; color: var(--cal); flex-shrink: 0; padding-top: 2px; }
 
@@ -1245,7 +1247,7 @@
         <form method="post" action="/log" id="log-form">
           <div class="field">
             <textarea id="meal-input"
-              placeholder="Describe what you ate in plain English…&#10;two scrambled eggs, toast with butter, and a glass of OJ"
+              placeholder="What did you eat?"
               autocomplete="off" required></textarea>
           </div>
           <input type="hidden" name="description" id="h-description">
@@ -1500,7 +1502,7 @@
         <div class="section-label">Log Activity</div>
         <div class="field">
           <textarea id="activity-input" rows="2"
-            placeholder="Describe any activity — cardio, extra lifts, sport, etc.&#10;4 mile run at 7:50/mile · 3 sets of pull-ups"></textarea>
+            placeholder="What did you do?"></textarea>
         </div>
         <div id="activity-burn-panel" class="burn-panel">
           <div id="activity-burn-notes" class="burn-ai-notes"></div>
@@ -2891,15 +2893,48 @@ function renderMealTable(meals, totals) {
   wrap.innerHTML = html;
 }
 
+function _parseStrengthDesc(desc) {
+  // Parse "Strength workout (59 min): Bench Press: 3/4 sets (135×8, 135×8, 135×8); ..."
+  const headerMatch = desc.match(/^Strength workout \((\d+) min\):\s*/);
+  if (!headerMatch) return null;
+  const minutes = headerMatch[1];
+  const body = desc.slice(headerMatch[0].length).replace(/\s*\[NOTE:.*\]$/, '');
+  const exercises = body.split(";").map(s => s.trim()).filter(Boolean);
+  return { minutes, exercises };
+}
+
 function renderWorkoutList(workouts, burn) {
   const wrap = document.getElementById("workout-list-wrap");
   if (!wrap) return;
   let html = '<div class="card-title">Today\'s workout entries</div>';
   if (workouts && workouts.length > 0) {
-    workouts.forEach(w => {
+    workouts.forEach((w, idx) => {
+      const isStrength = w.description.startsWith("Strength workout");
       const isRun = /run|mile|cardio/i.test(w.description);
-      const icon  = isRun ? '🏃' : '🏋️';
-      const time  = fmt12h(w.logged_at || '');
+      const icon = isStrength ? '🏋️' : isRun ? '🏃' : '💪';
+      const time = fmt12h(w.logged_at || '');
+
+      if (isStrength) {
+        const parsed = _parseStrengthDesc(w.description);
+        if (parsed) {
+          html += `<div class="workout-item" style="flex-direction:column;align-items:stretch;cursor:pointer" onclick="this.querySelector('.wb-ex-detail').classList.toggle('wb-open')">
+            <div style="display:flex;align-items:center;gap:0.75rem">
+              <div class="w-icon">${icon}</div>
+              <div class="w-body" style="flex:1">
+                <div class="w-desc" style="font-weight:600">${time} \u2014 Strength Workout (${parsed.minutes} min)</div>
+                <div class="w-meta">${parsed.exercises.length} exercises \u00b7 tap to ${parsed.exercises.length ? 'expand' : 'view'}</div>
+              </div>
+              ${w.calories_burned ? `<div class="w-cal">~${w.calories_burned} kcal</div>` : ''}
+              <button type="button" class="btn btn-danger" onclick="event.stopPropagation();deleteWorkout(${w.id})">✕</button>
+            </div>
+            <div class="wb-ex-detail" style="display:none;padding:0.5rem 0 0 2.25rem">
+              ${parsed.exercises.map(ex => `<div style="font-size:0.82rem;color:var(--text);padding:0.15rem 0">${ex}</div>`).join('')}
+            </div>
+          </div>`;
+          return;
+        }
+      }
+
       html += `<div class="workout-item">
         <div class="w-icon">${icon}</div>
         <div class="w-body">
@@ -4021,7 +4056,18 @@ function deleteWorkout(id) {
       row.style.cssText = "display:flex;gap:0.4rem;align-items:center";
       const nameIn = document.createElement("input");
       nameIn.type = "text"; nameIn.placeholder = "Exercise name";
+      nameIn.setAttribute("list", "wb-ex-suggest");
+      nameIn.setAttribute("autocomplete", "off");
       nameIn.style.cssText = "flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.5rem 0.6rem;color:var(--text);font-size:0.9rem;min-width:0";
+      // Build datalist for suggestions from history
+      let dl = document.getElementById("wb-ex-suggest");
+      if (!dl) {
+        dl = document.createElement("datalist"); dl.id = "wb-ex-suggest";
+        document.body.appendChild(dl);
+      }
+      dl.innerHTML = "";
+      const known = typeof getExercisesFromHistory === "function" ? getExercisesFromHistory() : [];
+      known.forEach(n => { const o = document.createElement("option"); o.value = n; dl.appendChild(o); });
       const confirmBtn = document.createElement("button");
       confirmBtn.className = "btn btn-green"; confirmBtn.textContent = "Add";
       confirmBtn.style.cssText = "padding:0.4rem 0.75rem;flex-shrink:0";
