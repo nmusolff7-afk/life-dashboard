@@ -1816,9 +1816,12 @@
       </div>
 
       <!-- Save Profile (About You only) -->
-      <div style="text-align:center;margin-bottom:1rem;position:relative">
+      <div style="text-align:center;margin-bottom:0.5rem;position:relative">
         <button class="btn btn-primary" id="save-profile-btn" style="width:100%;max-width:320px;margin:0 auto">Save Profile</button>
         <span class="save-confirm" id="save-confirm" style="position:absolute;right:0;top:50%;transform:translateY(-50%)">✓ Saved</span>
+      </div>
+      <div style="text-align:center;margin-bottom:1rem">
+        <button class="btn btn-ghost" id="profile-back-to-app" style="font-size:0.82rem;padding:0.4rem 0.85rem">← Back to app — discard changes</button>
       </div>
 
       <!-- Calculated Goals -->
@@ -5256,6 +5259,15 @@ try {
     }
   } catch(e) { recalcAll(); }
   _applyUnitUI();
+
+  // "Back to app" — discard unsaved profile changes, re-populate from localStorage, go home
+  document.getElementById("profile-back-to-app").addEventListener("click", () => {
+    try {
+      const saved = localStorage.getItem("profileData");
+      if (saved) populateForm(JSON.parse(saved));
+    } catch(e) {}
+    if (typeof window.activateTab === "function") window.activateTab("home");
+  });
 
   // Expose so /api/profile fetch can re-populate after async seed
   window._populateProfileForm = populateForm;
