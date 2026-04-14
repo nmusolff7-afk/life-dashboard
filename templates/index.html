@@ -1943,6 +1943,8 @@
           <input type="range" id="fat-slider" min="20" max="250" step="5">
           <div id="calc-explain-fat" class="calc-explain"></div>
         </div>
+        <button type="button" class="btn btn-ghost btn-full" id="recalc-goals-btn"
+          style="margin-top:0.75rem;font-size:0.82rem">Recalculate from profile data</button>
       </div>
 
       <!-- Live Preview -->
@@ -5021,12 +5023,30 @@ try {
 
   function recalcAll() {
     const inp   = readInputs();
-    const steps = getTodaySteps();
     const rmr   = calcRMR(inp.curWeight, inp.heightFt, inp.heightIn, inp.age, inp.sex, inp.bfPct);
-    // Only update RMR — never touch deficit/protein/carbs/fat sliders.
-    // Those are set by populateForm on load and by user interaction only.
     setSlider("rmr", rmr);
     updatePreview();
+  }
+
+  // Compute goal sliders from About You profile data
+  function recalcGoalsFromProfile() {
+    const inp   = readInputs();
+    const steps = getTodaySteps();
+    const rmr   = calcRMR(inp.curWeight, inp.heightFt, inp.heightIn, inp.age, inp.sex, inp.bfPct);
+    const { neat } = calcNEAT(inp.occupation, steps, TODAY_WORKOUT_DESCS);
+    const eat   = WORKOUT_BURN_TODAY;
+    const tef   = calcTEF(CAL_CONSUMED, PROTEIN_CONSUMED, CARBS_CONSUMED, FAT_CONSUMED);
+    const tdee  = rmr + neat + eat + tef;
+    const targetCal = calcTargetCalories(tdee, inp.goal, rmr);
+    const adjust    = targetCal - tdee;
+    const macros    = calcMacros(targetCal, inp.curWeight, inp.tgtWeight, inp.goal);
+    setSlider("rmr",     rmr);
+    setSlider("deficit", adjust);
+    setSlider("protein", macros.protein);
+    setSlider("carbs",   macros.carbs);
+    setSlider("fat",     macros.fat);
+    updatePreview();
+    _autoSave();
   }
 
   function updatePreview() {
@@ -5198,6 +5218,10 @@ try {
     btn.style.color       = show ? "var(--accent2)" : "var(--muted)";
   });
 
+  document.getElementById("recalc-goals-btn").addEventListener("click", () => {
+    recalcGoalsFromProfile();
+  });
+
   document.querySelectorAll(".gender-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       document.querySelectorAll(".gender-btn").forEach(b => b.classList.remove("active"));
@@ -5303,14 +5327,19 @@ try {
   try {
     const saved = localStorage.getItem("profileData");
     if (saved) {
-      populateForm(JSON.parse(saved));
+      const p = JSON.parse(saved);
+      populateForm(p);
+      // If no goal sliders were ever saved, compute initial values from profile
+      if (p.deficit == null && p.protein == null) {
+        recalcGoalsFromProfile();
+      }
     } else {
       document.querySelectorAll(".gender-btn").forEach(b => b.classList.toggle("active", b.dataset.val === DEFAULTS.sex));
       document.querySelectorAll(".occ-btn").forEach(b => b.classList.toggle("active", b.dataset.val === DEFAULTS.occupation));
       document.querySelectorAll(".goal-btn").forEach(b => b.classList.toggle("active", b.dataset.val === DEFAULTS.goal));
-      recalcAll();
+      recalcGoalsFromProfile();
     }
-  } catch(e) { recalcAll(); }
+  } catch(e) { recalcGoalsFromProfile(); }
   _applyUnitUI();
 
   // Expose so /api/profile fetch can re-populate after async seed
