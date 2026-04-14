@@ -5066,6 +5066,9 @@ try {
     const tdee    = rmr + neat + eat + tef;
     const intake  = tdee + adjust;
     const deficit = -adjust;  // positive when in deficit for weeksToGoal
+    // Expose for home ring to use the exact same numbers
+    window._LIVE_TDEE = Math.round(tdee);
+    window._LIVE_TARGET_INTAKE = Math.round(intake);
     const weeks   = weeksToGoal(inp.curWeight, inp.tgtWeight, deficit);
     const goalLabel = { lose_weight: "Lose Weight", build_muscle: "Build Muscle", recomp: "Body Recomposition", maintain: "Maintain" }[inp.goal] || inp.goal;
     const previewEl = document.getElementById("profile-preview");
@@ -8065,16 +8068,12 @@ if ("serviceWorker" in navigator) {
     const entry   = getDayEntry(today) || {};
     const profile = getProfileData();
 
-    // ── Numbers ──
-    const tdee     = entry.tdee || SERVER_TDEE;
-    const calories = CAL_CONSUMED;
-    const actualDeficit = tdee - calories;  // raw deficit (for equation)
-
-    // Target intake = TDEE + deficit slider (deficit is negative, surplus is positive)
-    // Same formula as the Live Preview card in Profile tab: intake = tdee + adjust
-    const deficitSlider = profile.deficit ?? 0;  // e.g. -500 for a 500cal deficit
-    const calTarget = tdee > 0 ? Math.round(tdee + deficitSlider) : 0;
-    const remaining = calTarget - calories;  // positive = can still eat, negative = over target
+    // ── Numbers — use EXACT same values as Live Preview in Profile tab ──
+    const tdee      = window._LIVE_TDEE || entry.tdee || SERVER_TDEE;
+    const calTarget = window._LIVE_TARGET_INTAKE || tdee;
+    const calories  = CAL_CONSUMED;
+    const actualDeficit = tdee - calories;  // for equation line
+    const remaining = calTarget - calories;  // for ring
 
     // ── RING: distance from current consumption to target consumption ──
     const pct  = calTarget > 0 ? Math.min(1, Math.max(0, calories / calTarget)) : 0;
