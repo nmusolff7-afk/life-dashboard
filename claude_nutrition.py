@@ -530,7 +530,8 @@ CARDIO SESSION TYPES — use ONLY these labels for the "type" field:
   Running: "Easy Run", "Tempo Run", "Interval Run", "Long Run", "Recovery Run", "Hill Repeats", "Fartlek"
   Cycling: "Easy Ride", "Tempo Ride", "Interval Ride", "Long Ride", "Recovery Ride"
   Rowing: "Easy Row", "Interval Row", "Long Row"
-  Other: "HIIT Circuit", "LISS Walk", "Incline Walk", "Swimming", "Jump Rope", "Stairmaster"
+  Walking: "Easy Walk", "Brisk Walk", "Incline Walk", "Long Walk"
+  Other: "HIIT Circuit", "Swimming", "Jump Rope", "Stairmaster"
 Pick the type based on the user's experience level:
   beginner: mostly Easy/Recovery sessions, one Long per week max
   intermediate: mix of Easy, Tempo, and one Interval per week
@@ -625,7 +626,8 @@ RULES:
 - For cardio sessions, use ONLY these type labels (no generic "Cardio"):
   Running: "Easy Run", "Tempo Run", "Interval Run", "Long Run", "Recovery Run", "Hill Repeats", "Fartlek"
   Cycling: "Easy Ride", "Tempo Ride", "Interval Ride", "Long Ride", "Recovery Ride"
-  Other: "HIIT Circuit", "LISS Walk", "Incline Walk", "Swimming", "Jump Rope", "Stairmaster"
+  Walking: "Easy Walk", "Brisk Walk", "Incline Walk", "Long Walk"
+  Other: "HIIT Circuit", "Swimming", "Jump Rope", "Stairmaster"
 - Do NOT include duration, distance, or pace in cardio. Just the session type.
 - Respond with ONLY valid JSON (weeklyPlan + planNotes). No markdown."""
 
