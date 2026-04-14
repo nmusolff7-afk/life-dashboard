@@ -939,13 +939,19 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
 
     if cal_goal and cal_goal > 0 and cal_today > 0 and tdee > 0:
         actual_deficit = tdee - cal_today
-        # Pro-rate target by time of day: compare eaten vs expected-eaten-by-now
-        prorated_target = cal_goal * day_progress
-        cal_delta = cal_today - prorated_target
-        cal_dev = abs(cal_delta) / max(prorated_target, 1)
+        # The calorie target is (TDEE - goal_deficit).
+        # Compare actual consumption to time-prorated calorie target.
+        # Then convert that delta to a deficit comparison.
+        cal_target = tdee - goal_deficit  # e.g. 2800 - 500 = 2300
+        prorated_target = cal_target * day_progress
+        # How far off are we from where we should be right now?
+        consumption_delta = cal_today - prorated_target  # positive = over, negative = under
+        # Normalize: being off by 50% of prorated target = full penalty
+        cal_dev = abs(consumption_delta) / max(prorated_target, 1)
         cal_pen = min(1.0, cal_dev / 0.50) * MOMENTUM_WEIGHTS["nutrition"]
-        raw_deltas["calories"] = {"target": cal_goal, "actual": cal_today, "delta": round(cal_delta),
-                                  "tdee": tdee, "goal_deficit": goal_deficit, "actual_deficit": actual_deficit}
+        raw_deltas["calories"] = {"target": cal_target, "actual": cal_today,
+                                  "delta": round(consumption_delta),
+                                  "tdee": tdee, "goal_deficit": goal_deficit, "actual_deficit": round(actual_deficit)}
     elif cal_today == 0 and cal_goal:
         cal_pen = MOMENTUM_WEIGHTS["nutrition"]
         raw_deltas["calories"] = {"target": cal_goal, "actual": 0, "delta": 0, "tdee": tdee, "goal_deficit": goal_deficit}
