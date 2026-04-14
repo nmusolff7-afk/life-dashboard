@@ -7179,6 +7179,7 @@ function fmtDate(iso) {
   const content     = document.getElementById("gmail-content");
   const headerActs  = document.getElementById("gmail-header-actions");
   let gmailLoaded   = false;
+  let _gmailActiveTab = "important";  // track which tab is showing
 
   function renderNotConfigured() {
     card.classList.remove("gmail-connected");
@@ -7321,7 +7322,7 @@ function fmtDate(iso) {
     content.innerHTML = `
       ${summaryHtml}
       <div style="display:flex;gap:0.25rem;margin:0.75rem 0 0.5rem">
-        <button class="gmail-view-tab active" data-view="important" style="flex:1;font-size:0.78rem;font-weight:600;padding:0.4rem;border:1px solid var(--border);border-radius:8px;background:var(--accent2);color:#fff;cursor:pointer">\u2605 Important${important.length ? ' (' + important.length + ')' : ''}</button>
+        <button class="gmail-view-tab" data-view="important" style="flex:1;font-size:0.78rem;font-weight:600;padding:0.4rem;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--muted);cursor:pointer">\u2605 Important${important.length ? ' (' + important.length + ')' : ''}</button>
         <button class="gmail-view-tab" data-view="stream" style="flex:1;font-size:0.78rem;font-weight:600;padding:0.4rem;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--muted);cursor:pointer">Stream (${stream.length})</button>
       </div>
       <div id="gmail-view-important">
@@ -7348,15 +7349,22 @@ function fmtDate(iso) {
 
     _bindLabelButtons();
 
-    // Gmail view tab switching
+    // Gmail view tab switching — preserve active tab across refreshes
+    function _setGmailTab(view) {
+      _gmailActiveTab = view;
+      document.querySelectorAll(".gmail-view-tab").forEach(t => { t.style.background = "var(--surface2)"; t.style.color = "var(--muted)"; t.classList.remove("active"); });
+      const active = document.querySelector(`.gmail-view-tab[data-view="${view}"]`);
+      if (active) { active.style.background = "var(--accent2)"; active.style.color = "#fff"; active.classList.add("active"); }
+      const impEl = document.getElementById("gmail-view-important");
+      const strEl = document.getElementById("gmail-view-stream");
+      if (impEl) impEl.style.display = view === "important" ? "" : "none";
+      if (strEl) strEl.style.display = view === "stream" ? "" : "none";
+    }
     document.querySelectorAll(".gmail-view-tab").forEach(tab => {
-      tab.addEventListener("click", () => {
-        document.querySelectorAll(".gmail-view-tab").forEach(t => { t.style.background = "var(--surface2)"; t.style.color = "var(--muted)"; t.classList.remove("active"); });
-        tab.style.background = "var(--accent2)"; tab.style.color = "#fff"; tab.classList.add("active");
-        document.getElementById("gmail-view-important").style.display = tab.dataset.view === "important" ? "" : "none";
-        document.getElementById("gmail-view-stream").style.display = tab.dataset.view === "stream" ? "" : "none";
-      });
+      tab.addEventListener("click", () => _setGmailTab(tab.dataset.view));
     });
+    // Restore active tab after render
+    _setGmailTab(_gmailActiveTab);
 
     document.getElementById("gmail-refresh-btn").addEventListener("click", () => {
       const btn = document.getElementById("gmail-refresh-btn");
