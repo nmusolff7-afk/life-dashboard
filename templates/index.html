@@ -7978,24 +7978,28 @@ if ("serviceWorker" in navigator) {
     const entry   = getDayEntry(today) || {};
     const profile = getProfileData();
 
-    // ── Calorie ring — distance to goal deficit ──
-    const tdee     = entry.tdee || SERVER_TDEE;       // projected burn (all types)
-    const calories = CAL_CONSUMED;                     // consumed today
-    const actualDeficit = tdee - calories;              // THE primary number
-    const goalDeficit = Math.abs(profile.deficit || 0); // user's target deficit
-    const distToGoal = actualDeficit - goalDeficit;     // positive = deeper than goal, negative = not there yet
+    // ── Numbers ──
+    const tdee     = entry.tdee || SERVER_TDEE;
+    const calories = CAL_CONSUMED;
+    const actualDeficit = tdee - calories;  // raw deficit (for equation)
 
-    // Ring shows how close actual deficit is to goal deficit
-    // Fill = progress toward goal deficit (0% = no deficit, 100% = at goal)
-    const pct  = goalDeficit > 0 ? Math.min(1, Math.max(0, actualDeficit / goalDeficit)) : 0;
+    // Calorie target = TDEE adjusted for goal
+    // profile.deficit stores the raw deficit/surplus value
+    // Use goal adjustment to get the actual target
+    const goalKey = profile.goal || "lose_weight";
+    const calAdjust = {lose_weight: -0.20, build_muscle: 0.10, recomp: -0.10, maintain: 0.0}[goalKey] || -0.20;
+    const calTarget = tdee > 0 ? Math.round(tdee * (1 + calAdjust)) : 0;
+    const remaining = calTarget - calories;  // positive = can still eat, negative = over target
+
+    // ── RING: distance from current consumption to target consumption ──
+    const pct  = calTarget > 0 ? Math.min(1, Math.max(0, calories / calTarget)) : 0;
     const fill = Math.round(pct * RING_CIRC);
 
     function ringColor() {
       if (calories === 0 && tdee === 0) return "var(--surface2)";
-      if (Math.abs(distToGoal) <= 100) return "var(--green)";     // within 100 of goal
-      if (distToGoal > 0) return "var(--green)";                   // deeper deficit than goal
-      if (Math.abs(distToGoal) < 300) return "var(--amber)";       // getting close
-      return "var(--muted)";                                        // far from goal still
+      if (remaining > 0) return "var(--green)";
+      if (remaining > -200) return "var(--amber)";
+      return "var(--danger)";
     }
 
     const ringEl = document.getElementById("dash-ring-fill");
@@ -8004,20 +8008,18 @@ if ("serviceWorker" in navigator) {
       ringEl.setAttribute("stroke", ringColor());
     }
 
-    // Ring center: distance to goal deficit
     const valEl = document.getElementById("dash-deficit-val");
     const lblEl = document.getElementById("dash-deficit-lbl");
     if (valEl) {
-      if (calories > 0 || tdee > 0) {
-        if (goalDeficit > 0) {
-          valEl.textContent = Math.abs(Math.round(distToGoal)).toLocaleString();
-          valEl.style.color = ringColor();
-          if (lblEl) lblEl.textContent = distToGoal >= 0 ? "past goal" : "to goal deficit";
+      if ((calories > 0 || tdee > 0) && calTarget > 0) {
+        if (remaining >= 0) {
+          valEl.textContent = remaining.toLocaleString();
+          valEl.style.color = "var(--green)";
+          if (lblEl) lblEl.textContent = "cals left";
         } else {
-          // No goal deficit set — show actual deficit
-          valEl.textContent = Math.abs(Math.round(actualDeficit)).toLocaleString();
-          valEl.style.color = actualDeficit >= 0 ? "var(--green)" : "var(--danger)";
-          if (lblEl) lblEl.textContent = actualDeficit >= 0 ? "deficit" : "surplus";
+          valEl.textContent = Math.abs(remaining).toLocaleString();
+          valEl.style.color = "var(--danger)";
+          if (lblEl) lblEl.textContent = "over target";
         }
       } else {
         valEl.textContent = "—";
@@ -8026,7 +8028,7 @@ if ("serviceWorker" in navigator) {
       }
     }
 
-    // ── Equation line: projected burn − eaten = actual deficit ──
+    // ── EQUATION: burn − eaten = deficit (completely independent from ring) ──
     const eqBurn     = document.getElementById("dash-eq-burn");
     const eqConsumed = document.getElementById("dash-eq-consumed");
     const eqResult   = document.getElementById("dash-eq-result");
@@ -8042,21 +8044,21 @@ if ("serviceWorker" in navigator) {
       }
     }
 
-    // ── On-track message ──
+    // ── On-track message (based on ring/remaining, not equation) ──
     const metaEl = document.getElementById("dash-cal-meta");
     if (metaEl) {
       if (calories === 0 && tdee === 0) {
         metaEl.textContent = "Log meals to see your balance";
-      } else if (goalDeficit > 0 && Math.abs(distToGoal) <= 100) {
-        metaEl.textContent = "Right on target \u2014 deficit is where you want it";
-      } else if (goalDeficit > 0 && distToGoal > 0) {
-        metaEl.textContent = "Deeper deficit than goal \u2014 you can eat " + Math.round(distToGoal).toLocaleString() + " more";
-      } else if (goalDeficit > 0 && actualDeficit >= 0) {
-        metaEl.textContent = Math.abs(Math.round(distToGoal)).toLocaleString() + " cals of deficit left to reach goal";
-      } else if (actualDeficit < 0) {
-        metaEl.textContent = "In surplus \u2014 eating more than you're burning";
+      } else if (calTarget > 0 && remaining > calTarget * 0.3) {
+        metaEl.textContent = "Plenty of room \u2014 " + remaining.toLocaleString() + " cals left today";
+      } else if (calTarget > 0 && remaining >= 0) {
+        metaEl.textContent = "Getting close \u2014 " + remaining.toLocaleString() + " cals left to target";
+      } else if (calTarget > 0 && remaining > -200) {
+        metaEl.textContent = "Slightly over target \u2014 " + Math.abs(remaining).toLocaleString() + " cals past";
+      } else if (calTarget > 0) {
+        metaEl.textContent = "Over target by " + Math.abs(remaining).toLocaleString() + " cals";
       } else {
-        metaEl.textContent = "Current deficit: " + Math.round(actualDeficit).toLocaleString() + " cals";
+        metaEl.textContent = "Current deficit: " + Math.round(actualDeficit).toLocaleString();
       }
     }
 
