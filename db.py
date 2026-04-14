@@ -946,31 +946,26 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
     # 0.33 at 6am → 1.0 at 9pm
     day_progress = min(1.0, max(0.33, (_h - 6) / 15))
 
-    # 1. Calories (15 pts) — penalty based on how close actual deficit is to goal deficit
-    #    goal_deficit = tdee - calorie_target;  actual_deficit = tdee - cal_today
-    #    score = how close actual_deficit is to goal_deficit
-    tdee = (goal.get("tdee_used") or 0) if goal else 0
-    if not tdee and garmin:
-        tdee = garmin.get("total_calories") or 0
-    if not tdee:
-        rmr_val = profile.get("rmr_kcal") or 0
+    # 1. Calories (15 pts) — penalty based on how close consumed is to calorie target
+    #    cal_goal is already the calorie target (TDEE - deficit) from user_goals or profile.
+    #    Compare consumed vs time-prorated cal_goal.
+    #    Get actual TDEE for display only (prefer Garmin total burn > computed).
+    if garmin and garmin.get("total_calories"):
+        tdee = garmin["total_calories"]
+    else:
+        rmr_val = (goal.get("rmr") if goal else None) or profile.get("rmr_kcal") or 0
         active = (garmin.get("active_calories") or 0) if garmin else workout_burn
         tdee = rmr_val + active if rmr_val else 0
     goal_deficit = (goal.get("deficit_surplus") or 0) if goal else (profile.get("calorie_deficit_target") or 0)
 
-    if cal_goal and cal_goal > 0 and cal_today > 0 and tdee > 0:
-        actual_deficit = tdee - cal_today
-        # The calorie target is (TDEE - goal_deficit).
-        # Compare actual consumption to time-prorated calorie target.
-        # Then convert that delta to a deficit comparison.
-        cal_target = tdee - goal_deficit  # e.g. 2800 - 500 = 2300
-        prorated_target = cal_target * day_progress
-        # How far off are we from where we should be right now?
-        consumption_delta = cal_today - prorated_target  # positive = over, negative = under
-        # Normalize: being off by 50% of prorated target = full penalty
+    if cal_goal and cal_goal > 0 and cal_today > 0:
+        # cal_goal IS the target (already TDEE - deficit from goal computation)
+        prorated_target = cal_goal * day_progress
+        consumption_delta = cal_today - prorated_target
         cal_dev = abs(consumption_delta) / max(prorated_target, 1)
         cal_pen = min(1.0, cal_dev / 0.50) * MOMENTUM_WEIGHTS["nutrition"]
-        raw_deltas["calories"] = {"target": cal_target, "actual": cal_today,
+        actual_deficit = tdee - cal_today if tdee else 0
+        raw_deltas["calories"] = {"target": cal_goal, "actual": cal_today,
                                   "delta": round(consumption_delta),
                                   "tdee": tdee, "goal_deficit": goal_deficit, "actual_deficit": round(actual_deficit)}
     elif cal_today == 0 and cal_goal:
