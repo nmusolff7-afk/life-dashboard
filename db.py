@@ -929,6 +929,7 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
             cal_goal = goal["calorie_target"]
         else:
             cal_goal = calorie_goal_override or tdee
+    goal_deficit = tdee - cal_goal if tdee and cal_goal else 0
 
     # Macros stay from stored goals (they don't depend on daily TDEE)
     if goal:
