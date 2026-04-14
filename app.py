@@ -1274,9 +1274,11 @@ def api_momentum_today():
     if planned_workout is not None:
         planned_workout = bool(planned_workout)
     client_tdee = int(body.get("tdee") or 0) or None
+    client_target = int(body.get("target_intake") or 0) or None
     try:
         breakdown = compute_momentum(uid(), today, calorie_goal_override=calorie_goal, hour=hour,
-                                     planned_workout_today=planned_workout, client_tdee=client_tdee)
+                                     planned_workout_today=planned_workout, client_tdee=client_tdee,
+                                     client_target_intake=client_target)
         return jsonify(breakdown)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1300,24 +1302,14 @@ def api_momentum_insight():
     except (TypeError, ValueError):
         hour = None
     try:
-        # Use client TDEE directly — single source of truth
+        # Use exact values from frontend Live Preview — single source of truth
         tdee = int(body.get("tdee") or 0) or None
+        cal_target = int(body.get("target_intake") or 0) or None
         totals       = get_today_totals(uid(), today)
         cal_consumed = totals["total_calories"]
         profile      = get_profile_map(uid())
 
-        # Compute calorie target from live TDEE
-        goal = get_user_goal(uid())
-        goal_key = goal.get("goal_key", "lose_weight") if goal else "lose_weight"
-        cal_adjust_map = {"lose_weight": -0.20, "build_muscle": 0.10, "recomp": -0.10, "maintain": 0.0}
-        if tdee and tdee > 0:
-            cal_target = round(tdee * (1 + cal_adjust_map.get(goal_key, -0.20)))
-        elif goal:
-            cal_target = goal["calorie_target"]
-        else:
-            cal_target = None
-
-        _log.info("INSIGHT: tdee=%s cal_consumed=%s cal_target=%s goal_key=%s", tdee, cal_consumed, cal_target, goal_key)
+        _log.info("INSIGHT: tdee=%s cal_consumed=%s cal_target=%s", tdee, cal_consumed, cal_target)
 
         result       = generate_momentum_insight(
             {}, [], profile,

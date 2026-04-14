@@ -7707,8 +7707,9 @@ function fmtDate(iso) {
       } catch(e) {}
       return {
         hour:                  new Date().getHours(),
-        tdee:                  CURRENT_TDEE  || 0,
+        tdee:                  window._LIVE_TDEE || CURRENT_TDEE || 0,
         cal_consumed:          CAL_CONSUMED  || 0,
+        target_intake:         window._LIVE_TARGET_INTAKE || 0,
         planned_workout_today: planned,
       };
     } catch(e) { return {}; }
