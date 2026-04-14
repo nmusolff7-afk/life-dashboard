@@ -988,17 +988,18 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
     penalties["macros"] = round(macro_pen, 2)
 
     # 3. Workout (10 pts) — based on whether planned workout was completed
-    #    If no workout is planned for today, no penalty.
-    #    planned_workout_today is sent by the frontend from the user's saved plan.
+    #    Only counts as done if the user has logged a workout entry for today.
+    #    Garmin active calories alone (e.g. a bike ride) do NOT count as completing
+    #    a planned lifting session.
     workout_burn_today = get_today_workout_burn(user_id, date_str)
     garmin_active = (garmin.get("active_calories") or 0) if garmin else 0
-    has_workout = workout_burn_today > 0 or garmin_active > 100
+    has_logged_workout = workout_burn_today > 0  # must have an actual logged workout
     workout_planned = planned_workout_today if planned_workout_today is not None else True
 
     if not workout_planned:
         activity_pen = 0  # rest day — no penalty
         raw_deltas["workout"] = {"done": True, "burn": workout_burn_today, "garmin_active": garmin_active, "rest_day": True}
-    elif has_workout:
+    elif has_logged_workout:
         activity_pen = 0
         raw_deltas["workout"] = {"done": True, "burn": workout_burn_today, "garmin_active": garmin_active, "rest_day": False}
     else:
@@ -1072,7 +1073,7 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
                 "missing":         pro_goal is None and carbs_goal is None and fat_goal is None,
             },
             "activity": {
-                "has_workout":      has_workout,
+                "has_workout":      has_logged_workout,
                 "workout_burn":     workout_burn,
                 "garmin_active":    garmin_active,
                 "garmin_available": garmin is not None,
