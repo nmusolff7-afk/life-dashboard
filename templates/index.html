@@ -1820,13 +1820,9 @@
         </div>
       </div>
 
-      <!-- Save Profile (About You only) -->
-      <div style="text-align:center;margin-bottom:0.5rem;position:relative">
-        <button class="btn btn-primary" id="save-profile-btn" style="width:100%;max-width:320px;margin:0 auto">Save Profile</button>
-        <span class="save-confirm" id="save-confirm" style="position:absolute;right:0;top:50%;transform:translateY(-50%)">✓ Saved</span>
-      </div>
+      <!-- Auto-save indicator (no save button needed — changes save immediately) -->
       <div style="text-align:center;margin-bottom:1rem">
-        <button class="btn btn-ghost" id="profile-back-to-app" style="font-size:0.82rem;padding:0.4rem 0.85rem">← Back to app — discard changes</button>
+        <div style="font-size:0.75rem;color:var(--muted)">Changes save automatically</div>
       </div>
 
       <!-- Calculated Goals -->
@@ -4883,18 +4879,40 @@ try {
   function _autoSave() {
     clearTimeout(_autoSaveTimer);
     _autoSaveTimer = setTimeout(() => {
+      const inp = readInputs();
       const existing = getProfileData();
-      existing.rmr     = getSlider("rmr");
-      existing.deficit = getSlider("deficit");
-      existing.protein = getSlider("protein");
-      existing.carbs   = getSlider("carbs");
-      existing.fat     = getSlider("fat");
+      // Merge all input fields + slider values
+      const profile = {
+        ...existing,
+        ...inp,
+        rmr:     getSlider("rmr"),
+        deficit: getSlider("deficit"),
+        protein: getSlider("protein"),
+        carbs:   getSlider("carbs"),
+        fat:     getSlider("fat"),
+      };
       // Preserve goal from button
       const goalBtn = document.querySelector(".goal-btn.active");
-      if (goalBtn) existing.goal = goalBtn.dataset.val;
-      localStorage.setItem("profileData", JSON.stringify(existing));
-      applyProfileToMeals(existing);
-    }, 400);  // debounce
+      if (goalBtn) profile.goal = goalBtn.dataset.val;
+      // Preserve dates
+      if (!profile.goalSetDate) profile.goalSetDate = existing.goalSetDate;
+      if (!profile.goalStartWeight) profile.goalStartWeight = existing.goalStartWeight;
+      localStorage.setItem("profileData", JSON.stringify(profile));
+      applyProfileToMeals(profile);
+      flashGreen();
+      // Send goal update to backend (fire and forget)
+      const g = profile.goal || "lose_weight";
+      fetch("/api/goal/update", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          goal: g, curWeight: profile.curWeight || 185, tgtWeight: profile.tgtWeight || 170,
+          heightFt: profile.heightFt || 5, heightIn: profile.heightIn || 10,
+          age: profile.age || 25, sex: profile.sex || "male", bfPct: profile.bfPct || 0,
+          tdee: profile.rmr || 0, deficit: profile.deficit || 0,
+        }),
+      }).catch(e => console.warn("goal update:", e));
+    }, 600);  // debounce
   }
 
   function linkSlider(id) {
@@ -5192,25 +5210,25 @@ try {
   document.querySelectorAll(".gender-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       document.querySelectorAll(".gender-btn").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active"); recalcAll();
+      btn.classList.add("active"); recalcAll(); _autoSave();
     });
   });
   document.querySelectorAll(".occ-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       document.querySelectorAll(".occ-btn").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active"); recalcAll();
+      btn.classList.add("active"); recalcAll(); _autoSave();
     });
   });
   document.querySelectorAll(".goal-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       document.querySelectorAll(".goal-btn").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active"); recalcAll();
+      btn.classList.add("active"); recalcAll(); _autoSave();
     });
   });
 
   ["p-cur-weight","p-tgt-weight","p-height-ft","p-height-in","p-age","p-bf"].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.addEventListener("input", recalcAll);
+    if (el) el.addEventListener("input", () => { recalcAll(); _autoSave(); });
   });
 
   // Fields that affect target calculations
@@ -5291,29 +5309,6 @@ try {
     }
   }
 
-  document.getElementById("save-profile-btn").addEventListener("click", () => {
-    const inp      = readInputs();
-    const existing = getProfileData();
-    // Record when the weight goal was set — reset only when target weight changes
-    const goalSetDate = (!existing.goalSetDate || inp.tgtWeight !== existing.tgtWeight)
-      ? localToday()
-      : existing.goalSetDate;
-    const goalStartWeight = (!existing.goalStartWeight || inp.tgtWeight !== existing.tgtWeight)
-      ? inp.curWeight
-      : existing.goalStartWeight;
-    const profile = {
-      ...inp,
-      rmr:             getSlider("rmr"),
-      deficit:         getSlider("deficit"),
-      protein:         getSlider("protein"),
-      carbs:           getSlider("carbs"),
-      fat:             getSlider("fat"),
-      goalSetDate,
-      goalStartWeight,
-    };
-    _doProfileSave(profile);
-  });
-
   try {
     const saved = localStorage.getItem("profileData");
     if (saved) {
@@ -5326,15 +5321,6 @@ try {
     }
   } catch(e) { recalcAll(); }
   _applyUnitUI();
-
-  // "Back to app" — discard unsaved profile changes, re-populate from localStorage, go home
-  document.getElementById("profile-back-to-app").addEventListener("click", () => {
-    try {
-      const saved = localStorage.getItem("profileData");
-      if (saved) populateForm(JSON.parse(saved));
-    } catch(e) {}
-    if (typeof window.activateTab === "function") window.activateTab("home");
-  });
 
   // Expose so /api/profile fetch can re-populate after async seed
   window._populateProfileForm = populateForm;
