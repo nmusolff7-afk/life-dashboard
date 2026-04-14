@@ -1233,10 +1233,25 @@ def api_momentum_insight():
     except (TypeError, ValueError):
         hour = None
     try:
-        tdee         = int(body.get("tdee") or 0) or None
-        cal_consumed = int(body.get("cal_consumed") or 0)
         breakdown    = compute_momentum(uid(), today)
         profile      = get_profile_map(uid())
+        goal         = get_user_goal(uid())
+        totals       = get_today_totals(uid(), today)
+        garmin       = get_garmin_daily(uid(), today)
+        workout_burn = get_today_workout_burn(uid(), today)
+
+        # Build accurate TDEE from all available sources
+        rmr = (goal.get("rmr") if goal else None) or profile.get("rmr_kcal") or 0
+        if garmin and garmin.get("total_calories"):
+            tdee = garmin["total_calories"]  # Garmin total burn is the best TDEE estimate
+        elif rmr:
+            active = (garmin.get("active_calories") or 0) if garmin else workout_burn
+            tdee = rmr + active
+        else:
+            tdee = int(body.get("tdee") or 0) or None  # fall back to client value
+
+        cal_consumed = totals["total_calories"]
+
         result       = generate_momentum_insight(
             breakdown, [], profile,
             hour=hour, tdee=tdee, cal_consumed=cal_consumed,
