@@ -951,6 +951,10 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
     carbs_today = totals.get("total_carbs", 0)
     fat_today   = totals.get("total_fat", 0)
 
+    _momentum_logger.info("SCORE: client_tdee=%s tdee=%s cal_goal=%s cal_today=%s goal_key=%s",
+                          client_tdee, tdee, cal_goal, cal_today,
+                          goal.get("goal_key") if goal else "none")
+
     # ── penalty calculations ─────────────────────────────
     raw_deltas = {}
     penalties = {}

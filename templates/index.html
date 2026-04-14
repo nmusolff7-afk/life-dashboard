@@ -5433,7 +5433,7 @@ function fmtDate(iso) {
       borderColor: _cv("--chart-line"),
       backgroundColor: _cv("--chart-fill"),
       fill: true,
-      tension: 0,
+      tension: 0.3,
       pointRadius: ptRadius,
       pointBackgroundColor: _cv("--chart-line"),
       pointBorderColor: "#000000",
@@ -5606,7 +5606,7 @@ function fmtDate(iso) {
       pointBackgroundColor: ptColors,
       pointBorderColor: "#000000",
       pointBorderWidth: 1,
-      tension: 0,
+      tension: 0.3,
       fill: true,
     }];
 
@@ -7234,20 +7234,10 @@ function fmtDate(iso) {
       summaryHtml = `<div style="color:var(--muted);font-size:0.84rem">No summary yet — hit Refresh to fetch your emails.</div>`;
     }
 
-    // Unreplied count banner
-    let banner = "";
-    if (unreplied > 0) {
-      banner = `<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;padding:0.5rem 0.75rem;background:rgba(255,140,0,0.08);border:1px solid rgba(255,140,0,0.2);border-radius:8px">
-        <span style="font-size:1.1rem">📬</span>
-        <span style="font-size:0.84rem;color:var(--text);font-weight:600">${unreplied} unreplied email${unreplied > 1 ? "s" : ""} need${unreplied === 1 ? "s" : ""} attention</span>
-      </div>`;
-    }
-
     const important = data.important || [];
     const stream    = data.stream || emails;
 
     content.innerHTML = `
-      ${banner}
       ${summaryHtml}
       <div style="display:flex;gap:0.25rem;margin:0.75rem 0 0.5rem">
         <button class="gmail-view-tab active" data-view="important" style="flex:1;font-size:0.78rem;font-weight:600;padding:0.4rem;border:1px solid var(--border);border-radius:8px;background:var(--accent2);color:#fff;cursor:pointer">\u2605 Important${important.length ? ' (' + important.length + ')' : ''}</button>

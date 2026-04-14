@@ -1198,6 +1198,10 @@ def api_gmail_sync():
         _log.exception("Gmail: fetch failed")
         return jsonify({"error": "Failed to fetch emails. Please try again."}), 502
 
+    # Log subjects for debugging
+    for e in emails[:3]:
+        _log.info("Gmail email: sender=%s subject=%s", e.get("sender","?")[:30], e.get("subject","?")[:50])
+
     # Cache emails
     clear_gmail_cache(uid())
     for e in emails:
@@ -1214,22 +1218,23 @@ def api_gmail_sync():
     for e in emails:
         e["importance_score"] = score_email_importance(e["sender"], rules)
 
-    # Generate AI summary
-    today = client_today()
-    summary_text = gmail_sync.summarize_emails(emails)
-    unreplied = sum(1 for e in emails if not e["has_replied"] and not e["is_read"])
-    save_gmail_summary(uid(), today, summary_text, len(emails), unreplied)
-
     # Split into important vs stream
     important = [e for e in emails if e.get("importance_score", 0) > 0]
     stream = [e for e in emails if e.get("importance_score", 0) <= 0]
+
+    # AI summary only for important emails
+    summary_text = ""
+    if important:
+        summary_text = gmail_sync.summarize_emails(important)
+        save_gmail_summary(uid(), client_today(), summary_text, len(important), 0)
+    elif emails:
+        summary_text = "No important emails yet. Mark senders as important in the Stream tab."
 
     return jsonify({
         "emails":     emails,
         "important":  important,
         "stream":     stream,
-        "summary":    {"summary_text": summary_text, "email_count": len(emails), "unreplied": unreplied},
-        "unreplied":  unreplied,
+        "summary":    {"summary_text": summary_text, "email_count": len(important)},
     })
 
 
@@ -1298,20 +1303,22 @@ def api_momentum_insight():
     try:
         # Use client TDEE directly — single source of truth
         tdee = int(body.get("tdee") or 0) or None
-        profile      = get_profile_map(uid())
         totals       = get_today_totals(uid(), today)
         cal_consumed = totals["total_calories"]
+        profile      = get_profile_map(uid())
 
-        # Compute calorie target from live TDEE (same logic as compute_momentum)
+        # Compute calorie target from live TDEE
         goal = get_user_goal(uid())
+        goal_key = goal.get("goal_key", "lose_weight") if goal else "lose_weight"
+        cal_adjust_map = {"lose_weight": -0.20, "build_muscle": 0.10, "recomp": -0.10, "maintain": 0.0}
         if tdee and tdee > 0:
-            goal_key = goal.get("goal_key", "lose_weight") if goal else "lose_weight"
-            cal_adjust_map = {"lose_weight": -0.20, "build_muscle": 0.10, "recomp": -0.10, "maintain": 0.0}
             cal_target = round(tdee * (1 + cal_adjust_map.get(goal_key, -0.20)))
         elif goal:
             cal_target = goal["calorie_target"]
         else:
             cal_target = None
+
+        _log.info("INSIGHT: tdee=%s cal_consumed=%s cal_target=%s goal_key=%s", tdee, cal_consumed, cal_target, goal_key)
 
         result       = generate_momentum_insight(
             {}, [], profile,
