@@ -1092,13 +1092,7 @@
               style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;resize:none;box-sizing:border-box"
               placeholder="What do you want to accomplish today?"></textarea>
           </div>
-          <div style="margin-bottom:0.6rem">
-            <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.3rem">How are you feeling?</label>
-            <textarea id="home-morning-notes" rows="3"
-              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;resize:none;box-sizing:border-box"
-              placeholder="Mood, energy, what's on your mind…"></textarea>
-          </div>
-          <button class="btn" id="home-morning-submit" style="background:var(--btn-bg);width:100%;color:#fff">Submit Morning Check-in</button>
+          <button class="btn" id="home-morning-submit" style="background:var(--btn-bg);width:100%;color:#fff;margin-top:0.4rem">Submit Morning Check-in</button>
           <div id="home-morning-submitting" style="display:none;text-align:center;color:var(--muted);font-size:0.85rem;margin-top:0.5rem">Scoring and extracting tasks…</div>
           <div id="home-morning-err" style="display:none;font-size:0.8rem;color:var(--danger);margin-top:0.4rem;padding:0.4rem 0.6rem;background:rgba(239,68,68,.1);border-radius:6px"></div>
         </div>
@@ -2154,6 +2148,17 @@
             </div>
             <div id="mind-score-label" style="font-size:0.78rem;color:var(--muted);margin-top:0.4rem">No tasks yet today</div>
           </div>
+        </div>
+      </div>
+
+      <!-- Tasks (synced mirror of Home tab tasks) -->
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+          <div class="card-title" style="margin:0;flex:1">Today's Tasks</div>
+          <button class="btn btn-ghost" id="mind-add-btn-2" style="font-size:0.8rem;padding:0.35rem 0.8rem">+ Add</button>
+        </div>
+        <div id="mind-task-list-2">
+          <div style="color:var(--muted);font-size:0.85rem;padding:0.5rem 0">No tasks yet.</div>
         </div>
       </div>
 
@@ -7435,15 +7440,10 @@ function fmtDate(iso) {
   }
 
   function renderTasks(tasks) {
-    const list = document.getElementById("mind-task-list");
-    if (!tasks.length) {
-      list.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:0.5rem 0">No tasks yet — submit a brief or add one manually.</div>';
-      return;
-    }
     const CHECK_SVG = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
     const today = localToday();
-    list.innerHTML = tasks.map(t => {
-      const src = t.source === "morning_brief" ? "☀" : t.source === "evening_brief" ? "🌙" : "";
+    const html = tasks.length ? tasks.map(t => {
+      const src = t.source === "morning_brief" ? "\u2600" : t.source === "evening_brief" ? "\uD83C\uDF19" : "";
       let overdue = "";
       if (t.task_date && t.task_date < today && !t.completed) {
         const diff = Math.round((new Date(today) - new Date(t.task_date)) / 86400000);
@@ -7454,14 +7454,20 @@ function fmtDate(iso) {
         <span class="mind-task-text${t.completed ? " done" : ""}">${t.description}</span>
         ${overdue}
         <span class="mind-task-src">${src}</span>
-        <button class="mind-task-del" data-id="${t.id}">✕</button>
+        <button class="mind-task-del" data-id="${t.id}">\u2715</button>
       </div>`;
-    }).join("");
+    }).join("") : '<div style="color:var(--muted);font-size:0.85rem;padding:0.5rem 0">No tasks yet \u2014 submit a brief or add one manually.</div>';
 
-    list.querySelectorAll(".mind-task-check").forEach(btn =>
-      btn.addEventListener("click", () => toggleTask(+btn.dataset.id)));
-    list.querySelectorAll(".mind-task-del").forEach(btn =>
-      btn.addEventListener("click", () => deleteTask(+btn.dataset.id)));
+    // Update both task lists (Home + Status tabs)
+    ["mind-task-list", "mind-task-list-2"].forEach(id => {
+      const list = document.getElementById(id);
+      if (!list) return;
+      list.innerHTML = html;
+      list.querySelectorAll(".mind-task-check").forEach(btn =>
+        btn.addEventListener("click", () => toggleTask(+btn.dataset.id)));
+      list.querySelectorAll(".mind-task-del").forEach(btn =>
+        btn.addEventListener("click", () => deleteTask(+btn.dataset.id)));
+    });
   }
 
   function toggleTask(id) {
@@ -7734,10 +7740,18 @@ function fmtDate(iso) {
       .catch(e => console.warn("fetch error:", e));
   }
 
-  // Add task controls
+  // Add task controls (both Home and Status tab buttons)
   document.getElementById("mind-add-btn").addEventListener("click", () => {
     document.getElementById("mind-add-form").style.display = "";
     document.getElementById("mind-new-task").focus();
+  });
+  const addBtn2 = document.getElementById("mind-add-btn-2");
+  if (addBtn2) addBtn2.addEventListener("click", () => {
+    if (typeof window.activateTab === "function") window.activateTab("home");
+    setTimeout(() => {
+      document.getElementById("mind-add-form").style.display = "";
+      document.getElementById("mind-new-task").focus();
+    }, 100);
   });
   document.getElementById("mind-add-cancel").addEventListener("click", () => {
     document.getElementById("mind-add-form").style.display = "none";
@@ -8056,10 +8070,10 @@ if ("serviceWorker" in navigator) {
     const calories = CAL_CONSUMED;
     const actualDeficit = tdee - calories;  // raw deficit (for equation)
 
-    // Calorie target = TDEE minus the user's actual goal deficit
-    // profile.deficit is the user's set deficit value (e.g. 500)
-    const goalDeficit = Math.abs(profile.deficit || 0);
-    const calTarget = tdee > 0 ? Math.round(tdee - goalDeficit) : 0;
+    // Target intake = TDEE + deficit slider (deficit is negative, surplus is positive)
+    // Same formula as the Live Preview card in Profile tab: intake = tdee + adjust
+    const deficitSlider = profile.deficit ?? 0;  // e.g. -500 for a 500cal deficit
+    const calTarget = tdee > 0 ? Math.round(tdee + deficitSlider) : 0;
     const remaining = calTarget - calories;  // positive = can still eat, negative = over target
 
     // ── RING: distance from current consumption to target consumption ──
@@ -8527,7 +8541,7 @@ if ("serviceWorker" in navigator) {
 
   function submitBrief(type) {
     const isM       = type === "morning";
-    const notesEl   = document.getElementById(isM ? "home-morning-notes"      : "home-evening-notes");
+    const notesEl   = document.getElementById(isM ? "home-morning-notes" : "home-evening-notes");
     const goalsEl   = document.getElementById(isM ? "home-morning-goals"      : "home-evening-goals");
     const submitBtn = document.getElementById(isM ? "home-morning-submit"     : "home-evening-submit");
     const spinEl    = document.getElementById(isM ? "home-morning-submitting" : "home-evening-submitting");
@@ -8538,8 +8552,9 @@ if ("serviceWorker" in navigator) {
     const stressEl  = !isM ? document.getElementById("home-evening-stress") : null;
     const focusEl   = !isM ? document.getElementById("home-evening-focus")  : null;
 
-    const notes = notesEl.value.trim();
-    if (!notes) { notesEl.focus(); return; }
+    const notes = notesEl ? notesEl.value.trim() : "";
+    // Notes are optional for morning (box removed), required for evening
+    if (!isM && !notes && notesEl) { notesEl.focus(); return; }
     const goals = goalsEl ? goalsEl.value.trim() : "";
     const bw    = weightEl ? parseFloat(weightEl.value) : null;
 
