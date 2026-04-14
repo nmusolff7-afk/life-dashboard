@@ -237,6 +237,30 @@ def api_delete_account():
     return jsonify({"ok": True})
 
 
+@app.route("/api/log-weight", methods=["POST"])
+@login_required
+def api_log_weight():
+    """Save daily weight and update the user's profile current_weight."""
+    data = request.get_json() or {}
+    weight = data.get("weight_lbs")
+    date_str = data.get("date") or client_today()
+    if not weight or float(weight) < 30:
+        return jsonify({"error": "Invalid weight"}), 400
+    weight = float(weight)
+    save_daily_weight(uid(), date_str, weight)
+    # Also update current_weight_lbs in the onboarding profile_map
+    profile = get_profile_map(uid())
+    if profile:
+        profile["current_weight_lbs"] = weight
+        from db import get_conn
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE user_onboarding SET profile_map = ? WHERE user_id = ?",
+                (json.dumps(profile), uid()))
+            conn.commit()
+    return jsonify({"ok": True})
+
+
 # ── Main app ────────────────────────────────────────────
 
 @app.route("/")

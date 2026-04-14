@@ -4398,6 +4398,12 @@ function deleteWorkout(id) {
     label.textContent = "Saved for today";
     saveBtn.textContent = "Update Weight";
     if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+    // Persist to server
+    fetch("/api/log-weight", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ weight_lbs: val, date: localToday() }),
+    }).catch(e => console.warn("weight save:", e));
     confirm.classList.add("show");
     setTimeout(() => confirm.classList.remove("show"), 2000);
     flashGreen();
@@ -8097,6 +8103,12 @@ if ("serviceWorker" in navigator) {
     // Sync to workout-tab weight input if present
     const scaleInput = document.getElementById("scale-input");
     if (scaleInput) { scaleInput.value = val; }
+    // Persist to server
+    fetch("/api/log-weight", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ weight_lbs: val, date: localToday() }),
+    }).catch(e => console.warn("weight save:", e));
     flashGreen();
   });
   weightQInput.addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("weight-quick-save").click(); });
