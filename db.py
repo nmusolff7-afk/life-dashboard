@@ -839,7 +839,7 @@ MOMENTUM_WEIGHTS = {
     "nutrition": 15,
     "macros":    10,
     "activity":  10,
-    "checkin":    5,
+    "checkin":    0,
     "tasks":      5,
 }
 # Remaining 55 pts are reserved for future metrics (sleep, etc.)

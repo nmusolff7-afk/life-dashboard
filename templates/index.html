@@ -4681,8 +4681,8 @@ function deleteWorkout(id) {
   parseBtn.addEventListener("click", () => {
     const text = document.getElementById("plan-ai-input").value.trim();
     if (!text) return;
-    parseBtn.disabled = true; parseBtn.textContent = "Parsing…";
-    parseStatus.textContent = "Analyzing…";
+    parseBtn.disabled = true; parseBtn.textContent = "Importing…";
+    parseStatus.textContent = "Importing workout plan…";
     parseStatus.style.color = "var(--muted)";
 
     fetch("/api/parse-workout-plan", {
@@ -4692,23 +4692,21 @@ function deleteWorkout(id) {
     })
     .then(r => r.json())
     .then(data => {
-      parseBtn.disabled = false; parseBtn.textContent = "Parse Workout Plan";
+      parseBtn.disabled = false; parseBtn.textContent = "Import Workout Plan";
       if (data.error) {
-        parseStatus.textContent = "⚠ " + data.error;
+        parseStatus.textContent = "\u26A0 " + data.error;
         parseStatus.style.color = "var(--danger)";
         return;
       }
-      // Populate planState from parsed result
       DAYS_ORDER.forEach(d => { planState[d] = data[d] || []; });
-      parseStatus.textContent = "✓ Plan parsed — review below and click Save Workout Plan.";
+      parseStatus.textContent = "\u2713 Imported \u2014 review below and click Save.";
       parseStatus.style.color = "var(--green)";
       renderPreview();
-      // Switch to manual builder so user can review/edit
       showMode("manual");
     })
     .catch(() => {
-      parseBtn.disabled = false; parseBtn.textContent = "Parse Workout Plan";
-      parseStatus.textContent = "⚠ Request failed. Try again.";
+      parseBtn.disabled = false; parseBtn.textContent = "Import Workout Plan";
+      parseStatus.textContent = "\u26A0 Import failed. Try again.";
       parseStatus.style.color = "var(--danger)";
     });
   });
@@ -7496,7 +7494,6 @@ function fmtDate(iso) {
       { key: "nutrition", deltaKey: "calories", label: "Calories", max: 15 },
       { key: "macros",    deltaKey: "macros",   label: "Macros",   max: 10 },
       { key: "activity",  deltaKey: "workout",  label: "Workout",  max: 10 },
-      { key: "checkin",   deltaKey: "checkin",  label: "Check-in", max:  5 },
       { key: "tasks",     deltaKey: "tasks",    label: "Tasks",    max:  5 },
     ];
 
