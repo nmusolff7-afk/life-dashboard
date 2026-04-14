@@ -1307,7 +1307,9 @@
 
           <!-- Log Meal (shown after macros populated) -->
           <button type="submit" class="btn btn-primary btn-full" id="log-btn"
-            style="display:none;margin-top:0.65rem">Log Meal</button>
+            style="display:none;margin-top:0.65rem;font-size:1rem;padding:0.8rem 1rem">Log This Meal</button>
+          <button type="button" class="btn btn-ghost btn-full" id="meal-start-over-btn"
+            style="display:none;margin-top:0.35rem;font-size:0.85rem">Start Over</button>
 
           <input type="file" id="scan-input"   accept="image/*" capture="environment" style="display:none">
           <input type="file" id="gallery-input" accept="image/*" style="display:none">
@@ -3722,9 +3724,29 @@ function deleteWorkout(id) {
         renderBreakdown(data.items);
         aiNotes.style.color = ""; aiNotes.textContent = data.notes ? "Note: " + data.notes : "";
         macroFields.classList.add("visible");
+        macrosBtn.style.display = "none";
+        mealOrDivider.style.display = "none";
+        photoScanRow.style.display = "none";
         logBtn.style.display = "";
+        document.getElementById("meal-start-over-btn").style.display = "";
       })
       .catch(() => { macrosBtn.disabled = false; macrosBtn.textContent = "Get Macros"; });
+  });
+
+  document.getElementById("meal-start-over-btn").addEventListener("click", () => {
+    mealInput.value = "";
+    macroFields.classList.remove("visible");
+    breakdownEl.innerHTML = "";
+    aiNotes.textContent = "";
+    pairs.forEach(([vis, hid]) => { vis.value = ""; hid.value = ""; });
+    macrosBtn.style.display = "";
+    macrosBtn.disabled = false;
+    macrosBtn.textContent = "Get Macros";
+    mealOrDivider.style.display = "";
+    photoScanRow.style.display = "";
+    logBtn.style.display = "none";
+    document.getElementById("meal-start-over-btn").style.display = "none";
+    mealInput.focus();
   });
 
   logForm.addEventListener("submit", (e) => {
