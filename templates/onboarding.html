@@ -966,7 +966,9 @@
       _wbBindSummary();
     } else if (wbStep === 10) {
       el.innerHTML = _wbLoadingHTML();
-      _wbStartGeneration();
+      _wbStartLoadingMessages();
+      if (!_wbSkipGeneration) _wbStartGeneration();
+      _wbSkipGeneration = false;
     } else if (wbStep === 11) {
       el.innerHTML = _wbOutputHTML();
       _wbBindOutput();
@@ -1513,6 +1515,29 @@
     "Finalizing your plan...",
   ];
 
+  let _wbSkipGeneration = false;
+  let _wbMsgTimer = null;
+
+  function _wbStartLoadingMessages() {
+    if (_wbMsgTimer) clearInterval(_wbMsgTimer);
+    let msgIdx = 0;
+    const msgEl = document.getElementById("wb-loading-msg");
+    if (msgEl) msgEl.textContent = WB_LOADING_MSGS[0];
+    _wbMsgTimer = setInterval(() => {
+      msgIdx = (msgIdx + 1) % WB_LOADING_MSGS.length;
+      const el = document.getElementById("wb-loading-msg");
+      if (el) el.textContent = WB_LOADING_MSGS[msgIdx];
+    }, 2500);
+    setTimeout(() => {
+      const el = document.getElementById("wb-loading-slow");
+      if (el) el.style.display = "";
+    }, 30000);
+  }
+
+  function _wbStopLoadingMessages() {
+    if (_wbMsgTimer) { clearInterval(_wbMsgTimer); _wbMsgTimer = null; }
+  }
+
   function _wbLoadingHTML() {
     return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center">
       <div class="spinner-ring" style="margin-bottom:1.25rem"></div>
@@ -1591,17 +1616,6 @@
 
   function _wbStartGeneration() {
     wbPayload = _wbBuildPayload();
-    let msgIdx = 0;
-    const msgEl = document.getElementById("wb-loading-msg");
-    if (msgEl) msgEl.textContent = WB_LOADING_MSGS[0];
-    const msgTimer = setInterval(() => {
-      msgIdx = (msgIdx + 1) % WB_LOADING_MSGS.length;
-      if (msgEl) msgEl.textContent = WB_LOADING_MSGS[msgIdx];
-    }, 2500);
-    const slowTimer = setTimeout(() => {
-      const el = document.getElementById("wb-loading-slow");
-      if (el) el.style.display = "";
-    }, 30000);
 
     fetch("/api/generate-comprehensive-plan", {
       method: "POST",
@@ -1613,8 +1627,7 @@
       return r.json();
     })
     .then(data => {
-      clearInterval(msgTimer);
-      clearTimeout(slowTimer);
+      _wbStopLoadingMessages();
       if (data.error) { alert("Plan generation failed: " + data.error); wbStep = 9; wbRender(); return; }
       wbPlanResult = data.plan;
       wbUnderstanding = data.understanding;
@@ -1623,10 +1636,9 @@
       wbRender();
     })
     .catch(err => {
-      clearInterval(msgTimer);
-      clearTimeout(slowTimer);
+      _wbStopLoadingMessages();
       console.error("Plan generation error:", err);
-      alert("Plan generation failed: " + (err.message || "Unknown error. Check your connection and try again."));
+      alert("Plan generation failed: " + (err.message || "Unknown error."));
       wbStep = 9;
       wbRender();
     });
@@ -1706,7 +1718,6 @@
         if (exercises.length) html += `<div style="height:1px;background:var(--border);margin:0.4rem 0"></div>`;
         html += `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:0.2rem 0">
           <span style="font-size:0.82rem;color:var(--text)">${cardio.type || 'Cardio'}</span>
-          ${cardio.committed ? '<span style="font-size:0.7rem;color:var(--accent2)">yours</span>' : ''}
         </div>`;
       }
 
@@ -1828,10 +1839,12 @@
       const input = document.getElementById("wb-revise-input");
       const req = input.value.trim();
       if (!req) return;
-      const btn = document.getElementById("wb-revise-btn");
-      const status = document.getElementById("wb-revise-status");
-      btn.disabled = true; btn.textContent = "Revising...";
-      status.textContent = "Applying changes..."; status.style.display = "";
+
+      // Show full loading screen with rotating messages (skip auto-generation)
+      _wbSkipGeneration = true;
+      wbStep = 10;
+      wbRender();
+
       fetch("/api/revise-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1839,16 +1852,14 @@
       })
       .then(r => r.json())
       .then(data => {
-        btn.disabled = false; btn.textContent = "Send";
-        if (data.error) { status.textContent = "Revision failed: " + data.error; return; }
+        _wbStopLoadingMessages();
+        if (data.error) { alert("Revision failed: " + data.error); wbStep = 11; wbRender(); return; }
         wbPlanResult = data.plan;
         _wbSaveLegacyPlan(wbPlanResult);
-        input.value = "";
-        status.textContent = "Plan updated!";
-        setTimeout(() => { status.style.display = "none"; }, 2000);
-        wbRender(); // Re-render output
+        wbStep = 11;
+        wbRender();
       })
-      .catch(() => { btn.disabled = false; btn.textContent = "Send"; status.textContent = "Revision failed."; });
+      .catch(() => { _wbStopLoadingMessages(); alert("Revision failed. Try again."); wbStep = 11; wbRender(); });
     });
 
     // Back to summary (to edit responses)

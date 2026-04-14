@@ -619,8 +619,15 @@ CURRENT PLAN:
 
 CHANGE REQUEST: {change_request}
 
-Apply the changes. Keep everything else the same. Respond with ONLY valid JSON in the same
-format (weeklyPlan + planNotes). No markdown. 5-8 exercises per training day."""
+RULES:
+- Apply the requested changes. Keep everything else exactly the same.
+- 5-8 exercises per training day.
+- For cardio sessions, use ONLY these type labels (no generic "Cardio"):
+  Running: "Easy Run", "Tempo Run", "Interval Run", "Long Run", "Recovery Run", "Hill Repeats", "Fartlek"
+  Cycling: "Easy Ride", "Tempo Ride", "Interval Ride", "Long Ride", "Recovery Ride"
+  Other: "HIIT Circuit", "LISS Walk", "Incline Walk", "Swimming", "Jump Rope", "Stairmaster"
+- Do NOT include duration, distance, or pace in cardio. Just the session type.
+- Respond with ONLY valid JSON (weeklyPlan + planNotes). No markdown."""
 
     response = _client().messages.create(
         model="claude-haiku-4-5-20251001",
