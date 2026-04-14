@@ -7991,48 +7991,48 @@ if ("serviceWorker" in navigator) {
     const entry   = getDayEntry(today) || {};
     const profile = getProfileData();
 
-    // ── Calorie ring ──
+    // ── Calorie ring — shows calories remaining to target ──
     const tdee     = entry.tdee || SERVER_TDEE;
     const calories = CAL_CONSUMED;
+    const balance  = calories - tdee;  // negative = deficit, positive = surplus
+    const deficit  = Math.abs(profile.deficit || 0);  // goal deficit as positive number
+    const calTarget = tdee > 0 ? Math.round(tdee - deficit) : 0;
+    const remaining = calTarget - calories;  // positive = still can eat, negative = over target
 
-    // balance = eaten − burned  →  negative = deficit, positive = surplus
-    const balance = calories - tdee;
-
-    // Goal direction from profile (tgtWeight < curWeight → want deficit; > → want surplus)
-    let goalWantsDeficit = null;  // null = no goal set
-    if (profile && profile.tgtWeight && profile.curWeight) {
-      if (profile.tgtWeight < profile.curWeight) goalWantsDeficit = true;
-      else if (profile.tgtWeight > profile.curWeight) goalWantsDeficit = false;
+    // Color based on how close to target
+    function ringColor() {
+      if (calories === 0 && tdee === 0) return "var(--surface2)";
+      if (remaining >= 0) return "var(--green)";       // under target — on track
+      if (Math.abs(remaining) < 200) return "var(--amber)";  // slightly over
+      return "var(--danger)";                            // significantly over
     }
 
-    // onGoal = user is on the correct side for their goal
-    function balanceColor(bal) {
-      if (goalWantsDeficit === null) return "var(--text)";
-      const onGoal = goalWantsDeficit ? bal <= 0 : bal >= 0;
-      return onGoal ? "var(--green)" : "var(--danger)";
-    }
-
-    const pct  = tdee > 0 ? Math.min(1, calories / tdee) : 0;
+    const pct  = calTarget > 0 ? Math.min(1, calories / calTarget) : 0;
     const fill = Math.round(pct * RING_CIRC);
 
     const ringEl = document.getElementById("dash-ring-fill");
     if (ringEl) {
       ringEl.setAttribute("stroke-dasharray", fill + " " + RING_CIRC);
-      ringEl.setAttribute("stroke", calories > 0 ? balanceColor(balance) : "var(--surface2)");
+      ringEl.setAttribute("stroke", ringColor());
     }
 
     const valEl = document.getElementById("dash-deficit-val");
     const lblEl = document.getElementById("dash-deficit-lbl");
     if (valEl) {
       if (calories > 0 || tdee > 0) {
-        const sign = balance <= 0 ? "−" : "+";
-        valEl.textContent = sign + Math.abs(balance).toLocaleString();
-        valEl.style.color = calories > 0 ? balanceColor(balance) : "var(--muted)";
-        if (lblEl) lblEl.textContent = balance <= 0 ? "deficit" : "surplus";
+        if (remaining >= 0) {
+          valEl.textContent = remaining.toLocaleString();
+          valEl.style.color = "var(--green)";
+          if (lblEl) lblEl.textContent = "cals remaining";
+        } else {
+          valEl.textContent = "+" + Math.abs(remaining).toLocaleString();
+          valEl.style.color = "var(--danger)";
+          if (lblEl) lblEl.textContent = "over target";
+        }
       } else {
-        valEl.textContent = "—";
+        valEl.textContent = calTarget > 0 ? calTarget.toLocaleString() : "—";
         valEl.style.color = "var(--muted)";
-        if (lblEl) lblEl.textContent = "balance";
+        if (lblEl) lblEl.textContent = calTarget > 0 ? "cal target" : "balance";
       }
     }
 
@@ -8044,20 +8044,30 @@ if ("serviceWorker" in navigator) {
       if (calories > 0 || tdee > 0) {
         eqBurn.textContent     = tdee.toLocaleString();
         eqConsumed.textContent = calories.toLocaleString();
-        const sign = balance <= 0 ? "−" : "+";
-        eqResult.textContent   = sign + Math.abs(balance).toLocaleString();
-        eqResult.style.color   = balanceColor(balance);
+        const actualDeficit = tdee - calories;
+        const sign = actualDeficit >= 0 ? "−" : "+";
+        eqResult.textContent   = sign + Math.abs(actualDeficit).toLocaleString();
+        eqResult.style.color   = actualDeficit >= 0 ? "var(--green)" : "var(--danger)";
       } else {
         eqBurn.textContent = eqConsumed.textContent = eqResult.textContent = "—";
         eqResult.style.color = "var(--muted)";
       }
     }
 
+    // ── On-track message ──
     const metaEl = document.getElementById("dash-cal-meta");
     if (metaEl) {
-      metaEl.textContent = calories > 0 || tdee > 0
-        ? (balance <= 0 ? "On track — burning more than you're eating" : "Eating more than you're burning today")
-        : "Log meals to see your balance";
+      if (calories === 0 && tdee === 0) {
+        metaEl.textContent = "Log meals to see your balance";
+      } else if (remaining >= calTarget * 0.3) {
+        metaEl.textContent = "Plenty of room — eat when you're hungry";
+      } else if (remaining >= 0) {
+        metaEl.textContent = "On track — " + remaining.toLocaleString() + " cals left to hit your target";
+      } else if (Math.abs(remaining) < 200) {
+        metaEl.textContent = "Close to target — just slightly over";
+      } else {
+        metaEl.textContent = "Over target by " + Math.abs(remaining).toLocaleString() + " cals";
+      }
     }
 
     // ── Stat cards ──
