@@ -988,12 +988,17 @@ def compute_momentum(user_id: int, date_str: str, calorie_goal_override: int | N
     penalties["macros"] = round(macro_pen, 2)
 
     # 3. Workout (10 pts) — based on whether planned workout was completed
-    #    Only counts as done if the user has logged a workout entry for today.
-    #    Garmin active calories alone (e.g. a bike ride) do NOT count as completing
-    #    a planned lifting session.
+    #    Only counts manually logged workouts (garmin_activity_id IS NULL).
+    #    Garmin auto-imported activities (bike rides etc.) don't count as
+    #    completing a planned lifting session.
     workout_burn_today = get_today_workout_burn(user_id, date_str)
     garmin_active = (garmin.get("active_calories") or 0) if garmin else 0
-    has_logged_workout = workout_burn_today > 0  # must have an actual logged workout
+    with get_conn() as conn:
+        manual_count = conn.execute(
+            "SELECT COUNT(*) as c FROM workout_logs WHERE user_id = ? AND log_date = ? AND (garmin_activity_id IS NULL OR garmin_activity_id = '')",
+            (user_id, date_str)
+        ).fetchone()["c"]
+    has_logged_workout = manual_count > 0  # only manually logged workouts count
     workout_planned = planned_workout_today if planned_workout_today is not None else True
 
     if not workout_planned:

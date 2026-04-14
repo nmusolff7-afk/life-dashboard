@@ -1015,7 +1015,7 @@
           ${_wbCardHTML("elite","Highly Experienced","4+ years, familiar with periodization and progressive overload",false)}
         </div>
         <div id="wb-s1-cards-response" style="display:none;font-size:0.82rem;color:var(--accent2);margin-top:0.65rem;line-height:1.5"></div>`;
-      html += _wbNav(false);
+      html += _wbNav(true);
     } else if (step === 2) {
       const slLabels = {fat_loss:"How long do you have per session? We can make 30 minutes count.",hypertrophy:"How much time are you putting into each session?",recomp:"What's a realistic session length for you?",maintenance:"How long are you comfortable spending per session?"};
       const dayNames = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
@@ -1159,9 +1159,12 @@
 
   // ── Bind step interactions ──
   function _wbBindStep(step, g) {
-    // Back button
+    // Back button — step 1 closes the quiz overlay
     const backBtn = document.querySelector(".wb-back-btn");
-    if (backBtn) backBtn.addEventListener("click", () => { wbStep--; wbRender(); });
+    if (backBtn) backBtn.addEventListener("click", () => {
+      if (wbStep <= 1) { _wbCloseQuiz(); }
+      else { wbStep--; wbRender(); }
+    });
     // Next button
     const nextBtn = document.querySelector(".wb-next-btn");
     if (nextBtn) nextBtn.addEventListener("click", () => {
@@ -1408,18 +1411,23 @@
 
     const row = (k,v) => `<div style="display:flex;justify-content:space-between;padding:0.35rem 0;border-bottom:1px solid var(--surface2)"><span style="font-size:0.8rem;color:var(--muted)">${k}</span><span style="font-size:0.8rem;color:var(--text);text-align:right">${v}</span></div>`;
 
+    const editLink = (step) => `<button class="wb-edit-link" data-step="${step}" style="background:none;border:none;color:var(--accent2);font-size:0.72rem;cursor:pointer;text-decoration:underline;padding:0">Edit</button>`;
+    const secHeader = (title, step) => `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.85rem;margin-bottom:0.35rem">
+      <span style="font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">${title}</span>${step ? editLink(step) : ''}
+    </div>`;
+
     let html = `<div style="font-family:'Rajdhani',sans-serif;font-size:1.7rem;font-weight:700;letter-spacing:0.03em;line-height:1.1;margin-bottom:0.25rem">Your Plan Summary</div>
       <div style="font-size:0.85rem;color:var(--muted);margin-bottom:1.25rem">Review everything before we build your plan.</div>`;
-    html += `<div style="font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:0.35rem">Your Profile</div>`;
+    html += secHeader("Your Profile", 0);
     html += row("Age", all.age || "\u2014");
     html += row("Sex", all.gender || "\u2014");
     html += row("Weight", all.current_weight_lbs ? all.current_weight_lbs + " lbs" : "\u2014");
     html += row("Height", all.height_ft && all.height_in != null ? all.height_ft + "'" + all.height_in + '"' : "\u2014");
 
-    html += `<div style="font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:0.85rem;margin-bottom:0.35rem">Your Goal</div>`;
+    html += secHeader("Your Goal", 0);
     html += row("Goal", WB_GOAL_LABELS[g] || g);
 
-    html += `<div style="font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:0.85rem;margin-bottom:0.35rem">Your Plan</div>`;
+    html += secHeader("Your Plan", 1);
     html += row("Experience", expLabels[wbData.experience] || wbData.experience);
     html += row("Training Days", wbData.trainingDays.length ? wbData.trainingDays.join(", ") : "None");
     html += row("Session Length", slLabels[wbData.sessionLength] || wbData.sessionLength);
@@ -1438,12 +1446,12 @@
     }
 
     if (wbData.selectedExercises.length) {
-      html += `<div style="font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:0.85rem;margin-bottom:0.35rem">Exercises Selected</div>`;
+      html += secHeader("Exercises Selected", 8);
       html += `<div style="display:flex;flex-wrap:wrap;gap:0.25rem;margin-bottom:0.35rem">${wbData.selectedExercises.map(e => `<span style="padding:0.2rem 0.5rem;border-radius:99px;font-size:0.72rem;background:var(--surface2);border:1px solid var(--border);color:var(--text)">${e}</span>`).join('')}</div>`;
     }
 
     if (wbData.physicalConstraints) {
-      html += `<div style="font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:0.85rem;margin-bottom:0.35rem">Physical Notes</div>`;
+      html += secHeader("Physical Notes", 7);
       html += `<div style="font-size:0.8rem;color:var(--text);line-height:1.5">${wbData.physicalConstraints}</div>`;
     }
 
@@ -1472,6 +1480,15 @@
     document.getElementById("wb-sources-btn").addEventListener("click", () => {
       const p = document.getElementById("wb-sources-panel");
       p.style.display = p.style.display === "none" ? "" : "none";
+    });
+    // Edit links — jump to specific step
+    document.querySelectorAll(".wb-edit-link").forEach(link => {
+      link.addEventListener("click", () => {
+        const s = parseInt(link.dataset.step);
+        if (s === 0) { _wbCloseQuiz(); return; } // profile edits happen outside quiz
+        wbStep = s;
+        wbRender();
+      });
     });
   }
 
@@ -1777,8 +1794,11 @@
       <div id="wb-revise-status" style="display:none;font-size:0.78rem;color:var(--muted);margin-top:0.35rem"></div>
     </div>`;
 
-    // Accept button
-    html += `<button class="btn btn-primary" id="wb-accept-btn" style="width:100%;margin-top:1rem;padding:0.85rem;font-size:1rem">Save & Enter Apex \u203A</button>`;
+    // Navigation
+    html += `<div style="display:flex;gap:0.5rem;margin-top:1rem">
+      <button class="btn btn-ghost" id="wb-back-to-summary" style="padding:0.85rem;font-size:0.88rem">\u2190 Edit Responses</button>
+      <button class="btn btn-primary" id="wb-accept-btn" style="flex:1;padding:0.85rem;font-size:1rem">Save & Enter Apex \u203A</button>
+    </div>`;
     return html;
   }
 
@@ -1822,6 +1842,9 @@
       })
       .catch(() => { btn.disabled = false; btn.textContent = "Send"; status.textContent = "Revision failed."; });
     });
+
+    // Back to summary (to edit responses)
+    document.getElementById("wb-back-to-summary").addEventListener("click", () => { wbStep = 9; wbRender(); });
 
     // Accept / Enter Apex
     document.getElementById("wb-accept-btn").addEventListener("click", function() {
