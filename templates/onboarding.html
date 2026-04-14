@@ -862,12 +862,26 @@
     trainingStyle: [],
     cardioPreference: null,
     committedCardio: null,
+    cardioMode: null, // "own" or "build" or null
+    cardioOwnPlan: {}, // {Monday: {activity, duration}, ...} for "own" mode
+    cardioGoal: null, // for "build" mode
+    cardioIntensity: null, // for "build" mode
+    cardioDaysPerWeek: 3, // for "build" mode
+    selectedCardioActivities: [], // for "build" mode
     physicalConstraints: null,
     selectedExercises: [],
   };
+  let wbCardioSub = 0; // 0=fork, 1=own entry, 2=build goal, 3=build details, 4=build activity picker
   let wbPlanResult = null;
   let wbUnderstanding = null;
   let wbPayload = null;
+
+  const WB_CARDIO_ACTIVITIES = [
+    "Running \u2014 outdoor","Treadmill Running","Cycling \u2014 outdoor","Stationary Bike",
+    "Rowing Machine","Stairmaster","Jump Rope","Swimming","Assault Bike / Air Bike",
+    "Hiking","Elliptical","Walking","Incline Walking","Sprint Intervals",
+    "HIIT Circuit","Sled Push","Battle Ropes","Kayaking","Dancing","Yoga Flow",
+  ];
 
   function showWorkoutSection() {
     const section = document.getElementById("ob-workout-section");
@@ -1066,24 +1080,72 @@
         <button id="wb-s5-skip" style="background:none;border:none;color:var(--muted);font-size:0.82rem;cursor:pointer;margin-top:0.65rem;text-decoration:underline;display:block;width:100%;text-align:center">No preference \u2014 optimize for my goal</button>`;
       html += _wbNav(true);
     } else if (step === 6) {
-      const cardLabels = {fat_loss:"How do you feel about cardio?",hypertrophy:"How much cardio do you want in your plan?",recomp:"What's your relationship with cardio?",maintenance:"How much do you enjoy cardiovascular training?"};
-      html += `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.75rem">${cardLabels[g]}</div>
-        <div id="wb-s6-pref" style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem">
-          ${_wbCardHTML("cardio_positive","I Enjoy It","Cardio is welcome \u2014 I'll show up for it",false)}
-          ${_wbCardHTML("cardio_minimal","Only If It Helps \u2014 Keep It Minimal","Fine with some, but not the focus",false)}
-          ${_wbCardHTML("cardio_avoid","I'd Rather Not \u2014 Lifting Only","Skip cardio entirely",false)}
-          ${_wbCardHTML("cardio_primary","Cardio Is My Main Thing","Running, cycling, or sport \u2014 lifting is secondary",false)}
-        </div>
-        <div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.35rem">Do you have any cardio you plan to do no matter what?</div>
-        <div style="font-size:0.78rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.4">Be honest \u2014 we'll build your lifting plan around it, not against it.</div>
-        <div id="wb-s6-committed" style="display:flex;flex-direction:column;gap:0.5rem">
-          ${_wbCardHTML("none","No \u2014 I'll follow the plan","",false)}
-          ${_wbCardHTML("running_regular","Running \u2014 regularly","",false)}
-          ${_wbCardHTML("cycling_rowing_regular","Cycling or Rowing \u2014 regularly","",false)}
-          ${_wbCardHTML("other_sport","Other \u2014 sport, swim, or mixed","",false)}
-        </div>
-        <div id="wb-s6-warning" style="display:none;background:rgba(255,180,0,0.1);border:1px solid rgba(255,180,0,0.3);border-radius:8px;padding:0.65rem;font-size:0.8rem;color:var(--text);line-height:1.5;margin-top:0.65rem"></div>`;
-      html += _wbNav(true);
+      if (wbCardioSub === 0) {
+        // Fork: own plan or build one
+        html += `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.35rem">What about cardio?</div>
+          <div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.4">We'll schedule it alongside your lifting \u2014 not against it.</div>
+          <div id="wb-s6-fork" style="display:flex;flex-direction:column;gap:0.5rem">
+            ${_wbCardHTML("own","I Have My Own Cardio Plan","I'll enter what I already do",false)}
+            ${_wbCardHTML("build","Build Me a Cardio Plan","Help me figure out what to do and when",false)}
+            ${_wbCardHTML("none","No Cardio","I'm only here to lift",false)}
+          </div>`;
+        html += _wbNav(true);
+      } else if (wbCardioSub === 1) {
+        // Own plan entry — day by day
+        const daysFull = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+        const daysShort = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+        const actOpts = WB_CARDIO_ACTIVITIES.map(a => `<option value="${a}">${a}</option>`).join('');
+        html += `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.35rem">Your Cardio Schedule</div>
+          <div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.4">Select an activity and duration for each day you do cardio. Leave rest days blank.</div>`;
+        daysFull.forEach((d, i) => {
+          const existing = wbData.cardioOwnPlan[d] || {};
+          html += `<div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.45rem">
+            <span style="font-size:0.78rem;font-weight:600;color:var(--accent2);min-width:2rem">${daysShort[i]}</span>
+            <select class="wb-cardio-day-sel" data-day="${d}" style="flex:2;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:0.4rem;color:var(--text);font-size:0.8rem">
+              <option value="">Rest</option>${actOpts}
+            </select>
+            <input type="text" class="wb-cardio-day-dur" data-day="${d}" placeholder="30 min" value="${existing.duration || ''}" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:0.4rem;color:var(--text);font-size:0.8rem;max-width:5rem">
+          </div>`;
+        });
+        html += _wbNav(true);
+      } else if (wbCardioSub === 2) {
+        // Build: cardio goal
+        html += `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.75rem">What's your main cardio goal?</div>
+          <div id="wb-s6-cgoal" style="display:flex;flex-direction:column;gap:0.5rem">
+            ${_wbCardHTML("fat_burn","Burn Fat","Maximize calorie burn and fat loss",false)}
+            ${_wbCardHTML("endurance","Build Endurance","Improve cardiovascular fitness and stamina",false)}
+            ${_wbCardHTML("heart_health","Heart Health","General cardiovascular health and longevity",false)}
+            ${_wbCardHTML("performance","Sport Performance","Get faster, recover better between efforts",false)}
+          </div>`;
+        html += _wbNav(true);
+      } else if (wbCardioSub === 3) {
+        // Build: intensity + frequency
+        html += `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.75rem">How intense should your cardio be?</div>
+          <div id="wb-s6-cintensity" style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem">
+            ${_wbCardHTML("easy","Easy \u2014 Conversational Pace","Zone 1\u20132. You can talk while doing it.",false)}
+            ${_wbCardHTML("moderate","Moderate \u2014 Steady Effort","Zone 2\u20133. Breathing harder but sustainable.",false)}
+            ${_wbCardHTML("hard","Hard \u2014 Interval-Based","Mix of high effort and recovery. Efficient.",false)}
+            ${_wbCardHTML("mixed","Mix It Up","Combine easy days and hard days.",false)}
+          </div>
+          <div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.5rem">How many days per week?</div>
+          <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem">
+            <input type="range" id="wb-cardio-days-slider" min="1" max="7" step="1" value="${wbData.cardioDaysPerWeek}" style="flex:1;accent-color:var(--accent2)">
+            <span id="wb-cardio-days-val" style="font-size:1.2rem;font-weight:700;color:var(--accent2);min-width:1.5rem;text-align:center">${wbData.cardioDaysPerWeek}</span>
+          </div>`;
+        html += _wbNav(true);
+      } else if (wbCardioSub === 4) {
+        // Build: activity picker
+        html += `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.25rem">Pick your preferred cardio</div>
+          <div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.15rem;line-height:1.4">Select activities you enjoy or want in your plan.</div>
+          <div style="font-size:0.82rem;color:var(--accent2);font-weight:600;margin-bottom:0.65rem"><span id="wb-cardio-act-count">${wbData.selectedCardioActivities.length}</span> selected</div>
+          <div style="display:flex;flex-wrap:wrap;gap:0.35rem">`;
+        WB_CARDIO_ACTIVITIES.forEach(a => {
+          const sel = wbData.selectedCardioActivities.includes(a);
+          html += `<span class="wb-cardio-pill${sel ? ' active' : ''}" data-act="${a}" style="padding:0.35rem 0.65rem;border-radius:99px;font-size:0.8rem;cursor:pointer;border:1px solid ${sel ? 'var(--accent2)' : 'var(--border)'};background:${sel ? 'var(--accent2)' : 'var(--surface2)'};color:${sel ? '#fff' : 'var(--text)'};transition:all 0.15s">${a}</span>`;
+        });
+        html += `</div>`;
+        html += _wbNav(true);
+      }
     } else if (step === 7) {
       html += `<div style="font-size:0.92rem;font-weight:600;color:var(--text);margin-bottom:0.25rem">Anything we should know?</div>
         <div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.4">This is optional \u2014 but anything you share helps us keep your plan safe and effective. The more specific, the better.</div>
@@ -1108,7 +1170,7 @@
       if (step === 2 && !wbData.sessionLength) return;
       if (step === 3 && !wbData.equipment) return;
       if (step === 4 && (!wbData.sleepHours || !wbData.preferredTime.length)) return;
-      if (step === 6 && (!wbData.cardioPreference || !wbData.committedCardio)) return;
+      if (step === 6) return; // step 6 sub-steps handle their own navigation
       if (step === 7) {
         const ta = document.getElementById("wb-constraints");
         wbData.physicalConstraints = ta && ta.value.trim() ? ta.value.trim() : null;
@@ -1203,17 +1265,90 @@
       document.getElementById("wb-s5-skip").addEventListener("click", () => { wbData.trainingStyle = []; wbStep++; wbRender(); });
     }
     if (step === 6) {
-      _wbCard("wb-s6-pref", "cardioPreference");
-      _wbCard("wb-s6-committed", "committedCardio");
-      // Warning for running + hypertrophy
-      document.querySelectorAll("#wb-s6-committed .wb-card").forEach(c => c.addEventListener("click", () => {
+      if (wbCardioSub === 0) {
+        // Fork selection
         setTimeout(() => {
-          const w = document.getElementById("wb-s6-warning");
-          if (wbData.committedCardio === "running_regular" && g === "hypertrophy") {
-            w.textContent = "Running every day while trying to build significant muscle creates a real tension. We'll build your lifting plan around your running \u2014 but your muscle gains will be slower than if you replaced some running with rest or cycling."; w.style.display = "";
-          } else if (w) { w.style.display = "none"; }
-        }, 10);
-      }));
+          document.querySelectorAll("#wb-s6-fork .wb-card").forEach(c => {
+            c.addEventListener("click", () => {
+              document.querySelectorAll("#wb-s6-fork .wb-card").forEach(x => x.classList.remove("active"));
+              c.classList.add("active");
+              wbData.cardioMode = c.dataset.val;
+            });
+          });
+        }, 0);
+        // Override next to route to sub-step
+        const nextBtn2 = document.querySelector(".wb-next-btn");
+        if (nextBtn2) {
+          nextBtn2.removeEventListener("click", nextBtn2._handler);
+          nextBtn2._handler = () => {
+            if (!wbData.cardioMode) return;
+            if (wbData.cardioMode === "none") { wbData.cardioPreference = "cardio_avoid"; wbData.committedCardio = "none"; wbCardioSub = 0; wbStep++; wbRender(); }
+            else if (wbData.cardioMode === "own") { wbCardioSub = 1; wbRender(); }
+            else { wbCardioSub = 2; wbRender(); }
+          };
+          nextBtn2.addEventListener("click", nextBtn2._handler);
+        }
+      } else if (wbCardioSub === 1) {
+        // Own plan entry — bind selects and set pre-existing values
+        document.querySelectorAll(".wb-cardio-day-sel").forEach(sel => {
+          const d = sel.dataset.day;
+          if (wbData.cardioOwnPlan[d]) sel.value = wbData.cardioOwnPlan[d].activity || "";
+          sel.addEventListener("change", () => {
+            if (sel.value) { wbData.cardioOwnPlan[d] = { ...(wbData.cardioOwnPlan[d] || {}), activity: sel.value }; }
+            else { delete wbData.cardioOwnPlan[d]; }
+          });
+        });
+        document.querySelectorAll(".wb-cardio-day-dur").forEach(inp => {
+          const d = inp.dataset.day;
+          inp.addEventListener("input", () => {
+            if (wbData.cardioOwnPlan[d]) wbData.cardioOwnPlan[d].duration = inp.value;
+          });
+        });
+        // Override back to go to fork
+        const backBtn2 = document.querySelector(".wb-back-btn");
+        if (backBtn2) { backBtn2.removeEventListener("click", backBtn2._handler); backBtn2._handler = () => { wbCardioSub = 0; wbRender(); }; backBtn2.addEventListener("click", backBtn2._handler); }
+        // Override next to continue to step 7
+        const nextBtn2 = document.querySelector(".wb-next-btn");
+        if (nextBtn2) {
+          nextBtn2.removeEventListener("click", nextBtn2._handler);
+          nextBtn2._handler = () => { wbData.cardioPreference = "cardio_own"; wbData.committedCardio = "own_plan"; wbCardioSub = 0; wbStep++; wbRender(); };
+          nextBtn2.addEventListener("click", nextBtn2._handler);
+        }
+      } else if (wbCardioSub === 2) {
+        _wbCard("wb-s6-cgoal", "cardioGoal");
+        const backBtn2 = document.querySelector(".wb-back-btn");
+        if (backBtn2) { backBtn2.removeEventListener("click", backBtn2._handler); backBtn2._handler = () => { wbCardioSub = 0; wbRender(); }; backBtn2.addEventListener("click", backBtn2._handler); }
+        const nextBtn2 = document.querySelector(".wb-next-btn");
+        if (nextBtn2) { nextBtn2.removeEventListener("click", nextBtn2._handler); nextBtn2._handler = () => { if (!wbData.cardioGoal) return; wbCardioSub = 3; wbRender(); }; nextBtn2.addEventListener("click", nextBtn2._handler); }
+      } else if (wbCardioSub === 3) {
+        _wbCard("wb-s6-cintensity", "cardioIntensity");
+        const slider = document.getElementById("wb-cardio-days-slider");
+        const valEl = document.getElementById("wb-cardio-days-val");
+        if (slider) slider.addEventListener("input", () => { wbData.cardioDaysPerWeek = parseInt(slider.value); if (valEl) valEl.textContent = slider.value; });
+        const backBtn2 = document.querySelector(".wb-back-btn");
+        if (backBtn2) { backBtn2.removeEventListener("click", backBtn2._handler); backBtn2._handler = () => { wbCardioSub = 2; wbRender(); }; backBtn2.addEventListener("click", backBtn2._handler); }
+        const nextBtn2 = document.querySelector(".wb-next-btn");
+        if (nextBtn2) { nextBtn2.removeEventListener("click", nextBtn2._handler); nextBtn2._handler = () => { if (!wbData.cardioIntensity) return; wbCardioSub = 4; wbRender(); }; nextBtn2.addEventListener("click", nextBtn2._handler); }
+      } else if (wbCardioSub === 4) {
+        // Activity picker
+        document.querySelectorAll(".wb-cardio-pill").forEach(p => {
+          p.addEventListener("click", () => {
+            const a = p.dataset.act;
+            const idx = wbData.selectedCardioActivities.indexOf(a);
+            if (idx >= 0) { wbData.selectedCardioActivities.splice(idx, 1); p.classList.remove("active"); p.style.background = "var(--surface2)"; p.style.color = "var(--text)"; p.style.borderColor = "var(--border)"; }
+            else { wbData.selectedCardioActivities.push(a); p.classList.add("active"); p.style.background = "var(--accent2)"; p.style.color = "#fff"; p.style.borderColor = "var(--accent2)"; }
+            document.getElementById("wb-cardio-act-count").textContent = wbData.selectedCardioActivities.length;
+          });
+        });
+        const backBtn2 = document.querySelector(".wb-back-btn");
+        if (backBtn2) { backBtn2.removeEventListener("click", backBtn2._handler); backBtn2._handler = () => { wbCardioSub = 3; wbRender(); }; backBtn2.addEventListener("click", backBtn2._handler); }
+        const nextBtn2 = document.querySelector(".wb-next-btn");
+        if (nextBtn2) {
+          nextBtn2.removeEventListener("click", nextBtn2._handler);
+          nextBtn2._handler = () => { wbData.cardioPreference = "cardio_build"; wbData.committedCardio = "build_plan"; wbCardioSub = 0; wbStep++; wbRender(); };
+          nextBtn2.addEventListener("click", nextBtn2._handler);
+        }
+      }
     }
     if (step === 7) {
       const ta = document.getElementById("wb-constraints");
@@ -1292,8 +1427,15 @@
     html += row("Sleep", sleepLabels[wbData.sleepHours] || wbData.sleepHours);
     html += row("Training Time", wbData.preferredTime.length ? wbData.preferredTime.map(t => timeLabels[t] || t).join(", ") : "No preference");
     html += row("Style", wbData.trainingStyle.length ? wbData.trainingStyle.map(s => styleLabels[s] || s).join(", ") : "No preference");
-    html += row("Cardio", cardLabels[wbData.cardioPreference] || wbData.cardioPreference);
-    html += row("Committed Cardio", commitLabels[wbData.committedCardio] || wbData.committedCardio);
+    if (wbData.cardioMode === "own") {
+      const ownDays = Object.entries(wbData.cardioOwnPlan).filter(([,v]) => v && v.activity).map(([d,v]) => d.substring(0,3)).join(", ");
+      html += row("Cardio", "Own plan" + (ownDays ? " (" + ownDays + ")" : ""));
+    } else if (wbData.cardioMode === "build") {
+      const cgLabels = {fat_burn:"Burn Fat",endurance:"Build Endurance",heart_health:"Heart Health",performance:"Performance"};
+      html += row("Cardio", "AI-built \u00b7 " + (cgLabels[wbData.cardioGoal] || "") + " \u00b7 " + wbData.cardioDaysPerWeek + " days/wk");
+    } else {
+      html += row("Cardio", "No cardio");
+    }
 
     if (wbData.selectedExercises.length) {
       html += `<div style="font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:0.85rem;margin-bottom:0.35rem">Exercises Selected</div>`;
@@ -1404,7 +1546,16 @@
       equipment: wbData.equipment,
       recovery: { sleepHours: wbData.sleepHours, stressLevel: stress, outsideActivity: outsideActivity },
       trainingStyle: wbData.trainingStyle,
-      cardio: { preference: wbData.cardioPreference, committedCardioType: wbData.committedCardio === "none" ? null : wbData.committedCardio, committedCardioFrequency: null },
+      cardio: {
+        mode: wbData.cardioMode,
+        preference: wbData.cardioPreference,
+        committedCardioType: wbData.committedCardio === "none" ? null : wbData.committedCardio,
+        ownPlan: wbData.cardioMode === "own" ? wbData.cardioOwnPlan : null,
+        buildGoal: wbData.cardioMode === "build" ? wbData.cardioGoal : null,
+        buildIntensity: wbData.cardioMode === "build" ? wbData.cardioIntensity : null,
+        buildDaysPerWeek: wbData.cardioMode === "build" ? wbData.cardioDaysPerWeek : null,
+        selectedActivities: wbData.selectedCardioActivities.length ? wbData.selectedCardioActivities : null,
+      },
       physicalConstraints: wbData.physicalConstraints,
       selectedExercises: wbData.selectedExercises,
       aiFlags: flags,
@@ -1470,6 +1621,17 @@
       }
     });
     localStorage.setItem("weeklyPlan", JSON.stringify(legacy));
+    // Save cardio plan separately
+    const cardioPlan = {};
+    ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].forEach(d => {
+      const day = wp[d];
+      if (day && day.cardio) {
+        cardioPlan[d] = day.cardio;
+      } else if (wbData.cardioMode === "own" && wbData.cardioOwnPlan[d] && wbData.cardioOwnPlan[d].activity) {
+        cardioPlan[d] = { type: wbData.cardioOwnPlan[d].activity, duration: wbData.cardioOwnPlan[d].duration || "30 min", committed: true };
+      }
+    });
+    localStorage.setItem("cardioWeeklyPlan", JSON.stringify(cardioPlan));
   }
 
   // ── Output Screen ──
