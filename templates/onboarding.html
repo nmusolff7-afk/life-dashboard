@@ -10,21 +10,21 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg:      #0d1117;
-      --surface: #161b22;
-      --surface2:#21262d;
-      --border:  #30363d;
+      --bg:      #111111;
+      --surface: #1c1c1e;
+      --surface2:#2c2c2e;
+      --border:  rgba(255,255,255,0.06);
       --accent:  #5c6bc0;
       --accent2: #7986cb;
-      --text:    #e6edf3;
-      --muted:   #8b949e;
-      --danger:  #f85149;
-      --green:   #3fb950;
-      --amber:   #e3b341;
+      --text:    #ffffff;
+      --muted:   #8e8e93;
+      --danger:  #ff453a;
+      --green:   #30d158;
+      --amber:   #ffd60a;
     }
     html, body { min-height: 100%; background: var(--bg); color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      font-size: 15px; }
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+      font-size: 15px; -webkit-font-smoothing: antialiased; }
     .ob-wrap { min-height: 100dvh; display: flex; flex-direction: column; }
 
     /* ── Progress bar ── */
@@ -54,9 +54,9 @@
     .field .hint { font-size: 0.74rem; color: var(--muted); margin-top: 0.25rem; opacity: 0.75; }
     input[type="text"], input[type="number"], input[type="email"], input[type="date"],
     textarea, select {
-      width: 100%; background: var(--surface2); border: 1.5px solid var(--border);
-      border-radius: 10px; color: var(--text); font-size: 0.95rem;
-      padding: 0.7rem 0.95rem; outline: none; transition: border-color .15s;
+      width: 100%; background: var(--surface2); border: 1px solid transparent;
+      border-radius: 12px; color: var(--text); font-size: 0.95rem;
+      padding: 0.7rem 1rem; outline: none; transition: border-color .2s;
       font-family: inherit; -webkit-appearance: none; appearance: none;
     }
     input:focus, textarea:focus, select:focus { border-color: var(--accent2); }
@@ -66,10 +66,10 @@
 
     /* ── Segmented / chip buttons ── */
     .chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.1rem; }
-    .chip { padding: 0.45rem 1rem; border-radius: 99px; border: 1.5px solid var(--border);
+    .chip { padding: 0.5rem 1.1rem; border-radius: 99px; border: none;
       background: var(--surface2); color: var(--muted); font-size: 0.85rem;
-      cursor: pointer; transition: all .15s; user-select: none; }
-    .chip.active { border-color: var(--accent2); background: rgba(121,134,203,0.15);
+      cursor: pointer; transition: all .2s; user-select: none; }
+    .chip.active { background: rgba(121,134,203,0.2);
       color: var(--accent2); }
 
     /* ── Slider ── */
@@ -84,11 +84,12 @@
 
     /* ── Navigation footer ── */
     .ob-footer { position: fixed; bottom: 0; left: 0; right: 0;
-      background: var(--bg); border-top: 1px solid var(--border);
+      background: var(--bg); border-top: none;
       padding: 1rem 1.25rem; display: flex; gap: 0.75rem; }
-    .btn { padding: 0.75rem 1.25rem; border-radius: 10px; border: none;
-      font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: all .15s;
+    .btn { padding: 0.8rem 1.25rem; border-radius: 14px; border: none;
+      font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: all .2s, transform .1s;
       font-family: inherit; }
+    .btn:active { transform: scale(0.97); }
     .btn-primary { background: var(--accent); color: #fff; flex: 1; }
     .btn-primary:hover { background: var(--accent2); }
     .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -104,12 +105,12 @@
     .ob-spinner { display: none; flex-direction: column; align-items: center;
       gap: 1rem; padding: 2.5rem 1.25rem; text-align: center; }
     .ob-spinner.show { display: flex; }
-    .spinner-ring { width: 48px; height: 48px; border: 3px solid var(--border);
+    .spinner-ring { width: 48px; height: 48px; border: 3px solid var(--surface2);
       border-top-color: var(--accent2); border-radius: 50%;
       animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .ob-profile-summary { background: var(--surface); border: 1px solid var(--border);
-      border-radius: 12px; padding: 1.25rem; margin-top: 1.5rem; text-align: left; }
+    .ob-profile-summary { background: var(--surface); border: none;
+      border-radius: 16px; padding: 1.35rem; margin-top: 1.5rem; text-align: left; }
     .summary-row { display: flex; justify-content: space-between; align-items: baseline;
       padding: 0.45rem 0; border-bottom: 1px solid var(--surface2); font-size: 0.88rem; }
     .summary-row:last-child { border-bottom: none; }
@@ -119,8 +120,8 @@
     .wb-card.active { border-color: var(--accent2) !important; background: rgba(121,134,203,0.1) !important; }
     .wb-card:hover { border-color: var(--accent2); }
 
-    .ob-plan { background: var(--surface); border: 1px solid var(--border);
-      border-radius: 12px; padding: 1.25rem; text-align: left; }
+    .ob-plan { background: var(--surface); border: none;
+      border-radius: 16px; padding: 1.35rem; text-align: left; }
     .ob-plan-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .07em;
       font-weight: 700; color: var(--muted); margin-bottom: 0.85rem;
       display: flex; align-items: center; gap: 0.5rem; }
@@ -128,7 +129,7 @@
     .ob-plan-goal { font-size: 1rem; font-weight: 700; color: var(--accent2); margin-bottom: 0.15rem; }
     .ob-plan-goal-desc { font-size: 0.82rem; color: var(--muted); line-height: 1.5; margin-bottom: 1rem; }
     .ob-plan-macro-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.85rem; }
-    .ob-plan-macro { background: var(--surface2); border-radius: 10px; padding: 0.65rem 0.75rem; }
+    .ob-plan-macro { background: var(--surface2); border-radius: 12px; padding: 0.7rem 0.85rem; }
     .ob-plan-macro-val { font-size: 1.15rem; font-weight: 800; line-height: 1.2; }
     .ob-plan-macro-lbl { font-size: 0.68rem; color: var(--muted); text-transform: uppercase;
       letter-spacing: .04em; margin-top: 0.15rem; }
@@ -136,31 +137,33 @@
     .ob-plan-sources { font-size: 0.7rem; color: var(--muted); border-top: 1px solid var(--border);
       padding-top: 0.65rem; margin-top: 0.5rem; line-height: 1.55; }
 
-    .card { background: var(--surface); border: 1px solid var(--border);
-      border-radius: 12px; padding: 1.1rem; margin-bottom: 1rem; }
+    .card { background: var(--surface); border: none;
+      border-radius: 18px; padding: 1.2rem; margin-bottom: 1rem; }
     .card-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .07em;
       font-weight: 700; color: var(--muted); margin-bottom: 0.85rem; }
     .error-msg { color: #fff; font-size: 0.78rem; margin-top: 0.75rem; display: none;
       white-space: pre-wrap; word-break: break-all; max-height: 260px; overflow-y: auto;
-      background: #7a1a1a; border: 1px solid #f85149;
-      border-radius: 8px; padding: 0.75rem; text-align: left; line-height: 1.5; }
+      background: rgba(255,69,58,0.15); border: none;
+      border-radius: 12px; padding: 0.85rem; text-align: left; line-height: 1.5; }
 
     /* ── Goal selection cards ── */
     .goal-card-grid { display:grid; grid-template-columns:1fr 1fr; gap:0.65rem; }
-    .goal-card { background:var(--surface); border:1.5px solid var(--border); border-radius:12px;
-      padding:1rem 0.85rem; cursor:pointer; text-align:center; transition:border-color .15s,background .15s;
+    .goal-card { background:var(--surface); border:none; border-radius:16px;
+      padding:1.1rem 0.95rem; cursor:pointer; text-align:center; transition:background .2s, transform .1s;
       font-family:inherit; color:inherit; }
-    .goal-card:hover, .goal-card:focus { border-color:var(--accent2); }
-    .goal-card.selected { border-color:var(--accent2); background:rgba(121,134,203,0.1); }
+    .goal-card:hover, .goal-card:focus { background:var(--surface2); }
+    .goal-card:active { transform: scale(0.97); }
+    .goal-card.selected { background:rgba(121,134,203,0.12); box-shadow: inset 0 0 0 1.5px var(--accent2); }
     .goal-card-icon { font-size:1.4rem; margin-bottom:0.35rem; opacity:0.7; }
     .goal-card-title { font-size:0.92rem; font-weight:700; margin-bottom:0.25rem; }
     .goal-card-desc { font-size:0.74rem; color:var(--muted); line-height:1.45; }
 
     /* ── Path comparison cards ── */
-    .path-card { background:var(--surface); border:1.5px solid var(--border); border-radius:12px;
-      padding:0.9rem 1rem; margin-bottom:0.65rem; cursor:pointer; transition:border-color .15s; }
-    .path-card:hover, .path-card:focus { border-color:var(--accent2); }
-    .path-card.selected { border-color:var(--accent2); background:rgba(121,134,203,0.08); }
+    .path-card { background:var(--surface); border:none; border-radius:16px;
+      padding:1rem 1.1rem; margin-bottom:0.65rem; cursor:pointer; transition:background .2s, transform .1s; }
+    .path-card:hover, .path-card:focus { background:var(--surface2); }
+    .path-card:active { transform: scale(0.98); }
+    .path-card.selected { background:rgba(121,134,203,0.1); box-shadow: inset 0 0 0 1.5px var(--accent2); }
     .path-card-header { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:0.5rem; }
     .path-card-title { font-size:0.92rem; font-weight:700; }
     .path-card-tag { font-size:0.68rem; color:var(--muted); background:var(--surface2);
