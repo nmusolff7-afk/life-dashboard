@@ -1412,20 +1412,18 @@
             <button type="submit" class="btn btn-primary btn-full" id="log-btn"
               style="display:none;font-size:1rem;padding:0.8rem 1rem;margin-bottom:0.75rem">Log This Meal</button>
 
-            <div id="item-breakdown"></div>
-            <div id="ai-notes"></div>
             <div class="macro-edit-grid">
-              <div class="field"><label>Calories</label><input type="number" id="e-calories" min="0" step="1"></div>
-              <div class="field"><label>Protein (g)</label><input type="number" id="e-protein" min="0" step="0.1"></div>
-              <div class="field"><label>Carbs (g)</label><input type="number" id="e-carbs" min="0" step="0.1"></div>
-              <div class="field"><label>Fat (g)</label><input type="number" id="e-fat" min="0" step="0.1"></div>
+              <div class="field"><label>Cal</label><input type="number" id="e-calories" min="0" step="1"></div>
+              <div class="field"><label>Protein</label><input type="number" id="e-protein" min="0" step="0.1"></div>
+              <div class="field"><label>Carbs</label><input type="number" id="e-carbs" min="0" step="0.1"></div>
+              <div class="field"><label>Fat</label><input type="number" id="e-fat" min="0" step="0.1"></div>
             </div>
 
-            <!-- Details/corrections box + hint (shown after analysis, below macros) -->
+            <div id="item-breakdown"></div>
+            <div id="ai-notes"></div>
+
+            <!-- Details/corrections box (shown after analysis, below breakdown) -->
             <div id="meal-details-section" style="display:none;margin-top:0.5rem">
-              <div id="meal-portion-hint" style="font-size:0.78rem;color:var(--muted);margin-bottom:0.5rem;line-height:1.45;text-align:center">
-                Be as specific as possible about portion sizes, brands, and preparation.
-              </div>
               <div class="field" style="margin-bottom:0">
                 <textarea id="meal-details-input" rows="2"
                   placeholder='Add details or corrections — e.g. "it was a large portion", "no bun"'
@@ -4223,21 +4221,11 @@ function deleteWorkout(id) {
     }
     let cal = 0, pro = 0, carb = 0, fat = 0;
     rows.forEach(row => {
-      const origCal = parseFloat(row.dataset.origCal) || 1;
-      const curCal  = parseFloat(row.querySelector(".bd-cal").value) || 0;
-      const ratio   = origCal > 0 ? curCal / origCal : 1;
-      cal  += curCal;
-      pro  += (parseFloat(row.dataset.pro)  || 0) * ratio;
-      carb += (parseFloat(row.dataset.carb) || 0) * ratio;
-      fat  += (parseFloat(row.dataset.fat)  || 0) * ratio;
+      cal  += parseFloat(row.dataset.origCal) || 0;
+      pro  += parseFloat(row.dataset.pro)  || 0;
+      carb += parseFloat(row.dataset.carb) || 0;
+      fat  += parseFloat(row.dataset.fat)  || 0;
     });
-    const tot = breakdownEl.querySelector(".bd-total");
-    if (tot) {
-      tot.querySelector(".bt-cal").textContent  = Math.round(cal) + " cal";
-      tot.querySelector(".bt-pro").textContent  = pro.toFixed(1) + "g P";
-      tot.querySelector(".bt-carb").textContent = carb.toFixed(1) + "g C";
-      tot.querySelector(".bt-fat").textContent  = fat.toFixed(1) + "g F";
-    }
     pairs[0][0].value = Math.round(cal);  pairs[0][1].value = Math.round(cal);
     pairs[1][0].value = pro.toFixed(1);   pairs[1][1].value = pro.toFixed(1);
     pairs[2][0].value = carb.toFixed(1);  pairs[2][1].value = carb.toFixed(1);
@@ -4258,18 +4246,11 @@ function deleteWorkout(id) {
       row.innerHTML =
         '<button type="button" class="bd-del" title="Remove">&times;</button>' +
         '<span class="bd-name">' + (it.name || "").replace(/</g, "&lt;") + '</span>' +
-        '<span class="bd-cal-wrap"><input class="bd-cal" type="number" min="0" step="1" value="' + it.calories + '"><span class="bd-cal-unit">cal</span></span>';
+        '<span style="color:var(--muted);font-size:12px;flex-shrink:0;font-variant-numeric:tabular-nums">' + it.calories + ' cal</span>';
       row.querySelector(".bd-del").addEventListener("click", () => { row.remove(); recalcBreakdown(); });
-      row.querySelector(".bd-cal").addEventListener("input", recalcBreakdown);
       breakdownEl.appendChild(row);
     });
 
-    const tot = document.createElement("div");
-    tot.className = "bd-total";
-    tot.innerHTML =
-      '<span>Total</span>' +
-      '<span class="bd-total-macros"><span class="bt-cal"></span><span class="bt-pro"></span><span class="bt-carb"></span><span class="bt-fat"></span></span>';
-    breakdownEl.appendChild(tot);
     recalcBreakdown();
   }
 
