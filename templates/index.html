@@ -25,6 +25,7 @@
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <script src="/static/i18n.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
   <style>
@@ -1331,7 +1332,7 @@
       <!-- Task list (moved from Status tab) -->
       <div class="card" style="order:2">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
-          <div class="card-title" style="margin:0;flex:1">Today's Tasks</div>
+          <div class="card-title" style="margin:0;flex:1" data-i18n="todays_tasks">Today's Tasks</div>
           <button class="btn btn-ghost" id="mind-add-btn" style="font-size:0.8rem;padding:0.35rem 0.8rem">+ Add</button>
         </div>
         <div id="mind-add-form" style="display:none;margin-bottom:0.75rem">
@@ -1351,13 +1352,13 @@
       <div class="card" id="dash-macro-card" style="padding:0;overflow:hidden;order:1">
         <div style="display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch" id="home-macro-swipe">
           <div style="min-width:100%;scroll-snap-align:start;flex-shrink:0;padding:var(--pad-card)">
-            <div class="card-title">Macros</div>
+            <div class="card-title" data-i18n="macros">Macros</div>
             <div id="dash-macro-bars">
               <div style="color:var(--muted);font-size:0.85rem">Log meals to see macros.</div>
             </div>
           </div>
           <div style="min-width:100%;scroll-snap-align:start;flex-shrink:0;padding:var(--pad-card)">
-            <div class="card-title">Micros</div>
+            <div class="card-title" data-i18n="micros">Micros</div>
             <div id="dash-micro-bars">
               <div style="color:var(--muted);font-size:0.85rem">Log meals to see micros.</div>
             </div>
@@ -1410,7 +1411,7 @@
     ══════════════════════════════════ -->
     <div class="tab-panel" id="tab-meals">
       <div class="page-header">
-        <h2>Nutrition</h2>
+        <h2 data-i18n="nutrition">Nutrition</h2>
         <p>Log meals and track your macros</p>
       </div>
 
@@ -1426,7 +1427,7 @@
       {% set balance = tdee - cal_consumed %}
 
       <div class="card" style="order:2;padding:0;overflow:hidden">
-        <div class="card-title" style="padding:var(--pad-card) var(--pad-card) 0">Daily summary</div>
+        <div class="card-title" style="padding:var(--pad-card) var(--pad-card) 0" data-i18n="daily_summary">Daily summary</div>
         <div style="display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch" id="summary-swipe">
           <!-- Page 1: Deficit + Macros -->
           <div style="min-width:100%;scroll-snap-align:start;flex-shrink:0;padding:0 var(--pad-card) var(--pad-card)">
@@ -1488,11 +1489,11 @@
       </div>
 
       <div class="card" style="order:1">
-        <div class="card-title">Log a meal</div>
+        <div class="card-title" data-i18n="log_a_meal">Log a meal</div>
         <form method="post" action="/log" id="log-form">
           <div class="field">
             <textarea id="meal-input"
-              placeholder="What did you have to eat?"
+              placeholder="What did you have to eat?" data-i18n="what_eat"
               autocomplete="off" required></textarea>
           </div>
           <input type="hidden" name="description" id="h-description">
@@ -1504,7 +1505,7 @@
           <div id="macro-fields">
             <!-- Log button at the top -->
             <button type="submit" class="btn btn-primary btn-full" id="log-btn"
-              style="display:none;font-size:1rem;padding:0.8rem 1rem;margin-bottom:0.75rem">Log This Meal</button>
+              style="display:none;font-size:1rem;padding:0.8rem 1rem;margin-bottom:0.75rem" data-i18n="log_this_meal">Log This Meal</button>
 
             <div class="macro-edit-grid">
               <div class="field"><label>Cal</label><input type="number" id="e-calories" min="0" step="1"></div>
@@ -1529,12 +1530,12 @@
 
             <!-- Start Over at the very bottom -->
             <button type="button" class="btn btn-ghost btn-full" id="meal-start-over-btn"
-              style="display:none;font-size:0.85rem;margin-top:0.75rem">Start Over</button>
+              style="display:none;font-size:0.85rem;margin-top:0.75rem" data-i18n="start_over">Start Over</button>
           </div>
 
           <!-- Primary CTA -->
           <button type="button" class="btn btn-primary btn-full" id="macros-btn"
-            style="font-size:1rem;padding:0.8rem 1rem;margin-bottom:0.65rem">Get Macros</button>
+            style="font-size:1rem;padding:0.8rem 1rem;margin-bottom:0.65rem" data-i18n="get_macros">Get Macros</button>
 
           <!-- Or divider -->
           <div class="meal-or-divider" id="meal-or-divider"><span>or</span></div>
@@ -1578,7 +1579,7 @@
             <textarea id="scan-context" rows="2" style="display:none"></textarea>
           </div>
           <!-- Analyze button (shown after photo selected) -->
-          <button type="button" class="btn btn-primary btn-full" id="analyze-btn" style="display:none;margin-top:0.65rem">Analyze Photo</button>
+          <button type="button" class="btn btn-primary btn-full" id="analyze-btn" style="display:none;margin-top:0.65rem" data-i18n="analyze_photo">Analyze Photo</button>
 
           <input type="file" id="scan-input"   accept="image/*" capture="environment" style="display:none">
           <input type="file" id="gallery-input" accept="image/*" style="display:none">
@@ -1743,14 +1744,14 @@
 
     <div class="tab-panel" id="tab-workout">
       <div class="page-header">
-        <h2>Fitness</h2>
+        <h2 data-i18n="fitness">Fitness</h2>
         <p>Log workouts, steps, and body weight</p>
       </div>
 
       <div style="display:flex;flex-direction:column">
       <!-- Strength / planned workout -->
       <div class="card" style="order:2">
-        <div class="section-label">Strength</div>
+        <div class="section-label" data-i18n="strength">Strength</div>
 
         <div id="strength-status-wrap">
         {% if ns.strength_log %}
@@ -1778,10 +1779,10 @@
 
       <!-- Log any activity -->
       <div class="card" style="order:1">
-        <div class="section-label">Log Activity</div>
+        <div class="section-label" data-i18n="log_activity">Log Activity</div>
         <div class="field">
           <textarea id="activity-input" rows="2"
-            placeholder="What did you do today?"></textarea>
+            placeholder="What did you do today?" data-i18n="what_do"></textarea>
         </div>
         <div id="activity-burn-panel" class="burn-panel">
           <div id="activity-burn-notes" class="burn-ai-notes"></div>
@@ -1791,7 +1792,7 @@
           </div>
         </div>
         <button type="button" class="btn btn-primary btn-full" id="activity-burn-btn"
-          style="font-size:1rem;padding:0.8rem 1rem;margin-bottom:0.65rem">Get Burn Estimate</button>
+          style="font-size:1rem;padding:0.8rem 1rem;margin-bottom:0.65rem" data-i18n="get_burn">Get Burn Estimate</button>
         <button type="button" class="btn btn-primary btn-full" id="activity-log-btn" style="display:none">Log Activity</button>
       </div>
 
@@ -1822,13 +1823,13 @@
 
       <!-- Daily Steps (hidden when Garmin is configured) -->
       <div class="card" id="manual-steps-card">
-        <div class="section-label">Daily Steps</div>
+        <div class="section-label" data-i18n="daily_steps">Daily Steps</div>
         <div class="field" style="margin-bottom:0.6rem">
           <input type="number" id="steps-input" min="0" max="60000" step="100"
             placeholder="e.g. 8500" autocomplete="off" inputmode="numeric">
         </div>
         <div class="btn-row">
-          <button type="button" class="btn btn-primary" id="steps-save-btn">Save Steps</button>
+          <button type="button" class="btn btn-primary" id="steps-save-btn" data-i18n="save_steps">Save Steps</button>
           <span class="save-confirm" id="steps-save-confirm">✓ Saved</span>
         </div>
         <div style="font-size:0.78rem;color:var(--muted);margin-top:0.4rem" id="steps-neat-preview"></div>
@@ -1836,7 +1837,7 @@
 
       <!-- Today's Weight -->
       <div class="card">
-        <div class="card-title">Today's Weight</div>
+        <div class="card-title" data-i18n="todays_weight">Today's Weight</div>
         <div class="field" style="margin-bottom:0.6rem">
           <div class="input-suffix-wrap">
             <input type="number" id="scale-input" min="50" max="500" step="0.1"
@@ -1845,7 +1846,7 @@
           </div>
         </div>
         <div class="btn-row">
-          <button type="button" class="btn btn-primary" id="weight-save-btn">Save Weight</button>
+          <button type="button" class="btn btn-primary" id="weight-save-btn" data-i18n="save_weight">Save Weight</button>
           <span class="save-confirm" id="weight-save-confirm">✓ Saved</span>
         </div>
         <div style="font-size:0.78rem;color:var(--muted);margin-top:0.4rem" id="scale-saved-label"></div>
@@ -1872,7 +1873,7 @@
     ══════════════════════════════════ -->
     <div class="tab-panel" id="tab-progress">
       <div class="page-header">
-        <h2>Progress</h2>
+        <h2 data-i18n="progress">Progress</h2>
         <p>History, charts, and trends</p>
       </div>
 
@@ -1996,14 +1997,14 @@
     ══════════════════════════════════ -->
     <div class="tab-panel" id="tab-profile">
       <div class="page-header">
-        <h2>Profile</h2>
+        <h2 data-i18n="profile">Profile</h2>
         <div style="font-size:11px;color:var(--muted);letter-spacing:0.05em;text-transform:uppercase;margin-top:4px">Changes save automatically</div>
       </div>
 
       <!-- About You -->
       <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
         <div class="collapse-header">
-          <div class="card-title" style="margin:0;flex:1">About You</div>
+          <div class="card-title" style="margin:0;flex:1" data-i18n="about_you">About You</div>
           <svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </div>
         <div class="collapse-body" onclick="event.stopPropagation()">
@@ -2147,7 +2148,7 @@
       <!-- Goals -->
       <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
         <div class="collapse-header">
-          <div class="card-title" style="margin:0;flex:1">Goals
+          <div class="card-title" style="margin:0;flex:1" data-i18n="goals">Goals
             <button id="goals-info-btn" style="background:none;border:1px solid rgba(255,255,255,0.08);border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:11px;font-weight:700;font-style:italic;font-family:Georgia,serif;vertical-align:middle;margin-left:6px;padding:0;line-height:1;transition:all 180ms ease" title="How are these calculated?">i</button>
           </div>
           <svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
@@ -2297,13 +2298,13 @@
 
       <!-- Live Preview -->
       <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
-        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1">Live Preview</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1" data-i18n="live_preview">Live Preview</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
         <div class="collapse-body" onclick="event.stopPropagation()"><div class="profile-preview" id="profile-preview">Fill in your details above to see your personalized plan.</div></div>
       </div>
 
       <!-- Workout Plan -->
       <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
-        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1">Workout Plan</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1" data-i18n="workout_plan">Workout Plan</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
         <div class="collapse-body" onclick="event.stopPropagation()">
 
         <!-- Mode toggle -->
@@ -2344,7 +2345,7 @@
 
       <!-- My Profile -->
       <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
-        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1">My Profile</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1" data-i18n="my_profile">My Profile</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
         <div class="collapse-body" onclick="event.stopPropagation()">
         <div id="profile-summary-line" style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.5">
           Loading profile summary…
@@ -2369,7 +2370,7 @@
 
       <!-- Theme -->
       <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
-        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1">Theme</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1" data-i18n="theme">Theme</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
         <div class="collapse-body" onclick="event.stopPropagation()">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px" id="theme-picker">
           <button class="theme-swatch" data-theme="dark" style="background:#1C1C1E;border:2px solid transparent;border-radius:var(--r-inner);padding:14px 8px;cursor:pointer;text-align:center;transition:border-color 180ms ease">
@@ -2388,7 +2389,7 @@
 
       <!-- Meal Reminders -->
       <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
-        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1">Meal Reminders</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1" data-i18n="meal_reminders">Meal Reminders</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
         <div class="collapse-body" onclick="event.stopPropagation()">
           <div style="font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.5">Get notified to log meals at set times. Enable notifications when prompted.</div>
           <div id="reminder-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px"></div>
@@ -2398,7 +2399,7 @@
 
       <!-- Language -->
       <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
-        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1">Language</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1" data-i18n="language">Language</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
         <div class="collapse-body" onclick="event.stopPropagation()">
           <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px" id="lang-picker">
             <button class="lang-btn" data-lang="en">🇺🇸 English</button>
@@ -2417,7 +2418,7 @@
 
       <!-- Timezone -->
       <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
-        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1">Timezone</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1" data-i18n="timezone">Timezone</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
         <div class="collapse-body" onclick="event.stopPropagation()">
         <div style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.5">
           Controls which calendar day your meals and workouts are saved to.
@@ -2440,7 +2441,7 @@
 
       <!-- Account -->
       <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
-        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1">Account</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1" data-i18n="account">Account</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
         <div class="collapse-body" onclick="event.stopPropagation()">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
           <img src="/static/apex-logo.png" alt="" style="height:20px;width:auto;opacity:0.7" onerror="this.style.display='none'">
@@ -2477,13 +2478,13 @@
     ══════════════════════════════════ -->
     <div class="tab-panel" id="tab-mind">
       <div class="page-header">
-        <h2>Status</h2>
+        <h2 data-i18n="status">Status</h2>
         <p>Daily score, tasks &amp; insights</p>
       </div>
 
       <!-- Momentum card -->
       <div class="card" id="momentum-card">
-        <div class="card-title">Daily Score</div>
+        <div class="card-title" data-i18n="daily_score">Daily Score</div>
         <div id="momentum-content">
           <div style="color:var(--muted);font-size:0.85rem;padding:0.25rem 0">Loading...</div>
         </div>
@@ -2540,7 +2541,7 @@
     <div class="fab-modal-backdrop" onclick="closeFabModal('meal')"></div>
     <div class="fab-modal-box">
       <div class="fab-modal-header">
-        <div class="fab-modal-title">Log a Meal</div>
+        <div class="fab-modal-title" data-i18n="log_a_meal">Log a Meal</div>
         <button class="fab-modal-close" onclick="closeFabModal('meal')">
           <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
@@ -2589,7 +2590,7 @@
     <div class="fab-modal-backdrop" onclick="closeFabModal('activity')"></div>
     <div class="fab-modal-box">
       <div class="fab-modal-header">
-        <div class="fab-modal-title">Log Activity</div>
+        <div class="fab-modal-title" data-i18n="log_activity_fab">Log Activity</div>
         <button class="fab-modal-close" onclick="closeFabModal('activity')">
           <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
@@ -3873,11 +3874,11 @@ function renderMealTable(meals, totals) {
   const wrap = document.getElementById("meal-table-wrap");
   if (!wrap) return;
   let html = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
-    <div class="card-title" style="margin:0;flex:1">Today's meal entries</div>
-    <button type="button" class="btn-edit-meal" id="open-saved-meals-btn" style="font-size:0.72rem" onclick="openSavedMeals()">Saved</button>
+    <div class="card-title" style="margin:0;flex:1">${t("todays_meals")}</div>
+    <button type="button" class="btn-edit-meal" id="open-saved-meals-btn" style="font-size:0.72rem" onclick="openSavedMeals()">${t("saved")}</button>
   </div>`;
   if (meals && meals.length > 0) {
-    html += '<table class="meal-table"><thead><tr><th>Meal</th><th>Cal</th><th>Pro</th><th>Carb</th><th>Fat</th><th></th></tr></thead><tbody>';
+    html += `<table class="meal-table"><thead><tr><th>${t("meal")}</th><th>${t("cal")}</th><th>${t("pro")}</th><th>${t("carb")}</th><th>${t("fat")}</th><th></th></tr></thead><tbody>`;
     meals.forEach(m => {
       const descAttr = m.description.replace(/&/g,"&amp;").replace(/"/g,"&quot;");
       html += `<tr style="cursor:pointer" onclick="openMealDetail(${m.id})">
@@ -3897,7 +3898,7 @@ function renderMealTable(meals, totals) {
       </tr>`;
     });
     html += `<tr class="totals-row">
-      <td class="td-label">Totals</td>
+      <td class="td-label">${t("totals")}</td>
       <td class="td-cal">${totals.total_calories}</td>
       <td class="td-pro">${Math.round(totals.total_protein)}g</td>
       <td class="td-carb">${Math.round(totals.total_carbs)}g</td>
@@ -3905,7 +3906,7 @@ function renderMealTable(meals, totals) {
       <td></td>
     </tr></tbody></table>`;
   } else {
-    html += '<div class="empty"><div class="icon" style="color:var(--muted)"><svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg></div>No meals logged yet.</div>';
+    html += `<div class="empty"><div class="icon" style="color:var(--muted)"><svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg></div>${t("no_meals")}</div>`;
   }
   wrap.innerHTML = html;
 }
@@ -3927,8 +3928,8 @@ function renderWorkoutList(workouts, burn) {
   const wrap = document.getElementById("workout-list-wrap");
   if (!wrap) return;
   let html = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
-    <div class="card-title" style="margin:0;flex:1">Today's workout entries</div>
-    <button type="button" class="btn-edit-meal" id="open-saved-workouts-btn" style="font-size:0.72rem" onclick="openSavedWorkouts()">Saved</button>
+    <div class="card-title" style="margin:0;flex:1">${t("todays_workouts")}</div>
+    <button type="button" class="btn-edit-meal" id="open-saved-workouts-btn" style="font-size:0.72rem" onclick="openSavedWorkouts()">${t("saved")}</button>
   </div>`;
   if (workouts && workouts.length > 0) {
     workouts.forEach((w, idx) => {
@@ -3970,7 +3971,7 @@ function renderWorkoutList(workouts, burn) {
       </div>`;
     });
   } else {
-    html += '<div class="no-activity"><div class="icon" style="color:var(--muted)"><svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="2" fill="currentColor" stroke="none"/><path d="M7 21l3-7 3 2 4-8"/><path d="M16 9l-2.5 6"/></svg></div>No activity logged today</div>';
+    html += `<div class="no-activity"><div class="icon" style="color:var(--muted)"><svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="2" fill="currentColor" stroke="none"/><path d="M7 21l3-7 3 2 4-8"/><path d="M16 9l-2.5 6"/></svg></div>${t("no_activity")}</div>`;
   }
   wrap.innerHTML = html;
 }
@@ -9299,9 +9300,15 @@ if ("serviceWorker" in navigator) {
       btn.classList.add("active");
       localStorage.setItem("appLang", btn.dataset.lang);
       document.documentElement.setAttribute("lang", btn.dataset.lang);
+      // Live-update all text across the app
+      applyLang();
+      // Re-render dynamic content with new language
+      if (typeof window._refreshDashboard === "function") window._refreshDashboard();
     });
   });
   document.documentElement.setAttribute("lang", current);
+  // Apply on initial load
+  if (current !== "en") applyLang();
 })();
 
 // ══════════════════════════════════════════════════════
