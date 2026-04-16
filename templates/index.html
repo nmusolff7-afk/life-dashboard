@@ -3034,7 +3034,7 @@ function flashGreen() { _flash("flash-green"); }
 function flashRed()   { _flash("flash-red");   }
 
 // Store latest meals data globally for detail views
-window._latestMeals = [];
+window._latestMeals = window._latestMeals || [];
 
 function renderMealTable(meals, totals) {
   window._latestMeals = meals || [];
@@ -3088,7 +3088,7 @@ function _parseStrengthDesc(desc) {
   return { minutes, exercises };
 }
 
-window._latestWorkouts = [];
+window._latestWorkouts = window._latestWorkouts || [];
 
 function renderWorkoutList(workouts, burn) {
   window._latestWorkouts = workouts || [];
