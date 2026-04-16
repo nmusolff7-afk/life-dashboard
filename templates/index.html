@@ -712,8 +712,9 @@
     .cal-dows { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)) 2.5rem; gap: 3px; margin-bottom: 3px; }
     .cal-dow-lbl { text-align: center; font-size: 11px; color: var(--muted); }
     .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)) 2.5rem; gap: 3px; margin-bottom: 3px; }
-    .cal-week-lbl { font-size: 10px; color: var(--muted); display: flex; align-items: center;
-      justify-content: center; line-height: 1.2; overflow: hidden; }
+    .cal-week-lbl { font-size: 9px; color: var(--muted); display: flex; align-items: center;
+      justify-content: center; line-height: 1.2; overflow: hidden; text-align: center;
+      max-height: 2.4em; word-break: break-all; }
     .cal-cell { aspect-ratio: 1; border-radius: 8px; cursor: pointer; transition: filter 180ms ease;
       display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;
       min-width: 0; overflow: hidden; }
@@ -6344,7 +6345,11 @@ function fmtDate(iso) {
       // Week label (date range)
       const lbl = document.createElement("div");
       lbl.className = "cal-week-lbl";
-      lbl.textContent = shortDate(weekStart) + "–" + shortDate(weekEnd);
+      // Compact label: "Apr 7" on first line, "–13" on second
+      const m1 = weekStart.toLocaleDateString("en-US", { month: "short" });
+      const m2 = weekEnd.toLocaleDateString("en-US", { month: "short" });
+      const d1 = weekStart.getDate(), d2 = weekEnd.getDate();
+      lbl.textContent = (m1 === m2) ? m1 + " " + d1 + "–" + d2 : m1 + " " + d1 + "–" + m2 + " " + d2;
       grid.appendChild(lbl);
 
       container.appendChild(grid);
