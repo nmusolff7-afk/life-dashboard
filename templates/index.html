@@ -1581,10 +1581,6 @@
           <input type="file" id="scan-input"   accept="image/*" capture="environment" style="display:none">
           <input type="file" id="gallery-input" accept="image/*" style="display:none">
         </form>
-        <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:8px">
-          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:6px">Recent</div>
-          <div class="recents-bar" id="recent-meals-bar"></div>
-        </div>
       </div>
 
       </div><!-- /flex reorder -->
@@ -4207,12 +4203,12 @@ function deleteWorkout(id) {
   }
   // Food categorization
   const _FOOD_CATS = {
-    "Protein":    { icon: "P", color: "var(--protein)", keywords: ["chicken","beef","pork","turkey","fish","salmon","tuna","shrimp","steak","bacon","sausage","ham","lamb","tofu","tempeh","egg","eggs","ground","breast","thigh","wing"] },
-    "Dairy":      { icon: "D", color: "var(--fat)",     keywords: ["milk","cheese","yogurt","butter","cream","sour cream","cottage","mozzarella","cheddar","parmesan","whey"] },
-    "Grains":     { icon: "G", color: "var(--carbs)",   keywords: ["rice","pasta","bread","oats","oatmeal","cereal","flour","tortilla","noodle","quinoa","barley","bagel","wrap"] },
-    "Vegetables": { icon: "V", color: "var(--green)",   keywords: ["spinach","broccoli","carrot","pepper","onion","garlic","tomato","lettuce","kale","zucchini","cucumber","celery","mushroom","potato","sweet potato","corn","pea","bean","asparagus","cauliflower","cabbage","avocado"] },
-    "Fruit":      { icon: "F", color: "var(--amber)",   keywords: ["apple","banana","orange","berry","berries","strawberry","blueberry","grape","mango","pineapple","watermelon","peach","pear","lemon","lime"] },
-    "Other":      { icon: "O", color: "var(--muted)",   keywords: [] },
+    "Protein":    { icon: "", color: "var(--protein)", keywords: ["chicken","beef","pork","turkey","fish","salmon","tuna","shrimp","steak","bacon","sausage","ham","lamb","tofu","tempeh","egg","eggs","ground","breast","thigh","wing"] },
+    "Dairy":      { icon: "", color: "var(--fat)",     keywords: ["milk","cheese","yogurt","butter","cream","sour cream","cottage","mozzarella","cheddar","parmesan","whey"] },
+    "Grains":     { icon: "", color: "var(--carbs)",   keywords: ["rice","pasta","bread","oats","oatmeal","cereal","flour","tortilla","noodle","quinoa","barley","bagel","wrap"] },
+    "Vegetables": { icon: "", color: "var(--green)",   keywords: ["spinach","broccoli","carrot","pepper","onion","garlic","tomato","lettuce","kale","zucchini","cucumber","celery","mushroom","potato","sweet potato","corn","pea","bean","asparagus","cauliflower","cabbage","avocado"] },
+    "Fruit":      { icon: "", color: "var(--amber)",   keywords: ["apple","banana","orange","berry","berries","strawberry","blueberry","grape","mango","pineapple","watermelon","peach","pear","lemon","lime"] },
+    "Other":      { icon: "", color: "var(--muted)",   keywords: [] },
   };
 
   function _categorize(item) {
