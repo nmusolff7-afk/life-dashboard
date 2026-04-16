@@ -1394,13 +1394,13 @@
           </tr></thead>
           <tbody>
             {% for meal in meals %}
-            <tr>
+            <tr style="cursor:pointer" onclick="openMealDetail({{ meal.id }})">
               <td>{{ meal.description }}</td>
               <td class="td-cal">{{ meal.calories }}</td>
               <td class="td-pro">{{ "%.0f"|format(meal.protein_g) }}g</td>
               <td class="td-carb">{{ "%.0f"|format(meal.carbs_g) }}g</td>
               <td class="td-fat">{{ "%.0f"|format(meal.fat_g) }}g</td>
-              <td style="white-space:nowrap">
+              <td style="white-space:nowrap" onclick="event.stopPropagation()">
                 <button type="button" class="btn-edit-meal"
                   data-id="{{ meal.id }}" data-desc="{{ meal.description|e }}"
                   data-cal="{{ meal.calories }}" data-pro="{{ meal.protein_g }}"
@@ -1595,14 +1595,14 @@
         </div>
         {% if workouts %}
           {% for w in workouts %}
-          <div class="workout-item">
+          <div class="workout-item" style="cursor:pointer" onclick="openWorkoutDetail({{ w.id }})">
             <div class="w-icon">{% if 'run' in w.description|lower or 'mile' in w.description|lower or 'cardio' in w.description|lower %}🏃{% else %}🏋️{% endif %}</div>
             <div class="w-body">
-              <div class="w-desc">{{ w.description }}</div>
+              <div class="w-desc">{% if w.description|length > 50 %}{{ w.description[:50] }}…{% else %}{{ w.description }}{% endif %}</div>
               <div class="w-meta">{{ w.logged_at | fmt_time_12h }}</div>
             </div>
             {% if w.calories_burned %}<div class="w-cal">~{{ w.calories_burned }} kcal</div>{% endif %}
-            <button type="button" class="btn btn-danger" onclick="deleteWorkout({{ w.id }})">✕</button>
+            <button type="button" class="btn btn-danger" onclick="event.stopPropagation();deleteWorkout({{ w.id }})" style="flex-shrink:0">✕</button>
           </div>
           {% endfor %}
         {% else %}
@@ -2566,6 +2566,10 @@ const SERVER_TDEE       = {{ tdee }};         // RMR + today's workout burns
 let WORKOUT_BURN_TODAY  = {{ workout_burn }}; // today's logged workout calories
 let CURRENT_TDEE        = SERVER_TDEE;        // authoritative TDEE — updated by applyProfileToMeals
 let TODAY_WORKOUT_DESCS = {{ workouts | map(attribute='description') | list | tojson }};
+
+// Initialize workout/meal data for detail overlays
+window._latestWorkouts = {{ workouts | tojson }};
+window._latestMeals = {{ meals | tojson }};
 
 // ── TDEE Component Functions (defined early — used by IIFEs below) ──
 
