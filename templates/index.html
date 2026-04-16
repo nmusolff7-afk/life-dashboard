@@ -3103,29 +3103,27 @@ function renderWorkoutList(workouts, burn) {
       const icon = isStrength ? '🏋️' : isRun ? '🏃' : '💪';
       const time = fmt12h(w.logged_at || '');
 
+      // Simple one-line display for all workouts
+      let title, subtitle;
       if (isStrength) {
         const parsed = _parseStrengthDesc(w.description);
         if (parsed) {
-          html += `<div class="workout-item" style="flex-direction:column;align-items:stretch;cursor:pointer" onclick="openWorkoutDetail(${w.id})">
-            <div style="display:flex;align-items:center;gap:0.75rem">
-              <div class="w-icon">${icon}</div>
-              <div class="w-body" style="flex:1">
-                <div class="w-desc" style="font-weight:600">${time} \u2014 Strength Workout (${parsed.minutes} min)</div>
-                <div class="w-meta">${parsed.exercises.length} exercises \u00b7 tap to view</div>
-              </div>
-              ${w.calories_burned ? `<div class="w-cal">~${w.calories_burned} kcal</div>` : ''}
-              <button type="button" class="btn btn-danger" onclick="event.stopPropagation();deleteWorkout(${w.id})" style="flex-shrink:0">✕</button>
-            </div>
-          </div>`;
-          return;
+          title = `Strength Workout (${parsed.minutes} min)`;
+          subtitle = `${parsed.exercises.length} exercises · ${time}`;
+        } else {
+          title = w.description.length > 50 ? w.description.slice(0, 50) + '…' : w.description;
+          subtitle = time;
         }
+      } else {
+        title = w.description.length > 50 ? w.description.slice(0, 50) + '…' : w.description;
+        subtitle = time;
       }
 
       html += `<div class="workout-item" style="cursor:pointer" onclick="openWorkoutDetail(${w.id})">
         <div class="w-icon">${icon}</div>
         <div class="w-body">
-          <div class="w-desc">${w.description}</div>
-          <div class="w-meta">${time}</div>
+          <div class="w-desc">${title}</div>
+          <div class="w-meta">${subtitle}</div>
         </div>
         ${w.calories_burned ? `<div class="w-cal">~${w.calories_burned} kcal</div>` : ''}
         <button type="button" class="btn btn-danger" onclick="event.stopPropagation();deleteWorkout(${w.id})" style="flex-shrink:0">✕</button>
