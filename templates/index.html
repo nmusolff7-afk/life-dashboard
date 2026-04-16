@@ -1376,13 +1376,14 @@
       <div class="error-banner">⚠ {{ error }}</div>
       {% endif %}
 
+      <div style="display:flex;flex-direction:column">
       {% set default_goal_protein = 175 %}
       {% set default_goal_carbs   = 250 %}
       {% set default_goal_fat     = 75 %}
       {% set cal_consumed = totals.total_calories %}
       {% set balance = tdee - cal_consumed %}
 
-      <div class="card">
+      <div class="card" style="order:2">
         <div class="card-title">Daily summary</div>
         <div class="deficit-display">
           <div class="d-label" id="deficit-label">{% if balance >= 0 %}Calorie Deficit{% else %}Calorie Surplus{% endif %}</div>
@@ -1410,24 +1411,30 @@
           </div>
           {% endfor %}
         </div>
-        <div id="nutrition-more-macros" style="display:none;margin-top:8px">
-          <div class="progress-row" style="margin-bottom:0.55rem">
-            <div class="progress-header"><span class="p-label">Sugar</span><span id="goal-label-sugar" style="font-weight:600;color:var(--amber)">0g / 50g</span></div>
-            <div class="progress-bar-track"><div class="progress-bar-fill pro" id="bar-fill-sugar" style="width:0%;background:var(--amber)"></div></div>
+        <!-- Swipeable micro view -->
+        <div style="display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;margin-top:8px;gap:0" id="macro-swipe">
+          <div style="min-width:100%;scroll-snap-align:start;flex-shrink:0">
+            <div style="text-align:center;font-size:11px;color:var(--muted);padding:4px 0">Swipe for more →</div>
           </div>
-          <div class="progress-row" style="margin-bottom:0.55rem">
-            <div class="progress-header"><span class="p-label">Fiber</span><span id="goal-label-fiber" style="font-weight:600;color:var(--green)">0g / 30g</span></div>
-            <div class="progress-bar-track"><div class="progress-bar-fill pro" id="bar-fill-fiber" style="width:0%;background:var(--green)"></div></div>
-          </div>
-          <div class="progress-row" style="margin-bottom:0.55rem">
-            <div class="progress-header"><span class="p-label">Sodium</span><span id="goal-label-sodium" style="font-weight:600;color:var(--muted)">0mg / 2300mg</span></div>
-            <div class="progress-bar-track"><div class="progress-bar-fill pro" id="bar-fill-sodium" style="width:0%"></div></div>
+          <div style="min-width:100%;scroll-snap-align:start;flex-shrink:0">
+            <div class="progress-row" style="margin-bottom:0.55rem">
+              <div class="progress-header"><span class="p-label">Sugar</span><span id="goal-label-sugar" style="font-weight:600;color:var(--amber)">0g / 50g</span></div>
+              <div class="progress-bar-track"><div class="progress-bar-fill pro" id="bar-fill-sugar" style="width:0%;background:var(--amber)"></div></div>
+            </div>
+            <div class="progress-row" style="margin-bottom:0.55rem">
+              <div class="progress-header"><span class="p-label">Fiber</span><span id="goal-label-fiber" style="font-weight:600;color:var(--green)">0g / 30g</span></div>
+              <div class="progress-bar-track"><div class="progress-bar-fill pro" id="bar-fill-fiber" style="width:0%;background:var(--green)"></div></div>
+            </div>
+            <div class="progress-row" style="margin-bottom:0.55rem">
+              <div class="progress-header"><span class="p-label">Sodium</span><span id="goal-label-sodium" style="font-weight:600;color:var(--muted)">0mg / 2300mg</span></div>
+              <div class="progress-bar-track"><div class="progress-bar-fill pro" id="bar-fill-sodium" style="width:0%"></div></div>
+            </div>
+            <div style="text-align:center;font-size:11px;color:var(--muted);padding:4px 0">← Swipe back</div>
           </div>
         </div>
-        <button type="button" id="nutrition-more-toggle" onclick="var el=document.getElementById('nutrition-more-macros');var v=el.style.display==='none';el.style.display=v?'':'none';this.textContent=v?'Less':'Sugar · Fiber · Sodium'" style="background:none;border:none;color:var(--accent);font-size:12px;cursor:pointer;padding:4px 0;margin-top:4px;font-weight:600">Sugar · Fiber · Sodium</button>
       </div>
 
-      <div class="card">
+      <div class="card" style="order:1">
         <div class="card-title">Log a meal</div>
         <form method="post" action="/log" id="log-form">
           <div class="field">
@@ -1524,6 +1531,8 @@
           <input type="file" id="gallery-input" accept="image/*" style="display:none">
         </form>
       </div>
+
+      </div><!-- /flex reorder -->
 
       <div class="card" id="meal-table-wrap">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
@@ -1685,8 +1694,9 @@
         <p>Log workouts, steps, and body weight</p>
       </div>
 
+      <div style="display:flex;flex-direction:column">
       <!-- Strength / planned workout -->
-      <div class="card">
+      <div class="card" style="order:2">
         <div class="section-label">Strength</div>
 
         <div id="strength-status-wrap">
@@ -1714,7 +1724,7 @@
       </div>
 
       <!-- Log any activity -->
-      <div class="card">
+      <div class="card" style="order:1">
         <div class="section-label">Log Activity</div>
         <div class="field">
           <textarea id="activity-input" rows="2"
@@ -1731,6 +1741,8 @@
           style="font-size:1rem;padding:0.8rem 1rem;margin-bottom:0.65rem">Get Burn Estimate</button>
         <button type="button" class="btn btn-primary btn-full" id="activity-log-btn" style="display:none">Log Activity</button>
       </div>
+
+      </div><!-- /flex reorder -->
 
       <!-- Today's Entries -->
       <div class="card" id="workout-list-wrap">
@@ -2165,6 +2177,42 @@
           <input type="range" id="fat-slider" min="20" max="250" step="5">
           <div id="calc-explain-fat" class="calc-explain"></div>
         </div>
+
+        <div style="height:1px;background:var(--border);margin:0.5rem 0 1rem"></div>
+
+        <div class="slider-row">
+          <div class="slider-header">
+            <span class="slider-label" style="color:var(--amber)">Sugar Limit</span>
+            <div class="slider-val-row">
+              <input type="number" id="sugar-num" class="slider-num" min="0" max="150">
+              <span class="slider-unit">g / day</span>
+            </div>
+          </div>
+          <input type="range" id="sugar-slider" min="0" max="150" step="5">
+        </div>
+
+        <div class="slider-row">
+          <div class="slider-header">
+            <span class="slider-label" style="color:var(--green)">Fiber Goal</span>
+            <div class="slider-val-row">
+              <input type="number" id="fiber-num" class="slider-num" min="0" max="80">
+              <span class="slider-unit">g / day</span>
+            </div>
+          </div>
+          <input type="range" id="fiber-slider" min="0" max="80" step="1">
+        </div>
+
+        <div class="slider-row" style="margin-bottom:0">
+          <div class="slider-header">
+            <span class="slider-label">Sodium Limit</span>
+            <div class="slider-val-row">
+              <input type="number" id="sodium-num" class="slider-num" min="500" max="5000" style="width:78px">
+              <span class="slider-unit">mg / day</span>
+            </div>
+          </div>
+          <input type="range" id="sodium-slider" min="500" max="5000" step="100">
+        </div>
+
         <button type="button" class="btn btn-ghost btn-full" id="recalc-goals-btn"
           style="margin-top:0.75rem;font-size:0.82rem">Recalculate from profile data</button>
       </div>
@@ -5677,9 +5725,9 @@ function applyProfileToMeals(profile) {
     if (lbl) lbl.textContent = Math.round(val) + unit + " / " + goal + unit;
     if (bar) bar.style.width = Math.min(100, Math.round((val / goal) * 100)) + "%";
   };
-  _updSec("sugar", SUGAR_CONSUMED, 50, "g");
-  _updSec("fiber", FIBER_CONSUMED, 30, "g");
-  _updSec("sodium", SODIUM_CONSUMED, 2300, "mg");
+  _updSec("sugar", SUGAR_CONSUMED, profile.sugarGoal || 50, "g");
+  _updSec("fiber", FIBER_CONSUMED, profile.fiberGoal || 30, "g");
+  _updSec("sodium", SODIUM_CONSUMED, profile.sodiumGoal || 2300, "mg");
 
   // Persist today's full summary for Charts + History tabs
   saveDayField(localToday(), {
@@ -5779,6 +5827,9 @@ try {
         protein: getSlider("protein"),
         carbs:   getSlider("carbs"),
         fat:     getSlider("fat"),
+        sugarGoal:  getSlider("sugar") || 50,
+        fiberGoal:  getSlider("fiber") || 30,
+        sodiumGoal: getSlider("sodium") || 2300,
       };
       // Preserve goal from button
       const goalBtn = document.querySelector(".goal-btn.active");
@@ -5935,6 +5986,10 @@ try {
     setSlider("protein", macros.protein);
     setSlider("carbs",   macros.carbs);
     setSlider("fat",     macros.fat);
+    // Micronutrient defaults (only set if currently 0)
+    if (getSlider("sugar") === 0) setSlider("sugar", 50);
+    if (getSlider("fiber") === 0) setSlider("fiber", 30);
+    if (getSlider("sodium") === 0) setSlider("sodium", 2300);
     updatePreview();
     _autoSave();
   }
@@ -9171,11 +9226,14 @@ if ("serviceWorker" in navigator) {
         let html = macros.map(m => barHtml(m.name, m.val, m.goal, m.cls, m.color, "g")).join("");
         // Secondary macros (sugar, fiber, sodium)
         const s = Math.round(SUGAR_CONSUMED), f = Math.round(FIBER_CONSUMED), na = Math.round(SODIUM_CONSUMED);
+        const sugarGoal = profile ? (profile.sugarGoal || 50) : 50;
+        const fiberGoal = profile ? (profile.fiberGoal || 30) : 30;
+        const sodiumGoal = profile ? (profile.sodiumGoal || 2300) : 2300;
         if (s > 0 || f > 0 || na > 0) {
           html += `<div id="dash-macro-more" style="display:none;margin-top:4px">`;
-          html += barHtml("Sugar", s, 50, "pro", "var(--amber)", "g");
-          html += barHtml("Fiber", f, 30, "pro", "var(--green)", "g");
-          html += barHtml("Sodium", na, 2300, "pro", "var(--muted)", "mg");
+          html += barHtml("Sugar", s, sugarGoal, "pro", "var(--amber)", "g");
+          html += barHtml("Fiber", f, fiberGoal, "pro", "var(--green)", "g");
+          html += barHtml("Sodium", na, sodiumGoal, "pro", "var(--muted)", "mg");
           html += `</div>`;
           html += `<button type="button" onclick="var el=document.getElementById('dash-macro-more');var v=el.style.display==='none';el.style.display=v?'':'none';this.textContent=v?'Less':'Sugar · Fiber · Sodium'" style="background:none;border:none;color:var(--accent);font-size:12px;cursor:pointer;padding:4px 0;margin-top:2px;font-weight:600">Sugar · Fiber · Sodium</button>`;
         }
