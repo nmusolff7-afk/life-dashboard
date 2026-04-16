@@ -27,6 +27,8 @@ from db import (
     upsert_user_goal, get_user_goal,
     get_momentum_history_with_deltas, save_momentum_summary, get_momentum_summary,
     get_insight_bundle,
+    save_meal, get_saved_meals, delete_saved_meal, is_meal_saved,
+    save_workout, get_saved_workouts, delete_saved_workout, is_workout_saved,
 )
 from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, generate_workout_plan, generate_comprehensive_plan, generate_plan_understanding, revise_plan, shorten_label, scan_meal_image, generate_momentum_insight, generate_scale_summary, suggest_meal, identify_ingredients
 from claude_profile import generate_profile_map, compute_mind_insights, score_brief
@@ -869,6 +871,102 @@ def api_edit_workout(workout_id):
         return jsonify({"error": "No description"}), 400
     update_workout(workout_id, uid(), description, int(data.get("calories_burned", 0) or 0))
     return jsonify({"ok": True})
+
+
+# ── Saved Meals ────────────────────────────────────────
+
+@app.route("/api/saved-meals")
+@login_required
+def api_saved_meals():
+    return jsonify(get_saved_meals(uid()))
+
+
+@app.route("/api/saved-meals", methods=["POST"])
+@login_required
+def api_save_meal():
+    data = request.get_json() or {}
+    description = data.get("description", "").strip()
+    if not description:
+        return jsonify({"error": "No description"}), 400
+    import json
+    save_meal(
+        uid(), description,
+        calories=int(data.get("calories", 0)),
+        protein_g=float(data.get("protein_g", 0)),
+        carbs_g=float(data.get("carbs_g", 0)),
+        fat_g=float(data.get("fat_g", 0)),
+        items_json=json.dumps(data.get("items", [])),
+    )
+    return jsonify({"ok": True})
+
+
+@app.route("/api/saved-meals/<int:saved_id>", methods=["DELETE"])
+@login_required
+def api_delete_saved_meal(saved_id):
+    delete_saved_meal(saved_id, uid())
+    return jsonify({"ok": True})
+
+
+# ── Saved Workouts ─────────────────────────────────────
+
+@app.route("/api/saved-workouts")
+@login_required
+def api_saved_workouts():
+    return jsonify(get_saved_workouts(uid()))
+
+
+@app.route("/api/saved-workouts", methods=["POST"])
+@login_required
+def api_save_workout():
+    data = request.get_json() or {}
+    description = data.get("description", "").strip()
+    if not description:
+        return jsonify({"error": "No description"}), 400
+    save_workout(uid(), description, int(data.get("calories_burned", 0)))
+    return jsonify({"ok": True})
+
+
+@app.route("/api/saved-workouts/<int:saved_id>", methods=["DELETE"])
+@login_required
+def api_delete_saved_workout(saved_id):
+    delete_saved_workout(saved_id, uid())
+    return jsonify({"ok": True})
+
+
+# ── AI Edit (re-estimate with modifications) ───────────
+
+@app.route("/api/ai-edit-meal", methods=["POST"])
+@login_required
+def api_ai_edit_meal():
+    """Takes original description + user edit instructions, returns new nutrition estimate."""
+    data = request.get_json() or {}
+    original = data.get("original", "").strip()
+    edits = data.get("edits", "").strip()
+    if not original or not edits:
+        return jsonify({"error": "Need original and edits"}), 400
+    combined = f"{original}\n\nUser correction: {edits}"
+    try:
+        return jsonify(estimate_nutrition(combined, profile_map=get_profile_map(uid())))
+    except Exception as e:
+        _log.exception("ai-edit-meal failed")
+        return jsonify({"error": _AI_ERR}), 500
+
+
+@app.route("/api/ai-edit-workout", methods=["POST"])
+@login_required
+def api_ai_edit_workout():
+    """Takes original description + user edit instructions, returns new burn estimate."""
+    data = request.get_json() or {}
+    original = data.get("original", "").strip()
+    edits = data.get("edits", "").strip()
+    if not original or not edits:
+        return jsonify({"error": "Need original and edits"}), 400
+    combined = f"{original}\n\nUser correction: {edits}"
+    try:
+        return jsonify(estimate_burn(combined, profile_map=get_profile_map(uid())))
+    except Exception as e:
+        _log.exception("ai-edit-workout failed")
+        return jsonify({"error": _AI_ERR}), 500
 
 
 @app.route("/api/history")

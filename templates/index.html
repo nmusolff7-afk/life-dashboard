@@ -936,6 +936,96 @@
         inset 0 0 160px rgba(248,81,73,0.10);
       animation: flash-red 0.8s ease-out forwards;
     }
+    /* ══ ENTRY DETAIL OVERLAY ════════════════════ */
+    .entry-detail {
+      position: fixed; inset: 0; z-index: 250;
+      background: var(--bg);
+      display: none; flex-direction: column;
+    }
+    .entry-detail.active { display: flex; }
+    .ed-header {
+      background: var(--bg); border-bottom: none;
+      padding: 1rem 1.2rem; display: flex; align-items: center;
+      gap: 0.75rem; flex-shrink: 0;
+    }
+    .ed-back { background: none; border: none; color: var(--accent2); font-size: 0.9rem;
+      cursor: pointer; padding: 0; font-weight: 600; display: flex; align-items: center; gap: 0.3rem; }
+    .ed-title { font-size: 1rem; font-weight: 700; flex: 1; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; }
+    .ed-save-btn { background: none; border: none; font-size: 1.3rem; cursor: pointer;
+      padding: 0.2rem; line-height: 1; color: var(--muted); transition: color .15s; }
+    .ed-save-btn.saved { color: var(--amber); }
+    .ed-scroll {
+      flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+      padding: 0 1.2rem 3rem;
+    }
+    .ed-hero {
+      text-align: center; padding: 1rem 0 1.5rem;
+    }
+    .ed-hero-icon { font-size: 3rem; margin-bottom: 0.5rem; }
+    .ed-hero-name { font-size: 1.25rem; font-weight: 700; line-height: 1.3; margin-bottom: 0.25rem; }
+    .ed-hero-time { font-size: 0.78rem; color: var(--muted); }
+    .ed-macro-row {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem;
+      margin-bottom: 1.25rem;
+    }
+    .ed-macro-tile {
+      background: var(--surface); border-radius: 14px; padding: 0.75rem 0.5rem;
+      text-align: center;
+    }
+    .ed-macro-val { font-size: 1.3rem; font-weight: 800; line-height: 1; letter-spacing: -0.01em; }
+    .ed-macro-lbl { font-size: 0.65rem; color: var(--muted); text-transform: uppercase;
+      letter-spacing: .06em; margin-top: 0.25rem; font-weight: 500; }
+    .ed-section-title {
+      font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .1em; color: var(--muted); margin: 1rem 0 0.6rem;
+    }
+    .ed-item-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0.6rem 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .ed-item-row:last-child { border-bottom: none; }
+    .ed-item-name { flex: 1; font-size: 0.88rem; }
+    .ed-item-cal { font-size: 0.85rem; font-weight: 700; color: var(--cal); }
+    .ed-ai-edit {
+      margin-top: 1rem;
+    }
+    .ed-ai-edit textarea {
+      width: 100%; box-sizing: border-box; background: var(--surface);
+      border: none; border-radius: 14px; color: var(--text); font-size: 0.9rem;
+      padding: 0.75rem 1rem; resize: none; min-height: 52px; font-family: inherit;
+      line-height: 1.5;
+    }
+    .ed-ai-edit textarea::placeholder { text-align: left; }
+    .ed-ai-edit textarea:placeholder-shown { padding-top: 0.75rem; }
+    .ed-ai-row { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+    .ed-status { font-size: 0.8rem; color: var(--muted); margin-top: 0.5rem; text-align: center; }
+
+    /* ══ SAVED LIST OVERLAY ═══════════════════════ */
+    .saved-list-overlay {
+      position: fixed; inset: 0; z-index: 260;
+      background: var(--bg);
+      display: none; flex-direction: column;
+    }
+    .saved-list-overlay.active { display: flex; }
+    .sl-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+      padding: 0 1.2rem 3rem; }
+    .sl-item {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.85rem 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+    }
+    .sl-item:last-child { border-bottom: none; }
+    .sl-item-icon { font-size: 1.4rem; flex-shrink: 0; }
+    .sl-item-body { flex: 1; min-width: 0; }
+    .sl-item-name { font-size: 0.9rem; font-weight: 600; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; }
+    .sl-item-meta { font-size: 0.75rem; color: var(--muted); margin-top: 0.15rem; }
+    .sl-item-del { background: none; border: none; color: var(--muted); font-size: 0.85rem;
+      cursor: pointer; padding: 0.3rem; opacity: 0.5; transition: opacity .15s; flex-shrink: 0; }
+    .sl-item-del:hover { color: var(--danger); opacity: 1; }
+    .sl-empty { text-align: center; color: var(--muted); padding: 3rem 1rem; font-size: 0.9rem; }
+
   </style>
 </head>
 <body>
@@ -1152,16 +1242,9 @@
           <input type="hidden" name="fat_g"     id="h-fat">
 
           <div id="macro-fields">
-            <!-- Portion hint (shown after analysis) -->
-            <div id="meal-portion-hint" style="display:none;font-size:0.78rem;color:var(--muted);margin-bottom:0.65rem;line-height:1.45;text-align:center">
-              Be as specific as possible about portion sizes, brands, and preparation.
-            </div>
-
-            <!-- Log / Start Over buttons (above the breakdown) -->
+            <!-- Log button at the top -->
             <button type="submit" class="btn btn-primary btn-full" id="log-btn"
-              style="display:none;font-size:1rem;padding:0.8rem 1rem;margin-bottom:0.5rem">Log This Meal</button>
-            <button type="button" class="btn btn-ghost btn-full" id="meal-start-over-btn"
-              style="display:none;font-size:0.85rem;margin-bottom:0.85rem">Start Over</button>
+              style="display:none;font-size:1rem;padding:0.8rem 1rem;margin-bottom:0.75rem">Log This Meal</button>
 
             <div id="item-breakdown"></div>
             <div id="ai-notes"></div>
@@ -1171,6 +1254,22 @@
               <div class="field"><label>Carbs (g)</label><input type="number" id="e-carbs" min="0" step="0.1"></div>
               <div class="field"><label>Fat (g)</label><input type="number" id="e-fat" min="0" step="0.1"></div>
             </div>
+
+            <!-- Details/corrections box + hint (shown after analysis, below macros) -->
+            <div id="meal-details-section" style="display:none;margin-top:0.5rem">
+              <div id="meal-portion-hint" style="font-size:0.78rem;color:var(--muted);margin-bottom:0.5rem;line-height:1.45;text-align:center">
+                Be as specific as possible about portion sizes, brands, and preparation.
+              </div>
+              <div class="field" style="margin-bottom:0">
+                <textarea id="meal-details-input" rows="2"
+                  placeholder='Add details or corrections — e.g. "it was a large portion", "no bun"'
+                  style="min-height:52px"></textarea>
+              </div>
+            </div>
+
+            <!-- Start Over at the very bottom -->
+            <button type="button" class="btn btn-ghost btn-full" id="meal-start-over-btn"
+              style="display:none;font-size:0.85rem;margin-top:0.75rem">Start Over</button>
           </div>
 
           <!-- Primary CTA -->
@@ -1217,7 +1316,10 @@
       </div>
 
       <div class="card" id="meal-table-wrap">
-        <div class="card-title">Today's meal entries</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+          <div class="card-title" style="margin:0;flex:1">Today's meal entries</div>
+          <button type="button" class="btn-edit-meal" id="open-saved-meals-btn" style="font-size:0.72rem">★ Saved</button>
+        </div>
         {% if meals %}
         <table class="meal-table">
           <thead><tr>
@@ -1420,7 +1522,10 @@
 
       <!-- Today's Entries -->
       <div class="card" id="workout-list-wrap">
-        <div class="card-title">Today's workout entries</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+          <div class="card-title" style="margin:0;flex:1">Today's workout entries</div>
+          <button type="button" class="btn-edit-meal" id="open-saved-workouts-btn" style="font-size:0.72rem">★ Saved</button>
+        </div>
         {% if workouts %}
           {% for w in workouts %}
           <div class="workout-item">
@@ -2126,6 +2231,99 @@
 <!-- Green perimeter glow on save -->
 <div id="save-flash"></div>
 
+<!-- ══ MEAL DETAIL OVERLAY ══════════════════════ -->
+<div class="entry-detail" id="meal-detail-overlay">
+  <div class="ed-header">
+    <button class="ed-back" id="meal-detail-back">
+      <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back
+    </button>
+    <div class="ed-title" id="meal-detail-title"></div>
+    <button class="ed-save-btn" id="meal-detail-save-btn" title="Save meal">☆</button>
+  </div>
+  <div class="ed-scroll">
+    <div class="ed-hero">
+      <div class="ed-hero-icon" id="meal-detail-icon"></div>
+      <div class="ed-hero-name" id="meal-detail-name"></div>
+      <div class="ed-hero-time" id="meal-detail-time"></div>
+    </div>
+    <div class="ed-macro-row" id="meal-detail-macros">
+      <div class="ed-macro-tile"><div class="ed-macro-val" id="md-cal" style="color:var(--cal)">—</div><div class="ed-macro-lbl">Cal</div></div>
+      <div class="ed-macro-tile"><div class="ed-macro-val" id="md-pro" style="color:var(--protein)">—</div><div class="ed-macro-lbl">Protein</div></div>
+      <div class="ed-macro-tile"><div class="ed-macro-val" id="md-carb" style="color:var(--carbs)">—</div><div class="ed-macro-lbl">Carbs</div></div>
+      <div class="ed-macro-tile"><div class="ed-macro-val" id="md-fat" style="color:var(--fat)">—</div><div class="ed-macro-lbl">Fat</div></div>
+    </div>
+    <div class="ed-section-title">Breakdown</div>
+    <div id="meal-detail-items"></div>
+    <div class="ed-section-title">Original Input</div>
+    <div id="meal-detail-original" style="font-size:0.85rem;color:var(--muted);line-height:1.5;padding:0.5rem 0"></div>
+    <div class="ed-ai-edit">
+      <div class="ed-section-title">Edit with AI</div>
+      <textarea id="meal-detail-edit-input" rows="2" placeholder='e.g. "remove the fries", "it was a small portion"'></textarea>
+      <div class="ed-ai-row">
+        <button class="btn btn-primary btn-full" id="meal-detail-edit-btn">Update Meal</button>
+      </div>
+      <div class="ed-status" id="meal-detail-edit-status"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ WORKOUT DETAIL OVERLAY ═══════════════════ -->
+<div class="entry-detail" id="workout-detail-overlay">
+  <div class="ed-header">
+    <button class="ed-back" id="workout-detail-back">
+      <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back
+    </button>
+    <div class="ed-title" id="workout-detail-title"></div>
+    <button class="ed-save-btn" id="workout-detail-save-btn" title="Save workout">☆</button>
+  </div>
+  <div class="ed-scroll">
+    <div class="ed-hero">
+      <div class="ed-hero-icon" id="workout-detail-icon"></div>
+      <div class="ed-hero-name" id="workout-detail-name"></div>
+      <div class="ed-hero-time" id="workout-detail-time"></div>
+    </div>
+    <div class="ed-macro-row" style="grid-template-columns: 1fr">
+      <div class="ed-macro-tile"><div class="ed-macro-val" id="wd-cal" style="color:var(--cal)">—</div><div class="ed-macro-lbl">Calories Burned</div></div>
+    </div>
+    <div class="ed-section-title">Original Input</div>
+    <div id="workout-detail-original" style="font-size:0.85rem;color:var(--muted);line-height:1.5;padding:0.5rem 0"></div>
+    <div class="ed-ai-edit">
+      <div class="ed-section-title">Edit with AI</div>
+      <textarea id="workout-detail-edit-input" rows="2" placeholder='e.g. "actually did 45 min not 30", "add 10 min cooldown"'></textarea>
+      <div class="ed-ai-row">
+        <button class="btn btn-primary btn-full" id="workout-detail-edit-btn">Update Workout</button>
+      </div>
+      <div class="ed-status" id="workout-detail-edit-status"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SAVED MEALS LIST ═════════════════════════ -->
+<div class="saved-list-overlay" id="saved-meals-overlay">
+  <div class="ed-header">
+    <button class="ed-back" id="saved-meals-back">
+      <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back
+    </button>
+    <div class="ed-title">Saved Meals</div>
+  </div>
+  <div class="sl-scroll" id="saved-meals-list"></div>
+</div>
+
+<!-- ══ SAVED WORKOUTS LIST ══════════════════════ -->
+<div class="saved-list-overlay" id="saved-workouts-overlay">
+  <div class="ed-header">
+    <button class="ed-back" id="saved-workouts-back">
+      <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back
+    </button>
+    <div class="ed-title">Saved Workouts</div>
+  </div>
+  <div class="sl-scroll" id="saved-workouts-list"></div>
+</div>
+
 <!-- Photo source picker modal -->
 <div id="photo-source-modal">
   <div id="photo-source-backdrop"></div>
@@ -2766,21 +2964,28 @@ function _flash(cls) {
 function flashGreen() { _flash("flash-green"); }
 function flashRed()   { _flash("flash-red");   }
 
+// Store latest meals data globally for detail views
+window._latestMeals = [];
+
 function renderMealTable(meals, totals) {
+  window._latestMeals = meals || [];
   const wrap = document.getElementById("meal-table-wrap");
   if (!wrap) return;
-  let html = '<div class="card-title">Today\'s meal entries</div>';
+  let html = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+    <div class="card-title" style="margin:0;flex:1">Today's meal entries</div>
+    <button type="button" class="btn-edit-meal" id="open-saved-meals-btn" style="font-size:0.72rem" onclick="openSavedMeals()">★ Saved</button>
+  </div>`;
   if (meals && meals.length > 0) {
     html += '<table class="meal-table"><thead><tr><th>Meal</th><th>Cal</th><th>Pro</th><th>Carb</th><th>Fat</th><th></th></tr></thead><tbody>';
     meals.forEach(m => {
       const descAttr = m.description.replace(/&/g,"&amp;").replace(/"/g,"&quot;");
-      html += `<tr>
+      html += `<tr style="cursor:pointer" onclick="openMealDetail(${m.id})">
         <td>${m.description}</td>
         <td class="td-cal">${m.calories}</td>
         <td class="td-pro">${Math.round(m.protein_g)}g</td>
         <td class="td-carb">${Math.round(m.carbs_g)}g</td>
         <td class="td-fat">${Math.round(m.fat_g)}g</td>
-        <td style="white-space:nowrap">
+        <td style="white-space:nowrap" onclick="event.stopPropagation()">
           <button type="button" class="btn-edit-meal"
             data-id="${m.id}" data-desc="${descAttr}"
             data-cal="${m.calories}" data-pro="${m.protein_g}"
@@ -2814,10 +3019,16 @@ function _parseStrengthDesc(desc) {
   return { minutes, exercises };
 }
 
+window._latestWorkouts = [];
+
 function renderWorkoutList(workouts, burn) {
+  window._latestWorkouts = workouts || [];
   const wrap = document.getElementById("workout-list-wrap");
   if (!wrap) return;
-  let html = '<div class="card-title">Today\'s workout entries</div>';
+  let html = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+    <div class="card-title" style="margin:0;flex:1">Today's workout entries</div>
+    <button type="button" class="btn-edit-meal" id="open-saved-workouts-btn" style="font-size:0.72rem" onclick="openSavedWorkouts()">★ Saved</button>
+  </div>`;
   if (workouts && workouts.length > 0) {
     workouts.forEach((w, idx) => {
       const isStrength = w.description.startsWith("Strength workout");
@@ -2828,32 +3039,29 @@ function renderWorkoutList(workouts, burn) {
       if (isStrength) {
         const parsed = _parseStrengthDesc(w.description);
         if (parsed) {
-          html += `<div class="workout-item" style="flex-direction:column;align-items:stretch;cursor:pointer" onclick="this.querySelector('.wb-ex-detail').classList.toggle('wb-open')">
+          html += `<div class="workout-item" style="flex-direction:column;align-items:stretch;cursor:pointer" onclick="openWorkoutDetail(${w.id})">
             <div style="display:flex;align-items:center;gap:0.75rem">
               <div class="w-icon">${icon}</div>
               <div class="w-body" style="flex:1">
                 <div class="w-desc" style="font-weight:600">${time} \u2014 Strength Workout (${parsed.minutes} min)</div>
-                <div class="w-meta">${parsed.exercises.length} exercises \u00b7 tap to ${parsed.exercises.length ? 'expand' : 'view'}</div>
+                <div class="w-meta">${parsed.exercises.length} exercises \u00b7 tap to view</div>
               </div>
               ${w.calories_burned ? `<div class="w-cal">~${w.calories_burned} kcal</div>` : ''}
-              <button type="button" class="btn btn-danger" onclick="event.stopPropagation();deleteWorkout(${w.id})">✕</button>
-            </div>
-            <div class="wb-ex-detail" style="display:none;padding:0.5rem 0 0 2.25rem">
-              ${parsed.exercises.map(ex => `<div style="font-size:0.82rem;color:var(--text);padding:0.15rem 0">${ex}</div>`).join('')}
+              <button type="button" class="btn btn-danger" onclick="event.stopPropagation();deleteWorkout(${w.id})" style="flex-shrink:0">✕</button>
             </div>
           </div>`;
           return;
         }
       }
 
-      html += `<div class="workout-item">
+      html += `<div class="workout-item" style="cursor:pointer" onclick="openWorkoutDetail(${w.id})">
         <div class="w-icon">${icon}</div>
         <div class="w-body">
           <div class="w-desc">${w.description}</div>
           <div class="w-meta">${time}</div>
         </div>
         ${w.calories_burned ? `<div class="w-cal">~${w.calories_burned} kcal</div>` : ''}
-        <button type="button" class="btn btn-danger" onclick="deleteWorkout(${w.id})">✕</button>
+        <button type="button" class="btn btn-danger" onclick="event.stopPropagation();deleteWorkout(${w.id})" style="flex-shrink:0">✕</button>
       </div>`;
     });
   } else {
@@ -3280,9 +3488,9 @@ function deleteWorkout(id) {
     document.getElementById("macro-fields").classList.add("visible");
     const lb = document.getElementById("log-btn"); if (lb) lb.style.display = "";
     const sob = document.getElementById("meal-start-over-btn"); if (sob) sob.style.display = "";
-    const ph = document.getElementById("meal-portion-hint"); if (ph) ph.style.display = "";
+    const ds = document.getElementById("meal-details-section"); if (ds) ds.style.display = "";
     const mi = document.getElementById("meal-input");
-    if (mi) { mi.value = ""; mi.placeholder = 'Add details or corrections — e.g. "it was a large portion", "no bun"'; mi.removeAttribute("required"); }
+    if (mi) { mi.closest(".field").style.display = "none"; mi.removeAttribute("required"); }
     const mb = document.getElementById("macros-btn"); if (mb) mb.style.display = "none";
     const mod = document.getElementById("meal-or-divider"); if (mod) mod.style.display = "none";
     const psr = document.getElementById("photo-scan-row"); if (psr) psr.style.display = "none";
@@ -3521,7 +3729,10 @@ function deleteWorkout(id) {
     macroFields.classList.remove("visible");
     logBtn.style.display         = "none";
     document.getElementById("meal-start-over-btn").style.display = "none";
-    document.getElementById("meal-portion-hint").style.display = "none";
+    document.getElementById("meal-details-section").style.display = "none";
+    mealInput.closest(".field").style.display = "";
+    const _di = document.getElementById("meal-details-input");
+    if (_di) _di.value = "";
     aiNotes.textContent          = "";
     breakdownEl.innerHTML        = "";
     pairs.forEach(([vis, hid]) => { vis.value = ""; hid.value = ""; });
@@ -3578,10 +3789,9 @@ function deleteWorkout(id) {
       macroFields.classList.add("visible");
       logBtn.style.display = "";
       document.getElementById("meal-start-over-btn").style.display = "";
-      document.getElementById("meal-portion-hint").style.display = "";
-      // Switch textarea to "add details" mode
-      mealInput.value = "";
-      mealInput.placeholder = 'Add details or corrections — e.g. "it was a large portion", "no bun"';
+      document.getElementById("meal-details-section").style.display = "";
+      // Hide main textarea after analysis
+      mealInput.closest(".field").style.display = "none";
       mealInput.removeAttribute("required");
     })
     .catch(() => {
@@ -3654,11 +3864,9 @@ function deleteWorkout(id) {
         photoScanRow.style.display = "none";
         logBtn.style.display = "";
         document.getElementById("meal-start-over-btn").style.display = "";
-        document.getElementById("meal-portion-hint").style.display = "";
-        // Switch textarea to "add details" mode
-        _origPlaceholder = _origPlaceholder || mealInput.placeholder;
-        mealInput.value = "";
-        mealInput.placeholder = 'Add details or corrections — e.g. "it was a large portion", "no bun"';
+        document.getElementById("meal-details-section").style.display = "";
+        // Hide main textarea after analysis
+        mealInput.closest(".field").style.display = "none";
         mealInput.removeAttribute("required");
       })
       .catch(() => { macrosBtn.disabled = false; macrosBtn.textContent = "Get Macros"; });
@@ -3668,6 +3876,7 @@ function deleteWorkout(id) {
     mealInput.value = "";
     mealInput.placeholder = _origPlaceholder || "What did you have to eat?";
     mealInput.setAttribute("required", "");
+    mealInput.closest(".field").style.display = "";
     macroFields.classList.remove("visible");
     breakdownEl.innerHTML = "";
     aiNotes.textContent = "";
@@ -3679,7 +3888,9 @@ function deleteWorkout(id) {
     photoScanRow.style.display = "";
     logBtn.style.display = "none";
     document.getElementById("meal-start-over-btn").style.display = "none";
-    document.getElementById("meal-portion-hint").style.display = "none";
+    document.getElementById("meal-details-section").style.display = "none";
+    const detailsInput = document.getElementById("meal-details-input");
+    if (detailsInput) detailsInput.value = "";
     mealInput.focus();
   });
 
@@ -8832,6 +9043,413 @@ if ("serviceWorker" in navigator) {
       });
     });
   }).observe(document.body, { childList: true, subtree: true });
+})();
+
+// ══════════════════════════════════════════════════════
+//  ENTRY DETAIL OVERLAYS + SAVED LISTS
+// ══════════════════════════════════════════════════════
+(function() {
+  // ── Helpers ──────────────────────────────────────────
+  function mealIcon(desc) {
+    const d = (desc || "").toLowerCase();
+    if (/breakfast|oat|cereal|egg|pancake|waffle|toast/i.test(d)) return "🍳";
+    if (/salad|vegetable|vegan|greens/i.test(d)) return "🥗";
+    if (/chicken|turkey|poultry/i.test(d)) return "🍗";
+    if (/steak|beef|burger|meat/i.test(d)) return "🥩";
+    if (/fish|salmon|tuna|shrimp|sushi/i.test(d)) return "🐟";
+    if (/pizza/i.test(d)) return "🍕";
+    if (/pasta|noodle|spaghetti/i.test(d)) return "🍝";
+    if (/sandwich|sub|wrap|burrito|taco/i.test(d)) return "🌯";
+    if (/rice|bowl|asian|chinese|thai|japanese/i.test(d)) return "🍚";
+    if (/smoothie|shake|protein/i.test(d)) return "🥤";
+    if (/fruit|apple|banana|berry/i.test(d)) return "🍎";
+    if (/snack|bar|chips|cookie|candy/i.test(d)) return "🍪";
+    if (/coffee|latte|cappuccino/i.test(d)) return "☕";
+    if (/soup|stew|chili/i.test(d)) return "🍲";
+    return "🍽";
+  }
+  function workoutIcon(desc) {
+    const d = (desc || "").toLowerCase();
+    if (/strength|bench|squat|deadlift|press|curl/i.test(d)) return "🏋️";
+    if (/run|jog|sprint|mile|5k|10k|marathon/i.test(d)) return "🏃";
+    if (/swim/i.test(d)) return "🏊";
+    if (/bike|cycling|spin/i.test(d)) return "🚴";
+    if (/yoga|stretch|flexibility/i.test(d)) return "🧘";
+    if (/hike|walk/i.test(d)) return "🥾";
+    if (/box|fight|martial|mma/i.test(d)) return "🥊";
+    return "💪";
+  }
+  function fmtTime(ts) {
+    if (!ts) return "";
+    try {
+      const d = new Date(ts);
+      return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
+    } catch(e) { return ""; }
+  }
+
+  // ── MEAL DETAIL ─────────────────────────────────────
+  let _activeMeal = null;
+
+  window.openMealDetail = function(mealId) {
+    const m = (window._latestMeals || []).find(x => x.id === mealId);
+    if (!m) return;
+    _activeMeal = m;
+    document.getElementById("meal-detail-title").textContent = "Meal Detail";
+    document.getElementById("meal-detail-icon").textContent = mealIcon(m.description);
+    document.getElementById("meal-detail-name").textContent = m.description;
+    document.getElementById("meal-detail-time").textContent = fmtTime(m.logged_at);
+    document.getElementById("md-cal").textContent = m.calories;
+    document.getElementById("md-pro").textContent = Math.round(m.protein_g) + "g";
+    document.getElementById("md-carb").textContent = Math.round(m.carbs_g) + "g";
+    document.getElementById("md-fat").textContent = Math.round(m.fat_g) + "g";
+    document.getElementById("meal-detail-original").textContent = m.description;
+    // Breakdown: show items if stored, otherwise show simple description
+    const itemsEl = document.getElementById("meal-detail-items");
+    itemsEl.innerHTML = `<div class="ed-item-row">
+      <div class="ed-item-name">${m.description}</div>
+      <div class="ed-item-cal">${m.calories} kcal</div>
+    </div>`;
+    // Check saved status
+    const saveBtn = document.getElementById("meal-detail-save-btn");
+    saveBtn.classList.remove("saved");
+    saveBtn.textContent = "☆";
+    fetch("/api/saved-meals").then(r => r.json()).then(saved => {
+      if (saved.some(s => s.description === m.description)) {
+        saveBtn.classList.add("saved");
+        saveBtn.textContent = "★";
+      }
+    }).catch(() => {});
+    // Reset edit
+    document.getElementById("meal-detail-edit-input").value = "";
+    document.getElementById("meal-detail-edit-status").textContent = "";
+    document.getElementById("meal-detail-overlay").classList.add("active");
+  };
+
+  document.getElementById("meal-detail-back").addEventListener("click", () => {
+    document.getElementById("meal-detail-overlay").classList.remove("active");
+    _activeMeal = null;
+  });
+
+  // Save / unsave meal
+  document.getElementById("meal-detail-save-btn").addEventListener("click", function() {
+    if (!_activeMeal) return;
+    const btn = this;
+    if (btn.classList.contains("saved")) {
+      // Unsave: find the saved entry and delete it
+      fetch("/api/saved-meals").then(r => r.json()).then(saved => {
+        const match = saved.find(s => s.description === _activeMeal.description);
+        if (match) {
+          fetch(`/api/saved-meals/${match.id}`, { method: "DELETE" }).then(() => {
+            btn.classList.remove("saved");
+            btn.textContent = "☆";
+          });
+        }
+      });
+    } else {
+      fetch("/api/saved-meals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: _activeMeal.description,
+          calories: _activeMeal.calories,
+          protein_g: _activeMeal.protein_g,
+          carbs_g: _activeMeal.carbs_g,
+          fat_g: _activeMeal.fat_g,
+          items: [],
+        }),
+      }).then(() => {
+        btn.classList.add("saved");
+        btn.textContent = "★";
+      });
+    }
+  });
+
+  // AI edit meal
+  document.getElementById("meal-detail-edit-btn").addEventListener("click", function() {
+    if (!_activeMeal) return;
+    const edits = document.getElementById("meal-detail-edit-input").value.trim();
+    if (!edits) return;
+    const btn = this;
+    const status = document.getElementById("meal-detail-edit-status");
+    btn.disabled = true; btn.textContent = "Analyzing…";
+    status.textContent = "";
+    fetch("/api/ai-edit-meal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ original: _activeMeal.description, edits }),
+    })
+    .then(r => r.json())
+    .then(data => {
+      btn.disabled = false; btn.textContent = "Update Meal";
+      if (data.error) { status.textContent = "Error: " + data.error; return; }
+      // Save the edit to the server
+      const newDesc = data.items ? data.items.map(i => i.name || i.item).join(", ") : _activeMeal.description;
+      fetch(`/api/edit-meal/${_activeMeal.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: newDesc || _activeMeal.description,
+          calories: data.calories,
+          protein_g: data.protein_g,
+          carbs_g: data.carbs_g,
+          fat_g: data.fat_g,
+        }),
+      }).then(r => r.json()).then(resp => {
+        status.textContent = "Meal updated!";
+        status.style.color = "var(--green)";
+        // Update the detail view
+        _activeMeal.description = newDesc || _activeMeal.description;
+        _activeMeal.calories = data.calories;
+        _activeMeal.protein_g = data.protein_g;
+        _activeMeal.carbs_g = data.carbs_g;
+        _activeMeal.fat_g = data.fat_g;
+        document.getElementById("meal-detail-name").textContent = _activeMeal.description;
+        document.getElementById("md-cal").textContent = data.calories;
+        document.getElementById("md-pro").textContent = Math.round(data.protein_g) + "g";
+        document.getElementById("md-carb").textContent = Math.round(data.carbs_g) + "g";
+        document.getElementById("md-fat").textContent = Math.round(data.fat_g) + "g";
+        document.getElementById("meal-detail-icon").textContent = mealIcon(_activeMeal.description);
+        // Update breakdown
+        const itemsEl = document.getElementById("meal-detail-items");
+        if (data.items && data.items.length) {
+          itemsEl.innerHTML = data.items.map(i => `<div class="ed-item-row">
+            <div class="ed-item-name">${i.name || i.item}</div>
+            <div class="ed-item-cal">${i.calories} kcal</div>
+          </div>`).join("");
+        }
+        document.getElementById("meal-detail-edit-input").value = "";
+        // Refresh the meal table
+        if (resp.meals) renderMealTable(resp.meals, resp.totals);
+        setTimeout(() => { status.textContent = ""; status.style.color = ""; }, 3000);
+      });
+    })
+    .catch(() => {
+      btn.disabled = false; btn.textContent = "Update Meal";
+      status.textContent = "Failed — please try again";
+      status.style.color = "var(--danger)";
+    });
+  });
+
+  // ── WORKOUT DETAIL ──────────────────────────────────
+  let _activeWorkout = null;
+
+  window.openWorkoutDetail = function(workoutId) {
+    const w = (window._latestWorkouts || []).find(x => x.id === workoutId);
+    if (!w) return;
+    _activeWorkout = w;
+    document.getElementById("workout-detail-title").textContent = "Workout Detail";
+    document.getElementById("workout-detail-icon").textContent = workoutIcon(w.description);
+    document.getElementById("workout-detail-name").textContent = w.description;
+    document.getElementById("workout-detail-time").textContent = fmtTime(w.logged_at);
+    document.getElementById("wd-cal").textContent = w.calories_burned || "—";
+    document.getElementById("workout-detail-original").textContent = w.description;
+    // Check saved status
+    const saveBtn = document.getElementById("workout-detail-save-btn");
+    saveBtn.classList.remove("saved");
+    saveBtn.textContent = "☆";
+    fetch("/api/saved-workouts").then(r => r.json()).then(saved => {
+      if (saved.some(s => s.description === w.description)) {
+        saveBtn.classList.add("saved");
+        saveBtn.textContent = "★";
+      }
+    }).catch(() => {});
+    // Reset edit
+    document.getElementById("workout-detail-edit-input").value = "";
+    document.getElementById("workout-detail-edit-status").textContent = "";
+    document.getElementById("workout-detail-overlay").classList.add("active");
+  };
+
+  document.getElementById("workout-detail-back").addEventListener("click", () => {
+    document.getElementById("workout-detail-overlay").classList.remove("active");
+    _activeWorkout = null;
+  });
+
+  // Save / unsave workout
+  document.getElementById("workout-detail-save-btn").addEventListener("click", function() {
+    if (!_activeWorkout) return;
+    const btn = this;
+    if (btn.classList.contains("saved")) {
+      fetch("/api/saved-workouts").then(r => r.json()).then(saved => {
+        const match = saved.find(s => s.description === _activeWorkout.description);
+        if (match) {
+          fetch(`/api/saved-workouts/${match.id}`, { method: "DELETE" }).then(() => {
+            btn.classList.remove("saved");
+            btn.textContent = "☆";
+          });
+        }
+      });
+    } else {
+      fetch("/api/saved-workouts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: _activeWorkout.description,
+          calories_burned: _activeWorkout.calories_burned || 0,
+        }),
+      }).then(() => {
+        btn.classList.add("saved");
+        btn.textContent = "★";
+      });
+    }
+  });
+
+  // AI edit workout
+  document.getElementById("workout-detail-edit-btn").addEventListener("click", function() {
+    if (!_activeWorkout) return;
+    const edits = document.getElementById("workout-detail-edit-input").value.trim();
+    if (!edits) return;
+    const btn = this;
+    const status = document.getElementById("workout-detail-edit-status");
+    btn.disabled = true; btn.textContent = "Analyzing…";
+    status.textContent = "";
+    fetch("/api/ai-edit-workout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ original: _activeWorkout.description, edits }),
+    })
+    .then(r => r.json())
+    .then(data => {
+      btn.disabled = false; btn.textContent = "Update Workout";
+      if (data.error) { status.textContent = "Error: " + data.error; return; }
+      const newDesc = edits.length < 100 ? _activeWorkout.description + " (" + edits + ")" : _activeWorkout.description;
+      fetch(`/api/edit-workout/${_activeWorkout.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: newDesc,
+          calories_burned: data.calories_burned || 0,
+        }),
+      }).then(() => {
+        status.textContent = "Workout updated!";
+        status.style.color = "var(--green)";
+        _activeWorkout.description = newDesc;
+        _activeWorkout.calories_burned = data.calories_burned || 0;
+        document.getElementById("workout-detail-name").textContent = newDesc;
+        document.getElementById("wd-cal").textContent = data.calories_burned || "—";
+        document.getElementById("workout-detail-icon").textContent = workoutIcon(newDesc);
+        document.getElementById("workout-detail-edit-input").value = "";
+        // Refresh workout list
+        fetch("/api/today-workouts").then(r => r.json()).then(d => {
+          if (d.workouts) renderWorkoutList(d.workouts, d.total_burn);
+        });
+        setTimeout(() => { status.textContent = ""; status.style.color = ""; }, 3000);
+      });
+    })
+    .catch(() => {
+      btn.disabled = false; btn.textContent = "Update Workout";
+      status.textContent = "Failed — please try again";
+      status.style.color = "var(--danger)";
+    });
+  });
+
+  // ── SAVED MEALS LIST ────────────────────────────────
+  window.openSavedMeals = function() {
+    const overlay = document.getElementById("saved-meals-overlay");
+    const list = document.getElementById("saved-meals-list");
+    list.innerHTML = '<div class="sl-empty">Loading…</div>';
+    overlay.classList.add("active");
+    fetch("/api/saved-meals").then(r => r.json()).then(saved => {
+      if (!saved.length) {
+        list.innerHTML = '<div class="sl-empty">No saved meals yet.<br>Tap the ☆ on a meal detail to save it.</div>';
+        return;
+      }
+      list.innerHTML = saved.map(s => `<div class="sl-item" onclick="logSavedMeal(${s.id})">
+        <div class="sl-item-icon">${mealIcon(s.description)}</div>
+        <div class="sl-item-body">
+          <div class="sl-item-name">${s.description}</div>
+          <div class="sl-item-meta">${s.calories} cal · ${Math.round(s.protein_g)}p · ${Math.round(s.carbs_g)}c · ${Math.round(s.fat_g)}f</div>
+        </div>
+        <button class="sl-item-del" onclick="event.stopPropagation();deleteSavedMeal(${s.id})" title="Remove">✕</button>
+      </div>`).join("");
+    });
+  };
+
+  window.logSavedMeal = function(savedId) {
+    fetch("/api/saved-meals").then(r => r.json()).then(saved => {
+      const s = saved.find(x => x.id === savedId);
+      if (!s) return;
+      fetch("/api/log-meal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: s.description,
+          calories: s.calories,
+          protein_g: s.protein_g,
+          carbs_g: s.carbs_g,
+          fat_g: s.fat_g,
+        }),
+      }).then(r => r.json()).then(data => {
+        document.getElementById("saved-meals-overlay").classList.remove("active");
+        if (data.meals) renderMealTable(data.meals, data.totals);
+        flashGreen();
+      });
+    });
+  };
+
+  window.deleteSavedMeal = function(savedId) {
+    fetch(`/api/saved-meals/${savedId}`, { method: "DELETE" }).then(() => openSavedMeals());
+  };
+
+  document.getElementById("saved-meals-back").addEventListener("click", () => {
+    document.getElementById("saved-meals-overlay").classList.remove("active");
+  });
+
+  // ── SAVED WORKOUTS LIST ─────────────────────────────
+  window.openSavedWorkouts = function() {
+    const overlay = document.getElementById("saved-workouts-overlay");
+    const list = document.getElementById("saved-workouts-list");
+    list.innerHTML = '<div class="sl-empty">Loading…</div>';
+    overlay.classList.add("active");
+    fetch("/api/saved-workouts").then(r => r.json()).then(saved => {
+      if (!saved.length) {
+        list.innerHTML = '<div class="sl-empty">No saved workouts yet.<br>Tap the ☆ on a workout detail to save it.</div>';
+        return;
+      }
+      list.innerHTML = saved.map(s => `<div class="sl-item" onclick="logSavedWorkout(${s.id})">
+        <div class="sl-item-icon">${workoutIcon(s.description)}</div>
+        <div class="sl-item-body">
+          <div class="sl-item-name">${s.description}</div>
+          <div class="sl-item-meta">${s.calories_burned} cal burned</div>
+        </div>
+        <button class="sl-item-del" onclick="event.stopPropagation();deleteSavedWorkout(${s.id})" title="Remove">✕</button>
+      </div>`).join("");
+    });
+  };
+
+  window.logSavedWorkout = function(savedId) {
+    fetch("/api/saved-workouts").then(r => r.json()).then(saved => {
+      const s = saved.find(x => x.id === savedId);
+      if (!s) return;
+      fetch("/api/log-workout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: s.description,
+          calories_burned: s.calories_burned,
+        }),
+      }).then(() => {
+        document.getElementById("saved-workouts-overlay").classList.remove("active");
+        fetch("/api/today-workouts").then(r => r.json()).then(d => {
+          if (d.workouts) renderWorkoutList(d.workouts, d.total_burn);
+        });
+        flashGreen();
+      });
+    });
+  };
+
+  window.deleteSavedWorkout = function(savedId) {
+    fetch(`/api/saved-workouts/${savedId}`, { method: "DELETE" }).then(() => openSavedWorkouts());
+  };
+
+  document.getElementById("saved-workouts-back").addEventListener("click", () => {
+    document.getElementById("saved-workouts-overlay").classList.remove("active");
+  });
+
+  // Wire initial saved buttons (from server-rendered HTML)
+  const smBtn = document.getElementById("open-saved-meals-btn");
+  if (smBtn) smBtn.addEventListener("click", openSavedMeals);
+  const swBtn = document.getElementById("open-saved-workouts-btn");
+  if (swBtn) swBtn.addEventListener("click", openSavedWorkouts);
 })();
 </script>
 </body>

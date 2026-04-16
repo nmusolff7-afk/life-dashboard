@@ -228,6 +228,28 @@ def init_db():
                 PRIMARY KEY (user_id, score_date)
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS saved_meals (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER REFERENCES users(id),
+                description TEXT NOT NULL,
+                calories    INTEGER,
+                protein_g   REAL,
+                carbs_g     REAL,
+                fat_g       REAL,
+                items_json  TEXT DEFAULT '[]',
+                saved_at    TIMESTAMP NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS saved_workouts (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id         INTEGER REFERENCES users(id),
+                description     TEXT NOT NULL,
+                calories_burned INTEGER DEFAULT 0,
+                saved_at        TIMESTAMP NOT NULL
+            )
+        """)
         conn.commit()
 
         # Migrate: add garmin_activity_id to workout_logs to prevent duplicate imports
@@ -463,6 +485,74 @@ def delete_workout(workout_id, user_id):
     with get_conn() as conn:
         conn.execute("DELETE FROM workout_logs WHERE id = ? AND user_id = ?", (workout_id, user_id))
         conn.commit()
+
+
+# ── Saved Meals ─────────────────────────────────────────
+
+def save_meal(user_id, description, calories, protein_g, carbs_g, fat_g, items_json="[]"):
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO saved_meals (user_id, description, calories, protein_g, carbs_g, fat_g, items_json, saved_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (user_id, description, calories, protein_g, carbs_g, fat_g, items_json, datetime.now().isoformat()),
+        )
+        conn.commit()
+
+
+def get_saved_meals(user_id):
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM saved_meals WHERE user_id = ? ORDER BY saved_at DESC", (user_id,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_saved_meal(saved_id, user_id):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM saved_meals WHERE id = ? AND user_id = ?", (saved_id, user_id))
+        conn.commit()
+
+
+def is_meal_saved(user_id, description):
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM saved_meals WHERE user_id = ? AND description = ? LIMIT 1",
+            (user_id, description),
+        ).fetchone()
+    return row is not None
+
+
+# ── Saved Workouts ──────────────────────────────────────
+
+def save_workout(user_id, description, calories_burned):
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO saved_workouts (user_id, description, calories_burned, saved_at) VALUES (?, ?, ?, ?)",
+            (user_id, description, calories_burned, datetime.now().isoformat()),
+        )
+        conn.commit()
+
+
+def get_saved_workouts(user_id):
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM saved_workouts WHERE user_id = ? ORDER BY saved_at DESC", (user_id,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_saved_workout(saved_id, user_id):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM saved_workouts WHERE id = ? AND user_id = ?", (saved_id, user_id))
+        conn.commit()
+
+
+def is_workout_saved(user_id, description):
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM saved_workouts WHERE user_id = ? AND description = ? LIMIT 1",
+            (user_id, description),
+        ).fetchone()
+    return row is not None
 
 
 def get_today_workout_burn(user_id, log_date=None):
