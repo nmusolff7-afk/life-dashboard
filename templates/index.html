@@ -1888,7 +1888,7 @@
       <!-- Charts -->
       <div id="tab-charts-inner">
         <div id="charts-loading" class="empty" style="display:none">
-          <div class="icon">⏳</div>Loading…
+          <div style="width:24px;height:24px;border:2px solid var(--surface2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto"></div><div style="margin-top:8px">Loading…</div>
         </div>
         <div id="charts-error" class="empty" style="display:none">
           <div class="icon">⚠️</div>Failed to load data. Reload and try again.
@@ -1975,7 +1975,7 @@
 
       <!-- History -->
       <div id="tab-history-inner">
-        <div id="hist-loading" class="empty" style="display:none"><div class="icon">⏳</div>Loading…</div>
+        <div id="hist-loading" class="empty" style="display:none"><div style="width:24px;height:24px;border:2px solid var(--surface2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto"></div><div style="margin-top:8px">Loading…</div></div>
         <div id="hist-error"   class="empty" style="display:none"><div class="icon">⚠️</div>Failed to load.</div>
         <div class="card" id="hist-list-card" style="display:none">
           <div class="card-title">History<span id="hist-range-label" style="font-weight:400;font-size:0.72rem;color:var(--muted);text-transform:none;letter-spacing:0;margin-left:auto">Last 7 days</span></div>
@@ -2447,25 +2447,17 @@
           <img src="/static/apex-logo.png" alt="" style="height:20px;width:auto;opacity:0.7" onerror="this.style.display='none'">
           <span style="font-size:15px;color:var(--muted)">Signed in as <strong style="color:var(--text)">{{ username }}</strong></span>
         </div>
-        <a href="/logout" class="btn btn-ghost btn-full" style="text-decoration:none;display:flex;align-items:center;justify-content:center;gap:8px;height:44px">
-          <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-          </svg>
+        <a href="/logout" class="btn btn-ghost btn-full" style="text-decoration:none;display:flex;align-items:center;justify-content:center;gap:8px;height:44px" data-i18n="sign_out">
           Sign Out
         </a>
-        </div><!-- /collapse-body -->
-      </div>
-
-      <!-- Delete Account -->
-      <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
-        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1;color:var(--danger)">Danger Zone</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
-        <div class="collapse-body" onclick="event.stopPropagation()">
-        <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5">
-          Permanently deletes your account and all associated data — meals, workouts, and history. This cannot be undone.
+        <div style="height:1px;background:var(--border);margin:16px 0"></div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--danger);margin-bottom:8px" data-i18n="danger_zone">Danger Zone</div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.5">
+          Permanently deletes your account and all data. This cannot be undone.
         </p>
         <button type="button" id="delete-account-btn"
           class="btn btn-full"
-          style="background:none;border:1px solid rgba(255,77,77,0.25);color:var(--danger);font-weight:600;height:44px">
+          style="background:none;border:1px solid rgba(255,77,77,0.25);color:var(--danger);font-weight:600;height:44px" data-i18n="delete_account">
           Delete My Account
         </button>
         </div><!-- /collapse-body -->
@@ -2994,7 +2986,7 @@ const USER_ID = {{ user_id }};
   days.forEach(d => {
     const isToday = d.date === today;
     const cls = isToday ? "today" : (d.logged ? "logged" : "missed");
-    html += `<div class="streak-day">
+    html += `<div class="streak-day" style="cursor:pointer" onclick="if(window.showDayDetail)window.showDayDetail('${d.date}')">
       <div class="streak-day-label">${dows[d.day.getDay()]}</div>
       <div class="streak-day-dot ${cls}">${d.day.getDate()}</div>
     </div>`;
@@ -5957,6 +5949,9 @@ function applyProfileToMeals(profile) {
     protein:  Math.round(PROTEIN_CONSUMED),
     carbs:    Math.round(CARBS_CONSUMED),
     fat:      Math.round(FAT_CONSUMED),
+    sugar:    Math.round(SUGAR_CONSUMED),
+    fiber:    Math.round(FIBER_CONSUMED),
+    sodium:   Math.round(SODIUM_CONSUMED),
   });
   if (typeof window._refreshDashboard === "function") window._refreshDashboard();
 }
@@ -7891,14 +7886,14 @@ function fmtDate(iso) {
     return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
   }
 
-  function showDayDetail(date) {
+  window.showDayDetail = function showDayDetail(date) {
     _hdDate = date;
     const overlay = document.getElementById("history-detail");
     const content = document.getElementById("hd-content");
     const titleEl = document.getElementById("hd-title");
 
     titleEl.textContent = dateLabel(date).long;
-    content.innerHTML   = '<div class="empty" style="padding:1.5rem 0"><div class="icon">⏳</div>Loading…</div>';
+    content.innerHTML   = '<div class="empty" style="padding:1.5rem 0"><div style="width:24px;height:24px;border:2px solid var(--surface2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto"></div><div style="margin-top:8px">Loading…</div></div>';
     overlay.classList.add("active");
 
     const dailyLog = JSON.parse(localStorage.getItem("dailyLog") || "{}");
@@ -8134,9 +8129,28 @@ function fmtDate(iso) {
       html += `<div class="hd-stat"><div class="v" style="color:var(--protein)">${dayData.protein}g</div><div class="l">Protein</div></div>`;
       html += `<div class="hd-stat"><div class="v" style="color:var(--carbs)">${dayData.carbs}g</div><div class="l">Carbs</div></div>`;
       html += `<div class="hd-stat"><div class="v" style="color:var(--fat)">${dayData.fat}g</div><div class="l">Fat</div></div>`;
+      if (dayData.sugar || dayData.fiber || dayData.sodium) {
+        html += `<div class="hd-stat"><div class="v" style="color:var(--amber)">${dayData.sugar || 0}g</div><div class="l">Sugar</div></div>`;
+        html += `<div class="hd-stat"><div class="v" style="color:var(--green)">${dayData.fiber || 0}g</div><div class="l">Fiber</div></div>`;
+        html += `<div class="hd-stat"><div class="v">${dayData.sodium || 0}mg</div><div class="l">Sodium</div></div>`;
+      }
     } else if ((serverDay.meals || []).length) {
       const cal = serverDay.meals.reduce((s, m) => s + (m.calories || 0), 0);
+      const pro = serverDay.meals.reduce((s, m) => s + (m.protein_g || 0), 0);
+      const carb = serverDay.meals.reduce((s, m) => s + (m.carbs_g || 0), 0);
+      const fat = serverDay.meals.reduce((s, m) => s + (m.fat_g || 0), 0);
+      const sug = serverDay.meals.reduce((s, m) => s + (m.sugar_g || 0), 0);
+      const fib = serverDay.meals.reduce((s, m) => s + (m.fiber_g || 0), 0);
+      const sod = serverDay.meals.reduce((s, m) => s + (m.sodium_mg || 0), 0);
       html += `<div class="hd-stat"><div class="v">${cal}</div><div class="l">Calories</div></div>`;
+      html += `<div class="hd-stat"><div class="v" style="color:var(--protein)">${Math.round(pro)}g</div><div class="l">Protein</div></div>`;
+      html += `<div class="hd-stat"><div class="v" style="color:var(--carbs)">${Math.round(carb)}g</div><div class="l">Carbs</div></div>`;
+      html += `<div class="hd-stat"><div class="v" style="color:var(--fat)">${Math.round(fat)}g</div><div class="l">Fat</div></div>`;
+      if (sug > 0 || fib > 0 || sod > 0) {
+        html += `<div class="hd-stat"><div class="v" style="color:var(--amber)">${Math.round(sug)}g</div><div class="l">Sugar</div></div>`;
+        html += `<div class="hd-stat"><div class="v" style="color:var(--green)">${Math.round(fib)}g</div><div class="l">Fiber</div></div>`;
+        html += `<div class="hd-stat"><div class="v">${Math.round(sod)}mg</div><div class="l">Sodium</div></div>`;
+      }
     }
     html += '</div>';
 
