@@ -1638,7 +1638,7 @@
         {% if workouts %}
           {% for w in workouts %}
           <div class="workout-item" style="cursor:pointer" onclick="openWorkoutDetail({{ w.id }})">
-            <div class="w-icon">{% if 'run' in w.description|lower or 'mile' in w.description|lower or 'cardio' in w.description|lower %}<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="2" fill="currentColor" stroke="none"/><path d="M7 21l3-7 3 2 4-8"/><path d="M16 9l-2.5 6"/></svg>{% else %}<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5h11M6 2v4m0 12v4M18 2v4m0 12v4M2 8h4v8H2zM18 8h4v8h-4z"/></svg>{% endif %}</div>
+            <div class="w-icon">{% if 'run' in w.description|lower or 'mile' in w.description|lower or 'cardio' in w.description|lower %}<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="4" r="2"/><path d="M4 22l4-12m0 0l4 4 4-7"/><path d="M8 10l2-5"/><path d="M20 17l-4-5"/></svg>{% else %}<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7v10M18 7v10M2 9v6h4V9H2zM18 9v6h4V9h-4zM6 12h12"/></svg>{% endif %}</div>
             <div class="w-body">
               <div class="w-desc">{{ w.description }}</div>
               <div class="w-meta">{{ w.logged_at | fmt_time_12h }}</div>
@@ -2591,8 +2591,8 @@ const IC = {
   starFill: _ic('<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',20,"none","currentColor"),
   bookmark: _ic('<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>'),
   // Fitness
-  dumbbell: _ic('<path d="M6.5 6.5h11M6 2v4m0 12v4M18 2v4m0 12v4M2 8h4v8H2zM18 8h4v8h-4z"/>'),
-  run:      _ic('<circle cx="13" cy="4" r="2" fill="currentColor" stroke="none"/><path d="M7 21l3-7 3 2 4-8"/><path d="M16 9l-2.5 6"/>'),
+  dumbbell: _ic('<path d="M6 7v10M18 7v10M2 9v6h4V9H2zM18 9v6h4V9h-4zM6 12h12"/>'),
+  run:      _ic('<circle cx="14" cy="4" r="2"/><path d="M4 22l4-12m0 0l4 4 4-7"/><path d="M8 10l2-5"/><path d="M20 17l-4-5"/>'),
   swim:     _ic('<path d="M2 18c1.3-1.3 3-2 5-2s3.7.7 5 2c1.3-1.3 3-2 5-2s3.7.7 5 2"/><circle cx="12" cy="7" r="2"/><path d="M7 13l3-3 2 2 4-4"/>'),
   bike:     _ic('<circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="M6 17l3-7h4l3 7M9 10l3-4"/>'),
   yoga:     _ic('<circle cx="12" cy="4" r="2"/><path d="M12 6v6m-4 4l4-4 4 4m-8-4h8"/>'),
@@ -9216,32 +9216,32 @@ if ("serviceWorker" in navigator) {
   // ── Helpers ──────────────────────────────────────────
   function mealIcon(desc) {
     const d = (desc || "").toLowerCase();
-    if (/breakfast|oat|cereal|egg|pancake|waffle|toast/i.test(d)) return IC.egg;
-    if (/salad|vegetable|vegan|greens/i.test(d)) return IC.leaf;
-    if (/chicken|turkey|poultry/i.test(d)) return IC.meat;
-    if (/steak|beef|burger|meat/i.test(d)) return IC.meat;
-    if (/fish|salmon|tuna|shrimp|sushi/i.test(d)) return IC.fish;
-    if (/pizza/i.test(d)) return IC.pizza;
-    if (/pasta|noodle|spaghetti/i.test(d)) return IC.bowl;
-    if (/sandwich|sub|wrap|burrito|taco/i.test(d)) return IC.utensils;
-    if (/rice|bowl|asian|chinese|thai|japanese/i.test(d)) return IC.bowl;
-    if (/smoothie|shake|protein/i.test(d)) return IC.cup;
-    if (/fruit|apple|banana|berry/i.test(d)) return IC.leaf;
-    if (/snack|bar|chips|cookie|candy/i.test(d)) return IC.cookie;
-    if (/coffee|latte|cappuccino/i.test(d)) return IC.cup;
-    if (/soup|stew|chili/i.test(d)) return IC.bowl;
-    return IC.utensils;
+    if (/breakfast|oat|cereal|egg|pancake|waffle|toast/i.test(d)) return "\u{1F373}";
+    if (/salad|vegetable|vegan|greens/i.test(d)) return "\u{1F957}";
+    if (/chicken|turkey|poultry/i.test(d)) return "\u{1F357}";
+    if (/steak|beef|burger|meat/i.test(d)) return "\u{1F969}";
+    if (/fish|salmon|tuna|shrimp|sushi/i.test(d)) return "\u{1F41F}";
+    if (/pizza/i.test(d)) return "\u{1F355}";
+    if (/pasta|noodle|spaghetti/i.test(d)) return "\u{1F35D}";
+    if (/sandwich|sub|wrap|burrito|taco/i.test(d)) return "\u{1F32F}";
+    if (/rice|bowl|asian|chinese|thai|japanese/i.test(d)) return "\u{1F35A}";
+    if (/smoothie|shake|protein/i.test(d)) return "\u{1F964}";
+    if (/fruit|apple|banana|berry/i.test(d)) return "\u{1F34E}";
+    if (/snack|bar|chips|cookie|candy/i.test(d)) return "\u{1F36A}";
+    if (/coffee|latte|cappuccino/i.test(d)) return "\u2615";
+    if (/soup|stew|chili/i.test(d)) return "\u{1F372}";
+    return "\u{1F37D}";
   }
   function workoutIcon(desc) {
     const d = (desc || "").toLowerCase();
-    if (/strength|bench|squat|deadlift|press|curl/i.test(d)) return IC.dumbbell;
-    if (/run|jog|sprint|mile|5k|10k|marathon/i.test(d)) return IC.run;
-    if (/swim/i.test(d)) return IC.swim;
-    if (/bike|cycling|spin/i.test(d)) return IC.bike;
-    if (/yoga|stretch|flexibility/i.test(d)) return IC.yoga;
-    if (/hike|walk/i.test(d)) return IC.hike;
-    if (/box|fight|martial|mma/i.test(d)) return IC.boxing;
-    return IC.fitness;
+    if (/strength|bench|squat|deadlift|press|curl/i.test(d)) return "\u{1F3CB}";
+    if (/run|jog|sprint|mile|5k|10k|marathon/i.test(d)) return "\u{1F3C3}";
+    if (/swim/i.test(d)) return "\u{1F3CA}";
+    if (/bike|cycling|spin/i.test(d)) return "\u{1F6B4}";
+    if (/yoga|stretch|flexibility/i.test(d)) return "\u{1F9D8}";
+    if (/hike|walk/i.test(d)) return "\u{1F97E}";
+    if (/box|fight|martial|mma/i.test(d)) return "\u{1F94A}";
+    return "\u{1F4AA}";
   }
   function fmtTime(ts) {
     if (!ts) return "";
