@@ -5740,6 +5740,7 @@ function fmtDate(iso) {
       spanGaps: true,
       borderColor: _cv("--chart-line"),
       backgroundColor: _cv("--chart-fill"),
+      borderWidth: 2,
       fill: true,
       tension: 0.3,
       pointRadius: ptRadius,
@@ -5977,7 +5978,7 @@ function fmtDate(iso) {
           }},
           y: {
             min: -yPad, max: yPad,
-            grid: { color: ctx => ctx.tick.value === 0 ? (_isLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.2)") : _gc() },
+            grid: { color: ctx => ctx.tick.value === 0 ? _cv("--muted") : _gc() },
             ticks: { callback: v => v === 0 ? "0" : (v > 0 ? "+" : "") + Math.round(v) },
           },
         },
