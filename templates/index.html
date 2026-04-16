@@ -215,6 +215,7 @@
       -webkit-appearance: none; }
     textarea { resize: vertical; min-height: 72px; line-height: 1.5; font-family: inherit; }
     textarea::placeholder { text-align: center; }
+    textarea:placeholder-shown { padding-top: 24px; }
     input:focus, textarea:focus, select:focus { border-color: var(--accent); background: rgba(44,44,46,0.8); }
 
     /* ── Buttons ── */
@@ -1052,118 +1053,6 @@
         </div>
       </div>
 
-      <!-- Morning Brief -->
-      <div class="card brief-card" id="home-morning-card" style="display:none">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.7rem">
-          <div class="brief-title"><span class="brief-emoji">☀️</span>Morning Check-in</div>
-          <div id="home-morning-badge" style="font-size:0.75rem;padding:0.2rem 0.65rem;border-radius:99px;background:var(--surface2);color:var(--muted)">Locked</div>
-        </div>
-        <div id="home-morning-locked" style="display:none;color:var(--muted);font-size:0.85rem">
-          Unlocks at <span id="home-morning-unlock-time"></span>
-        </div>
-        <div id="home-morning-done" style="display:none">
-          <div style="color:var(--green);font-size:0.92rem;font-weight:700">✓ Completed</div>
-          <div id="home-morning-summary" style="font-size:0.84rem;color:var(--muted);margin-top:0.3rem;line-height:1.45"></div>
-        </div>
-        <div id="home-morning-form" style="display:none">
-          <div style="margin-bottom:0.6rem">
-            <label style="font-size:0.8rem;color:var(--text);font-weight:600;display:block;margin-bottom:0.3rem">Today's weight <span style="color:var(--muted);font-weight:400">(optional)</span></label>
-            <input type="number" id="home-morning-weight" min="50" max="500" step="0.1"
-              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;box-sizing:border-box"
-              placeholder="e.g. 185.5">
-            <div id="home-morning-weight-err" style="display:none;font-size:0.75rem;color:var(--danger);margin-top:0.25rem">Enter your weight to continue</div>
-          </div>
-          <div style="margin-bottom:0.6rem">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem">
-              <label style="font-size:0.8rem;color:var(--muted)">Energy level</label>
-              <span id="home-morning-energy-val" style="font-size:0.85rem;font-weight:600;color:var(--text)">7</span>
-            </div>
-            <input type="range" id="home-morning-energy" min="1" max="10" value="7"
-              style="width:100%;accent-color:var(--accent)">
-          </div>
-          <div style="margin-bottom:0.6rem">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem">
-              <label style="font-size:0.8rem;color:var(--muted)">Sleep quality</label>
-              <span id="home-morning-sleep-val" style="font-size:0.85rem;font-weight:600;color:var(--text)">7</span>
-            </div>
-            <input type="range" id="home-morning-sleep" min="1" max="10" value="7"
-              style="width:100%;accent-color:var(--accent)">
-          </div>
-          <div style="margin-bottom:0.6rem">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem">
-              <label style="font-size:0.8rem;color:var(--muted)">Morning mood</label>
-              <span id="home-morning-mood-val" style="font-size:0.85rem;font-weight:600;color:var(--text)">7</span>
-            </div>
-            <input type="range" id="home-morning-mood" min="1" max="10" value="7"
-              style="width:100%;accent-color:var(--accent)">
-          </div>
-          <div style="margin-bottom:0.6rem">
-            <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.3rem">Goals for today</label>
-            <textarea id="home-morning-goals" rows="2"
-              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;resize:none;box-sizing:border-box"
-              placeholder="What do you want to accomplish today?"></textarea>
-          </div>
-          <button class="btn" id="home-morning-submit" style="background:var(--btn-bg);width:100%;color:#fff;margin-top:0.4rem">Submit Morning Check-in</button>
-          <div id="home-morning-submitting" style="display:none;text-align:center;color:var(--muted);font-size:0.85rem;margin-top:0.5rem">Scoring and extracting tasks…</div>
-          <div id="home-morning-err" style="display:none;font-size:0.8rem;color:var(--danger);margin-top:0.4rem;padding:0.4rem 0.6rem;background:rgba(239,68,68,.1);border-radius:6px"></div>
-        </div>
-      </div>
-
-      <!-- Evening Debrief -->
-      <div class="card brief-card" id="home-evening-card" style="display:none">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.7rem">
-          <div class="brief-title"><span class="brief-emoji">🌙</span>Evening Review</div>
-          <div id="home-evening-badge" style="font-size:0.75rem;padding:0.2rem 0.65rem;border-radius:99px;background:var(--surface2);color:var(--muted)">Locked</div>
-        </div>
-        <div id="home-evening-locked" style="display:none;color:var(--muted);font-size:0.85rem">
-          Unlocks at <span id="home-evening-unlock-time"></span>
-        </div>
-        <div id="home-evening-done" style="display:none">
-          <div style="color:var(--green);font-size:0.92rem;font-weight:700">✓ Completed</div>
-          <div id="home-evening-summary" style="font-size:0.84rem;color:var(--muted);margin-top:0.3rem;line-height:1.45"></div>
-        </div>
-        <div id="home-evening-form" style="display:none">
-          <div style="margin-bottom:0.6rem">
-            <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.3rem">How did today go?</label>
-            <textarea id="home-evening-notes" rows="3"
-              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;resize:none;box-sizing:border-box"
-              placeholder="Reflect on your day — wins, challenges, how you feel…"></textarea>
-          </div>
-          <div style="margin-bottom:0.6rem">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem">
-              <label style="font-size:0.8rem;color:var(--muted)">Overall mood today</label>
-              <span id="home-evening-mood-val" style="font-size:0.85rem;font-weight:600;color:var(--text)">7</span>
-            </div>
-            <input type="range" id="home-evening-mood" min="1" max="10" value="7"
-              style="width:100%;accent-color:var(--accent)">
-          </div>
-          <div style="margin-bottom:0.6rem">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem">
-              <label style="font-size:0.8rem;color:var(--muted)">Stress level today</label>
-              <span id="home-evening-stress-val" style="font-size:0.85rem;font-weight:600;color:var(--text)">5</span>
-            </div>
-            <input type="range" id="home-evening-stress" min="1" max="10" value="5"
-              style="width:100%;accent-color:var(--accent)">
-          </div>
-          <div style="margin-bottom:0.6rem">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem">
-              <label style="font-size:0.8rem;color:var(--muted)">Focus & productivity</label>
-              <span id="home-evening-focus-val" style="font-size:0.85rem;font-weight:600;color:var(--text)">7</span>
-            </div>
-            <input type="range" id="home-evening-focus" min="1" max="10" value="7"
-              style="width:100%;accent-color:var(--accent)">
-          </div>
-          <div style="margin-bottom:0.6rem">
-            <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.3rem">Tomorrow's goals (optional)</label>
-            <textarea id="home-evening-goals" rows="2"
-              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;color:var(--text);font-size:0.9rem;resize:none;box-sizing:border-box"
-              placeholder="Anything you want to plan for tomorrow?"></textarea>
-          </div>
-          <button class="btn" id="home-evening-submit" style="background:var(--btn-bg);width:100%;color:#fff">Submit Evening Review</button>
-          <div id="home-evening-submitting" style="display:none;text-align:center;color:var(--muted);font-size:0.85rem;margin-top:0.5rem">Scoring and extracting tasks…</div>
-        </div>
-      </div>
-
       <!-- Sleep Card (disabled — Garmin offline) -->
       <div class="card" id="sleep-card" style="display:none !important;padding-bottom:0.85rem">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
@@ -1253,7 +1142,7 @@
         <form method="post" action="/log" id="log-form">
           <div class="field">
             <textarea id="meal-input"
-              placeholder="What did you eat?"
+              placeholder="What did you have to eat?"
               autocomplete="off" required></textarea>
           </div>
           <input type="hidden" name="description" id="h-description">
@@ -1263,6 +1152,17 @@
           <input type="hidden" name="fat_g"     id="h-fat">
 
           <div id="macro-fields">
+            <!-- Portion hint (shown after analysis) -->
+            <div id="meal-portion-hint" style="display:none;font-size:0.78rem;color:var(--muted);margin-bottom:0.65rem;line-height:1.45;text-align:center">
+              Be as specific as possible about portion sizes, brands, and preparation.
+            </div>
+
+            <!-- Log / Start Over buttons (above the breakdown) -->
+            <button type="submit" class="btn btn-primary btn-full" id="log-btn"
+              style="display:none;font-size:1rem;padding:0.8rem 1rem;margin-bottom:0.5rem">Log This Meal</button>
+            <button type="button" class="btn btn-ghost btn-full" id="meal-start-over-btn"
+              style="display:none;font-size:0.85rem;margin-bottom:0.85rem">Start Over</button>
+
             <div id="item-breakdown"></div>
             <div id="ai-notes"></div>
             <div class="macro-edit-grid">
@@ -1310,12 +1210,6 @@
           </div>
           <!-- Analyze button (shown after photo selected) -->
           <button type="button" class="btn btn-primary btn-full" id="analyze-btn" style="display:none;margin-top:0.65rem">Analyze Photo</button>
-
-          <!-- Log Meal (shown after macros populated) -->
-          <button type="submit" class="btn btn-primary btn-full" id="log-btn"
-            style="display:none;margin-top:0.65rem;font-size:1rem;padding:0.8rem 1rem">Log This Meal</button>
-          <button type="button" class="btn btn-ghost btn-full" id="meal-start-over-btn"
-            style="display:none;margin-top:0.35rem;font-size:0.85rem">Start Over</button>
 
           <input type="file" id="scan-input"   accept="image/*" capture="environment" style="display:none">
           <input type="file" id="gallery-input" accept="image/*" style="display:none">
@@ -1510,7 +1404,7 @@
         <div class="section-label">Log Activity</div>
         <div class="field">
           <textarea id="activity-input" rows="2"
-            placeholder="What did you do?"></textarea>
+            placeholder="What did you do today?"></textarea>
         </div>
         <div id="activity-burn-panel" class="burn-panel">
           <div id="activity-burn-notes" class="burn-ai-notes"></div>
@@ -3385,6 +3279,13 @@ function deleteWorkout(id) {
     document.getElementById("h-fat").value         = opt.fat_g;
     document.getElementById("macro-fields").classList.add("visible");
     const lb = document.getElementById("log-btn"); if (lb) lb.style.display = "";
+    const sob = document.getElementById("meal-start-over-btn"); if (sob) sob.style.display = "";
+    const ph = document.getElementById("meal-portion-hint"); if (ph) ph.style.display = "";
+    const mi = document.getElementById("meal-input");
+    if (mi) { mi.value = ""; mi.placeholder = 'Add details or corrections — e.g. "it was a large portion", "no bun"'; mi.removeAttribute("required"); }
+    const mb = document.getElementById("macros-btn"); if (mb) mb.style.display = "none";
+    const mod = document.getElementById("meal-or-divider"); if (mod) mod.style.display = "none";
+    const psr = document.getElementById("photo-scan-row"); if (psr) psr.style.display = "none";
     document.getElementById("log-form").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
@@ -3609,7 +3510,7 @@ function deleteWorkout(id) {
     analyzeBtn.textContent       = "Analyze Photo";
     analyzeBtn.style.display     = "none";
     _pendingImage                = null;
-    mealInput.placeholder        = _origPlaceholder || "What did you eat?";
+    mealInput.placeholder        = _origPlaceholder || "What did you have to eat?";
     mealInput.setAttribute("required", "");
     mealInput.value              = "";
     hDesc.value                  = "";
@@ -3619,6 +3520,8 @@ function deleteWorkout(id) {
     photoScanRow.style.display   = "";
     macroFields.classList.remove("visible");
     logBtn.style.display         = "none";
+    document.getElementById("meal-start-over-btn").style.display = "none";
+    document.getElementById("meal-portion-hint").style.display = "none";
     aiNotes.textContent          = "";
     breakdownEl.innerHTML        = "";
     pairs.forEach(([vis, hid]) => { vis.value = ""; hid.value = ""; });
@@ -3666,7 +3569,6 @@ function deleteWorkout(id) {
         macroFields.classList.add("visible"); return;
       }
       if (data.description) {
-        mealInput.value = data.description;
         hDesc.value     = data.description;
         shortLabel      = data.description;
       }
@@ -3675,6 +3577,12 @@ function deleteWorkout(id) {
       aiNotes.textContent = data.notes ? "Note: " + data.notes : "";
       macroFields.classList.add("visible");
       logBtn.style.display = "";
+      document.getElementById("meal-start-over-btn").style.display = "";
+      document.getElementById("meal-portion-hint").style.display = "";
+      // Switch textarea to "add details" mode
+      mealInput.value = "";
+      mealInput.placeholder = 'Add details or corrections — e.g. "it was a large portion", "no bun"';
+      mealInput.removeAttribute("required");
     })
     .catch(() => {
       scanStatus.style.display = "none";
@@ -3746,12 +3654,20 @@ function deleteWorkout(id) {
         photoScanRow.style.display = "none";
         logBtn.style.display = "";
         document.getElementById("meal-start-over-btn").style.display = "";
+        document.getElementById("meal-portion-hint").style.display = "";
+        // Switch textarea to "add details" mode
+        _origPlaceholder = _origPlaceholder || mealInput.placeholder;
+        mealInput.value = "";
+        mealInput.placeholder = 'Add details or corrections — e.g. "it was a large portion", "no bun"';
+        mealInput.removeAttribute("required");
       })
       .catch(() => { macrosBtn.disabled = false; macrosBtn.textContent = "Get Macros"; });
   });
 
   document.getElementById("meal-start-over-btn").addEventListener("click", () => {
     mealInput.value = "";
+    mealInput.placeholder = _origPlaceholder || "What did you have to eat?";
+    mealInput.setAttribute("required", "");
     macroFields.classList.remove("visible");
     breakdownEl.innerHTML = "";
     aiNotes.textContent = "";
@@ -3763,6 +3679,7 @@ function deleteWorkout(id) {
     photoScanRow.style.display = "";
     logBtn.style.display = "none";
     document.getElementById("meal-start-over-btn").style.display = "none";
+    document.getElementById("meal-portion-hint").style.display = "none";
     mealInput.focus();
   });
 
@@ -8188,7 +8105,7 @@ if ("serviceWorker" in navigator) {
     if (weightCard && !wBadge) {
       wBadge = document.createElement("div");
       wBadge.className = "weight-unlogged-badge";
-      wBadge.textContent = "Log in morning check-in";
+      wBadge.textContent = "Not logged today";
       wBadge.style.cssText = "font-size:0.6rem;color:var(--danger);background:rgba(239,68,68,.12);border-radius:99px;padding:0.15rem 0.5rem;margin-top:0.25rem;display:none";
       weightCard.appendChild(wBadge);
     }
@@ -8539,6 +8456,7 @@ if ("serviceWorker" in navigator) {
     const submitted = checkins.find(c => c.type === type);
 
     const card  = document.getElementById(ids.card);
+    if (!card) return;
     const badge = document.getElementById(ids.badge);
     card.style.display = "";
     card.classList.remove("brief-open", "brief-done");
@@ -8598,8 +8516,8 @@ if ("serviceWorker" in navigator) {
       if (wErr) wErr.style.display = "none";
     }
 
-    submitBtn.disabled = true;
-    spinEl.style.display = "";
+    if (submitBtn) submitBtn.disabled = true;
+    if (spinEl) spinEl.style.display = "";
 
     const payload = { type, notes, goals };
     if (isM && bw && bw > 0) payload.bodyweight_lbs = bw;
@@ -8631,8 +8549,8 @@ if ("serviceWorker" in navigator) {
         if (typeof window._momentumRefresh === "function") window._momentumRefresh();
       })
       .catch(e => {
-        submitBtn.disabled = false;
-        spinEl.style.display = "none";
+        if (submitBtn) submitBtn.disabled = false;
+        if (spinEl) spinEl.style.display = "none";
         if (errEl) {
           errEl.textContent = "Submission failed — " + (typeof e === "string" ? e.slice(0, 120) : (e.message || "please try again"));
           errEl.style.display = "";
@@ -8640,8 +8558,10 @@ if ("serviceWorker" in navigator) {
       });
   }
 
-  document.getElementById("home-morning-submit").addEventListener("click", () => submitBrief("morning"));
-  document.getElementById("home-evening-submit").addEventListener("click", () => submitBrief("evening"));
+  const _mBtn = document.getElementById("home-morning-submit");
+  const _eBtn = document.getElementById("home-evening-submit");
+  if (_mBtn) _mBtn.addEventListener("click", () => submitBrief("morning"));
+  if (_eBtn) _eBtn.addEventListener("click", () => submitBrief("evening"));
 
   function initBriefs() {
     const settings = getBriefSettings();
