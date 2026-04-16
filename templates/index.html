@@ -1588,20 +1588,19 @@
 
         <div id="strength-status-wrap">
         {% if ns.strength_log %}
-        <div class="strength-done redoable">
+        <div class="strength-done redoable" style="gap:16px">
           <div class="done-check"><svg viewBox="0 0 24 24" width="16" height="16" stroke="#fff" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-          <div class="done-body">
-            <div class="done-title">Workout logged today{% if ns.strength_log.calories_burned %} · ~{{ ns.strength_log.calories_burned }} kcal{% endif %}</div>
-            <div class="done-meta">{{ ns.strength_log.logged_at | fmt_time_12h }} · {{ ns.strength_log.description[:120] }}{% if ns.strength_log.description|length > 120 %}…{% endif %}</div>
+          <div class="done-body" style="min-width:0">
+            <div class="done-title">Workout logged{% if ns.strength_log.calories_burned %} · ~{{ ns.strength_log.calories_burned }} kcal{% endif %}</div>
+            <div class="done-meta" id="strength-done-summary">Completed at {{ ns.strength_log.logged_at | fmt_time_12h }}</div>
             <div class="done-action-row">
               <button class="done-edit-btn" id="edit-workout-btn">Edit</button>
               <button class="done-delete-btn" id="delete-workout-status-btn">Delete</button>
             </div>
           </div>
         </div>
-        <div id="strength-idle" class="strength-idle-inner" style="padding-top:0">
-          <button class="btn btn-ghost btn-full" id="start-workout-btn">Start Another Workout</button>
-        </div>
+        <button class="btn btn-ghost btn-full" id="log-another-workout-btn" style="margin-top:8px">Log Another Strength Workout</button>
+        <div id="strength-idle" class="strength-idle-inner" style="display:none"></div>
         {% else %}
         <div id="strength-idle" class="strength-idle-inner">
           <p>Workout plan loaded from saved exercises. Edit anytime in Profile.</p>
@@ -3200,15 +3199,22 @@ function renderStrengthStatus(workouts) {
   if (strengthLog) {
     const kcalStr = strengthLog.calories_burned ? ` · ~${strengthLog.calories_burned} kcal` : '';
     const time    = fmt12h(strengthLog.logged_at || '');
-    const desc    = strengthLog.description.length > 120
-      ? strengthLog.description.slice(0, 120) + '…'
-      : strengthLog.description;
-    wrap.innerHTML = `<div class="strength-done redoable">
+    const parsed  = _parseStrengthDesc(strengthLog.description);
+    let summary;
+    if (parsed) {
+      const exNames = parsed.exercises.map(e => e.split(":")[0].trim());
+      summary = exNames.length <= 3
+        ? exNames.join(", ") + ` · ${parsed.minutes} min`
+        : exNames.slice(0, 2).join(", ") + ` + ${exNames.length - 2} more · ${parsed.minutes} min`;
+    } else {
+      summary = strengthLog.description.length > 60 ? strengthLog.description.slice(0, 60) : strengthLog.description;
+    }
+    wrap.innerHTML = `<div class="strength-done redoable" style="gap:16px">
       <div class="done-check"><svg viewBox="0 0 24 24" width="16" height="16" stroke="#fff" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-      <div class="done-body">
-        <div class="done-title">Workout logged today${kcalStr}</div>
-        <div class="done-meta">${time} · ${desc}</div>
-        <button class="done-undo-btn" id="undo-workout-btn">Undo — go back in</button>
+      <div class="done-body" style="min-width:0">
+        <div class="done-title">Workout logged${kcalStr}</div>
+        <div class="done-meta">${summary} · ${time}</div>
+        <button class="done-undo-btn" id="undo-workout-btn">Undo</button>
       </div>
     </div>`;
     // Buttons wired up by the IIFE's wireCompletedButtons() on init
@@ -4481,7 +4487,7 @@ function deleteWorkout(id) {
           <span>Rest day — no workout scheduled for ${dayName}.</span>
           <button class="btn btn-primary btn-full" id="start-workout-btn">Start Workout</button>
           <button class="btn btn-ghost btn-full" id="change-workout-idle-btn"
-            style="margin-top:0.4rem">Use Saved Plan</button>
+            style="margin-top:0.4rem">Choose a Saved Day</button>
         </div>`;
       document.getElementById("start-workout-btn").addEventListener("click", startQuickWorkout);
       document.getElementById("change-workout-idle-btn").addEventListener("click", openChangeWorkout);
@@ -4505,7 +4511,7 @@ function deleteWorkout(id) {
         + `<button class="btn btn-primary btn-full" id="start-workout-btn"
              style="margin-top:0.25rem">Start ${dayName}'s Workout</button>
            <div class="btn-row" style="width:100%;gap:0.5rem;margin-top:0.5rem">
-             <button class="btn btn-ghost" id="change-workout-idle-btn" style="flex:1">Different Day</button>
+             <button class="btn btn-ghost" id="change-workout-idle-btn" style="flex:1">Choose a Saved Day</button>
              <button class="btn btn-ghost" id="quick-workout-idle-btn" style="flex:1">Custom</button>
            </div>`;
       document.getElementById("start-workout-btn").addEventListener("click", () => startWorkoutSession(todayExs, dayName));
@@ -4557,6 +4563,18 @@ function deleteWorkout(id) {
     if (delBtn)  delBtn.addEventListener("click",  revertToIdle);
   }
 
+  function wireLogAnotherBtn() {
+    const btn = document.getElementById("log-another-workout-btn");
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+      const idleEl = document.getElementById("strength-idle");
+      if (!idleEl) return;
+      btn.style.display = "none";
+      idleEl.style.display = "";
+      renderIdleState();
+    });
+  }
+
   function revertToIdle() {
     // Wipe the completed card and show idle state — workout entries list untouched
     const wrap = document.getElementById("strength-status-wrap");
@@ -4567,6 +4585,7 @@ function deleteWorkout(id) {
   }
 
   wireCompletedButtons();
+  wireLogAnotherBtn();
 
   // ── renderStrengthStatus override with Edit + Delete ──
 
@@ -4577,25 +4596,39 @@ function deleteWorkout(id) {
     if (strengthLog) {
       const kcalStr = strengthLog.calories_burned ? ` · ~${strengthLog.calories_burned} kcal` : '';
       const time    = fmt12h(strengthLog.logged_at || '');
-      const desc    = strengthLog.description.length > 120
-        ? strengthLog.description.slice(0, 120) + '…'
-        : strengthLog.description;
-      wrap.innerHTML = `<div class="strength-done redoable">
+      // Build short summary from parsed exercises
+      const parsed  = _parseStrengthDesc(strengthLog.description);
+      let summary;
+      if (parsed) {
+        const exNames = parsed.exercises.map(e => e.split(":")[0].trim());
+        summary = exNames.length <= 3
+          ? exNames.join(", ") + ` · ${parsed.minutes} min`
+          : exNames.slice(0, 2).join(", ") + ` + ${exNames.length - 2} more · ${parsed.minutes} min`;
+      } else {
+        summary = strengthLog.description.length > 60
+          ? strengthLog.description.slice(0, 60)
+          : strengthLog.description;
+      }
+      wrap.innerHTML = `<div class="strength-done redoable" style="gap:16px">
         <div class="done-check"><svg viewBox="0 0 24 24" width="16" height="16" stroke="#fff" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-        <div class="done-body">
-          <div class="done-title">Workout logged today${kcalStr}</div>
-          <div class="done-meta">${time} · ${desc}</div>
+        <div class="done-body" style="min-width:0">
+          <div class="done-title">Workout logged${kcalStr}</div>
+          <div class="done-meta">${summary} · ${time}</div>
           <div class="done-action-row">
             <button class="done-edit-btn" id="edit-workout-btn">Edit</button>
             <button class="done-delete-btn" id="delete-workout-status-btn">Delete</button>
           </div>
         </div>
       </div>
-      <div id="strength-idle" class="strength-idle-inner" style="padding-top:0"></div>`;
+      <button class="btn btn-ghost btn-full" id="log-another-workout-btn" style="margin-top:8px">Log Another Strength Workout</button>
+      <div id="strength-idle" class="strength-idle-inner" style="display:none"></div>`;
       wireCompletedButtons();
+      wireLogAnotherBtn();
+    }
+    if (!strengthLog) {
+      wrap.querySelector("#strength-idle")?.removeAttribute("style");
       renderIdleState();
     }
-    if (!strengthLog) renderIdleState();
   };
 
   // ── Cancel ────────────────────────────────────────────
