@@ -1126,6 +1126,45 @@
     .fab-modal-close { background: none; border: none; color: var(--muted); cursor: pointer;
       font-size: 18px; padding: 4px; line-height: 1; }
 
+    /* ══ BARCODE SCANNER ═════════════════════════ */
+    #barcode-overlay {
+      position: fixed; inset: 0; z-index: 600; background: #000;
+      display: none; flex-direction: column; align-items: center;
+    }
+    #barcode-overlay.active { display: flex; }
+    #barcode-video { width: 100%; height: 100%; object-fit: cover; }
+    #barcode-frame {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 280px; height: 160px; border: 2px solid var(--accent);
+      border-radius: 16px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.55);
+    }
+    #barcode-frame::before, #barcode-frame::after {
+      content: ''; position: absolute; left: 10%; right: 10%;
+      height: 2px; background: var(--accent); opacity: 0.7;
+      animation: barcode-scan 2s ease-in-out infinite;
+    }
+    #barcode-frame::before { top: 30%; }
+    #barcode-frame::after { top: 60%; animation-delay: 1s; }
+    @keyframes barcode-scan {
+      0%, 100% { opacity: 0.3; } 50% { opacity: 1; }
+    }
+    #barcode-hint {
+      position: absolute; bottom: 120px; left: 0; right: 0;
+      text-align: center; color: #fff; font-size: 15px; font-weight: 600;
+    }
+    #barcode-close {
+      position: absolute; top: env(safe-area-inset-top, 12px); right: 16px;
+      margin-top: 12px; background: rgba(0,0,0,0.5); border: none;
+      color: #fff; width: 40px; height: 40px; border-radius: 50%;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    #barcode-result {
+      position: absolute; bottom: 40px; left: 18px; right: 18px;
+      background: var(--surface); border-radius: var(--r-card); padding: 16px;
+      display: none; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    #barcode-result.found { display: block; }
+
     /* ══ FAB (floating action button) ═══════════ */
     #fab { position: fixed; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 14px);
       right: 18px; z-index: 110; width: 52px; height: 52px; border-radius: 50%;
@@ -1411,6 +1450,11 @@
             <button type="button" class="btn btn-ghost btn-full" id="scan-btn">
               <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
               Log a meal with a photo
+            </button>
+            <div class="meal-or-divider" style="margin:8px 0"><span>or</span></div>
+            <button type="button" class="btn btn-ghost btn-full" onclick="openBarcodeScanner()">
+              <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="6" y1="8" x2="6" y2="16"/><line x1="9" y1="8" x2="9" y2="16"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="15" y1="8" x2="15" y2="16"/><line x1="18" y1="8" x2="18" y2="16"/></svg>
+              Scan a barcode
             </button>
             <div class="meal-or-divider" style="margin:8px 0"><span>or</span></div>
             <button type="button" class="btn btn-ghost btn-full" onclick="openSavedMeals()">
@@ -2317,6 +2361,11 @@
         Analyzing...
       </div>
       <div class="meal-or-divider" style="margin:10px 0"><span>or</span></div>
+      <button class="btn btn-ghost btn-full" onclick="closeFabModal('meal');openBarcodeScanner()">
+        <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="6" y1="8" x2="6" y2="16"/><line x1="9" y1="8" x2="9" y2="16"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="15" y1="8" x2="15" y2="16"/><line x1="18" y1="8" x2="18" y2="16"/></svg>
+        Scan a barcode
+      </button>
+      <div class="meal-or-divider" style="margin:10px 0"><span>or</span></div>
       <button class="btn btn-ghost btn-full" onclick="closeFabModal('meal');openSavedMeals()">
         <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
         Log a saved meal
@@ -2341,6 +2390,30 @@
       </div>
       <button class="btn btn-primary btn-full" id="fab-activity-burn-btn">Get Burn Estimate</button>
       <div id="fab-activity-status" style="font-size:13px;color:var(--muted);text-align:center;margin-top:8px"></div>
+    </div>
+  </div>
+
+  <!-- Barcode scanner overlay -->
+  <div id="barcode-overlay">
+    <video id="barcode-video" autoplay playsinline muted></video>
+    <div id="barcode-frame"></div>
+    <div id="barcode-hint">Point at a barcode</div>
+    <button id="barcode-close" onclick="closeBarcodeScanner()">
+      <svg viewBox="0 0 24 24" width="20" height="20" stroke="#fff" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <div id="barcode-result">
+      <div id="barcode-product-name" style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px"></div>
+      <div id="barcode-product-brand" style="font-size:13px;color:var(--muted);margin-bottom:8px"></div>
+      <div id="barcode-product-macros" style="display:flex;gap:12px;font-size:13px;margin-bottom:12px;font-variant-numeric:tabular-nums">
+        <span style="color:var(--text);font-weight:700" id="bp-cal"></span>
+        <span style="color:var(--protein)" id="bp-pro"></span>
+        <span style="color:var(--carbs)" id="bp-carb"></span>
+        <span style="color:var(--fat)" id="bp-fat"></span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" id="barcode-log-btn" style="flex:1">Log This</button>
+        <button class="btn btn-ghost" onclick="dismissBarcodeResult()" style="flex:1">Scan Again</button>
+      </div>
     </div>
   </div>
 
@@ -2818,6 +2891,126 @@ document.getElementById("fab-activity-burn-btn").addEventListener("click", funct
       scanStatus.style.display = "none"; mealStatus.textContent = "Failed";
     });
   });
+})();
+
+// ── Barcode Scanner ──
+(function() {
+  const overlay   = document.getElementById("barcode-overlay");
+  const video     = document.getElementById("barcode-video");
+  const hint      = document.getElementById("barcode-hint");
+  const resultBox = document.getElementById("barcode-result");
+  const logBtn    = document.getElementById("barcode-log-btn");
+  let stream = null, detector = null, scanning = false, _product = null;
+
+  window.openBarcodeScanner = function() {
+    if (!("BarcodeDetector" in window)) {
+      alert("Barcode scanning is not supported in this browser. Try Chrome or Safari on your phone.");
+      return;
+    }
+    overlay.classList.add("active");
+    resultBox.classList.remove("found");
+    hint.textContent = "Point at a barcode";
+    _product = null;
+    scanning = true;
+    detector = new BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39"] });
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } })
+      .then(s => { stream = s; video.srcObject = s; video.play(); scanLoop(); })
+      .catch(e => { hint.textContent = "Camera access denied"; console.error(e); });
+  };
+
+  function scanLoop() {
+    if (!scanning) return;
+    if (video.readyState < 2) { requestAnimationFrame(scanLoop); return; }
+    detector.detect(video).then(barcodes => {
+      if (barcodes.length > 0 && scanning) {
+        scanning = false;
+        const code = barcodes[0].rawValue;
+        hint.textContent = "Found: " + code;
+        lookupBarcode(code);
+      } else {
+        requestAnimationFrame(scanLoop);
+      }
+    }).catch(() => { requestAnimationFrame(scanLoop); });
+  }
+
+  function lookupBarcode(code) {
+    hint.textContent = "Looking up product...";
+    fetch("https://world.openfoodfacts.org/api/v2/product/" + code + ".json")
+      .then(r => r.json())
+      .then(data => {
+        if (data.status !== 1 || !data.product) {
+          hint.textContent = "Product not found. Try again.";
+          setTimeout(() => { scanning = true; scanLoop(); }, 2000);
+          return;
+        }
+        const p = data.product;
+        const n = p.nutriments || {};
+        _product = {
+          name: p.product_name || p.product_name_en || "Unknown product",
+          brand: p.brands || "",
+          calories:  Math.round(n["energy-kcal_100g"] || n["energy-kcal"] || 0),
+          protein_g: Math.round((n.proteins_100g || n.proteins || 0) * 10) / 10,
+          carbs_g:   Math.round((n.carbohydrates_100g || n.carbohydrates || 0) * 10) / 10,
+          fat_g:     Math.round((n.fat_100g || n.fat || 0) * 10) / 10,
+          serving:   p.serving_size || "per 100g",
+        };
+        // If we have per-serving data, prefer that
+        if (n["energy-kcal_serving"]) {
+          _product.calories  = Math.round(n["energy-kcal_serving"]);
+          _product.protein_g = Math.round((n.proteins_serving || _product.protein_g) * 10) / 10;
+          _product.carbs_g   = Math.round((n.carbohydrates_serving || _product.carbs_g) * 10) / 10;
+          _product.fat_g     = Math.round((n.fat_serving || _product.fat_g) * 10) / 10;
+          _product.serving   = p.serving_size || "per serving";
+        }
+        document.getElementById("barcode-product-name").textContent = _product.name;
+        document.getElementById("barcode-product-brand").textContent = _product.brand + (_product.serving ? " · " + _product.serving : "");
+        document.getElementById("bp-cal").textContent = _product.calories + " cal";
+        document.getElementById("bp-pro").textContent = _product.protein_g + "g P";
+        document.getElementById("bp-carb").textContent = _product.carbs_g + "g C";
+        document.getElementById("bp-fat").textContent = _product.fat_g + "g F";
+        resultBox.classList.add("found");
+        hint.textContent = "";
+      })
+      .catch(() => {
+        hint.textContent = "Lookup failed. Try again.";
+        setTimeout(() => { scanning = true; scanLoop(); }, 2000);
+      });
+  }
+
+  window.dismissBarcodeResult = function() {
+    resultBox.classList.remove("found");
+    _product = null;
+    hint.textContent = "Point at a barcode";
+    scanning = true;
+    scanLoop();
+  };
+
+  logBtn.addEventListener("click", () => {
+    if (!_product) return;
+    const desc = _product.name + (_product.brand ? " (" + _product.brand + ")" : "");
+    fetch("/api/log-meal", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        description: desc, calories: _product.calories,
+        protein_g: _product.protein_g, carbs_g: _product.carbs_g, fat_g: _product.fat_g,
+        client_date: localToday(), client_time: localNow(),
+      }),
+    }).then(r => r.json()).then(resp => {
+      closeBarcodeScanner();
+      if (resp.meals) renderMealTable(resp.meals, resp.totals);
+      if (typeof flashGreen === "function") flashGreen();
+      if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+    });
+  });
+
+  window.closeBarcodeScanner = function() {
+    scanning = false;
+    overlay.classList.remove("active");
+    resultBox.classList.remove("found");
+    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    video.srcObject = null;
+    _product = null;
+  };
 })();
 
 // ══════════════════════════════════════════════════════
