@@ -1110,6 +1110,22 @@
     .sl-item-del:hover { color: var(--danger); opacity: 1; }
     .sl-empty { text-align: center; color: var(--subtle, #555570); padding: 3rem 1rem; font-size: 14px; }
 
+    /* ══ FAB quick-log modals ════════════════════ */
+    .fab-modal { position: fixed; inset: 0; z-index: 500;
+      display: none; align-items: flex-end; justify-content: center; padding: 0 18px 18px; }
+    .fab-modal.open { display: flex; }
+    .fab-modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.4);
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+    .fab-modal-box { position: relative; z-index: 1; background: var(--surface);
+      border-radius: var(--r-card); padding: var(--pad-card); width: 100%; max-width: 400px;
+      box-shadow: 0 12px 48px rgba(0,0,0,0.5); max-height: 80vh; overflow-y: auto;
+      margin-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 20px); }
+    .fab-modal-header { display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px; }
+    .fab-modal-title { font-size: 17px; font-weight: 700; color: var(--text); }
+    .fab-modal-close { background: none; border: none; color: var(--muted); cursor: pointer;
+      font-size: 18px; padding: 4px; line-height: 1; }
+
     /* ══ FAB (floating action button) ═══════════ */
     #fab { position: fixed; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 14px);
       right: 18px; z-index: 110; width: 52px; height: 52px; border-radius: 50%;
@@ -2265,14 +2281,56 @@
   </div><!-- /content -->
 
   <!-- ── Bottom nav ── -->
+  <!-- FAB quick-log modals -->
+  <div class="fab-modal" id="fab-meal-modal">
+    <div class="fab-modal-backdrop" onclick="closeFabModal('meal')"></div>
+    <div class="fab-modal-box">
+      <div class="fab-modal-header">
+        <div class="fab-modal-title">Log a Meal</div>
+        <button class="fab-modal-close" onclick="closeFabModal('meal')">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="field">
+        <textarea id="fab-meal-input" placeholder="What did you have to eat?" style="min-height:60px"></textarea>
+      </div>
+      <button class="btn btn-primary btn-full" id="fab-meal-macros-btn">Get Macros</button>
+      <div class="meal-or-divider" style="margin:10px 0"><span>or</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button class="btn btn-ghost btn-full" onclick="closeFabModal('meal');openSavedMeals()">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          Log a saved meal
+        </button>
+      </div>
+      <div id="fab-meal-status" style="font-size:13px;color:var(--muted);text-align:center;margin-top:8px"></div>
+    </div>
+  </div>
+
+  <div class="fab-modal" id="fab-activity-modal">
+    <div class="fab-modal-backdrop" onclick="closeFabModal('activity')"></div>
+    <div class="fab-modal-box">
+      <div class="fab-modal-header">
+        <div class="fab-modal-title">Log Activity</div>
+        <button class="fab-modal-close" onclick="closeFabModal('activity')">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="field">
+        <textarea id="fab-activity-input" placeholder="What did you do today?" style="min-height:60px"></textarea>
+      </div>
+      <button class="btn btn-primary btn-full" id="fab-activity-burn-btn">Get Burn Estimate</button>
+      <div id="fab-activity-status" style="font-size:13px;color:var(--muted);text-align:center;margin-top:8px"></div>
+    </div>
+  </div>
+
   <!-- FAB + menu -->
   <div id="fab-backdrop" onclick="toggleFab()"></div>
   <div id="fab-menu">
-    <button class="fab-option" onclick="toggleFab();activateTab('meals');document.getElementById('meal-input')?.focus()">
+    <button class="fab-option" onclick="toggleFab();openFabModal('meal')">
       <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg>
       Log a Meal
     </button>
-    <button class="fab-option" onclick="toggleFab();activateTab('workout');document.getElementById('activity-input')?.focus()">
+    <button class="fab-option" onclick="toggleFab();openFabModal('activity')">
       <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7v10M18 7v10M2 9v6h4V9H2zM18 9v6h4V9h-4zM6 12h12"/></svg>
       Log Activity
     </button>
@@ -2577,12 +2635,85 @@ const USER_ID = {{ user_id }};
   };
 })();
 
-// ── FAB toggle ──
+// ── FAB toggle + modals ──
 function toggleFab() {
   document.getElementById("fab").classList.toggle("open");
   document.getElementById("fab-menu").classList.toggle("open");
   document.getElementById("fab-backdrop").classList.toggle("open");
 }
+function openFabModal(type) {
+  document.getElementById("fab-" + type + "-modal").classList.add("open");
+}
+function closeFabModal(type) {
+  document.getElementById("fab-" + type + "-modal").classList.remove("open");
+}
+
+// FAB meal: Get Macros → estimate → log
+document.getElementById("fab-meal-macros-btn").addEventListener("click", function() {
+  const input = document.getElementById("fab-meal-input");
+  const status = document.getElementById("fab-meal-status");
+  const val = input.value.trim();
+  if (!val) { input.focus(); return; }
+  const btn = this;
+  btn.disabled = true; btn.textContent = "Analyzing...";
+  status.textContent = "";
+  fetch("/api/estimate", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ description: val }),
+  }).then(r => r.json()).then(data => {
+    btn.disabled = false; btn.textContent = "Get Macros";
+    if (data.error) { status.textContent = data.error; return; }
+    // Log it directly
+    fetch("/api/log-meal", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        description: val,
+        calories: data.calories, protein_g: data.protein_g,
+        carbs_g: data.carbs_g, fat_g: data.fat_g,
+        client_date: localToday(), client_time: localNow(),
+      }),
+    }).then(r => r.json()).then(resp => {
+      input.value = "";
+      closeFabModal("meal");
+      if (resp.meals) renderMealTable(resp.meals, resp.totals);
+      if (typeof flashGreen === "function") flashGreen();
+      if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+    });
+  }).catch(() => { btn.disabled = false; btn.textContent = "Get Macros"; status.textContent = "Failed"; });
+});
+
+// FAB activity: Get Burn → log
+document.getElementById("fab-activity-burn-btn").addEventListener("click", function() {
+  const input = document.getElementById("fab-activity-input");
+  const status = document.getElementById("fab-activity-status");
+  const val = input.value.trim();
+  if (!val) { input.focus(); return; }
+  const btn = this;
+  btn.disabled = true; btn.textContent = "Analyzing...";
+  status.textContent = "";
+  fetch("/api/burn-estimate", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ description: val }),
+  }).then(r => r.json()).then(data => {
+    btn.disabled = false; btn.textContent = "Get Burn Estimate";
+    if (data.error) { status.textContent = data.error; return; }
+    fetch("/api/log-workout", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        description: val, calories_burned: data.calories_burned || 0,
+        client_date: localToday(), client_time: localNow(),
+      }),
+    }).then(() => {
+      input.value = "";
+      closeFabModal("activity");
+      fetch("/api/today-workouts").then(r => r.json()).then(d => {
+        if (d.workouts) renderWorkoutList(d.workouts, d.total_burn);
+      });
+      if (typeof flashGreen === "function") flashGreen();
+      if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+    });
+  }).catch(() => { btn.disabled = false; btn.textContent = "Get Burn Estimate"; status.textContent = "Failed"; });
+});
 
 // ══════════════════════════════════════════════════════
 //  CONSTANTS & STATE
