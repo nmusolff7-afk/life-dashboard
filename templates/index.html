@@ -1013,8 +1013,9 @@
       cursor: pointer; padding: 0; font-weight: 600; display: flex; align-items: center; gap: 4px; }
     .ed-title { font-size: 17px; font-weight: 700; flex: 1; overflow: hidden;
       text-overflow: ellipsis; white-space: nowrap; }
-    .ed-save-btn { background: none; border: none; font-size: 1.3rem; cursor: pointer;
-      padding: 0.2rem; line-height: 1; color: var(--muted); transition: color 180ms ease; }
+    .ed-save-btn { background: none; border: none; font-size: 15px; cursor: pointer;
+      padding: 0; line-height: 1; color: var(--accent); font-weight: 600;
+      display: flex; align-items: center; gap: 4px; transition: color 180ms ease; }
     .ed-save-btn.saved { color: var(--amber); }
     .ed-scroll {
       flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
@@ -2268,8 +2269,9 @@
       Back
     </button>
     <div class="ed-title" id="meal-detail-title"></div>
-    <button class="ed-save-btn" id="meal-detail-save-btn" title="Save meal">☆</button>
-    <span id="meal-save-hint" style="font-size:11px;color:var(--muted);white-space:nowrap">Save meal</span>
+    <button class="ed-back" id="meal-detail-save-btn" title="Save meal" style="flex-direction:row-reverse">
+      Save ☆
+    </button>
   </div>
   <div class="ed-scroll">
     <div class="ed-hero">
@@ -9151,15 +9153,12 @@ if ("serviceWorker" in navigator) {
     </div>`;
     // Check saved status
     const saveBtn = document.getElementById("meal-detail-save-btn");
-    const saveHint = document.getElementById("meal-save-hint");
     saveBtn.classList.remove("saved");
-    saveBtn.textContent = "☆";
-    if (saveHint) saveHint.textContent = "Save meal";
+    saveBtn.textContent = "Save ☆";
     fetch("/api/saved-meals").then(r => r.json()).then(saved => {
       if (saved.some(s => s.description === m.description)) {
         saveBtn.classList.add("saved");
-        saveBtn.textContent = "★";
-        if (saveHint) saveHint.textContent = "Saved";
+        saveBtn.textContent = "Saved ★";
       }
     }).catch(() => {});
     // Reset edit
@@ -9177,7 +9176,6 @@ if ("serviceWorker" in navigator) {
   document.getElementById("meal-detail-save-btn").addEventListener("click", function() {
     if (!_activeMeal) return;
     const btn = this;
-    const hint = document.getElementById("meal-save-hint");
     if (btn.classList.contains("saved")) {
       // Unsave: find the saved entry and delete it
       fetch("/api/saved-meals").then(r => r.json()).then(saved => {
@@ -9185,8 +9183,7 @@ if ("serviceWorker" in navigator) {
         if (match) {
           fetch(`/api/saved-meals/${match.id}`, { method: "DELETE" }).then(() => {
             btn.classList.remove("saved");
-            btn.textContent = "☆";
-            if (hint) hint.textContent = "Save meal";
+            btn.textContent = "Save ☆";
           });
         }
       });
@@ -9204,8 +9201,7 @@ if ("serviceWorker" in navigator) {
         }),
       }).then(() => {
         btn.classList.add("saved");
-        btn.textContent = "★";
-        if (hint) hint.textContent = "Saved";
+        btn.textContent = "Saved ★";
       });
     }
   });
