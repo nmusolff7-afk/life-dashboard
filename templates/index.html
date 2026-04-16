@@ -1504,7 +1504,7 @@
           <tbody>
             {% for meal in meals %}
             <tr style="cursor:pointer" onclick="openMealDetail({{ meal.id }})">
-              <td>{{ meal.description }}</td>
+              <td>{{ meal.description[:32] }}</td>
               <td class="td-cal">{{ meal.calories }}</td>
               <td class="td-pro">{{ "%.0f"|format(meal.protein_g) }}g</td>
               <td class="td-carb">{{ "%.0f"|format(meal.carbs_g) }}g</td>
@@ -3551,7 +3551,7 @@ function renderMealTable(meals, totals) {
     meals.forEach(m => {
       const descAttr = m.description.replace(/&/g,"&amp;").replace(/"/g,"&quot;");
       html += `<tr style="cursor:pointer" onclick="openMealDetail(${m.id})">
-        <td>${m.description}</td>
+        <td>${m.description.length > 32 ? m.description.slice(0, 32) : m.description}</td>
         <td class="td-cal">${m.calories}</td>
         <td class="td-pro">${Math.round(m.protein_g)}g</td>
         <td class="td-carb">${Math.round(m.carbs_g)}g</td>
