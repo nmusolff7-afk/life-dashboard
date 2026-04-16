@@ -1560,6 +1560,9 @@
             </div>
           </div>
         </div>
+        <div id="strength-idle" class="strength-idle-inner" style="padding-top:0">
+          <button class="btn btn-ghost btn-full" id="start-workout-btn">Start Another Workout</button>
+        </div>
         {% else %}
         <div id="strength-idle" class="strength-idle-inner">
           <p>Workout plan loaded from saved exercises. Edit anytime in Profile.</p>
@@ -4509,8 +4512,10 @@ function deleteWorkout(id) {
             <button class="done-delete-btn" id="delete-workout-status-btn">Delete</button>
           </div>
         </div>
-      </div>`;
+      </div>
+      <div id="strength-idle" class="strength-idle-inner" style="padding-top:0"></div>`;
       wireCompletedButtons();
+      renderIdleState();
     }
     if (!strengthLog) renderIdleState();
   };
