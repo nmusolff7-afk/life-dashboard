@@ -385,7 +385,7 @@
     .meal-table td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
     .meal-table td:first-child { font-weight: 600; color: var(--text);
       word-break: break-word; font-size: 12px; line-height: 1.35; }
-    .td-cal  { color: var(--cal);     font-weight: 700; }
+    .td-cal  { color: var(--text);     font-weight: 700; }
     .td-pro  { color: var(--protein); font-weight: 700; }
     .td-carb { color: var(--carbs);   font-weight: 700; }
     .td-fat  { color: var(--fat);     font-weight: 700; }
@@ -1066,7 +1066,7 @@
     }
     .ed-item-row:last-child { border-bottom: none; }
     .ed-item-name { flex: 1; font-size: 15px; color: var(--body, #D0D0E0); }
-    .ed-item-cal { font-size: 15px; font-weight: 700; color: var(--cal); font-variant-numeric: tabular-nums; }
+    .ed-item-cal { font-size: 15px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
     .ed-ai-edit {
       margin-top: 16px;
     }
@@ -2299,7 +2299,7 @@
       <div class="ed-hero-time" id="meal-detail-time"></div>
     </div>
     <div class="ed-macro-row" id="meal-detail-macros">
-      <div class="ed-macro-tile"><div class="ed-macro-val" id="md-cal" style="color:var(--cal)">—</div><div class="ed-macro-lbl">Cal</div></div>
+      <div class="ed-macro-tile"><div class="ed-macro-val" id="md-cal" style="color:var(--text)">—</div><div class="ed-macro-lbl">Cal</div></div>
       <div class="ed-macro-tile"><div class="ed-macro-val" id="md-pro" style="color:var(--protein)">—</div><div class="ed-macro-lbl">Protein</div></div>
       <div class="ed-macro-tile"><div class="ed-macro-val" id="md-carb" style="color:var(--carbs)">—</div><div class="ed-macro-lbl">Carbs</div></div>
       <div class="ed-macro-tile"><div class="ed-macro-val" id="md-fat" style="color:var(--fat)">—</div><div class="ed-macro-lbl">Fat</div></div>
@@ -2336,7 +2336,7 @@
       <div class="ed-hero-time" id="workout-detail-time"></div>
     </div>
     <div class="ed-macro-row" style="grid-template-columns: 1fr">
-      <div class="ed-macro-tile"><div class="ed-macro-val" id="wd-cal" style="color:var(--cal)">—</div><div class="ed-macro-lbl">Calories Burned</div></div>
+      <div class="ed-macro-tile"><div class="ed-macro-val" id="wd-cal" style="color:var(--text)">—</div><div class="ed-macro-lbl">Calories Burned</div></div>
     </div>
     <div class="ed-section-title">Original Input</div>
     <div id="workout-detail-original" style="font-size:0.85rem;color:var(--muted);line-height:1.5;padding:0.5rem 0"></div>
@@ -7020,7 +7020,7 @@ function fmtDate(iso) {
           <div style="flex:1;min-width:0">
             <div class="hd-item-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(m.description)}</div>
             <div style="display:flex;gap:8px;margin-top:4px;font-size:12px;font-variant-numeric:tabular-nums">
-              <span style="color:var(--cal);font-weight:700">${m.calories}</span>
+              <span style="color:var(--text);font-weight:700">${m.calories}</span>
               <span style="color:var(--protein)">${Math.round(m.protein_g)}p</span>
               <span style="color:var(--carbs)">${Math.round(m.carbs_g)}c</span>
               <span style="color:var(--fat)">${Math.round(m.fat_g)}f</span>
@@ -7057,7 +7057,7 @@ function fmtDate(iso) {
           <span style="font-size:1.1rem;flex-shrink:0">${icon}</span>
           <div style="flex:1">
             <div class="hd-item-name" style="font-weight:400">${_esc(w.description)}</div>
-            ${w.calories_burned ? `<div class="hd-item-meta" style="color:var(--cal)">~${w.calories_burned} kcal burned</div>` : ""}
+            ${w.calories_burned ? `<div class="hd-item-meta">~${w.calories_burned} kcal burned</div>` : ""}
           </div>
           <div style="display:flex;gap:0.3rem;flex-shrink:0;margin-top:0.15rem">
             <button type="button" class="done-edit-btn hd-w-edit" data-id="${w.id}">Edit</button>
@@ -8149,7 +8149,7 @@ if ("serviceWorker" in navigator) {
     html += '<div style="color:var(--muted);margin-bottom:0.85rem">' + (gt.description || "") + '</div>';
 
     html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0.5rem;margin-bottom:0.75rem;text-align:center">';
-    html += '<div><div style="font-size:1.05rem;font-weight:800;color:var(--cal)">' + (gt.calorie_target || "—") + '</div><div style="font-size:0.68rem;color:var(--muted)">kcal · ' + dsLabel + '</div></div>';
+    html += '<div><div style="font-size:1.05rem;font-weight:800;color:var(--text)">' + (gt.calorie_target || "—") + '</div><div style="font-size:0.68rem;color:var(--muted)">kcal · ' + dsLabel + '</div></div>';
     html += '<div><div style="font-size:1.05rem;font-weight:800;color:var(--protein)">' + (gt.protein_g || "—") + 'g</div><div style="font-size:0.68rem;color:var(--muted)">protein</div></div>';
     html += '<div><div style="font-size:1.05rem;font-weight:800;color:var(--fat)">' + (gt.fat_g || "—") + 'g</div><div style="font-size:0.68rem;color:var(--muted)">fat</div></div>';
     html += '<div><div style="font-size:1.05rem;font-weight:800;color:var(--carbs)">' + (gt.carbs_g || "—") + 'g</div><div style="font-size:0.68rem;color:var(--muted)">carbs</div></div>';
