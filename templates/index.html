@@ -227,7 +227,8 @@
     /* ── Cards ── */
     .card { background: var(--surface); border: none;
       border-radius: var(--r-card); padding: var(--pad-card);
-      margin-bottom: var(--gap-cards); box-shadow: var(--shadow-card); }
+      margin-bottom: var(--gap-cards); box-shadow: var(--shadow-card);
+      overflow: hidden; }
     .card-title { font-size: 11px; font-weight: 600; text-transform: uppercase;
       letter-spacing: 0.1em; color: var(--muted); margin-bottom: 10px;
       display: flex; align-items: center; gap: 0.5rem; }
@@ -352,23 +353,28 @@
     .bd-total-macros span { font-weight: 700; }
 
     /* Meal table */
-    .meal-table { width: 100%; border-collapse: collapse; font-size: 15px; }
-    .meal-table th { text-align: left; font-size: 11px; font-weight: 600; color: var(--muted);
-      text-transform: uppercase; letter-spacing: .08em;
-      padding: 0 0.5rem 10px; border-bottom: 1px solid rgba(255,255,255,0.03); }
-    .meal-table th:not(:first-child) { text-align: right; }
-    .meal-table td { padding: 12px 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.03); vertical-align: middle;
-      font-size: 15px; }
+    .meal-table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+    .meal-table th { text-align: left; font-size: 10px; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .06em;
+      padding: 0 4px 8px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .meal-table th:first-child { width: auto; }
+    .meal-table th:not(:first-child):not(:last-child) { text-align: right; width: 42px; }
+    .meal-table th:last-child { width: 52px; text-align: right; }
+    .meal-table td { padding: 10px 4px; border-bottom: 1px solid rgba(255,255,255,0.03); vertical-align: middle;
+      font-size: 13px; }
     .meal-table tr:last-child td { border-bottom: none; }
     .meal-table td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
-    .meal-table td:first-child { font-weight: 600; color: var(--text); }
+    .meal-table td:first-child { font-weight: 600; color: var(--text); overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; max-width: 0; }
     .td-cal  { color: var(--cal);     font-weight: 700; }
     .td-pro  { color: var(--protein); font-weight: 700; }
     .td-carb { color: var(--carbs);   font-weight: 700; }
     .td-fat  { color: var(--fat);     font-weight: 700; }
     .totals-row td { border-top: 1px solid rgba(255,255,255,0.06) !important; border-bottom: none !important;
-      padding-top: 12px !important; font-weight: 700; background: var(--surface2); }
-    .totals-row .td-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+      padding-top: 10px !important; font-weight: 700; background: var(--surface2); }
+    .totals-row td:first-child { border-radius: 8px 0 0 8px; }
+    .totals-row td:last-child { border-radius: 0 8px 8px 0; }
+    .totals-row .td-label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
 
     /* Summary card */
     .deficit-display { text-align: center; padding: 0.75rem 0 1.25rem; }
@@ -957,9 +963,10 @@
       color: var(--text); font-size: 0.9rem; padding: 0.55rem 0.4rem; text-align: center;
     }
     .btn-edit-meal {
-      padding: 0.2rem 0.45rem; font-size: 0.78rem; line-height: 1.2;
-      background: var(--surface2); border: 1px solid var(--border);
+      padding: 3px 6px; font-size: 12px; line-height: 1.2;
+      background: var(--surface2); border: 1px solid rgba(255,255,255,0.06);
       border-radius: 6px; color: var(--muted); cursor: pointer;
+      transition: all 180ms ease; flex-shrink: 0;
     }
     .btn-edit-meal:hover { border-color: var(--accent); color: var(--accent); }
 
