@@ -1391,6 +1391,21 @@
           </div>
           {% endfor %}
         </div>
+        <div id="nutrition-more-macros" style="display:none;margin-top:8px">
+          <div class="progress-row" style="margin-bottom:0.55rem">
+            <div class="progress-header"><span class="p-label">Sugar</span><span id="goal-label-sugar" style="font-weight:600;color:var(--amber)">0g / 50g</span></div>
+            <div class="progress-bar-track"><div class="progress-bar-fill pro" id="bar-fill-sugar" style="width:0%;background:var(--amber)"></div></div>
+          </div>
+          <div class="progress-row" style="margin-bottom:0.55rem">
+            <div class="progress-header"><span class="p-label">Fiber</span><span id="goal-label-fiber" style="font-weight:600;color:var(--green)">0g / 30g</span></div>
+            <div class="progress-bar-track"><div class="progress-bar-fill pro" id="bar-fill-fiber" style="width:0%;background:var(--green)"></div></div>
+          </div>
+          <div class="progress-row" style="margin-bottom:0.55rem">
+            <div class="progress-header"><span class="p-label">Sodium</span><span id="goal-label-sodium" style="font-weight:600;color:var(--muted)">0mg / 2300mg</span></div>
+            <div class="progress-bar-track"><div class="progress-bar-fill pro" id="bar-fill-sodium" style="width:0%"></div></div>
+          </div>
+        </div>
+        <button type="button" id="nutrition-more-toggle" onclick="var el=document.getElementById('nutrition-more-macros');var v=el.style.display==='none';el.style.display=v?'':'none';this.textContent=v?'Less':'Sugar · Fiber · Sodium'" style="background:none;border:none;color:var(--accent);font-size:12px;cursor:pointer;padding:4px 0;margin-top:4px;font-weight:600">Sugar · Fiber · Sodium</button>
       </div>
 
       <div class="card">
@@ -3022,6 +3037,9 @@ let CAL_CONSUMED      = {{ totals.total_calories }};
 let PROTEIN_CONSUMED  = {{ "%.1f"|format(totals.total_protein) }};
 let CARBS_CONSUMED    = {{ "%.1f"|format(totals.total_carbs) }};
 let FAT_CONSUMED      = {{ "%.1f"|format(totals.total_fat) }};
+let SUGAR_CONSUMED    = {{ "%.1f"|format(totals.total_sugar) }};
+let FIBER_CONSUMED    = {{ "%.1f"|format(totals.total_fiber) }};
+let SODIUM_CONSUMED   = {{ "%.0f"|format(totals.total_sodium) }};
 const SERVER_RMR        = {{ server_rmr }};  // actual RMR from profile
 const SERVER_TDEE       = {{ tdee }};         // RMR + today's workout burns
 let WORKOUT_BURN_TODAY  = {{ workout_burn }}; // today's logged workout calories
@@ -3685,6 +3703,9 @@ function deleteMeal(id) {
       PROTEIN_CONSUMED = data.totals.total_protein;
       CARBS_CONSUMED   = data.totals.total_carbs;
       FAT_CONSUMED     = data.totals.total_fat;
+      SUGAR_CONSUMED   = data.totals.total_sugar || 0;
+      FIBER_CONSUMED   = data.totals.total_fiber || 0;
+      SODIUM_CONSUMED  = data.totals.total_sodium || 0;
       renderMealTable(data.meals, data.totals);
       try {
         const p = localStorage.getItem("profileData");
@@ -3704,6 +3725,9 @@ function _loadMealsTab() {
       PROTEIN_CONSUMED = data.totals.total_protein;
       CARBS_CONSUMED   = data.totals.total_carbs;
       FAT_CONSUMED     = data.totals.total_fat;
+      SUGAR_CONSUMED   = data.totals.total_sugar || 0;
+      FIBER_CONSUMED   = data.totals.total_fiber || 0;
+      SODIUM_CONSUMED  = data.totals.total_sodium || 0;
       renderMealTable(data.meals, data.totals);
       try {
         const p = localStorage.getItem("profileData");
@@ -3784,6 +3808,9 @@ _editSaveBtn.addEventListener("click", () => {
       PROTEIN_CONSUMED = data.totals.total_protein;
       CARBS_CONSUMED   = data.totals.total_carbs;
       FAT_CONSUMED     = data.totals.total_fat;
+      SUGAR_CONSUMED   = data.totals.total_sugar || 0;
+      FIBER_CONSUMED   = data.totals.total_fiber || 0;
+      SODIUM_CONSUMED  = data.totals.total_sodium || 0;
       renderMealTable(data.meals, data.totals);
       try {
         const p = localStorage.getItem("profileData");
@@ -4527,6 +4554,9 @@ function deleteWorkout(id) {
       PROTEIN_CONSUMED = data.totals.total_protein;
       CARBS_CONSUMED   = data.totals.total_carbs;
       FAT_CONSUMED     = data.totals.total_fat;
+      SUGAR_CONSUMED   = data.totals.total_sugar || 0;
+      FIBER_CONSUMED   = data.totals.total_fiber || 0;
+      SODIUM_CONSUMED  = data.totals.total_sodium || 0;
       // Re-render meal table
       renderMealTable(data.meals, data.totals);
       // Reset form (covers both typed and scanned meals)
@@ -5574,6 +5604,17 @@ function applyProfileToMeals(profile) {
   updateMacroBar("pro",  PROTEIN_CONSUMED, goalPro);
   updateMacroBar("carb", CARBS_CONSUMED,   goalCarb);
   updateMacroBar("fat",  FAT_CONSUMED,     goalFat);
+
+  // Secondary macros
+  const _updSec = (id, val, goal, unit) => {
+    const lbl = document.getElementById("goal-label-" + id);
+    const bar = document.getElementById("bar-fill-" + id);
+    if (lbl) lbl.textContent = Math.round(val) + unit + " / " + goal + unit;
+    if (bar) bar.style.width = Math.min(100, Math.round((val / goal) * 100)) + "%";
+  };
+  _updSec("sugar", SUGAR_CONSUMED, 50, "g");
+  _updSec("fiber", FIBER_CONSUMED, 30, "g");
+  _updSec("sodium", SODIUM_CONSUMED, 2300, "mg");
 
   // Persist today's full summary for Charts + History tabs
   saveDayField(localToday(), {
@@ -9038,19 +9079,31 @@ if ("serviceWorker" in navigator) {
         { name: "Fat",     val: Math.round(FAT_CONSUMED),     goal: goalFat,  cls: "fat",  color: "var(--fat)" },
       ];
       if (PROTEIN_CONSUMED > 0 || CARBS_CONSUMED > 0 || FAT_CONSUMED > 0) {
-        barsEl.innerHTML = macros.map(m => {
-          const pct = m.goal > 0 ? Math.min(100, Math.round((m.val / m.goal) * 100)) : 0;
-          const hit = m.val >= m.goal;
+        const barHtml = (name, val, goal, cls, color, unit) => {
+          const pct = goal > 0 ? Math.min(100, Math.round((val / goal) * 100)) : 0;
+          const hit = val >= goal;
           return `<div class="progress-row" style="margin-bottom:0.55rem">
             <div class="progress-header">
-              <span class="p-label">${m.name}</span>
-              <span style="font-weight:600;font-size:0.78rem;color:${hit ? "var(--green)" : m.color}">${m.val}g / ${m.goal}g</span>
+              <span class="p-label">${name}</span>
+              <span style="font-weight:600;font-size:0.78rem;color:${hit ? "var(--green)" : color}">${val}${unit} / ${goal}${unit}</span>
             </div>
             <div class="progress-bar-track">
-              <div class="progress-bar-fill ${m.cls}${hit ? " hit" : ""}" style="width:${pct}%"></div>
+              <div class="progress-bar-fill ${cls}${hit ? " hit" : ""}" style="width:${pct}%"></div>
             </div>
           </div>`;
-        }).join("");
+        };
+        let html = macros.map(m => barHtml(m.name, m.val, m.goal, m.cls, m.color, "g")).join("");
+        // Secondary macros (sugar, fiber, sodium)
+        const s = Math.round(SUGAR_CONSUMED), f = Math.round(FIBER_CONSUMED), na = Math.round(SODIUM_CONSUMED);
+        if (s > 0 || f > 0 || na > 0) {
+          html += `<div id="dash-macro-more" style="display:none;margin-top:4px">`;
+          html += barHtml("Sugar", s, 50, "pro", "var(--amber)", "g");
+          html += barHtml("Fiber", f, 30, "pro", "var(--green)", "g");
+          html += barHtml("Sodium", na, 2300, "pro", "var(--muted)", "mg");
+          html += `</div>`;
+          html += `<button type="button" onclick="var el=document.getElementById('dash-macro-more');var v=el.style.display==='none';el.style.display=v?'':'none';this.textContent=v?'Less':'Sugar · Fiber · Sodium'" style="background:none;border:none;color:var(--accent);font-size:12px;cursor:pointer;padding:4px 0;margin-top:2px;font-weight:600">Sugar · Fiber · Sodium</button>`;
+        }
+        barsEl.innerHTML = html;
       } else {
         barsEl.innerHTML = `<div style="color:var(--muted);font-size:0.85rem">Log meals to see macros.</div>`;
       }

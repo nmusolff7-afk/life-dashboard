@@ -21,13 +21,19 @@ Respond ONLY with this exact JSON structure (no markdown, no explanation):
       "calories": <integer>,
       "protein_g": <number with one decimal>,
       "carbs_g": <number with one decimal>,
-      "fat_g": <number with one decimal>
+      "fat_g": <number with one decimal>,
+      "sugar_g": <number with one decimal>,
+      "fiber_g": <number with one decimal>,
+      "sodium_mg": <integer>
     }
   ],
   "calories": <integer total — sum of all items>,
   "protein_g": <number with one decimal — sum of all items>,
   "carbs_g": <number with one decimal — sum of all items>,
   "fat_g": <number with one decimal — sum of all items>,
+  "sugar_g": <number with one decimal — sum of all items>,
+  "fiber_g": <number with one decimal — sum of all items>,
+  "sodium_mg": <integer — sum of all items>,
   "notes": "<brief note about assumptions made, if any>"
 }
 
@@ -55,11 +61,14 @@ def _parse_json(text: str) -> dict:
 
 def _parse_nutrition_items(data: dict) -> list[dict]:
     return [{
-        "name":      item.get("name", ""),
-        "calories":  int(item.get("calories", 0)),
-        "protein_g": float(item.get("protein_g", 0)),
-        "carbs_g":   float(item.get("carbs_g", 0)),
-        "fat_g":     float(item.get("fat_g", 0)),
+        "name":       item.get("name", ""),
+        "calories":   int(item.get("calories", 0)),
+        "protein_g":  float(item.get("protein_g", 0)),
+        "carbs_g":    float(item.get("carbs_g", 0)),
+        "fat_g":      float(item.get("fat_g", 0)),
+        "sugar_g":    float(item.get("sugar_g", 0)),
+        "fiber_g":    float(item.get("fiber_g", 0)),
+        "sodium_mg":  int(item.get("sodium_mg", 0)),
     } for item in (data.get("items") or [])]
 
 
@@ -89,12 +98,15 @@ def estimate_nutrition(meal_description: str, profile_map: dict | None = None) -
     text = next((b.text for b in response.content if b.type == "text"), "")
     data = _parse_json(text)
     return {
-        "calories":  int(data["calories"]),
-        "protein_g": float(data["protein_g"]),
-        "carbs_g":   float(data["carbs_g"]),
-        "fat_g":     float(data["fat_g"]),
-        "items":     _parse_nutrition_items(data),
-        "notes":     data.get("notes", ""),
+        "calories":   int(data["calories"]),
+        "protein_g":  float(data["protein_g"]),
+        "carbs_g":    float(data["carbs_g"]),
+        "fat_g":      float(data["fat_g"]),
+        "sugar_g":    float(data.get("sugar_g", 0)),
+        "fiber_g":    float(data.get("fiber_g", 0)),
+        "sodium_mg":  int(data.get("sodium_mg", 0)),
+        "items":      _parse_nutrition_items(data),
+        "notes":      data.get("notes", ""),
     }
 
 
@@ -113,13 +125,19 @@ Respond ONLY with this exact JSON structure (no markdown, no explanation):
       "calories": <integer>,
       "protein_g": <number with one decimal>,
       "carbs_g": <number with one decimal>,
-      "fat_g": <number with one decimal>
+      "fat_g": <number with one decimal>,
+      "sugar_g": <number with one decimal>,
+      "fiber_g": <number with one decimal>,
+      "sodium_mg": <integer>
     }
   ],
   "calories": <integer total — sum of all items>,
   "protein_g": <number with one decimal — sum of all items>,
   "carbs_g": <number with one decimal — sum of all items>,
   "fat_g": <number with one decimal — sum of all items>,
+  "sugar_g": <number with one decimal — sum of all items>,
+  "fiber_g": <number with one decimal — sum of all items>,
+  "sodium_mg": <integer — sum of all items>,
   "notes": "<brief note about what you see and portion assumptions>"
 }
 
@@ -161,6 +179,9 @@ def scan_meal_image(image_b64: str, media_type: str, context: str = "") -> dict:
         "protein_g":   float(data["protein_g"]),
         "carbs_g":     float(data["carbs_g"]),
         "fat_g":       float(data["fat_g"]),
+        "sugar_g":     float(data.get("sugar_g", 0)),
+        "fiber_g":     float(data.get("fiber_g", 0)),
+        "sodium_mg":   int(data.get("sodium_mg", 0)),
         "items":       _parse_nutrition_items(data),
         "notes":       data.get("notes", ""),
     }

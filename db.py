@@ -291,6 +291,15 @@ def init_db():
             except sqlite3.OperationalError:
                 pass
 
+        # Migrate: add sugar_g, fiber_g, sodium_mg to meal_logs and saved_meals
+        for col in ("sugar_g REAL DEFAULT 0", "fiber_g REAL DEFAULT 0", "sodium_mg REAL DEFAULT 0"):
+            for table in ("meal_logs", "saved_meals"):
+                try:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {col}")
+                    conn.commit()
+                except sqlite3.OperationalError:
+                    pass
+
         # Momentum summaries — AI-generated at day/week/month scale, cached
         conn.execute("""
             CREATE TABLE IF NOT EXISTS momentum_summaries (
@@ -395,13 +404,14 @@ def get_user(user_id):
 
 # ── Meals ────────────────────────────────────────────────
 
-def insert_meal(user_id, description, calories, protein_g, carbs_g, fat_g, log_date=None, logged_at=None):
+def insert_meal(user_id, description, calories, protein_g, carbs_g, fat_g,
+                sugar_g=0, fiber_g=0, sodium_mg=0, log_date=None, logged_at=None):
     ld = log_date or date.today().isoformat()
     ts = logged_at or datetime.now().isoformat()
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO meal_logs (user_id, logged_at, log_date, description, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (user_id, ts, ld, description, calories, protein_g, carbs_g, fat_g),
+            "INSERT INTO meal_logs (user_id, logged_at, log_date, description, calories, protein_g, carbs_g, fat_g, sugar_g, fiber_g, sodium_mg) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (user_id, ts, ld, description, calories, protein_g, carbs_g, fat_g, sugar_g, fiber_g, sodium_mg),
         )
         conn.commit()
 
@@ -426,7 +436,10 @@ def get_today_totals(user_id, log_date=None):
                 COALESCE(SUM(calories), 0) as total_calories,
                 COALESCE(SUM(protein_g), 0) as total_protein,
                 COALESCE(SUM(carbs_g), 0) as total_carbs,
-                COALESCE(SUM(fat_g), 0) as total_fat
+                COALESCE(SUM(fat_g), 0) as total_fat,
+                COALESCE(SUM(sugar_g), 0) as total_sugar,
+                COALESCE(SUM(fiber_g), 0) as total_fiber,
+                COALESCE(SUM(sodium_mg), 0) as total_sodium
             FROM meal_logs WHERE user_id = ? AND log_date = ?
             """,
             (user_id, ld),
@@ -434,11 +447,12 @@ def get_today_totals(user_id, log_date=None):
     return dict(row)
 
 
-def update_meal(meal_id, user_id, description, calories, protein_g, carbs_g, fat_g):
+def update_meal(meal_id, user_id, description, calories, protein_g, carbs_g, fat_g,
+                sugar_g=0, fiber_g=0, sodium_mg=0):
     with get_conn() as conn:
         conn.execute(
-            "UPDATE meal_logs SET description=?, calories=?, protein_g=?, carbs_g=?, fat_g=? WHERE id=? AND user_id=?",
-            (description, calories, protein_g, carbs_g, fat_g, meal_id, user_id),
+            "UPDATE meal_logs SET description=?, calories=?, protein_g=?, carbs_g=?, fat_g=?, sugar_g=?, fiber_g=?, sodium_mg=? WHERE id=? AND user_id=?",
+            (description, calories, protein_g, carbs_g, fat_g, sugar_g, fiber_g, sodium_mg, meal_id, user_id),
         )
         conn.commit()
 
@@ -489,11 +503,12 @@ def delete_workout(workout_id, user_id):
 
 # ── Saved Meals ─────────────────────────────────────────
 
-def save_meal(user_id, description, calories, protein_g, carbs_g, fat_g, items_json="[]"):
+def save_meal(user_id, description, calories, protein_g, carbs_g, fat_g,
+              sugar_g=0, fiber_g=0, sodium_mg=0, items_json="[]"):
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO saved_meals (user_id, description, calories, protein_g, carbs_g, fat_g, items_json, saved_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (user_id, description, calories, protein_g, carbs_g, fat_g, items_json, datetime.now().isoformat()),
+            "INSERT INTO saved_meals (user_id, description, calories, protein_g, carbs_g, fat_g, sugar_g, fiber_g, sodium_mg, items_json, saved_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (user_id, description, calories, protein_g, carbs_g, fat_g, sugar_g, fiber_g, sodium_mg, items_json, datetime.now().isoformat()),
         )
         conn.commit()
 

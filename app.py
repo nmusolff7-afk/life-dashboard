@@ -632,10 +632,13 @@ def api_log_meal():
         return jsonify({"error": "No description"}), 400
     try:
         nutrition = {
-            "calories":  int(data.get("calories", 0)),
-            "protein_g": float(data.get("protein_g", 0)),
-            "carbs_g":   float(data.get("carbs_g", 0)),
-            "fat_g":     float(data.get("fat_g", 0)),
+            "calories":   int(data.get("calories", 0)),
+            "protein_g":  float(data.get("protein_g", 0)),
+            "carbs_g":    float(data.get("carbs_g", 0)),
+            "fat_g":      float(data.get("fat_g", 0)),
+            "sugar_g":    float(data.get("sugar_g", 0)),
+            "fiber_g":    float(data.get("fiber_g", 0)),
+            "sodium_mg":  float(data.get("sodium_mg", 0)),
         }
         cd = data.get("client_date") or client_today()
         ct = data.get("client_time") or None
@@ -659,6 +662,9 @@ def api_edit_meal(meal_id):
         protein_g=float(data.get("protein_g", 0)),
         carbs_g=float(data.get("carbs_g", 0)),
         fat_g=float(data.get("fat_g", 0)),
+        sugar_g=float(data.get("sugar_g", 0)),
+        fiber_g=float(data.get("fiber_g", 0)),
+        sodium_mg=float(data.get("sodium_mg", 0)),
     )
     return _meal_response()
 
@@ -896,6 +902,9 @@ def api_save_meal():
         protein_g=float(data.get("protein_g", 0)),
         carbs_g=float(data.get("carbs_g", 0)),
         fat_g=float(data.get("fat_g", 0)),
+        sugar_g=float(data.get("sugar_g", 0)),
+        fiber_g=float(data.get("fiber_g", 0)),
+        sodium_mg=float(data.get("sodium_mg", 0)),
         items_json=json.dumps(data.get("items", [])),
     )
     return jsonify({"ok": True})
