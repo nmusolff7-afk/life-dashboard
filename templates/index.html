@@ -161,10 +161,10 @@
     .header-logo { height: 28px; width: auto; display: block; filter: brightness(1) saturate(0.5) hue-rotate(210deg); }
     [data-theme="light"] .header-logo { filter: invert(1); }
     [data-theme="medium"] .header-logo { filter: invert(1); }
-    header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em;
+    header h1 { font-family: 'Bebas Neue', 'Rajdhani', sans-serif;
+      font-size: clamp(1rem, 5vw, 1.65rem); font-weight: 400; letter-spacing: 0.12em;
       line-height: 1; color: var(--text); white-space: nowrap;
-      overflow: hidden; text-overflow: ellipsis; max-width: 55vw;
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif; }
+      overflow: hidden; text-overflow: ellipsis; max-width: 55vw; }
     header .subtitle { font-size: 12px; font-weight: 400; color: var(--muted);
       letter-spacing: 0; text-transform: none; margin-top: 2px; }
 
@@ -202,8 +202,9 @@
     .tab-panel { display: none; padding: var(--pad-screen); padding-bottom: 2rem; }
     .tab-panel.active { display: block; }
     .page-header { margin-bottom: 0.5rem; text-align: center; }
-    .page-header h2 { font-size: 28px;
-      font-weight: 700; letter-spacing: -0.01em; color: var(--text); line-height: 1; }
+    .page-header h2 { font-family: 'Bebas Neue', 'Rajdhani', sans-serif;
+      font-size: 1.8rem; font-weight: 400; letter-spacing: 0.1em;
+      color: var(--text); line-height: 1; text-transform: uppercase; }
     .page-header p { font-size: 13px; color: var(--muted); margin-top: 0.3rem; display: none; }
 
     /* ── Bottom nav ── */
@@ -1104,7 +1105,7 @@
     <div class="header-brand">
       <img src="/static/apex-logo.png" alt="Apex Fitness" class="header-logo">
       <div>
-        <h1>{% if display_name %}{{ display_name }}{% else %}Dashboard{% endif %}</h1>
+        <h1>{% if display_name %}{{ display_name|upper }}'S DASHBOARD{% else %}YOUR DASHBOARD{% endif %}</h1>
         <div class="subtitle" id="header-date"></div>
       </div>
     </div>
