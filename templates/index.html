@@ -1126,6 +1126,16 @@
     .fab-modal-close { background: none; border: none; color: var(--muted); cursor: pointer;
       font-size: 18px; padding: 4px; line-height: 1; }
 
+    /* ══ RECENT MEALS BAR ════════════════════════ */
+    .recents-bar { display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+      padding: 4px 0; margin-top: 10px; }
+    .recents-bar::-webkit-scrollbar { display: none; }
+    .recent-chip { flex-shrink: 0; background: var(--surface2); border-radius: var(--r-pill);
+      padding: 6px 12px; font-size: 12px; color: var(--text); cursor: pointer;
+      white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis;
+      transition: background 180ms ease; border: none; }
+    .recent-chip:active { background: var(--accent); color: #fff; }
+
     /* ══ COLLAPSIBLE CARDS ═══════════════════════ */
     .collapse-card .collapse-header { display: flex; align-items: center; justify-content: space-between;
       cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -1551,6 +1561,10 @@
           <input type="file" id="scan-input"   accept="image/*" capture="environment" style="display:none">
           <input type="file" id="gallery-input" accept="image/*" style="display:none">
         </form>
+        <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:8px">
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:6px">Recent</div>
+          <div class="recents-bar" id="recent-meals-bar"></div>
+        </div>
       </div>
 
       </div><!-- /flex reorder -->
@@ -1969,9 +1983,13 @@
       </div>
 
       <!-- About You -->
-      <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.9rem">
+      <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
+        <div class="collapse-header">
           <div class="card-title" style="margin:0;flex:1">About You</div>
+          <svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+        <div class="collapse-body" onclick="event.stopPropagation()">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.9rem">
           <div class="seg-control" id="unit-toggle" style="gap:0.25rem">
             <button class="seg-btn unit-btn active" data-val="imperial" style="padding:0.3rem 0.65rem;font-size:0.72rem">lbs / ft</button>
             <button class="seg-btn unit-btn" data-val="metric" style="padding:0.3rem 0.65rem;font-size:0.72rem">kg / cm</button>
@@ -2076,6 +2094,7 @@
           <input type="range" id="rmr-slider" min="1000" max="3500" step="10">
           <div id="calc-explain-rmr" class="calc-explain"></div>
         </div>
+        </div><!-- /collapse-body About You -->
       </div>
 
       <!-- Target recalc prompt -->
@@ -2909,6 +2928,58 @@ const USER_ID = {{ user_id }};
   bar.innerHTML = html;
   // Scroll to right (today)
   bar.scrollLeft = bar.scrollWidth;
+})();
+
+// ── Recent meals bar ──
+(function() {
+  const bar = document.getElementById("recent-meals-bar");
+  if (!bar) return;
+  function renderRecents() {
+    const meals = window._latestMeals || [];
+    // Also check localStorage for older meals
+    const log = JSON.parse(localStorage.getItem("recentMeals") || "[]");
+    // Merge: current day meals + stored recents, dedupe by description
+    const seen = new Set();
+    const all = [];
+    [...meals, ...log].forEach(m => {
+      const key = (m.description || "").toLowerCase().trim();
+      if (key && !seen.has(key) && all.length < 20) { seen.add(key); all.push(m); }
+    });
+    // Save back
+    localStorage.setItem("recentMeals", JSON.stringify(all.slice(0, 20)));
+    if (!all.length) { bar.innerHTML = '<span style="font-size:12px;color:var(--muted)">No recent meals</span>'; return; }
+    bar.innerHTML = all.map((m, i) =>
+      `<button class="recent-chip" data-idx="${i}">${(m.description || "").slice(0, 30)}</button>`
+    ).join("");
+    bar.querySelectorAll(".recent-chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        const m = all[parseInt(chip.dataset.idx)];
+        if (!m) return;
+        if (!confirm("Re-log \"" + (m.description || "").slice(0, 40) + "\"?")) return;
+        fetch("/api/log-meal", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            description: m.description, calories: m.calories || 0,
+            protein_g: m.protein_g || 0, carbs_g: m.carbs_g || 0, fat_g: m.fat_g || 0,
+            sugar_g: m.sugar_g || 0, fiber_g: m.fiber_g || 0, sodium_mg: m.sodium_mg || 0,
+            client_date: localToday(), client_time: localNow(),
+          }),
+        }).then(r => r.json()).then(resp => {
+          if (resp.meals) renderMealTable(resp.meals, resp.totals);
+          if (typeof flashGreen === "function") flashGreen();
+          if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+        });
+      });
+    });
+  }
+  renderRecents();
+  // Re-render when meals change
+  const origRender = window.renderMealTable;
+  window.renderMealTable = function(meals, totals) {
+    origRender(meals, totals);
+    window._latestMeals = meals || [];
+    renderRecents();
+  };
 })();
 
 // ── FAB toggle + modals ──
