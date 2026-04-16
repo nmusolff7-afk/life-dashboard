@@ -9008,7 +9008,7 @@ if ("serviceWorker" in navigator) {
     if (burnEl) {
       if (CURRENT_TDEE > 0) {
         burnEl.textContent = CURRENT_TDEE.toLocaleString() + " kcal";
-        burnEl.style.color = "var(--cal)";
+        burnEl.style.color = "var(--text)";
       } else {
         burnEl.textContent = "—";
         burnEl.style.color = "var(--muted)";
@@ -9019,7 +9019,7 @@ if ("serviceWorker" in navigator) {
     if (consumedEl) {
       if (CAL_CONSUMED > 0) {
         consumedEl.textContent = CAL_CONSUMED.toLocaleString() + " kcal";
-        consumedEl.style.color = "var(--cal)";
+        consumedEl.style.color = "var(--text)";
       } else {
         consumedEl.textContent = "—";
         consumedEl.style.color = "var(--muted)";
