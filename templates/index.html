@@ -6349,13 +6349,16 @@ try {
     GOAL_IDS.forEach(id => {
       const sl = document.getElementById(id + "-slider");
       const nm = document.getElementById(id + "-num");
-      if (sl) { sl.disabled = locked; sl.style.opacity = locked ? "0.2" : "1"; sl.style.pointerEvents = locked ? "none" : ""; sl.style.filter = locked ? "grayscale(1)" : ""; }
-      if (nm) { nm.disabled = locked; nm.style.opacity = locked ? "0.3" : "1"; }
+      if (sl) { sl.disabled = locked; sl.style.pointerEvents = locked ? "none" : ""; }
+      if (nm) { nm.disabled = locked; }
+      // Dim the entire slider-row parent
+      const row = sl ? sl.closest(".slider-row") : null;
+      if (row) { row.style.opacity = locked ? "0.25" : "1"; row.style.filter = locked ? "grayscale(1)" : ""; row.style.pointerEvents = locked ? "none" : ""; }
     });
     const hint = document.getElementById("goals-hint");
     if (hint) hint.textContent = locked
-      ? "Auto-calculated from your inputs above. Tap Edit to adjust."
-      : "Drag sliders or type values to adjust your goals.";
+      ? "Auto-calculated. Tap Edit to adjust."
+      : "Drag sliders or type values to adjust.";
   }
 
   // Lock on page load
