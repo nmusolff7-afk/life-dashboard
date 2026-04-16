@@ -1126,6 +1126,22 @@
     .fab-modal-close { background: none; border: none; color: var(--muted); cursor: pointer;
       font-size: 18px; padding: 4px; line-height: 1; }
 
+    /* ══ STREAK BAR ══════════════════════════════ */
+    .streak-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 12px;
+      overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 2px 0; }
+    .streak-bar::-webkit-scrollbar { display: none; }
+    .streak-day { display: flex; flex-direction: column; align-items: center; gap: 2px;
+      min-width: 36px; flex-shrink: 0; }
+    .streak-day-label { font-size: 9px; color: var(--muted); font-weight: 500; }
+    .streak-day-dot { width: 28px; height: 28px; border-radius: 50%; display: flex;
+      align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
+    .streak-day-dot.active { background: var(--accent); color: #fff; }
+    .streak-day-dot.logged { background: var(--green); color: #fff; }
+    .streak-day-dot.missed { background: var(--surface2); color: var(--muted); }
+    .streak-day-dot.today { box-shadow: 0 0 0 2px var(--text); }
+    .streak-count { font-size: 12px; font-weight: 700; color: var(--green);
+      white-space: nowrap; flex-shrink: 0; padding-left: 4px; }
+
     /* ══ BARCODE SCANNER ═════════════════════════ */
     #barcode-overlay {
       position: fixed; inset: 0; z-index: 600; background: #000;
@@ -1233,6 +1249,9 @@
         <h2>Today's Overview</h2>
         <p>Your daily snapshot at a glance</p>
       </div>
+
+      <!-- Streak bar -->
+      <div class="streak-bar" id="streak-bar"></div>
 
       <!-- Calorie Balance Ring -->
       <div class="card" id="dash-cal-card" style="cursor:pointer">
@@ -2004,6 +2023,26 @@
             <button class="seg-btn goal-btn" data-val="maintain">Maintain</button>
           </div>
         </div>
+
+        <div style="height:1px;background:var(--border);margin:16px 0 12px"></div>
+
+        <div class="slider-row" style="margin-bottom:0">
+          <div class="slider-header">
+            <span class="slider-label">Resting Metabolic Rate (RMR)</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div class="slider-val-row">
+                <input type="number" id="rmr-num" class="slider-num" min="1000" max="3500">
+                <span class="slider-unit">kcal</span>
+              </div>
+              <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--muted)">
+                <input type="checkbox" id="rmr-lock" style="width:14px;height:14px;accent-color:var(--accent)">
+                Lock
+              </label>
+            </div>
+          </div>
+          <input type="range" id="rmr-slider" min="1000" max="3500" step="10">
+          <div id="calc-explain-rmr" class="calc-explain"></div>
+        </div>
       </div>
 
       <!-- Target recalc prompt -->
@@ -2072,18 +2111,6 @@
           <div style="font-size:0.72rem;color:var(--muted);border-top:1px solid var(--border);padding-top:0.5rem;margin-top:0.2rem">
             Sources: Helms et al. (2014) <em>J Int Soc Sports Nutr</em> &middot; Morton et al. (2018) <em>Br J Sports Med</em> &middot; Mifflin et al. (1990) <em>Am J Clin Nutr</em> &middot; Katch &amp; McArdle (1996)
           </div>
-        </div>
-
-        <div class="slider-row">
-          <div class="slider-header">
-            <span class="slider-label">Resting Metabolic Rate (RMR)</span>
-            <div class="slider-val-row">
-              <input type="number" id="rmr-num" class="slider-num" min="1000" max="3500">
-              <span class="slider-unit">kcal</span>
-            </div>
-          </div>
-          <input type="range" id="rmr-slider" min="1000" max="3500" step="10">
-          <div id="calc-explain-rmr" class="calc-explain"></div>
         </div>
 
         <div class="slider-row">
@@ -2742,6 +2769,44 @@ const USER_ID = {{ user_id }};
       return Object.keys(_ls).filter(k => k.startsWith(pfx)).length;
     },
   };
+})();
+
+// ── Streak bar ──
+(function() {
+  const bar = document.getElementById("streak-bar");
+  if (!bar) return;
+  const log = JSON.parse(localStorage.getItem("dailyLog") || "{}");
+  const today = localToday();
+  const days = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(today + "T00:00:00");
+    d.setDate(d.getDate() - i);
+    const ds = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+    const entry = log[ds];
+    const logged = entry && (entry.calories > 0 || entry.weight || entry.steps > 0 || entry.deficit != null);
+    days.push({ date: ds, day: d, logged });
+  }
+  // Compute current streak (consecutive days ending at today or yesterday)
+  let streak = 0;
+  for (let i = days.length - 1; i >= 0; i--) {
+    if (days[i].logged) streak++;
+    else if (i < days.length - 1) break; // allow today to be unlogged if streak continues from yesterday
+    else break;
+  }
+  const dows = ["S","M","T","W","T","F","S"];
+  let html = '';
+  days.forEach(d => {
+    const isToday = d.date === today;
+    const cls = isToday ? "today" : (d.logged ? "logged" : "missed");
+    html += `<div class="streak-day">
+      <div class="streak-day-label">${dows[d.day.getDay()]}</div>
+      <div class="streak-day-dot ${cls}">${d.day.getDate()}</div>
+    </div>`;
+  });
+  html += `<div class="streak-count">${streak}d streak</div>`;
+  bar.innerHTML = html;
+  // Scroll to right (today)
+  bar.scrollLeft = bar.scrollWidth;
 })();
 
 // ── FAB toggle + modals ──
@@ -5863,7 +5928,9 @@ try {
     const targetCal = calcTargetCalories(tdee, inp.goal, rmr);
     const adjust    = targetCal - tdee;
     const macros    = calcMacros(targetCal, inp.curWeight, inp.tgtWeight, inp.goal);
-    setSlider("rmr",     rmr);
+    const rmrLockEl = document.getElementById("rmr-lock");
+    const rmrLocked = (rmrLockEl && rmrLockEl.checked) || localStorage.getItem("rmr-locked") === "1";
+    if (!rmrLocked) setSlider("rmr", rmr);
     setSlider("deficit", adjust);
     setSlider("protein", macros.protein);
     setSlider("carbs",   macros.carbs);
@@ -6047,6 +6114,15 @@ try {
   document.getElementById("recalc-goals-btn").addEventListener("click", () => {
     recalcGoalsFromProfile();
   });
+
+  // RMR lock toggle
+  const rmrLockEl = document.getElementById("rmr-lock");
+  if (rmrLockEl) {
+    rmrLockEl.checked = localStorage.getItem("rmr-locked") === "1";
+    rmrLockEl.addEventListener("change", () => {
+      localStorage.setItem("rmr-locked", rmrLockEl.checked ? "1" : "0");
+    });
+  }
 
   document.querySelectorAll(".gender-btn").forEach(btn => {
     btn.addEventListener("click", () => {
