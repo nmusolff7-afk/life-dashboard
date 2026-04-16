@@ -1191,7 +1191,7 @@
           </div>
         </div>
         <div id="mind-task-list">
-          <div style="color:var(--muted);font-size:0.85rem;padding:0.5rem 0">No tasks yet — submit a brief or add one manually.</div>
+          <div style="color:var(--muted);font-size:0.85rem;padding:0.5rem 0">No tasks yet — add one manually.</div>
         </div>
       </div>
 
@@ -7671,7 +7671,7 @@ function fmtDate(iso) {
         <span class="mind-task-src">${src}</span>
         <button class="mind-task-del" data-id="${t.id}">\u2715</button>
       </div>`;
-    }).join("") : '<div style="color:var(--muted);font-size:0.85rem;padding:0.5rem 0">No tasks yet \u2014 submit a brief or add one manually.</div>';
+    }).join("") : '<div style="color:var(--muted);font-size:0.85rem;padding:0.5rem 0">No tasks yet \u2014 add one manually.</div>';
 
     // Update both task lists (Home + Status tabs)
     ["mind-task-list", "mind-task-list-2"].forEach(id => {
