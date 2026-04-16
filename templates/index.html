@@ -1126,6 +1126,12 @@
     .fab-modal-close { background: none; border: none; color: var(--muted); cursor: pointer;
       font-size: 18px; padding: 4px; line-height: 1; }
 
+    /* ══ LANGUAGE BUTTONS ═════════════════════════ */
+    .lang-btn { background: var(--surface2); border: 2px solid transparent; border-radius: var(--r-inner);
+      padding: 10px 8px; font-size: 13px; cursor: pointer; text-align: center;
+      color: var(--text); transition: all 180ms ease; }
+    .lang-btn.active { border-color: var(--accent); background: rgba(108,111,255,0.08); }
+
     /* ══ RECENT MEALS BAR ════════════════════════ */
     .recents-bar { display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch;
       padding: 4px 0; margin-top: 10px; }
@@ -1158,9 +1164,9 @@
     .streak-day-dot.logged { background: var(--green); color: #fff; }
     .streak-day-dot.missed { background: var(--surface2); color: var(--muted); }
     .streak-day-dot.today { box-shadow: 0 0 0 2px var(--text); }
-    .streak-count { font-size: 12px; font-weight: 700; color: var(--cal);
-      white-space: nowrap; flex-shrink: 0; padding-left: 4px;
-      display: flex; align-items: center; gap: 3px; }
+    .streak-count { font-size: 15px; font-weight: 700; color: var(--cal);
+      white-space: nowrap; flex-shrink: 0; padding-left: 6px;
+      display: flex; flex-direction: column; align-items: center; gap: 0; line-height: 1.2; }
 
     /* ══ BARCODE SCANNER ═════════════════════════ */
     #barcode-overlay {
@@ -1341,10 +1347,24 @@
       </div>
 
       <!-- Macros Card -->
-      <div class="card" id="dash-macro-card" style="cursor:pointer">
-        <div class="card-title">Macros</div>
-        <div id="dash-macro-bars">
-          <div style="color:var(--muted);font-size:0.85rem">Log meals to see macros.</div>
+      <div class="card" id="dash-macro-card" style="padding:0;overflow:hidden">
+        <div style="display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch" id="home-macro-swipe">
+          <div style="min-width:100%;scroll-snap-align:start;flex-shrink:0;padding:var(--pad-card)">
+            <div class="card-title">Macros</div>
+            <div id="dash-macro-bars">
+              <div style="color:var(--muted);font-size:0.85rem">Log meals to see macros.</div>
+            </div>
+          </div>
+          <div style="min-width:100%;scroll-snap-align:start;flex-shrink:0;padding:var(--pad-card)">
+            <div class="card-title">Micros</div>
+            <div id="dash-micro-bars">
+              <div style="color:var(--muted);font-size:0.85rem">Log meals to see micros.</div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:center;gap:6px;padding:6px 0 10px" id="home-macro-dots">
+          <div style="width:6px;height:6px;border-radius:50%;background:var(--accent)" id="hmac-dot-0"></div>
+          <div style="width:6px;height:6px;border-radius:50%;background:var(--surface2)" id="hmac-dot-1"></div>
         </div>
       </div>
 
@@ -2079,7 +2099,7 @@
 
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
           <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted)">Metabolic Rate</div>
-          <button type="button" id="rmr-edit-toggle" style="background:var(--accent);color:#fff;border:none;border-radius:var(--r-pill);padding:6px 16px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all 180ms ease">
+          <button type="button" id="rmr-edit-toggle" style="background:var(--accent);color:#fff;border:none;border-radius:var(--r-pill);padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all 180ms ease">
             <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             Edit
           </button>
@@ -2137,7 +2157,7 @@
         <div class="collapse-body" onclick="event.stopPropagation()">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
           <div class="slider-hint" id="goals-hint" style="margin:0;flex:1">Auto-calculated. Tap Edit to adjust.</div>
-          <button type="button" id="goals-edit-btn" style="background:var(--accent);color:#fff;border:none;border-radius:var(--r-pill);padding:6px 16px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all 180ms ease;flex-shrink:0">
+          <button type="button" id="goals-edit-btn" style="background:var(--accent);color:#fff;border:none;border-radius:var(--r-pill);padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all 180ms ease;flex-shrink:0">
             <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             Edit
           </button>
@@ -2366,6 +2386,35 @@
           </button>
         </div>
         </div><!-- /collapse-body -->
+      </div>
+
+      <!-- Meal Reminders -->
+      <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
+        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1">Meal Reminders</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="collapse-body" onclick="event.stopPropagation()">
+          <div style="font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.5">Get notified to log meals at set times. Enable notifications when prompted.</div>
+          <div id="reminder-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px"></div>
+          <button type="button" class="btn btn-ghost btn-full" id="add-reminder-btn" style="font-size:13px;height:40px">+ Add Reminder</button>
+        </div>
+      </div>
+
+      <!-- Language -->
+      <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
+        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1">Language</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="collapse-body" onclick="event.stopPropagation()">
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px" id="lang-picker">
+            <button class="lang-btn" data-lang="en">🇺🇸 English</button>
+            <button class="lang-btn" data-lang="es">🇪🇸 Español</button>
+            <button class="lang-btn" data-lang="fr">🇫🇷 Français</button>
+            <button class="lang-btn" data-lang="de">🇩🇪 Deutsch</button>
+            <button class="lang-btn" data-lang="pt">🇵🇹 Português</button>
+            <button class="lang-btn" data-lang="it">🇮🇹 Italiano</button>
+            <button class="lang-btn" data-lang="nl">🇳🇱 Nederlands</button>
+            <button class="lang-btn" data-lang="pl">🇵🇱 Polski</button>
+            <button class="lang-btn" data-lang="zh">🇨🇳 中文</button>
+            <button class="lang-btn" data-lang="ar">🇸🇦 العربية</button>
+          </div>
+        </div>
       </div>
 
       <!-- Timezone -->
@@ -2907,6 +2956,18 @@ const USER_ID = {{ user_id }};
   });
 })();
 
+// ── Home macro swipe dots ──
+(function() {
+  const swipe = document.getElementById("home-macro-swipe");
+  if (!swipe) return;
+  swipe.addEventListener("scroll", () => {
+    const page = Math.round(swipe.scrollLeft / swipe.offsetWidth);
+    const d0 = document.getElementById("hmac-dot-0"), d1 = document.getElementById("hmac-dot-1");
+    if (d0) d0.style.background = page === 0 ? "var(--accent)" : "var(--surface2)";
+    if (d1) d1.style.background = page === 1 ? "var(--accent)" : "var(--surface2)";
+  });
+})();
+
 // ── Streak bar ──
 (function() {
   const bar = document.getElementById("streak-bar");
@@ -2939,7 +3000,7 @@ const USER_ID = {{ user_id }};
       <div class="streak-day-dot ${cls}">${d.day.getDate()}</div>
     </div>`;
   });
-  html += `<div class="streak-count">\u{1F525} ${streak}d</div>`;
+  html += `<div class="streak-count"><span style="font-size:18px">\u{1F525}</span><span>${streak}d</span></div>`;
   bar.innerHTML = html;
   // Scroll to right (today)
   bar.scrollLeft = bar.scrollWidth;
@@ -6134,7 +6195,7 @@ try {
     const adjust    = targetCal - tdee;
     const macros    = calcMacros(targetCal, inp.curWeight, inp.tgtWeight, inp.goal);
     const rmrLockEl = document.getElementById("rmr-lock");
-    const rmrLocked = (rmrLockEl && rmrLockEl.checked) || localStorage.getItem("rmr-locked") === "1";
+    const rmrLocked = (rmrLockEl && rmrLockEl.checked) || localStorage.getItem("rmr-locked") !== "0";
     if (!rmrLocked) setSlider("rmr", rmr);
     setSlider("deficit", adjust);
     setSlider("protein", macros.protein);
@@ -6280,18 +6341,18 @@ try {
     updatePreview();
   }
 
-  ["rmr", "deficit", "protein", "carbs", "fat"].forEach(linkSlider);
+  ["rmr", "deficit", "protein", "carbs", "fat", "sugar", "fiber", "sodium", "neat"].forEach(linkSlider);
 
   // ── Goal slider lock/unlock ──────────────────────────
-  const GOAL_IDS = ["rmr", "deficit", "protein", "carbs", "fat"];
+  const GOAL_IDS = ["deficit", "protein", "carbs", "fat", "sugar", "fiber", "sodium"];
   let goalsEditing = false;
 
   function setGoalsLocked(locked) {
     GOAL_IDS.forEach(id => {
       const sl = document.getElementById(id + "-slider");
       const nm = document.getElementById(id + "-num");
-      if (sl) { sl.disabled = locked; sl.style.opacity = locked ? "0.45" : "1"; sl.style.pointerEvents = locked ? "none" : ""; }
-      if (nm) { nm.disabled = locked; nm.style.opacity = locked ? "0.6" : "1"; }
+      if (sl) { sl.disabled = locked; sl.style.opacity = locked ? "0.2" : "1"; sl.style.pointerEvents = locked ? "none" : ""; sl.style.filter = locked ? "grayscale(1)" : ""; }
+      if (nm) { nm.disabled = locked; nm.style.opacity = locked ? "0.3" : "1"; }
     });
     const hint = document.getElementById("goals-hint");
     if (hint) hint.textContent = locked
@@ -6329,10 +6390,11 @@ try {
   const rmrWrap = document.getElementById("rmr-sliders-wrap");
   const rmrToggle = document.getElementById("rmr-edit-toggle");
   if (rmrLockEl && rmrToggle && rmrWrap) {
-    const locked = localStorage.getItem("rmr-locked") === "1";
+    const locked = localStorage.getItem("rmr-locked") !== "0"; // locked by default
     rmrLockEl.checked = locked;
     rmrWrap.style.pointerEvents = locked ? "none" : "auto";
-    rmrWrap.style.opacity = locked ? "0.5" : "1";
+    rmrWrap.style.opacity = locked ? "0.25" : "1";
+    rmrWrap.style.filter = locked ? "grayscale(1)" : "none";
     rmrToggle.innerHTML = locked
       ? '<svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit'
       : '<svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Lock';
@@ -6342,7 +6404,8 @@ try {
       rmrLockEl.checked = nowLocked;
       localStorage.setItem("rmr-locked", nowLocked ? "1" : "0");
       rmrWrap.style.pointerEvents = nowLocked ? "none" : "auto";
-      rmrWrap.style.opacity = nowLocked ? "0.5" : "1";
+      rmrWrap.style.opacity = nowLocked ? "0.25" : "1";
+      rmrWrap.style.filter = nowLocked ? "grayscale(1)" : "none";
       rmrToggle.innerHTML = nowLocked
         ? '<svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit'
         : '<svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Lock';
@@ -9157,6 +9220,79 @@ if ("serviceWorker" in navigator) {
 })();
 
 // ══════════════════════════════════════════════════════
+//  MEAL REMINDERS
+// ══════════════════════════════════════════════════════
+(function() {
+  const list = document.getElementById("reminder-list");
+  const addBtn = document.getElementById("add-reminder-btn");
+  if (!list || !addBtn) return;
+  const KEY = "mealReminders";
+  let reminders = JSON.parse(localStorage.getItem(KEY) || '["08:00","12:30","18:30"]');
+
+  function save() { localStorage.setItem(KEY, JSON.stringify(reminders)); scheduleAll(); }
+
+  function render() {
+    list.innerHTML = reminders.map((t, i) =>
+      `<div style="display:flex;align-items:center;gap:8px">
+        <input type="time" value="${t}" data-idx="${i}" style="flex:1;background:var(--bg);border:1px solid rgba(255,255,255,0.06);border-radius:var(--r-input);padding:10px 14px;color:var(--text);font-size:15px">
+        <button type="button" data-idx="${i}" style="background:none;border:none;color:var(--danger);font-size:14px;cursor:pointer;padding:6px">Remove</button>
+      </div>`
+    ).join("");
+    list.querySelectorAll("input[type=time]").forEach(inp => {
+      inp.addEventListener("change", () => { reminders[parseInt(inp.dataset.idx)] = inp.value; save(); });
+    });
+    list.querySelectorAll("button").forEach(btn => {
+      btn.addEventListener("click", () => { reminders.splice(parseInt(btn.dataset.idx), 1); save(); render(); });
+    });
+  }
+
+  addBtn.addEventListener("click", () => { reminders.push("12:00"); save(); render(); });
+
+  function scheduleAll() {
+    if (!("Notification" in window)) return;
+    if (Notification.permission === "default") Notification.requestPermission();
+    // Clear existing
+    if (window._reminderTimers) window._reminderTimers.forEach(clearTimeout);
+    window._reminderTimers = [];
+    const now = new Date();
+    reminders.forEach(t => {
+      const [h, m] = t.split(":").map(Number);
+      const target = new Date(); target.setHours(h, m, 0, 0);
+      let ms = target - now;
+      if (ms < 0) ms += 86400000; // tomorrow
+      window._reminderTimers.push(setTimeout(() => {
+        if (Notification.permission === "granted") {
+          new Notification("Time to log a meal", { body: "Don't forget to track what you ate!", icon: "/static/apex-logo.png" });
+        }
+      }, ms));
+    });
+  }
+
+  render();
+  scheduleAll();
+})();
+
+// ══════════════════════════════════════════════════════
+//  LANGUAGE SWITCHER
+// ══════════════════════════════════════════════════════
+(function() {
+  const picker = document.getElementById("lang-picker");
+  if (!picker) return;
+  const current = localStorage.getItem("appLang") || "en";
+  picker.querySelectorAll(".lang-btn").forEach(btn => {
+    if (btn.dataset.lang === current) btn.classList.add("active");
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      picker.querySelectorAll(".lang-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      localStorage.setItem("appLang", btn.dataset.lang);
+      document.documentElement.setAttribute("lang", btn.dataset.lang);
+    });
+  });
+  document.documentElement.setAttribute("lang", current);
+})();
+
+// ══════════════════════════════════════════════════════
 //  PULL TO REFRESH
 // ══════════════════════════════════════════════════════
 
@@ -9397,20 +9533,18 @@ if ("serviceWorker" in navigator) {
           </div>`;
         };
         let html = macros.map(m => barHtml(m.name, m.val, m.goal, m.cls, m.color, "g")).join("");
-        // Secondary macros (sugar, fiber, sodium)
+        barsEl.innerHTML = html;
+        // Populate micros page
         const s = Math.round(SUGAR_CONSUMED), f = Math.round(FIBER_CONSUMED), na = Math.round(SODIUM_CONSUMED);
         const sugarGoal = profile ? (profile.sugarGoal || 50) : 50;
         const fiberGoal = profile ? (profile.fiberGoal || 30) : 30;
         const sodiumGoal = profile ? (profile.sodiumGoal || 2300) : 2300;
-        if (s > 0 || f > 0 || na > 0) {
-          html += `<div id="dash-macro-more" style="display:none;margin-top:4px">`;
-          html += barHtml("Sugar", s, sugarGoal, "pro", "var(--amber)", "g");
-          html += barHtml("Fiber", f, fiberGoal, "pro", "var(--green)", "g");
-          html += barHtml("Sodium", na, sodiumGoal, "pro", "var(--muted)", "mg");
-          html += `</div>`;
-          html += `<button type="button" onclick="var el=document.getElementById('dash-macro-more');var v=el.style.display==='none';el.style.display=v?'':'none';this.textContent=v?'Less':'Sugar · Fiber · Sodium'" style="background:none;border:none;color:var(--accent);font-size:12px;cursor:pointer;padding:4px 0;margin-top:2px;font-weight:600">Sugar · Fiber · Sodium</button>`;
+        const microEl = document.getElementById("dash-micro-bars");
+        if (microEl) {
+          microEl.innerHTML = barHtml("Sugar", s, sugarGoal, "pro", "var(--amber)", "g")
+            + barHtml("Fiber", f, fiberGoal, "pro", "var(--green)", "g")
+            + barHtml("Sodium", na, sodiumGoal, "pro", "var(--muted)", "mg");
         }
-        barsEl.innerHTML = html;
       } else {
         barsEl.innerHTML = `<div style="color:var(--muted);font-size:0.85rem">Log meals to see macros.</div>`;
       }
