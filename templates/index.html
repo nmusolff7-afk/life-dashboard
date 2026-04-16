@@ -119,32 +119,36 @@
     }
 
     [data-theme="light"] {
-      --bg:       #fef0f5;
-      --surface:  #ffffff;
-      --surface2: #f5e6ee;
-      --border:   #e0c8d8;
-      --accent:   #c06088;
-      --accent2:  #d47898;
-      --btn-bg:   #1a1a1a;
-      --btn-bg2:  #333333;
-      --text:     #3a2030;
-      --muted:    #8a6878;
-      --cal:      #c08030;
-      --protein:  #2a8a78;
-      --carbs:    #5a68b0;
-      --fat:      #c04878;
-      --danger:   #c03040;
-      --green:    #2a8a50;
-      --amber:    #b08820;
-      --chart-line: #c06088;
-      --chart-fill: rgba(192,96,136,0.1);
-      --chart-grid: #e0c8d8;
-      --chart-point-border: #ffffff;
-      --cal-strength: #c06088;
-      --cal-cardio:   #b07020;
-      --cal-both:     #7c3aed;
-      --cal-rest:     #d0b8c8;
-      --theme-color: #fef0f5;
+      --bg:       #FFFFFF;
+      --surface:  #FFFFFF;
+      --surface2: #F2F2F7;
+      --border:   #F0F0F0;
+      --accent:   #007AFF;
+      --accent2:  #007AFF;
+      --btn-bg:   #007AFF;
+      --btn-bg2:  #0A84FF;
+      --text:     #1C1C1E;
+      --body:     #1C1C1E;
+      --muted:    #8E8E93;
+      --subtle:   #8E8E93;
+      --cal:      #FF8C00;
+      --protein:  #5BB8FF;
+      --carbs:    #A78BFA;
+      --fat:      #F472B6;
+      --danger:   #FF3B30;
+      --green:    #34C759;
+      --amber:    #F5A623;
+      --chart-line: #007AFF;
+      --chart-fill: rgba(0,122,255,0.07);
+      --chart-grid: #F0F0F0;
+      --chart-point-border: #FFFFFF;
+      --cal-strength: #34C759;
+      --cal-cardio:   #5BB8FF;
+      --cal-both:     #5856D6;
+      --cal-rest:     #F2F2F7;
+      --shadow-card: 0 1px 4px rgba(0,0,0,0.06);
+      --shadow-btn:  none;
+      --theme-color: #FFFFFF;
     }
 
     /* ── Medium theme color overrides for hardcoded values ── */
@@ -182,6 +186,64 @@
     [data-theme="medium"] #edit-meal-box { background: #FFFFFF; }
     [data-theme="medium"] #delete-account-box { background: #FFFFFF; }
     [data-theme="medium"] .btn-edit-meal { background: #F2F2F7; border-color: #C6C6C8; color: #6C6C70; }
+    [data-theme="medium"] .card { border: 1px solid #E5E5EA; }
+    [data-theme="medium"] .slider-num { border-bottom-color: #C6C6C8; color: #1C1C1E; }
+    [data-theme="medium"] input[type="range"] { background: #E5E5EA; }
+    [data-theme="medium"] input[type="range"]::-webkit-slider-thumb { background: #5856D6; border-color: #F2F2F7; }
+    [data-theme="medium"] #goals-info-btn { border-color: #C6C6C8; color: #6C6C70; }
+    [data-theme="medium"] .profile-preview { background: #F2F2F7; border: 1px solid #E5E5EA; }
+    [data-theme="medium"] .voice-mic-btn { background: #F2F2F7; color: #5856D6; }
+
+    /* ── Light theme color overrides for hardcoded values ── */
+    [data-theme="light"] nav { background: #F2F2F7; border-top: 1px solid #E5E5EA; }
+    [data-theme="light"] .nav-btn { color: #8E8E93; }
+    [data-theme="light"] .nav-btn.active { color: #007AFF; }
+    [data-theme="light"] .nav-btn.active::before { background: #007AFF; }
+    [data-theme="light"] header { background: #FFFFFF; border-bottom: 1px solid #E5E5EA; }
+    [data-theme="light"] .card { border: 1px solid #F0F0F0; }
+    [data-theme="light"] .strength-done { background: #F0FFF4; border: 1px solid #C6EFD3; }
+    [data-theme="light"] .strength-done .done-title { color: #1C7A3C; }
+    [data-theme="light"] .strength-done .done-check { background: #34C759; }
+    [data-theme="light"] .w-cal { background: #FFF3E5; color: #FF8C00; }
+    [data-theme="light"] .workout-item { background: #FFFFFF; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    [data-theme="light"] .hist-row { background: #FFFFFF; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    [data-theme="light"] .hist-def-badge.def { background: #E8F8EE; color: #1C7A3C; }
+    [data-theme="light"] .hist-def-badge.sur { background: #FFEEEE; color: #FF3B30; }
+    [data-theme="light"] .hd-stat { background: #F2F2F7; box-shadow: none; }
+    [data-theme="light"] .totals-row td { background: #F2F2F7; }
+    [data-theme="light"] .meal-table td { border-bottom-color: #F0F0F0; }
+    [data-theme="light"] .meal-table th { border-bottom-color: #F0F0F0; }
+    [data-theme="light"] .progress-bar-track { background: #F0F0F0; }
+    [data-theme="light"] .seg-btn.active { background: #007AFF; color: #fff; }
+    [data-theme="light"] .seg-btn { color: #8E8E93; background: transparent; }
+    [data-theme="light"] .seg-control { background: #F2F2F7; }
+    [data-theme="light"] .chart-range-pill.active { background: #007AFF; color: #fff; }
+    [data-theme="light"] .chart-range-pill { color: #8E8E93; }
+    [data-theme="light"] .chart-range-pills { background: #F2F2F7; }
+    [data-theme="light"] .gmail-card { border-left-color: #F0F0F0; }
+    [data-theme="light"] .gmail-card.gmail-connected { border-left-color: #34C759; }
+    [data-theme="light"] .ed-macro-tile { background: #F2F2F7; box-shadow: none; }
+    [data-theme="light"] .exercise-block { background: #FFFFFF; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    [data-theme="light"] .sl-item { background: #FFFFFF; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    [data-theme="light"] .dash-stat-card { background: #FFFFFF; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    [data-theme="light"] .cal-popup { background: #FFFFFF; border: 1px solid #E5E5EA; }
+    [data-theme="light"] .quick-entry-modal { background: #FFFFFF; }
+    [data-theme="light"] #photo-source-box { background: #FFFFFF; }
+    [data-theme="light"] #edit-meal-box { background: #FFFFFF; }
+    [data-theme="light"] #delete-account-box { background: #FFFFFF; }
+    [data-theme="light"] .btn-edit-meal { background: #F2F2F7; border-color: #E5E5EA; color: #8E8E93; }
+    [data-theme="light"] .slider-num { border-bottom-color: #E5E5EA; color: #1C1C1E; }
+    [data-theme="light"] input[type="range"] { background: #E5E5EA; }
+    [data-theme="light"] input[type="range"]::-webkit-slider-thumb { background: #fff; border: 2px solid #007AFF; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
+    [data-theme="light"] #goals-info-btn { border-color: #E5E5EA; color: #8E8E93; }
+    [data-theme="light"] .profile-preview { background: #F2F2F7; border: 1px solid #E5E5EA; }
+    [data-theme="light"] .voice-mic-btn { background: #F2F2F7; color: #007AFF; }
+    [data-theme="light"] .brief-card { border-left-color: #F0F0F0; }
+    [data-theme="light"] .brief-card.brief-open { border-left-color: #007AFF; }
+    [data-theme="light"] .brief-card.brief-done { border-left-color: #34C759; }
+    [data-theme="light"] .bd-row { border-bottom-color: #F0F0F0; }
+    [data-theme="light"] .mind-task-row { border-bottom-color: #F0F0F0; }
+    [data-theme="light"] .mind-task-check { border-color: #E5E5EA; }
 
     html, body { height: 100%; background: var(--bg); color: var(--body, var(--text));
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
@@ -200,8 +262,8 @@
       justify-content: space-between; }
     .header-brand { display: flex; align-items: center; gap: 0.5rem; }
     .header-logo { height: 28px; width: auto; display: block; filter: brightness(1) saturate(0.5) hue-rotate(210deg); }
-    [data-theme="light"] .header-logo { filter: invert(1); }
-    [data-theme="medium"] .header-logo { filter: invert(1); }
+    [data-theme="light"] .header-logo { filter: invert(1) brightness(0.2); }
+    [data-theme="medium"] .header-logo { filter: invert(1) brightness(0.2); }
     header h1 { font-family: 'Bebas Neue', 'Rajdhani', sans-serif;
       font-size: clamp(1rem, 5vw, 1.65rem); font-weight: 400; letter-spacing: 0.12em;
       line-height: 1; color: var(--text); white-space: nowrap;
@@ -2130,20 +2192,20 @@
       <div class="card">
         <div class="card-title">Theme</div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px" id="theme-picker">
-          <button class="theme-swatch" data-theme="dark" style="background:#0A0A0F;border:2px solid transparent;border-radius:var(--r-inner);padding:14px 8px;cursor:pointer;text-align:center;transition:border-color 180ms ease">
+          <button class="theme-swatch" data-theme="dark" style="background:#1C1C1E;border:2px solid transparent;border-radius:var(--r-inner);padding:14px 8px;cursor:pointer;text-align:center;transition:border-color 180ms ease">
             <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 8px;background:linear-gradient(135deg,#13131A,#6C6FFF)"></div>
-            <div style="font-size:13px;font-weight:600;color:#fff">Dark</div>
+            <div style="font-size:13px;font-weight:600;color:#FFFFFF">Dark</div>
             <div style="font-size:11px;color:#8888A0;margin-top:3px">Default</div>
           </button>
-          <button class="theme-swatch" data-theme="medium" style="background:#d0ddf0;border:2px solid transparent;border-radius:var(--r-inner);padding:14px 8px;cursor:pointer;text-align:center;transition:border-color 180ms ease">
-            <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 8px;background:linear-gradient(135deg,#c2d0e6,#2563eb)"></div>
-            <div style="font-size:13px;font-weight:600;color:#141e30">Medium</div>
-            <div style="font-size:11px;color:#4a6080;margin-top:3px">Neutral</div>
+          <button class="theme-swatch" data-theme="medium" style="background:#F2F2F7;border:2px solid transparent;border-radius:var(--r-inner);padding:14px 8px;cursor:pointer;text-align:center;transition:border-color 180ms ease">
+            <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 8px;background:linear-gradient(135deg,#E5E5EA,#5856D6)"></div>
+            <div style="font-size:13px;font-weight:600;color:#1C1C1E">Medium</div>
+            <div style="font-size:11px;color:#6C6C70;margin-top:3px">Neutral</div>
           </button>
-          <button class="theme-swatch" data-theme="light" style="background:#fef0f5;border:2px solid transparent;border-radius:var(--r-inner);padding:14px 8px;cursor:pointer;text-align:center;transition:border-color 180ms ease">
-            <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 8px;background:linear-gradient(135deg,#f5e6ee,#d4729c)"></div>
-            <div style="font-size:13px;font-weight:600;color:#3a2030">Light</div>
-            <div style="font-size:11px;color:#8a6878;margin-top:3px">Soft</div>
+          <button class="theme-swatch" data-theme="light" style="background:#FFFFFF;border:2px solid #E5E5EA;border-radius:var(--r-inner);padding:14px 8px;cursor:pointer;text-align:center;transition:border-color 180ms ease">
+            <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 8px;background:linear-gradient(135deg,#F2F2F7,#007AFF)"></div>
+            <div style="font-size:13px;font-weight:600;color:#1C1C1E">Light</div>
+            <div style="font-size:11px;color:#8E8E93;margin-top:3px">Clean</div>
           </button>
         </div>
       </div>
