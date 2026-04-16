@@ -86,32 +86,36 @@
     }
 
     [data-theme="medium"] {
-      --bg:       #d0ddf0;
-      --surface:  #e4ecf7;
-      --surface2: #c2d0e6;
-      --border:   #9bb0d0;
-      --accent:   #2563eb;
-      --accent2:  #3b82f6;
-      --btn-bg:   #1a1a1a;
-      --btn-bg2:  #333333;
-      --text:     #141e30;
-      --muted:    #4a6080;
-      --cal:      #c06800;
-      --protein:  #0c7e74;
-      --carbs:    #3d4db8;
-      --fat:      #b83890;
-      --danger:   #c02020;
-      --green:    #148040;
-      --amber:    #a07000;
-      --chart-line: #2563eb;
-      --chart-fill: rgba(37,99,235,0.1);
-      --chart-grid: #9bb0d0;
-      --chart-point-border: #e4ecf7;
-      --cal-strength: #2563eb;
-      --cal-cardio:   #c06000;
-      --cal-both:     #7c3aed;
-      --cal-rest:     #b0bcc8;
-      --theme-color: #d0ddf0;
+      --bg:       #F2F2F7;
+      --surface:  #FFFFFF;
+      --surface2: #F2F2F7;
+      --border:   #E5E5EA;
+      --accent:   #5856D6;
+      --accent2:  #5856D6;
+      --btn-bg:   #5856D6;
+      --btn-bg2:  #6E6CD8;
+      --text:     #1C1C1E;
+      --body:     #1C1C1E;
+      --muted:    #6C6C70;
+      --subtle:   #8E8E93;
+      --cal:      #FF8C00;
+      --protein:  #5BB8FF;
+      --carbs:    #A78BFA;
+      --fat:      #F472B6;
+      --danger:   #FF3B30;
+      --green:    #34C759;
+      --amber:    #F5A623;
+      --chart-line: #5856D6;
+      --chart-fill: rgba(88,86,214,0.08);
+      --chart-grid: #E5E5EA;
+      --chart-point-border: #FFFFFF;
+      --cal-strength: #34C759;
+      --cal-cardio:   #5BB8FF;
+      --cal-both:     #5856D6;
+      --cal-rest:     #E5E5EA;
+      --shadow-card: 0 1px 3px rgba(0,0,0,0.08);
+      --shadow-btn:  none;
+      --theme-color: #F2F2F7;
     }
 
     [data-theme="light"] {
@@ -142,6 +146,42 @@
       --cal-rest:     #d0b8c8;
       --theme-color: #fef0f5;
     }
+
+    /* ── Medium theme color overrides for hardcoded values ── */
+    [data-theme="medium"] nav { background: #F2F2F7; border-top-color: #C6C6C8; }
+    [data-theme="medium"] .nav-btn { color: #8E8E93; }
+    [data-theme="medium"] .nav-btn.active { color: #5856D6; }
+    [data-theme="medium"] .nav-btn.active::before { background: #5856D6; }
+    [data-theme="medium"] header { background: #F2F2F7; border-bottom-color: #E5E5EA; }
+    [data-theme="medium"] .strength-done { background: #F0FFF4; border: 1px solid #C6EFD3; }
+    [data-theme="medium"] .strength-done .done-title { color: #1C7A3C; }
+    [data-theme="medium"] .strength-done .done-check { background: #34C759; }
+    [data-theme="medium"] .w-cal { background: #FFF3E5; color: #FF8C00; }
+    [data-theme="medium"] .workout-item { background: #FFFFFF; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    [data-theme="medium"] .hist-row { background: #FFFFFF; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    [data-theme="medium"] .hist-def-badge.def { background: #E8F8EE; color: #1C7A3C; }
+    [data-theme="medium"] .hist-def-badge.sur { background: #FFE5E5; color: #FF3B30; }
+    [data-theme="medium"] .hd-stat { background: #F2F2F7; box-shadow: none; }
+    [data-theme="medium"] .totals-row td { background: #F2F2F7; }
+    [data-theme="medium"] .meal-table td { border-bottom-color: #E5E5EA; }
+    [data-theme="medium"] .meal-table th { border-bottom-color: #E5E5EA; }
+    [data-theme="medium"] .progress-bar-track { background: #E5E5EA; }
+    [data-theme="medium"] .seg-btn.active { background: #5856D6; color: #fff; }
+    [data-theme="medium"] .seg-btn { color: #6C6C70; }
+    [data-theme="medium"] .chart-range-pill.active { background: #5856D6; color: #fff; }
+    [data-theme="medium"] .chart-range-pill { color: #6C6C70; }
+    [data-theme="medium"] .gmail-card { border-left-color: #E5E5EA; }
+    [data-theme="medium"] .gmail-card.gmail-connected { border-left-color: #34C759; }
+    [data-theme="medium"] .ed-macro-tile { background: #F2F2F7; box-shadow: none; }
+    [data-theme="medium"] .exercise-block { background: #FFFFFF; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    [data-theme="medium"] .sl-item { background: #FFFFFF; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    [data-theme="medium"] .dash-stat-card { background: #FFFFFF; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    [data-theme="medium"] .cal-popup { background: #FFFFFF; border: 1px solid #E5E5EA; }
+    [data-theme="medium"] .quick-entry-modal { background: #FFFFFF; }
+    [data-theme="medium"] #photo-source-box { background: #FFFFFF; }
+    [data-theme="medium"] #edit-meal-box { background: #FFFFFF; }
+    [data-theme="medium"] #delete-account-box { background: #FFFFFF; }
+    [data-theme="medium"] .btn-edit-meal { background: #F2F2F7; border-color: #C6C6C8; color: #6C6C70; }
 
     html, body { height: 100%; background: var(--bg); color: var(--body, var(--text));
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
