@@ -1424,11 +1424,13 @@
 
             <!-- Details/corrections box (shown after analysis, below breakdown) -->
             <div id="meal-details-section" style="display:none;margin-top:0.5rem">
-              <div class="field" style="margin-bottom:0">
+              <div class="field" style="margin-bottom:8px">
                 <textarea id="meal-details-input" rows="2"
                   placeholder='Add details or corrections — e.g. "it was a large portion", "no bun"'
                   style="min-height:52px"></textarea>
               </div>
+              <button type="button" class="btn btn-primary btn-full" id="meal-reanalyze-btn">Re-analyze with corrections</button>
+              <div id="meal-reanalyze-status" style="font-size:13px;color:var(--muted);text-align:center;margin-top:6px"></div>
             </div>
 
             <!-- Start Over at the very bottom -->
@@ -4433,6 +4435,47 @@ function deleteWorkout(id) {
         mealInput.removeAttribute("required");
       })
       .catch(() => { macrosBtn.disabled = false; macrosBtn.textContent = "Get Macros"; });
+  });
+
+  // Re-analyze with corrections
+  document.getElementById("meal-reanalyze-btn").addEventListener("click", function() {
+    const corrections = document.getElementById("meal-details-input").value.trim();
+    if (!corrections) { document.getElementById("meal-details-input").focus(); return; }
+    const original = hDesc.value || mealInput.value.trim();
+    const combined = original + "\n\nUser correction: " + corrections;
+    const btn = this;
+    const status = document.getElementById("meal-reanalyze-status");
+    btn.disabled = true; btn.textContent = "Analyzing...";
+    status.textContent = "";
+    fetch("/api/estimate", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ description: combined }),
+    }).then(r => r.json()).then(data => {
+      btn.disabled = false; btn.textContent = "Re-analyze with corrections";
+      if (data.error) { status.textContent = data.error; return; }
+      // Update macro fields
+      pairs[0][0].value = data.calories;   pairs[0][1].value = data.calories;
+      pairs[1][0].value = data.protein_g;  pairs[1][1].value = data.protein_g;
+      pairs[2][0].value = data.carbs_g;    pairs[2][1].value = data.carbs_g;
+      pairs[3][0].value = data.fat_g;      pairs[3][1].value = data.fat_g;
+      // Update breakdown
+      renderBreakdown(data.items);
+      aiNotes.style.color = ""; aiNotes.textContent = data.notes ? "Note: " + data.notes : "";
+      // Update description
+      if (data.items && data.items.length) {
+        const newDesc = data.items.map(i => i.name || i.item).join(", ");
+        hDesc.value = newDesc;
+        shortLabel = newDesc;
+      }
+      document.getElementById("meal-details-input").value = "";
+      status.textContent = "Updated!";
+      status.style.color = "var(--green)";
+      setTimeout(() => { status.textContent = ""; status.style.color = ""; }, 3000);
+    }).catch(() => {
+      btn.disabled = false; btn.textContent = "Re-analyze with corrections";
+      status.textContent = "Failed — try again";
+      status.style.color = "var(--danger)";
+    });
   });
 
   document.getElementById("meal-start-over-btn").addEventListener("click", () => {
