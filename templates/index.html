@@ -161,9 +161,10 @@
     .header-logo { height: 28px; width: auto; display: block; filter: brightness(1) saturate(0.5) hue-rotate(210deg); }
     [data-theme="light"] .header-logo { filter: invert(1); }
     [data-theme="medium"] .header-logo { filter: invert(1); }
-    header h1 { font-size: 17px; font-weight: 600; letter-spacing: 0;
+    header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em;
       line-height: 1; color: var(--text); white-space: nowrap;
-      overflow: hidden; text-overflow: ellipsis; max-width: 55vw; }
+      overflow: hidden; text-overflow: ellipsis; max-width: 55vw;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif; }
     header .subtitle { font-size: 12px; font-weight: 400; color: var(--muted);
       letter-spacing: 0; text-transform: none; margin-top: 2px; }
 
@@ -1102,7 +1103,7 @@
     <div class="header-brand">
       <img src="/static/apex-logo.png" alt="Apex Fitness" class="header-logo">
       <div>
-        <h1>{% if display_name %}{{ display_name|upper }}'S DASHBOARD{% else %}YOUR DASHBOARD{% endif %}</h1>
+        <h1>{% if display_name %}{{ display_name }}{% else %}Dashboard{% endif %}</h1>
         <div class="subtitle" id="header-date"></div>
       </div>
     </div>
