@@ -1599,7 +1599,7 @@
           <div class="workout-item" style="cursor:pointer" onclick="openWorkoutDetail({{ w.id }})">
             <div class="w-icon">{% if 'run' in w.description|lower or 'mile' in w.description|lower or 'cardio' in w.description|lower %}🏃{% else %}🏋️{% endif %}</div>
             <div class="w-body">
-              <div class="w-desc">{% if w.description|length > 50 %}{{ w.description[:50] }}…{% else %}{{ w.description }}{% endif %}</div>
+              <div class="w-desc">{{ w.description }}</div>
               <div class="w-meta">{{ w.logged_at | fmt_time_12h }}</div>
             </div>
             {% if w.calories_burned %}<div class="w-cal">~{{ w.calories_burned }} kcal</div>{% endif %}
@@ -3072,19 +3072,25 @@ function renderWorkoutList(workouts, burn) {
       const icon = isStrength ? '🏋️' : isRun ? '🏃' : '💪';
       const time = fmt12h(w.logged_at || '');
 
-      // Simple one-line display for all workouts
+      // Clean summary for all workouts
       let title, subtitle;
       if (isStrength) {
         const parsed = _parseStrengthDesc(w.description);
         if (parsed) {
-          title = `Strength Workout (${parsed.minutes} min)`;
-          subtitle = `${parsed.exercises.length} exercises · ${time}`;
+          // Build a short summary from exercise names: "Bench, Squat, Rows + 2 more"
+          const exNames = parsed.exercises.map(e => e.split(":")[0].trim());
+          if (exNames.length <= 3) {
+            title = exNames.join(", ");
+          } else {
+            title = exNames.slice(0, 2).join(", ") + ` + ${exNames.length - 2} more`;
+          }
+          subtitle = `${parsed.minutes} min · ${parsed.exercises.length} exercises · ${time}`;
         } else {
-          title = w.description.length > 50 ? w.description.slice(0, 50) + '…' : w.description;
+          title = w.description;
           subtitle = time;
         }
       } else {
-        title = w.description.length > 50 ? w.description.slice(0, 50) + '…' : w.description;
+        title = w.description;
         subtitle = time;
       }
 
