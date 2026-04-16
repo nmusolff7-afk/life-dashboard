@@ -1126,6 +1126,15 @@
     .fab-modal-close { background: none; border: none; color: var(--muted); cursor: pointer;
       font-size: 18px; padding: 4px; line-height: 1; }
 
+    /* ══ COLLAPSIBLE CARDS ═══════════════════════ */
+    .collapse-card .collapse-header { display: flex; align-items: center; justify-content: space-between;
+      cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .collapse-card .collapse-header .collapse-chevron { transition: transform 180ms ease;
+      color: var(--muted); flex-shrink: 0; }
+    .collapse-card.open .collapse-header .collapse-chevron { transform: rotate(90deg); }
+    .collapse-card .collapse-body { display: none; margin-top: 12px; }
+    .collapse-card.open .collapse-body { display: block; }
+
     /* ══ STREAK BAR ══════════════════════════════ */
     .streak-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 12px;
       overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 2px 0; }
@@ -2072,11 +2081,15 @@
       </div>
 
       <!-- Calculated Goals -->
-      <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
+      <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
+        <div class="collapse-header">
           <div class="card-title" style="margin:0;flex:1">Calculated Goals
             <button id="goals-info-btn" style="background:none;border:1px solid rgba(255,255,255,0.08);border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:11px;font-weight:700;font-style:italic;font-family:Georgia,serif;vertical-align:middle;margin-left:6px;padding:0;line-height:1;transition:all 180ms ease" title="How are these calculated?">i</button>
           </div>
+          <svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+        <div class="collapse-body" onclick="event.stopPropagation()">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
           <button class="btn btn-ghost" id="goals-edit-btn" style="font-size:12px;padding:6px 14px;height:auto;display:flex;align-items:center;gap:6px">
             <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             Edit
@@ -2215,17 +2228,19 @@
 
         <button type="button" class="btn btn-ghost btn-full" id="recalc-goals-btn"
           style="margin-top:0.75rem;font-size:0.82rem">Recalculate from profile data</button>
+        </div><!-- /collapse-body -->
       </div>
 
       <!-- Live Preview -->
-      <div class="card">
-        <div class="card-title">Live Preview</div>
-        <div class="profile-preview" id="profile-preview">Fill in your details above to see your personalized plan.</div>
+      <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
+        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1">Live Preview</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="collapse-body" onclick="event.stopPropagation()"><div class="profile-preview" id="profile-preview">Fill in your details above to see your personalized plan.</div></div>
       </div>
 
       <!-- Workout Plan -->
-      <div class="card">
-        <div class="card-title">Workout Plan</div>
+      <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
+        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1">Workout Plan</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="collapse-body" onclick="event.stopPropagation()">
 
         <!-- Mode toggle -->
         <div class="seg-control plan-mode-seg">
@@ -2260,11 +2275,13 @@
           <button class="btn btn-primary" id="save-plan-btn">Save Workout Plan</button>
           <span class="save-confirm" id="plan-save-confirm">✓ Saved</span>
         </div>
+        </div><!-- /collapse-body -->
       </div>
 
       <!-- My Profile -->
-      <div class="card">
-        <div class="card-title">My Profile</div>
+      <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
+        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1">My Profile</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="collapse-body" onclick="event.stopPropagation()">
         <div id="profile-summary-line" style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.5">
           Loading profile summary…
         </div>
@@ -2283,11 +2300,13 @@
           </button>
         </div>
         <div id="view-plan-panel" style="display:none;margin-top:12px"></div>
+        </div><!-- /collapse-body -->
       </div>
 
       <!-- Theme -->
-      <div class="card">
-        <div class="card-title">Theme</div>
+      <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
+        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1">Theme</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="collapse-body" onclick="event.stopPropagation()">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px" id="theme-picker">
           <button class="theme-swatch" data-theme="dark" style="background:#1C1C1E;border:2px solid transparent;border-radius:var(--r-inner);padding:14px 8px;cursor:pointer;text-align:center;transition:border-color 180ms ease">
             <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 8px;background:linear-gradient(135deg,#13131A,#6C6FFF)"></div>
@@ -2300,11 +2319,13 @@
             <div style="font-size:11px;color:#6C6C70;margin-top:3px">Clean</div>
           </button>
         </div>
+        </div><!-- /collapse-body -->
       </div>
 
       <!-- Timezone -->
-      <div class="card">
-        <div class="card-title">Timezone</div>
+      <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
+        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1">Timezone</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="collapse-body" onclick="event.stopPropagation()">
         <div style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.5">
           Controls which calendar day your meals and workouts are saved to.
           <em>Automatic</em> uses your device's clock.
@@ -2321,11 +2342,13 @@
           <select id="tz-select" style="width:100%;font-size:15px"></select>
         </div>
         <div id="tz-current-date" style="font-size:13px;color:var(--muted)"></div>
+        </div><!-- /collapse-body -->
       </div>
 
       <!-- Account -->
-      <div class="card">
-        <div class="card-title">Account</div>
+      <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
+        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1">Account</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="collapse-body" onclick="event.stopPropagation()">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
           <img src="/static/apex-logo.png" alt="" style="height:20px;width:auto;opacity:0.7" onerror="this.style.display='none'">
           <span style="font-size:15px;color:var(--muted)">Signed in as <strong style="color:var(--text)">{{ username }}</strong></span>
@@ -2336,11 +2359,13 @@
           </svg>
           Sign Out
         </a>
+        </div><!-- /collapse-body -->
       </div>
 
       <!-- Delete Account -->
-      <div class="card">
-        <div class="card-title" style="color:var(--danger)">Danger Zone</div>
+      <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
+        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1;color:var(--danger)">Danger Zone</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="collapse-body" onclick="event.stopPropagation()">
         <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5">
           Permanently deletes your account and all associated data — meals, workouts, and history. This cannot be undone.
         </p>
@@ -2349,6 +2374,7 @@
           style="background:none;border:1px solid rgba(255,77,77,0.25);color:var(--danger);font-weight:600;height:44px">
           Delete My Account
         </button>
+        </div><!-- /collapse-body -->
       </div>
 
     </div><!-- /tab-profile -->
