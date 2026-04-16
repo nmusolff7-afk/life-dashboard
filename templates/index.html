@@ -5892,7 +5892,10 @@ function applyProfileToMeals(profile) {
   if (!profile) return;
   const steps = getTodaySteps();
   const rmr   = profile.rmr || SERVER_RMR;
-  const { neat } = calcNEAT(profile.occupation || "sedentary", steps, TODAY_WORKOUT_DESCS);
+  const neatBase = profile.neatAdjust || (OCC_BASE[profile.occupation || "sedentary"] || 200);
+  const { workoutSteps, netSteps } = calcNEAT(profile.occupation || "sedentary", steps, TODAY_WORKOUT_DESCS);
+  const stepBonus = Math.round(netSteps * 0.04);
+  const neat  = neatBase + stepBonus;
   const eat   = WORKOUT_BURN_TODAY;
   const tef   = calcTEF(CAL_CONSUMED, PROTEIN_CONSUMED, CARBS_CONSUMED, FAT_CONSUMED);
   const tdee  = rmr + neat + eat + tef;
@@ -6194,7 +6197,12 @@ try {
     const macros    = calcMacros(targetCal, inp.curWeight, inp.tgtWeight, inp.goal);
     const rmrLockEl = document.getElementById("rmr-lock");
     const rmrLocked = (rmrLockEl && rmrLockEl.checked) || localStorage.getItem("rmr-locked") !== "0";
-    if (!rmrLocked) setSlider("rmr", rmr);
+    if (!rmrLocked) {
+      setSlider("rmr", rmr);
+      // NEAT base from occupation (OCC_BASE) — user can override via slider
+      const neatBase = (OCC_BASE[inp.occupation] || 200);
+      setSlider("neat", neatBase);
+    }
     setSlider("deficit", adjust);
     setSlider("protein", macros.protein);
     setSlider("carbs",   macros.carbs);
@@ -6212,7 +6220,10 @@ try {
     const steps   = getTodaySteps();
     const rmr     = getSlider("rmr");
     const adjust  = getSlider("deficit");  // negative = deficit, positive = surplus
-    const { neat, workoutSteps, netSteps } = calcNEAT(inp.occupation, steps, TODAY_WORKOUT_DESCS);
+    const neatSlider = getSlider("neat") || 0;
+    const { workoutSteps, netSteps } = calcNEAT(inp.occupation, steps, TODAY_WORKOUT_DESCS);
+    const stepBonus = Math.round(netSteps * 0.04);
+    const neat    = neatSlider + stepBonus;
     const eat     = WORKOUT_BURN_TODAY;
     const tef     = calcTEF(CAL_CONSUMED, PROTEIN_CONSUMED, CARBS_CONSUMED, FAT_CONSUMED);
     const tdee    = rmr + neat + eat + tef;
