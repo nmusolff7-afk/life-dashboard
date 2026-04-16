@@ -10,17 +10,17 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg:      #111111;
-      --surface: #1c1c1e;
-      --surface2:#2c2c2e;
-      --border:  rgba(255,255,255,0.06);
-      --accent:  #5c6bc0;
-      --accent2: #7986cb;
-      --text:    #ffffff;
-      --muted:   #8e8e93;
-      --danger:  #ff453a;
-      --green:   #30d158;
-      --amber:   #ffd60a;
+      --bg:      #0A0A0F;
+      --surface: #13131A;
+      --surface2:#1C1C26;
+      --border:  rgba(255,255,255,0.03);
+      --accent:  #6C6FFF;
+      --accent2: #8285FF;
+      --text:    #FFFFFF;
+      --muted:   #8888A0;
+      --danger:  #FF4D4D;
+      --green:   #34D87A;
+      --amber:   #F5A623;
     }
     html, body { min-height: 100%; background: var(--bg); color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
@@ -54,9 +54,9 @@
     .field .hint { font-size: 0.74rem; color: var(--muted); margin-top: 0.25rem; opacity: 0.75; }
     input[type="text"], input[type="number"], input[type="email"], input[type="date"],
     textarea, select {
-      width: 100%; background: var(--surface2); border: 1px solid transparent;
-      border-radius: 12px; color: var(--text); font-size: 0.95rem;
-      padding: 0.7rem 1rem; outline: none; transition: border-color .2s;
+      width: 100%; background: var(--bg); border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 14px; color: var(--text); font-size: 15px;
+      padding: 14px 16px; outline: none; transition: border-color 180ms ease;
       font-family: inherit; -webkit-appearance: none; appearance: none;
     }
     input:focus, textarea:focus, select:focus { border-color: var(--accent2); }
@@ -66,11 +66,11 @@
 
     /* ── Segmented / chip buttons ── */
     .chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.1rem; }
-    .chip { padding: 0.5rem 1.1rem; border-radius: 99px; border: none;
-      background: var(--surface2); color: var(--muted); font-size: 0.85rem;
-      cursor: pointer; transition: all .2s; user-select: none; }
-    .chip.active { background: rgba(121,134,203,0.2);
-      color: var(--accent2); }
+    .chip { padding: 6px 14px; border-radius: 100px; border: none;
+      background: var(--surface2); color: var(--muted); font-size: 13px;
+      cursor: pointer; transition: all 180ms ease; user-select: none; }
+    .chip.active { background: rgba(108,111,255,0.15);
+      color: var(--accent); }
 
     /* ── Slider ── */
     .slider-field { margin-bottom: 1.1rem; }
@@ -86,9 +86,9 @@
     .ob-footer { position: fixed; bottom: 0; left: 0; right: 0;
       background: var(--bg); border-top: none;
       padding: 1rem 1.25rem; display: flex; gap: 0.75rem; }
-    .btn { padding: 0.8rem 1.25rem; border-radius: 14px; border: none;
-      font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: all .2s, transform .1s;
-      font-family: inherit; }
+    .btn { padding: 0 1.25rem; height: 52px; border-radius: 14px; border: none;
+      font-size: 14px; font-weight: 700; cursor: pointer; transition: all 180ms ease, transform 100ms ease;
+      font-family: inherit; display: inline-flex; align-items: center; justify-content: center; }
     .btn:active { transform: scale(0.97); }
     .btn-primary { background: var(--accent); color: #fff; flex: 1; }
     .btn-primary:hover { background: var(--accent2); }
@@ -148,22 +148,23 @@
 
     /* ── Goal selection cards ── */
     .goal-card-grid { display:grid; grid-template-columns:1fr 1fr; gap:0.65rem; }
-    .goal-card { background:var(--surface); border:none; border-radius:16px;
-      padding:1.1rem 0.95rem; cursor:pointer; text-align:center; transition:background .2s, transform .1s;
-      font-family:inherit; color:inherit; }
+    .goal-card { background:var(--surface); border:none; border-radius:14px;
+      padding:16px; cursor:pointer; text-align:center; transition:background 180ms ease, transform 100ms ease;
+      font-family:inherit; color:inherit; box-shadow: 0 2px 20px rgba(0,0,0,0.45); }
     .goal-card:hover, .goal-card:focus { background:var(--surface2); }
     .goal-card:active { transform: scale(0.97); }
-    .goal-card.selected { background:rgba(121,134,203,0.12); box-shadow: inset 0 0 0 1.5px var(--accent2); }
+    .goal-card.selected { background:rgba(108,111,255,0.1); box-shadow: inset 0 0 0 1.5px var(--accent); }
     .goal-card-icon { font-size:1.4rem; margin-bottom:0.35rem; opacity:0.7; }
     .goal-card-title { font-size:0.92rem; font-weight:700; margin-bottom:0.25rem; }
     .goal-card-desc { font-size:0.74rem; color:var(--muted); line-height:1.45; }
 
     /* ── Path comparison cards ── */
-    .path-card { background:var(--surface); border:none; border-radius:16px;
-      padding:1rem 1.1rem; margin-bottom:0.65rem; cursor:pointer; transition:background .2s, transform .1s; }
+    .path-card { background:var(--surface); border:none; border-radius:14px;
+      padding:16px; margin-bottom:8px; cursor:pointer; transition:background 180ms ease, transform 100ms ease;
+      box-shadow: 0 2px 20px rgba(0,0,0,0.45); }
     .path-card:hover, .path-card:focus { background:var(--surface2); }
     .path-card:active { transform: scale(0.98); }
-    .path-card.selected { background:rgba(121,134,203,0.1); box-shadow: inset 0 0 0 1.5px var(--accent2); }
+    .path-card.selected { background:rgba(108,111,255,0.08); box-shadow: inset 0 0 0 1.5px var(--accent); }
     .path-card-header { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:0.5rem; }
     .path-card-title { font-size:0.92rem; font-weight:700; }
     .path-card-tag { font-size:0.68rem; color:var(--muted); background:var(--surface2);
