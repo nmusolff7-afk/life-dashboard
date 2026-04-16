@@ -5689,6 +5689,23 @@ function fmtDate(iso) {
       pointBorderWidth: 1,
     }];
 
+    // Dashed projection line from last data point to right edge if no recent weight
+    const lastDataIdx = data.reduce((acc, v, i) => v !== null ? i : acc, -1);
+    if (lastDataIdx >= 0 && lastDataIdx < data.length - 1) {
+      const projData = allDates.map((d, i) => i >= lastDataIdx ? data[lastDataIdx] : null);
+      datasets.push({
+        label: "Projection",
+        data: projData,
+        spanGaps: true,
+        borderColor: _cv("--chart-line"),
+        borderDash: [6, 4],
+        borderWidth: 1.5,
+        pointRadius: 0,
+        fill: false,
+        tension: 0,
+      });
+    }
+
     if (targetWt) {
       datasets.push({
         label: "Target",
