@@ -16,9 +16,10 @@
     (function() {
       var uid = "{{ user_id|default('0') }}";
       var t = localStorage.getItem("u" + uid + ":apex-theme") || localStorage.getItem("apex-theme") || "dark";
+      if (t === "light") t = "medium"; // migrate old light theme users
       document.documentElement.setAttribute("data-theme", t);
       var m = document.querySelector('meta[name="theme-color"]');
-      var tc = { dark: "#0d1117", medium: "#d0ddf0", light: "#fef0f5" };
+      var tc = { dark: "#0A0A0F", medium: "#F2F2F7" };
       if (m) m.setAttribute("content", tc[t] || tc.dark);
     })();
   </script>
@@ -118,38 +119,6 @@
       --theme-color: #F2F2F7;
     }
 
-    [data-theme="light"] {
-      --bg:       #FFFFFF;
-      --surface:  #FFFFFF;
-      --surface2: #F2F2F7;
-      --border:   #F0F0F0;
-      --accent:   #007AFF;
-      --accent2:  #007AFF;
-      --btn-bg:   #007AFF;
-      --btn-bg2:  #0A84FF;
-      --text:     #1C1C1E;
-      --body:     #1C1C1E;
-      --muted:    #8E8E93;
-      --subtle:   #8E8E93;
-      --cal:      #FF8C00;
-      --protein:  #5BB8FF;
-      --carbs:    #A78BFA;
-      --fat:      #F472B6;
-      --danger:   #FF3B30;
-      --green:    #34C759;
-      --amber:    #F5A623;
-      --chart-line: #007AFF;
-      --chart-fill: rgba(0,122,255,0.07);
-      --chart-grid: #F0F0F0;
-      --chart-point-border: #FFFFFF;
-      --cal-strength: #34C759;
-      --cal-cardio:   #5BB8FF;
-      --cal-both:     #5856D6;
-      --cal-rest:     #F2F2F7;
-      --shadow-card: 0 1px 4px rgba(0,0,0,0.06);
-      --shadow-btn:  none;
-      --theme-color: #FFFFFF;
-    }
 
     /* ── Medium theme color overrides for hardcoded values ── */
     [data-theme="medium"] nav { background: #F2F2F7; border-top-color: #C6C6C8; }
@@ -194,57 +163,6 @@
     [data-theme="medium"] .profile-preview { background: #F2F2F7; border: 1px solid #E5E5EA; }
     [data-theme="medium"] .voice-mic-btn { background: #F2F2F7; color: #5856D6; }
 
-    /* ── Light theme color overrides for hardcoded values ── */
-    [data-theme="light"] nav { background: #F2F2F7; border-top: 1px solid #E5E5EA; }
-    [data-theme="light"] .nav-btn { color: #8E8E93; }
-    [data-theme="light"] .nav-btn.active { color: #007AFF; }
-    [data-theme="light"] .nav-btn.active::before { background: #007AFF; }
-    [data-theme="light"] header { background: #FFFFFF; border-bottom: 1px solid #E5E5EA; }
-    [data-theme="light"] .card { border: 1px solid #F0F0F0; }
-    [data-theme="light"] .strength-done { background: #F0FFF4; border: 1px solid #C6EFD3; }
-    [data-theme="light"] .strength-done .done-title { color: #1C7A3C; }
-    [data-theme="light"] .strength-done .done-check { background: #34C759; }
-    [data-theme="light"] .w-cal { background: #FFF3E5; color: #FF8C00; }
-    [data-theme="light"] .workout-item { background: #FFFFFF; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
-    [data-theme="light"] .hist-row { background: #FFFFFF; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
-    [data-theme="light"] .hist-def-badge.def { background: #E8F8EE; color: #1C7A3C; }
-    [data-theme="light"] .hist-def-badge.sur { background: #FFEEEE; color: #FF3B30; }
-    [data-theme="light"] .hd-stat { background: #F2F2F7; box-shadow: none; }
-    [data-theme="light"] .totals-row td { background: #F2F2F7; }
-    [data-theme="light"] .meal-table td { border-bottom-color: #F0F0F0; }
-    [data-theme="light"] .meal-table th { border-bottom-color: #F0F0F0; }
-    [data-theme="light"] .progress-bar-track { background: #F0F0F0; }
-    [data-theme="light"] .seg-btn.active { background: #007AFF; color: #fff; }
-    [data-theme="light"] .seg-btn { color: #8E8E93; background: transparent; }
-    [data-theme="light"] .seg-control { background: #F2F2F7; }
-    [data-theme="light"] .chart-range-pill.active { background: #007AFF; color: #fff; }
-    [data-theme="light"] .chart-range-pill { color: #8E8E93; }
-    [data-theme="light"] .chart-range-pills { background: #F2F2F7; }
-    [data-theme="light"] .gmail-card { border-left-color: #F0F0F0; }
-    [data-theme="light"] .gmail-card.gmail-connected { border-left-color: #34C759; }
-    [data-theme="light"] .ed-macro-tile { background: #F2F2F7; box-shadow: none; }
-    [data-theme="light"] .exercise-block { background: #FFFFFF; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
-    [data-theme="light"] .sl-item { background: #FFFFFF; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
-    [data-theme="light"] .dash-stat-card { background: #FFFFFF; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
-    [data-theme="light"] .cal-popup { background: #FFFFFF; border: 1px solid #E5E5EA; }
-    [data-theme="light"] .quick-entry-modal { background: #FFFFFF; }
-    [data-theme="light"] #photo-source-box { background: #FFFFFF; }
-    [data-theme="light"] #edit-meal-box { background: #FFFFFF; }
-    [data-theme="light"] #delete-account-box { background: #FFFFFF; }
-    [data-theme="light"] .btn-edit-meal { background: #F2F2F7; border-color: #E5E5EA; color: #8E8E93; }
-    [data-theme="light"] .slider-num { border-bottom-color: #E5E5EA; color: #1C1C1E; }
-    [data-theme="light"] input[type="range"] { background: #E5E5EA; }
-    [data-theme="light"] input[type="range"]::-webkit-slider-thumb { background: #fff; border: 2px solid #007AFF; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
-    [data-theme="light"] #goals-info-btn { border-color: #E5E5EA; color: #8E8E93; }
-    [data-theme="light"] .profile-preview { background: #F2F2F7; border: 1px solid #E5E5EA; }
-    [data-theme="light"] .voice-mic-btn { background: #F2F2F7; color: #007AFF; }
-    [data-theme="light"] .brief-card { border-left-color: #F0F0F0; }
-    [data-theme="light"] .brief-card.brief-open { border-left-color: #007AFF; }
-    [data-theme="light"] .brief-card.brief-done { border-left-color: #34C759; }
-    [data-theme="light"] .bd-row { border-bottom-color: #F0F0F0; }
-    [data-theme="light"] .mind-task-row { border-bottom-color: #F0F0F0; }
-    [data-theme="light"] .mind-task-check { border-color: #E5E5EA; }
-
     html, body { height: 100%; background: var(--bg); color: var(--body, var(--text));
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
       font-size: 15px; overscroll-behavior: none; -webkit-font-smoothing: antialiased;
@@ -262,7 +180,6 @@
       justify-content: space-between; }
     .header-brand { display: flex; align-items: center; gap: 0.5rem; }
     .header-logo { height: 28px; width: auto; display: block; filter: brightness(1) saturate(0.5) hue-rotate(210deg); }
-    [data-theme="light"] .header-logo { filter: invert(1) brightness(0.2); }
     [data-theme="medium"] .header-logo { filter: invert(1) brightness(0.2); }
     header h1 { font-family: 'Bebas Neue', 'Rajdhani', sans-serif;
       font-size: clamp(1rem, 5vw, 1.65rem); font-weight: 400; letter-spacing: 0.12em;
@@ -2191,7 +2108,7 @@
       <!-- Theme -->
       <div class="card">
         <div class="card-title">Theme</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px" id="theme-picker">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px" id="theme-picker">
           <button class="theme-swatch" data-theme="dark" style="background:#1C1C1E;border:2px solid transparent;border-radius:var(--r-inner);padding:14px 8px;cursor:pointer;text-align:center;transition:border-color 180ms ease">
             <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 8px;background:linear-gradient(135deg,#13131A,#6C6FFF)"></div>
             <div style="font-size:13px;font-weight:600;color:#FFFFFF">Dark</div>
@@ -2199,13 +2116,8 @@
           </button>
           <button class="theme-swatch" data-theme="medium" style="background:#F2F2F7;border:2px solid transparent;border-radius:var(--r-inner);padding:14px 8px;cursor:pointer;text-align:center;transition:border-color 180ms ease">
             <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 8px;background:linear-gradient(135deg,#E5E5EA,#5856D6)"></div>
-            <div style="font-size:13px;font-weight:600;color:#1C1C1E">Medium</div>
-            <div style="font-size:11px;color:#6C6C70;margin-top:3px">Neutral</div>
-          </button>
-          <button class="theme-swatch" data-theme="light" style="background:#FFFFFF;border:2px solid #E5E5EA;border-radius:var(--r-inner);padding:14px 8px;cursor:pointer;text-align:center;transition:border-color 180ms ease">
-            <div style="width:28px;height:28px;border-radius:50%;margin:0 auto 8px;background:linear-gradient(135deg,#F2F2F7,#007AFF)"></div>
             <div style="font-size:13px;font-weight:600;color:#1C1C1E">Light</div>
-            <div style="font-size:11px;color:#8E8E93;margin-top:3px">Clean</div>
+            <div style="font-size:11px;color:#6C6C70;margin-top:3px">Clean</div>
           </button>
         </div>
       </div>
@@ -5729,7 +5641,7 @@ function fmtDate(iso) {
 (function() {
   // ── Dark-theme Chart.js defaults ──────────────────
   const _curTheme = document.documentElement.getAttribute("data-theme");
-  const _isLight = _curTheme === "light" || _curTheme === "medium";
+  const _isLight = _curTheme === "medium";
   // Theme-aware chart color helpers
   function _cv(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
   Chart.defaults.color          = _cv("--muted") || "#8b949e";
@@ -8275,7 +8187,7 @@ if ("serviceWorker" in navigator) {
 //  THEME PICKER
 // ══════════════════════════════════════════════════════
 (function() {
-  const THEME_COLORS = { dark: "#0d1117", medium: "#d0ddf0", light: "#fef0f5" };
+  const THEME_COLORS = { dark: "#0A0A0F", medium: "#F2F2F7" };
   const picker = document.getElementById("theme-picker");
   if (!picker) return;
 
