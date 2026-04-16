@@ -8190,9 +8190,28 @@ if ("serviceWorker" in navigator) {
   if (!picker) return;
 
   function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem(_uKey("apex-theme"), theme);
-    // Full page reload so all elements pick up the new theme
-    location.reload();
+    // Update status bar color
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", THEME_COLORS[theme] || THEME_COLORS.dark);
+    // Re-read CSS variables for Chart.js
+    setTimeout(() => {
+      const s = k => getComputedStyle(document.documentElement).getPropertyValue(k).trim();
+      Chart.defaults.color       = s("--muted") || "#8888A0";
+      Chart.defaults.borderColor = s("--chart-grid") || "rgba(255,255,255,0.024)";
+      // Rebuild all active charts with new colors
+      Object.values(Chart.instances || {}).forEach(c => {
+        try { c.destroy(); } catch(e) {}
+      });
+      // Trigger chart rebuilds
+      if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+      if (typeof window._momentumRefresh === "function") window._momentumRefresh();
+    }, 10);
+    // Highlight active swatch
+    picker.querySelectorAll(".theme-swatch").forEach(s => {
+      s.style.borderColor = s.dataset.theme === theme ? "var(--accent)" : "transparent";
+    });
   }
 
   // Highlight current theme on load
