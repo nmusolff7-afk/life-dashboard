@@ -6343,7 +6343,8 @@ function fmtDate(iso) {
       const m1 = weekStart.toLocaleDateString("en-US", { month: "short" });
       const m2 = weekEnd.toLocaleDateString("en-US", { month: "short" });
       const d1 = weekStart.getDate(), d2 = weekEnd.getDate();
-      lbl.textContent = (m1 === m2) ? m1 + " " + d1 + "–" + d2 : m1 + " " + d1 + "–" + m2 + " " + d2;
+      const monthLine = (m1 === m2) ? m1 : m1 + "–" + m2;
+      lbl.innerHTML = `<span style="display:block;font-weight:600">${monthLine}</span><span style="display:block">${d1}–${d2}</span>`;
       grid.appendChild(lbl);
 
       container.appendChild(grid);
