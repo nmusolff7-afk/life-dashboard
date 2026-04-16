@@ -45,6 +45,7 @@ _AI_ERR = "Something went wrong, please try again later"
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY") or os.urandom(32).hex()
 app.permanent_session_lifetime = timedelta(days=90)
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400  # cache static files 24h
 limiter = Limiter(get_remote_address, app=app, default_limits=[], storage_uri="memory://")
 init_db()
 

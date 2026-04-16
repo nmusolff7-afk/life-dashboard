@@ -1118,7 +1118,12 @@
 
   <header>
     <div class="header-brand">
-      <img src="/static/apex-logo.png" alt="Apex Fitness" class="header-logo">
+      <img src="/static/apex-logo.png" alt="" class="header-logo"
+        onerror="this.style.display='none';this.nextElementSibling.style.display='block'"
+      ><svg class="header-logo" style="display:none;height:28px;width:28px" viewBox="0 0 28 28" fill="none">
+        <rect width="28" height="28" rx="6" fill="var(--accent)"/>
+        <text x="14" y="20" text-anchor="middle" font-size="18" font-weight="700" fill="#fff" font-family="-apple-system,system-ui,sans-serif">A</text>
+      </svg>
       <div>
         <h1>{% if display_name %}{{ display_name|upper }}'S DASHBOARD{% else %}YOUR DASHBOARD{% endif %}</h1>
         <div class="subtitle" id="header-date"></div>
@@ -2146,7 +2151,7 @@
       <div class="card">
         <div class="card-title">Account</div>
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
-          <img src="/static/apex-logo.png" alt="Apex Fitness" style="height:20px;width:auto;opacity:0.7">
+          <img src="/static/apex-logo.png" alt="" style="height:20px;width:auto;opacity:0.7" onerror="this.style.display='none'">
           <span style="font-size:15px;color:var(--muted)">Signed in as <strong style="color:var(--text)">{{ username }}</strong></span>
         </div>
         <a href="/logout" class="btn btn-ghost btn-full" style="text-decoration:none;display:flex;align-items:center;justify-content:center;gap:8px;height:44px">
