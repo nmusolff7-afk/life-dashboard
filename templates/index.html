@@ -2924,7 +2924,7 @@ const USER_ID = {{ user_id }};
       <div class="streak-day-dot ${cls}">${d.day.getDate()}</div>
     </div>`;
   });
-  html += `<div class="streak-count"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c4-2.5 7-7 7-11 0-5-4-9-7-9-3 0-7 4-7 9 0 4 3 8.5 7 11z"/></svg> ${streak}d</div>`;
+  html += `<div class="streak-count">\u{1F525} ${streak}d</div>`;
   bar.innerHTML = html;
   // Scroll to right (today)
   bar.scrollLeft = bar.scrollWidth;
