@@ -1148,8 +1148,9 @@
     .streak-day-dot.logged { background: var(--green); color: #fff; }
     .streak-day-dot.missed { background: var(--surface2); color: var(--muted); }
     .streak-day-dot.today { box-shadow: 0 0 0 2px var(--text); }
-    .streak-count { font-size: 12px; font-weight: 700; color: var(--green);
-      white-space: nowrap; flex-shrink: 0; padding-left: 4px; }
+    .streak-count { font-size: 12px; font-weight: 700; color: var(--cal);
+      white-space: nowrap; flex-shrink: 0; padding-left: 4px;
+      display: flex; align-items: center; gap: 3px; }
 
     /* ══ BARCODE SCANNER ═════════════════════════ */
     #barcode-overlay {
@@ -1392,54 +1393,65 @@
       {% set cal_consumed = totals.total_calories %}
       {% set balance = tdee - cal_consumed %}
 
-      <div class="card" style="order:2">
-        <div class="card-title">Daily summary</div>
-        <div class="deficit-display">
-          <div class="d-label" id="deficit-label">{% if balance >= 0 %}Calorie Deficit{% else %}Calorie Surplus{% endif %}</div>
-          <div class="d-value {% if balance >= 0 %}deficit{% else %}surplus{% endif %}" id="deficit-value">{{ balance|abs }} kcal</div>
-          <div class="d-sub" id="deficit-sub">{{ cal_consumed }} consumed &nbsp;/&nbsp; {{ tdee }} projected burn</div>
+      <div class="card" style="order:2;padding:0;overflow:hidden">
+        <div class="card-title" style="padding:var(--pad-card) var(--pad-card) 0">Daily summary</div>
+        <div style="display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch" id="summary-swipe">
+          <!-- Page 1: Deficit + Macros -->
+          <div style="min-width:100%;scroll-snap-align:start;flex-shrink:0;padding:0 var(--pad-card) var(--pad-card)">
+            <div class="deficit-display">
+              <div class="d-label" id="deficit-label">{% if balance >= 0 %}Calorie Deficit{% else %}Calorie Surplus{% endif %}</div>
+              <div class="d-value {% if balance >= 0 %}deficit{% else %}surplus{% endif %}" id="deficit-value">{{ balance|abs }} kcal</div>
+              <div class="d-sub" id="deficit-sub">{{ cal_consumed }} consumed &nbsp;/&nbsp; {{ tdee }} projected burn</div>
+            </div>
+            <div class="progress-section">
+              {% for name, consumed, goal, cls in [
+                ("Protein", totals.total_protein, default_goal_protein, "pro"),
+                ("Carbs",   totals.total_carbs,   default_goal_carbs,   "carb"),
+                ("Fat",     totals.total_fat,     default_goal_fat,     "fat"),
+              ] %}
+              {% set pct = [[((consumed/goal)*100)|round|int, 100]|min, 0]|max %}
+              <div class="progress-row">
+                <div class="progress-header">
+                  <span class="p-label">{{ name }}</span>
+                  <span id="goal-label-{{ cls }}" style="font-weight:600;color:var(--{% if cls=='pro' %}protein{% elif cls=='carb' %}carbs{% else %}fat{% endif %})">
+                    {{ "%.0f"|format(consumed) }}g / {{ goal }}g
+                  </span>
+                </div>
+                <div class="progress-bar-track">
+                  <div class="progress-bar-fill {{ cls }}{% if consumed >= goal %} hit{% endif %}"
+                       id="bar-fill-{{ cls }}" style="width:{{ pct }}%"></div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          <!-- Page 2: Remaining cals + Micros -->
+          <div style="min-width:100%;scroll-snap-align:start;flex-shrink:0;padding:0 var(--pad-card) var(--pad-card)">
+            <div class="deficit-display">
+              <div class="d-label">Calories Remaining</div>
+              <div class="d-value" id="cals-remaining-val" style="color:var(--text)">—</div>
+              <div class="d-sub" id="cals-remaining-sub">of your daily target</div>
+            </div>
+            <div class="progress-section">
+              <div class="progress-row" style="margin-bottom:0.55rem">
+                <div class="progress-header"><span class="p-label">Sugar</span><span id="goal-label-sugar" style="font-weight:600;color:var(--amber)">0g / 50g</span></div>
+                <div class="progress-bar-track"><div class="progress-bar-fill pro" id="bar-fill-sugar" style="width:0%;background:var(--amber)"></div></div>
+              </div>
+              <div class="progress-row" style="margin-bottom:0.55rem">
+                <div class="progress-header"><span class="p-label">Fiber</span><span id="goal-label-fiber" style="font-weight:600;color:var(--green)">0g / 30g</span></div>
+                <div class="progress-bar-track"><div class="progress-bar-fill pro" id="bar-fill-fiber" style="width:0%;background:var(--green)"></div></div>
+              </div>
+              <div class="progress-row" style="margin-bottom:0.55rem">
+                <div class="progress-header"><span class="p-label">Sodium</span><span id="goal-label-sodium" style="font-weight:600;color:var(--muted)">0mg / 2300mg</span></div>
+                <div class="progress-bar-track"><div class="progress-bar-fill pro" id="bar-fill-sodium" style="width:0%"></div></div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="progress-section">
-          {% for name, consumed, goal, cls in [
-            ("Protein", totals.total_protein, default_goal_protein, "pro"),
-            ("Carbs",   totals.total_carbs,   default_goal_carbs,   "carb"),
-            ("Fat",     totals.total_fat,     default_goal_fat,     "fat"),
-          ] %}
-          {% set pct = [[((consumed/goal)*100)|round|int, 100]|min, 0]|max %}
-          <div class="progress-row">
-            <div class="progress-header">
-              <span class="p-label">{{ name }}</span>
-              <span id="goal-label-{{ cls }}" style="font-weight:600;color:var(--{% if cls=='pro' %}protein{% elif cls=='carb' %}carbs{% else %}fat{% endif %})">
-                {{ "%.0f"|format(consumed) }}g / {{ goal }}g
-              </span>
-            </div>
-            <div class="progress-bar-track">
-              <div class="progress-bar-fill {{ cls }}{% if consumed >= goal %} hit{% endif %}"
-                   id="bar-fill-{{ cls }}" style="width:{{ pct }}%"></div>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-        <!-- Swipeable micro view -->
-        <div style="display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;margin-top:8px;gap:0" id="macro-swipe">
-          <div style="min-width:100%;scroll-snap-align:start;flex-shrink:0">
-            <div style="text-align:center;font-size:11px;color:var(--muted);padding:4px 0">Swipe for more →</div>
-          </div>
-          <div style="min-width:100%;scroll-snap-align:start;flex-shrink:0">
-            <div class="progress-row" style="margin-bottom:0.55rem">
-              <div class="progress-header"><span class="p-label">Sugar</span><span id="goal-label-sugar" style="font-weight:600;color:var(--amber)">0g / 50g</span></div>
-              <div class="progress-bar-track"><div class="progress-bar-fill pro" id="bar-fill-sugar" style="width:0%;background:var(--amber)"></div></div>
-            </div>
-            <div class="progress-row" style="margin-bottom:0.55rem">
-              <div class="progress-header"><span class="p-label">Fiber</span><span id="goal-label-fiber" style="font-weight:600;color:var(--green)">0g / 30g</span></div>
-              <div class="progress-bar-track"><div class="progress-bar-fill pro" id="bar-fill-fiber" style="width:0%;background:var(--green)"></div></div>
-            </div>
-            <div class="progress-row" style="margin-bottom:0.55rem">
-              <div class="progress-header"><span class="p-label">Sodium</span><span id="goal-label-sodium" style="font-weight:600;color:var(--muted)">0mg / 2300mg</span></div>
-              <div class="progress-bar-track"><div class="progress-bar-fill pro" id="bar-fill-sodium" style="width:0%"></div></div>
-            </div>
-            <div style="text-align:center;font-size:11px;color:var(--muted);padding:4px 0">← Swipe back</div>
-          </div>
+        <!-- Page dots -->
+        <div style="display:flex;justify-content:center;gap:6px;padding:8px 0 12px" id="summary-dots">
+          <div style="width:6px;height:6px;border-radius:50%;background:var(--accent)" id="summary-dot-0"></div>
+          <div style="width:6px;height:6px;border-radius:50%;background:var(--surface2)" id="summary-dot-1"></div>
         </div>
       </div>
 
@@ -2613,6 +2625,11 @@
       <div class="ed-macro-tile"><div class="ed-macro-val" id="md-carb" style="color:var(--carbs)">—</div><div class="ed-macro-lbl">Carbs</div></div>
       <div class="ed-macro-tile"><div class="ed-macro-val" id="md-fat" style="color:var(--fat)">—</div><div class="ed-macro-lbl">Fat</div></div>
     </div>
+    <div class="ed-macro-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
+      <div class="ed-macro-tile"><div class="ed-macro-val" id="md-sugar" style="color:var(--amber);font-size:17px">—</div><div class="ed-macro-lbl">Sugar</div></div>
+      <div class="ed-macro-tile"><div class="ed-macro-val" id="md-fiber" style="color:var(--green);font-size:17px">—</div><div class="ed-macro-lbl">Fiber</div></div>
+      <div class="ed-macro-tile"><div class="ed-macro-val" id="md-sodium" style="color:var(--muted);font-size:17px">—</div><div class="ed-macro-lbl">Sodium</div></div>
+    </div>
     <div class="ed-section-title">Breakdown</div>
     <div id="meal-detail-items"></div>
     <div class="ed-section-title">Original Input</div>
@@ -2845,6 +2862,17 @@ const USER_ID = {{ user_id }};
   };
 })();
 
+// ── Summary swipe dots ──
+(function() {
+  const swipe = document.getElementById("summary-swipe");
+  if (!swipe) return;
+  swipe.addEventListener("scroll", () => {
+    const page = Math.round(swipe.scrollLeft / swipe.offsetWidth);
+    document.getElementById("summary-dot-0").style.background = page === 0 ? "var(--accent)" : "var(--surface2)";
+    document.getElementById("summary-dot-1").style.background = page === 1 ? "var(--accent)" : "var(--surface2)";
+  });
+})();
+
 // ── Streak bar ──
 (function() {
   const bar = document.getElementById("streak-bar");
@@ -2877,7 +2905,7 @@ const USER_ID = {{ user_id }};
       <div class="streak-day-dot ${cls}">${d.day.getDate()}</div>
     </div>`;
   });
-  html += `<div class="streak-count">${streak}d streak</div>`;
+  html += `<div class="streak-count">${IC.flame} ${streak}d</div>`;
   bar.innerHTML = html;
   // Scroll to right (today)
   bar.scrollLeft = bar.scrollWidth;
@@ -5754,6 +5782,19 @@ function applyProfileToMeals(profile) {
   _updSec("sugar", SUGAR_CONSUMED, profile.sugarGoal || 50, "g");
   _updSec("fiber", FIBER_CONSUMED, profile.fiberGoal || 30, "g");
   _updSec("sodium", SODIUM_CONSUMED, profile.sodiumGoal || 2300, "mg");
+
+  // Calories remaining
+  const calTarget = Math.round(tdee) + (profile.deficit || 0);
+  const calRemaining = calTarget - CAL_CONSUMED;
+  const crEl = document.getElementById("cals-remaining-val");
+  const crSub = document.getElementById("cals-remaining-sub");
+  if (crEl) {
+    crEl.textContent = Math.abs(Math.round(calRemaining)) + " kcal";
+    crEl.style.color = calRemaining >= 0 ? "var(--green)" : "var(--danger)";
+  }
+  if (crSub) crSub.textContent = calRemaining >= 0
+    ? "remaining of " + Math.round(calTarget) + " target"
+    : "over your " + Math.round(calTarget) + " target";
 
   // Persist today's full summary for Charts + History tabs
   saveDayField(localToday(), {
@@ -9976,6 +10017,9 @@ if ("serviceWorker" in navigator) {
     document.getElementById("md-pro").textContent = Math.round(m.protein_g) + "g";
     document.getElementById("md-carb").textContent = Math.round(m.carbs_g) + "g";
     document.getElementById("md-fat").textContent = Math.round(m.fat_g) + "g";
+    document.getElementById("md-sugar").textContent = Math.round(m.sugar_g || 0) + "g";
+    document.getElementById("md-fiber").textContent = Math.round(m.fiber_g || 0) + "g";
+    document.getElementById("md-sodium").textContent = Math.round(m.sodium_mg || 0) + "mg";
     document.getElementById("meal-detail-original").textContent = m.description;
     // Breakdown: show items if stored, otherwise show simple description
     const itemsEl = document.getElementById("meal-detail-items");
