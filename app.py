@@ -238,7 +238,11 @@ def logout():
 @app.route("/api/delete-account", methods=["POST"])
 @login_required
 def api_delete_account():
-    delete_account(uid())
+    try:
+        delete_account(uid())
+    except RuntimeError as e:
+        _log.error("Account deletion failed for user %s: %s", uid(), e)
+        return jsonify({"error": "Account deletion failed. Please contact support."}), 500
     session.clear()
     return jsonify({"ok": True})
 

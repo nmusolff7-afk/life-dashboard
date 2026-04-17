@@ -321,7 +321,7 @@ def init_db():
 # ── Auth ────────────────────────────────────────────────
 
 def delete_account(user_id):
-    """Permanently delete a user and all their data."""
+    """Permanently delete a user and all their data. Atomic — all or nothing."""
     tables = [
         "meal_logs", "workout_logs", "daily_activity",
         "mind_tasks", "daily_momentum",
@@ -330,11 +330,15 @@ def delete_account(user_id):
         "saved_meals", "saved_workouts",
     ]
     with get_conn() as conn:
+        failures = []
         for table in tables:
             try:
                 conn.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))
-            except sqlite3.OperationalError:
-                pass  # table may not exist on older DBs
+            except sqlite3.OperationalError as e:
+                failures.append(f"{table}: {e}")
+        if failures:
+            conn.rollback()
+            raise RuntimeError(f"Account deletion incomplete — failed tables: {', '.join(failures)}")
         conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
         try:
             conn.execute("""
@@ -343,7 +347,7 @@ def delete_account(user_id):
                 ON CONFLICT(name) DO UPDATE SET seq = MAX(seq, excluded.seq)
             """)
         except sqlite3.OperationalError:
-            pass
+            pass  # sqlite_sequence maintenance is non-critical
         conn.commit()
 
 
