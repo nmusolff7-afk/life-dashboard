@@ -13,7 +13,6 @@ from db import (
     get_meal_history, get_workout_history, get_day_detail,
     upsert_garmin_daily, get_garmin_daily, get_garmin_last_sync,
     garmin_activity_exists, insert_garmin_workout,
-    get_setting, set_setting,
     get_onboarding, upsert_onboarding_inputs, complete_onboarding,
     get_profile_map, is_onboarding_complete,
     insert_mind_checkin, get_mind_today, get_mind_history, get_garmin_history,
