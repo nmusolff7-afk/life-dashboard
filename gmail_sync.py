@@ -156,11 +156,17 @@ def fetch_recent_emails(access_token: str, max_results: int = 20) -> list[dict]:
 
     Returns list of:
         {message_id, thread_id, sender, subject, snippet, received_at, is_read, has_replied}
+
+    Optimized: fetches message metadata individually (no batch API in simple REST),
+    but deduplicates thread checks so each unique thread is fetched only once.
+    Worst case: 20 message fetches + N unique thread fetches (typically 10-15).
     """
-    # List recent messages from inbox
+    auth_headers = {"Authorization": f"Bearer {access_token}"}
+
+    # Step 1: List recent message IDs
     resp = requests.get(
         f"{GMAIL_API_BASE}/messages",
-        headers={"Authorization": f"Bearer {access_token}"},
+        headers=auth_headers,
         params={
             "maxResults": max_results,
             "labelIds":   "INBOX",
@@ -174,61 +180,55 @@ def fetch_recent_emails(access_token: str, max_results: int = 20) -> list[dict]:
     if not message_list:
         return []
 
-    results = []
+    # Step 2: Fetch metadata for each message
+    messages = []
     for msg_ref in message_list:
         try:
             msg_resp = requests.get(
                 f"{GMAIL_API_BASE}/messages/{msg_ref['id']}",
-                headers={"Authorization": f"Bearer {access_token}"},
+                headers=auth_headers,
                 params={"format": "metadata", "metadataHeaders": ["From", "Subject", "Date"]},
                 timeout=10,
             )
             msg_resp.raise_for_status()
-            msg = msg_resp.json()
-
-            headers   = msg.get("payload", {}).get("headers", [])
-            label_ids = msg.get("labelIds", [])
-
-            sender  = _parse_sender(_parse_header(headers, "From"))
-            subject = _parse_header(headers, "Subject") or "(no subject)"
-            snippet = msg.get("snippet", "")
-            date_str = _parse_header(headers, "Date")
-
-            # Determine replied status: if thread has a SENT message, user replied
-            # We check thread-level: fetch thread and see if any message has SENT label
-            thread_id = msg.get("threadId", "")
-            has_replied = 0
-            try:
-                thread_resp = requests.get(
-                    f"{GMAIL_API_BASE}/threads/{thread_id}",
-                    headers={"Authorization": f"Bearer {access_token}"},
-                    params={"format": "minimal"},
-                    timeout=10,
-                )
-                thread_resp.raise_for_status()
-                thread_msgs = thread_resp.json().get("messages", [])
-                for tm in thread_msgs:
-                    if "SENT" in tm.get("labelIds", []):
-                        has_replied = 1
-                        break
-            except Exception:
-                pass
-
-            is_read = 0 if "UNREAD" in label_ids else 1
-
-            results.append({
-                "message_id":  msg_ref["id"],
-                "thread_id":   thread_id,
-                "sender":      sender,
-                "subject":     subject,
-                "snippet":     snippet,
-                "received_at": date_str,
-                "is_read":     is_read,
-                "has_replied": has_replied,
-            })
+            messages.append(msg_resp.json())
         except Exception as e:
             logger.warning("Gmail: failed to fetch message %s: %s", msg_ref.get("id"), e)
-            continue
+
+    # Step 3: Batch thread reply checks — fetch each unique thread only once
+    unique_threads = {msg.get("threadId", "") for msg in messages} - {""}
+    thread_replied = {}  # thread_id -> bool
+    for tid in unique_threads:
+        try:
+            thread_resp = requests.get(
+                f"{GMAIL_API_BASE}/threads/{tid}",
+                headers=auth_headers,
+                params={"format": "minimal"},
+                timeout=10,
+            )
+            thread_resp.raise_for_status()
+            thread_msgs = thread_resp.json().get("messages", [])
+            thread_replied[tid] = any("SENT" in tm.get("labelIds", []) for tm in thread_msgs)
+        except Exception:
+            thread_replied[tid] = False
+
+    # Step 4: Assemble results
+    results = []
+    for msg in messages:
+        headers   = msg.get("payload", {}).get("headers", [])
+        label_ids = msg.get("labelIds", [])
+        thread_id = msg.get("threadId", "")
+
+        results.append({
+            "message_id":  msg.get("id", ""),
+            "thread_id":   thread_id,
+            "sender":      _parse_sender(_parse_header(headers, "From")),
+            "subject":     _parse_header(headers, "Subject") or "(no subject)",
+            "snippet":     msg.get("snippet", ""),
+            "received_at": _parse_header(headers, "Date"),
+            "is_read":     0 if "UNREAD" in label_ids else 1,
+            "has_replied": 1 if thread_replied.get(thread_id) else 0,
+        })
 
     return results
 
