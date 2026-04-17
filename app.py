@@ -75,7 +75,8 @@ def fmt_time_12h(ts: str) -> str:
         h, m = int(time_part[:2]), int(time_part[3:5])
         period = "AM" if h < 12 else "PM"
         return f"{h % 12 or 12}:{m:02d} {period}"
-    except Exception:
+    except Exception as e:
+        _log.warning("fmt_time_12h failed for %r: %s", ts, e)
         return str(ts or "")[11:16]
 
 # In-memory store for async onboarding jobs: {user_id: {"status": "pending"|"done"|"error", "profile": {...}, "error": "..."}}
@@ -143,8 +144,8 @@ def render_index(**kwargs):
         if ob and ob.get("raw_inputs"):
             try:
                 profile_name = (json.loads(ob["raw_inputs"]).get("first_name") or "").strip()
-            except Exception:
-                pass
+            except Exception as e:
+                _log.warning("Failed to parse profile name from raw_inputs: %s", e)
     return render_template("index.html",
         meals=meals, totals=totals, workouts=workouts, tdee=tdee,
         workout_burn=workout_burn, server_rmr=server_rmr,
@@ -296,8 +297,8 @@ def onboarding():
     if row and row.get("raw_inputs"):
         try:
             raw = json.loads(row["raw_inputs"])
-        except Exception:
-            pass
+        except Exception as e:
+            _log.warning("Failed to parse onboarding raw_inputs: %s", e)
     return render_template("onboarding.html",
                            username=session.get("username", ""),
                            saved=raw,
@@ -314,8 +315,8 @@ def api_onboarding_save():
     if row and row.get("raw_inputs"):
         try:
             existing = json.loads(row["raw_inputs"])
-        except Exception:
-            pass
+        except Exception as e:
+            _log.warning("Failed to parse existing onboarding inputs: %s", e)
     # Only overwrite with non-null values so earlier pages aren't wiped
     existing.update({k: v for k, v in data.items() if v is not None})
     upsert_onboarding_inputs(uid(), json.dumps(existing))
@@ -340,8 +341,8 @@ def api_profile():
     if ob_row and ob_row.get("raw_inputs"):
         try:
             raw = json.loads(ob_row["raw_inputs"])
-        except Exception:
-            pass
+        except Exception as e:
+            _log.warning("Failed to parse profile raw_inputs: %s", e)
     resp = {
         "energy_level_typical_1_10":  p.get("energy_level_typical_1_10"),
         "mood_baseline_1_10":         p.get("mood_baseline_1_10"),
@@ -833,7 +834,8 @@ def api_shorten():
         return jsonify({"label": description})
     try:
         return jsonify({"label": shorten_label(description)})
-    except Exception:
+    except Exception as e:
+        _log.warning("shorten_label failed, using original: %s", e)
         return jsonify({"label": description})
 
 
@@ -1019,8 +1021,8 @@ def api_generate_comprehensive_plan():
         return jsonify({"error": str(e)}), 500
     try:
         understanding = generate_plan_understanding(payload)
-    except Exception:
-        _log.warning("plan understanding generation failed, continuing without it")
+    except Exception as e:
+        _log.warning("plan understanding generation failed, continuing without it: %s", e)
         understanding = ""
     return jsonify({"plan": plan, "understanding": understanding})
 
