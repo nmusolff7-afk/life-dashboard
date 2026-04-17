@@ -25,7 +25,13 @@ Branch: `pre-migration-hardening` | Started: 2026-04-17
 | # | Phase | Commit | Description | Verified | Files Changed |
 |---|-------|--------|-------------|----------|---------------|
 | 1 | 0 | `eebfeae` | Relocate migration docs to /docs/migration/ | App boots, no code changes | 10 renamed |
-| 2 | 0.5 | (pending) | Create ACTIVE_FEATURES.md, DORMANT_FEATURES.md, HARDENING_LOG.md | N/A (docs only) | 3 new |
+| 2 | 0.5 | `32a0d9e` | Create ACTIVE_FEATURES.md, DORMANT_FEATURES.md, HARDENING_LOG.md | N/A (docs only) | 3 new |
+| 3 | 1 | `1f26316` | P0-2: _ob_jobs memory leak — pop on terminal state + hourly TTL sweep | Onboarding poll clears entry; stale entries evicted; all endpoints 200 | app.py |
+| 4 | 1 | `aa077b0` | P0-3: threading.Lock on _ob_jobs | 50 concurrent reader/writer threads, zero errors; all endpoints 200 | app.py |
+| 5 | 2 | `f89660d` | P1-4: URL-encoded Gmail OAuth error param | XSS payload neutralized in redirect Location header | app.py |
+| 6 | 2 | `038fa74` | P1-6: timeouts on all 17 Anthropic calls | 30s default, 60s for large prompts; 17/17 calls have timeout | claude_nutrition.py, claude_profile.py, gmail_sync.py |
+| 7 | 2 | `7dae477` | P1-7: require SECRET_KEY in production | Dev boots with warning; production crashes without key; boots with key | app.py |
+| 8 | 2 | `dba7421` | P1-5: log 7 silent exception swallows | Bare except→_log.warning in active paths; 3 dormant deferred | app.py |
 | | | | | | |
 
 ---
