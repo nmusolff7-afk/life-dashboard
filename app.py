@@ -76,6 +76,7 @@ def fmt_time_12h(ts: str) -> str:
 # In-memory store for async onboarding jobs: {user_id: {"status": "pending"|"done"|"error", "profile": {...}, "error": "..."}}
 _ob_jobs: dict = {}
 _ob_jobs_ts: dict = {}  # {user_id: time.time()} — tracks when each job was created
+_ob_lock = threading.Lock()  # protects _ob_jobs and _ob_jobs_ts from concurrent access
 _OB_TTL_SEC = 3600      # evict stale entries after 1 hour
 
 def get_rmr() -> int:
@@ -418,10 +419,12 @@ def _run_profile_generation(user_id: int, raw: dict):
             _log.info("Goal targets computed for user %s: %s → %s kcal",
                       user_id, goal_key, targets["calorie_target"])
 
-        _ob_jobs[user_id] = {"status": "done", "profile": profile, "targets": targets}
+        with _ob_lock:
+            _ob_jobs[user_id] = {"status": "done", "profile": profile, "targets": targets}
     except Exception as e:
         tb = traceback.format_exc()
-        _ob_jobs[user_id] = {"status": "error", "error": f"{type(e).__name__}: {e}", "traceback": tb[-800:]}
+        with _ob_lock:
+            _ob_jobs[user_id] = {"status": "error", "error": f"{type(e).__name__}: {e}", "traceback": tb[-800:]}
 
 
 @app.route("/api/onboarding/complete", methods=["POST"])
@@ -437,12 +440,13 @@ def api_onboarding_complete():
     # Evict stale entries older than _OB_TTL_SEC
     import time as _time_mod
     now = _time_mod.time()
-    stale = [k for k, ts in _ob_jobs_ts.items() if now - ts > _OB_TTL_SEC]
-    for uid_stale in stale:
-        _ob_jobs.pop(uid_stale, None)
-        _ob_jobs_ts.pop(uid_stale, None)
-    _ob_jobs[user] = {"status": "pending"}
-    _ob_jobs_ts[user] = now
+    with _ob_lock:
+        stale = [k for k, ts in _ob_jobs_ts.items() if now - ts > _OB_TTL_SEC]
+        for uid_stale in stale:
+            _ob_jobs.pop(uid_stale, None)
+            _ob_jobs_ts.pop(uid_stale, None)
+        _ob_jobs[user] = {"status": "pending"}
+        _ob_jobs_ts[user] = now
     t = threading.Thread(target=_run_profile_generation, args=(user, raw), daemon=True)
     t.start()
     return jsonify({"queued": True})
@@ -453,7 +457,8 @@ def api_onboarding_complete():
 def api_onboarding_poll():
     """Poll for async profile generation status."""
     user = uid()
-    job = _ob_jobs.get(user)
+    with _ob_lock:
+        job = _ob_jobs.get(user)
     if job is None:
         # Fallback: check DB in case server restarted during generation
         if is_onboarding_complete(user):
@@ -462,8 +467,9 @@ def api_onboarding_poll():
         return jsonify({"status": "not_started"})
     # Pop terminal states so the entry doesn't persist forever
     if job.get("status") in ("done", "error"):
-        _ob_jobs.pop(user, None)
-        _ob_jobs_ts.pop(user, None)
+        with _ob_lock:
+            _ob_jobs.pop(user, None)
+            _ob_jobs_ts.pop(user, None)
     return jsonify(job)
 
 
