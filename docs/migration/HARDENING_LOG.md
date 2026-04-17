@@ -37,6 +37,14 @@ Branch: `pre-migration-hardening` | Started: 2026-04-17
 | 11 | 4 | `f96cd3c` | Preserved check-in scoring logic in BUSINESS_LOGIC.md Appendix A | N/A (docs) | BUSINESS_LOGIC.md |
 | 12 | 4 | `17f0fcf` | Removed dead get_setting/set_setting | App boots; endpoints 200 | app.py, db.py |
 | 13 | 4 | `f565457` | Removed all dormant features: Garmin, sleep, check-ins | All active endpoints 200; dormant routes 404; 884 lines deleted | app.py, db.py, claude_profile.py, garmin_sync.py (deleted), requirements.txt |
+| 14 | 5 | `34e405e` | P2-13: delete_account() atomic — rollback on failure | App boots; endpoints 200 | app.py, db.py |
+| 15 | 5 | `66d165f` | P2-12: esc() HTML escaping on all user-data interpolations | App boots; template renders | index.html |
+| 16 | 5 | `a538ef3` | P2-10: exposed rmr_is_fallback in profile API | Profile returns flag; app boots | app.py |
+| 17 | 5 | `a51b4d9` | P2-8: deduplicated Gmail thread checks | App boots; gmail/status 200 | gmail_sync.py |
+| 18 | 5 | `bdb7947` | P2-9: server sync on page load (localStorage desync fix) | App boots; endpoints 200 | index.html |
+| 19 | 6 | `45f8522` | P3-18: added saved_meals/workouts indexes, removed dormant indexes | init_db OK; indexes verified | db.py |
+| 20 | 6 | `a63b3a9` | P3-17: replaced 4 raw exception leaks with safe messages | App boots; no str(e) in errors | app.py |
+| 21 | 6 | `c7b60e0` | P3-22: hide barcode scanner on unsupported browsers | App boots; template renders | index.html |
 | | | | | | |
 
 ---

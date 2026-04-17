@@ -350,20 +350,45 @@ These won't crash the app but will leave the UI stale after a network error.
 
 ## Summary by Priority
 
-| Priority | Count | Description |
-|----------|-------|-------------|
-| P0 (Critical) | 3 | Missing tables, memory leak, race condition |
-| P1 (High) | 4 | XSS, silent exceptions, no API timeout, SECRET_KEY |
-| P2 (Medium) | 6 | N+1 queries, data desync, hardcoded fallback, more race conditions, innerHTML XSS, incomplete delete |
-| P3 (Low) | 9 | Global state, no tests, monolith HTML, error format, missing indexes, orphan tables, unused columns, missing catch handlers, broken features |
-| **Total** | **22** | |
+| Priority | Count | Resolved | Remaining | Description |
+|----------|-------|----------|-----------|-------------|
+| P0 (Critical) | 3 | 2 | 1 (deleted) | Memory leak fixed, race condition fixed, missing tables deleted with dormant features |
+| P1 (High) | 4 | 4 | 0 | XSS fixed, exceptions logged, timeouts added, SECRET_KEY enforced |
+| P2 (Medium) | 6 | 5 | 1 (deleted) | N+1 fixed, desync fixed, RMR flagged, XSS escaped, delete atomic; garmin race deleted |
+| P3 (Low) | 9 | 6 | 3 | Indexes added, errors standardized, barcode hidden, orphans deleted; remaining: no tests, monolith HTML, missing .catch() |
+| **Total** | **22** | **17** | **5** |
 
 ---
 
-## Migration Recommendation
+## Resolution Log (Pre-Migration Hardening, 2026-04-17)
 
-**Fix P0 and P1 (7 items) BEFORE the migration.** They're small fixes in the current codebase and prevent data loss or security issues regardless of architecture.
+| # | Item | Resolution | Commit |
+|---|------|-----------|--------|
+| 1 | P0-1 Missing tables | DELETED — dormant features (Garmin, sleep) removed | `f565457` |
+| 2 | P0-2 Memory leak | FIXED — pop on terminal state + hourly TTL sweep | `1f26316` |
+| 3 | P0-3 Race condition | FIXED — threading.Lock on _ob_jobs | `aa077b0` |
+| 4 | P1-4 Gmail XSS | FIXED — urlencode on error param | `f89660d` |
+| 5 | P1-5 Silent exceptions | FIXED — 7 active paths now log warnings | `dba7421` |
+| 6 | P1-6 No API timeout | FIXED — all 17 calls have timeout (30s/60s) | `038fa74` |
+| 7 | P1-7 SECRET_KEY | FIXED — required in production | `7dae477` |
+| 8 | P2-8 Gmail N+1 | FIXED — deduplicated thread checks | `a51b4d9` |
+| 9 | P2-9 localStorage desync | FIXED — server sync on page load | `bdb7947` |
+| 10 | P2-10 RMR fallback | FIXED — rmr_is_fallback flag exposed in API | `a538ef3` |
+| 11 | P2-11 Garmin globals | DELETED — garmin_sync.py removed | `f565457` |
+| 12 | P2-12 innerHTML XSS | FIXED — esc() helper applied to all user data | `66d165f` |
+| 13 | P2-13 delete_account | FIXED — atomic with rollback on failure | `34e405e` |
+| 14 | P3-14 Global state | PARTIALLY RESOLVED — Garmin globals deleted; _ob_jobs locked | `aa077b0`, `f565457` |
+| 15 | P3-17 Error format | FIXED — 4 raw str(e) leaks replaced | `a63b3a9` |
+| 16 | P3-18 Missing indexes | FIXED — saved_meals/workouts indexes added | `45f8522` |
+| 17 | P3-19 Orphan tables | RESOLVED — dormant tables identified, dormant code deleted | `f565457` |
+| 18 | P3-22 Broken features | FIXED — barcode hidden when unsupported | `c7b60e0` |
 
-**P2 items resolve naturally during the migration** — the Node.js rewrite will use proper async/await (no thread races), a real ORM (no raw SQL), React Native (no innerHTML XSS), and PostgreSQL (proper indexes).
+### Remaining (deferred to React Native migration)
 
-**P3 items are structural** — they go away entirely when the monolith is split into proper files, tests are added, and the frontend is rebuilt in React Native.
+| # | Item | Reason |
+|---|------|--------|
+| P3-15 | No unit tests | Tests will be written for the TypeScript business logic port |
+| P3-16 | Monolith HTML | React Native rebuild replaces the 10k-line file entirely |
+| P3-21 | Missing .catch() | Frontend is being replaced; not worth fixing in Flask templates |
+| P3-20 | Unused DB columns | Deferred to PostgreSQL migration (schema cleanup) |
+| P3-22b | i18n gaps | Deferred to React Native (expo-localization) |
