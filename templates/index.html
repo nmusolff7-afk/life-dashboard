@@ -740,9 +740,6 @@
       min-width: 0; overflow: hidden; }
     .cal-cell:hover { filter: brightness(1.25); }
     .cal-cell.no-cursor { cursor: default; }
-    /* Brief indicators — disabled */
-    .cal-cell.brief-both { }
-    .cal-cell.brief-one { }
     .cal-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 12px;
       padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.03); font-size: 12px;
       color: var(--muted); align-items: center; }
@@ -787,12 +784,6 @@
     .mind-task-del { color:var(--muted);font-size:0.8rem;cursor:pointer;background:none;border:none;
       padding:0.15rem 0.3rem;line-height:1;flex-shrink:0;opacity:0.4;transition:opacity .15s; }
     .mind-task-del:hover { color:var(--danger);opacity:1; }
-    /* ── Brief cards ── */
-    .brief-card { border-left: 3px solid var(--border); transition: border-color .2s; }
-    .brief-card.brief-open { border-left-color: var(--accent); }
-    .brief-card.brief-done { border-left-color: var(--green); }
-    .brief-card .brief-title { font-size: 0.95rem; font-weight: 700; letter-spacing: 0.02em; color: var(--text); }
-    .brief-card .brief-emoji { font-size: 1.1rem; margin-right: 0.35rem; }
     /* ── Voice input ── */
     .voice-mic-btn { position:absolute; bottom:0.4rem; right:0.4rem; width:28px; height:28px;
       border-radius:50%; background:var(--surface2); border:none;
@@ -1371,36 +1362,6 @@
       </div>
       </div><!-- /flex reorder tasks/macros -->
 
-      <!-- Sleep Card (disabled — Garmin offline) -->
-      <div class="card" id="sleep-card" style="display:none !important;padding-bottom:0.85rem">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
-          <div class="card-title" style="margin:0;flex:1">Last Night's Sleep</div>
-          <div id="sleep-score-wrap" style="display:none;text-align:center;line-height:1">
-            <div id="sleep-score-val" style="font-family:'Rajdhani',sans-serif;font-size:1.6rem;font-weight:800;line-height:1"></div>
-            <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:0.1rem">Score</div>
-          </div>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem">
-          <div>
-            <div id="sleep-duration-val" style="font-family:'Rajdhani',sans-serif;font-size:2rem;font-weight:800;line-height:1;color:var(--accent2)">—</div>
-            <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.15rem">Duration</div>
-          </div>
-          <div style="display:flex;gap:1.2rem" id="sleep-breakdown">
-            <div style="text-align:center">
-              <div id="sleep-rem-val" style="font-family:'Rajdhani',sans-serif;font-size:1.1rem;font-weight:700;color:var(--accent);line-height:1">—</div>
-              <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">REM</div>
-            </div>
-            <div style="text-align:center">
-              <div id="sleep-deep-val" style="font-family:'Rajdhani',sans-serif;font-size:1.1rem;font-weight:700;color:var(--green);line-height:1">—</div>
-              <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">Deep</div>
-            </div>
-            <div style="text-align:center">
-              <div id="sleep-light-val" style="font-family:'Rajdhani',sans-serif;font-size:1.1rem;font-weight:700;color:var(--muted);line-height:1">—</div>
-              <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:0.1rem">Light</div>
-            </div>
-          </div>
-        </div>
-      </div>
 
       <!-- Morning Check-in -->
     </div><!-- /tab-home -->
@@ -3522,10 +3483,6 @@ function localCutoff(days) {
     String(d.getDate()).padStart(2, "0");
 }
 
-function getBriefSettings() {
-  try { return JSON.parse(localStorage.getItem("briefSettings") || "{}"); }
-  catch (_) { return {}; }
-}
 
 function getProfileData() {
   try { return getProfileData(); }
@@ -3675,38 +3632,10 @@ function getWorkoutPlan() {
 // Always clear cached insight on page load so it regenerates fresh
 try { sessionStorage.removeItem("momentum_insight"); } catch(e) {}
 
-// Wire brief range sliders to their value displays
-(function() {
-  const pairs = [
-    ["home-morning-energy",  "home-morning-energy-val"],
-    ["home-morning-sleep",   "home-morning-sleep-val"],
-    ["home-morning-mood",    "home-morning-mood-val"],
-    ["home-evening-mood",    "home-evening-mood-val"],
-    ["home-evening-stress",  "home-evening-stress-val"],
-    ["home-evening-focus",   "home-evening-focus-val"],
-  ];
-  pairs.forEach(([id, valId]) => {
-    const el = document.getElementById(id);
-    const vl = document.getElementById(valId);
-    if (el && vl) el.addEventListener("input", () => { vl.textContent = el.value; });
-  });
-})();
-
-// Fetch profile on load: pre-fill slider defaults + populate profile summary card
+// Fetch profile on load: populate profile summary card
 fetch("/api/profile")
   .then(r => r.json())
   .then(p => {
-    // Pre-fill brief sliders with profile baselines
-    function prefill(id, valId, val) {
-      if (!val) return;
-      const el = document.getElementById(id), vl = document.getElementById(valId);
-      if (el) el.value = val;
-      if (vl) vl.textContent = val;
-    }
-    prefill("home-morning-energy", "home-morning-energy-val", p.energy_level_typical_1_10);
-    prefill("home-morning-mood",   "home-morning-mood-val",   p.mood_baseline_1_10);
-    prefill("home-evening-mood",   "home-evening-mood-val",   p.mood_baseline_1_10);
-    prefill("home-evening-stress", "home-evening-stress-val", p.stress_level_1_10);
     // Update profile summary line in Profile tab
     const sumEl = document.getElementById("profile-summary-line");
     if (sumEl) {
@@ -7282,18 +7211,10 @@ function fmtDate(iso) {
         else if (hasCardio)                bg = _cv("--cal-cardio");
         else                               bg = _cv("--cal-rest");
 
-        const briefTypes = (histData.briefs && histData.briefs[ds]) || [];
-        const hasBothBriefs = briefTypes.includes("morning") && briefTypes.includes("evening");
-        const hasOneBrief   = briefTypes.length > 0 && !hasBothBriefs;
-
         const momentumScore = (!isFuture && histData.momentum) ? (histData.momentum[ds] ?? null) : null;
 
         const cell = document.createElement("div");
         let cellClass = "cal-cell" + (isFuture ? " no-cursor" : "");
-        if (!isFuture) {
-          if (hasBothBriefs) cellClass += " brief-both";
-          else if (hasOneBrief) cellClass += " brief-one";
-        }
         cell.className = cellClass;
         cell.style.background = bg;
         cell.style.border = (!hasAnyData && !isFuture) ? "1px solid var(--border)" : "";
@@ -9810,279 +9731,7 @@ if ("serviceWorker" in navigator) {
   });
 })();
 
-// ══════════════════════════════════════════════════════
-//  HOME — MORNING BRIEF & EVENING DEBRIEF
-// ══════════════════════════════════════════════════════
-(function () {
-  function timeToMinutes(str) {
-    const [h, m] = (str || "00:00").split(":").map(Number);
-    return h * 60 + (m || 0);
-  }
-
-  function nowMinutes() {
-    const n = new Date();
-    return n.getHours() * 60 + n.getMinutes();
-  }
-
-  function fmtTime(str) {
-    const [h, m] = (str || "00:00").split(":").map(Number);
-    const d = new Date(); d.setHours(h, m || 0, 0, 0);
-    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
-  }
-
-  function windowStatus(startStr, durationHrs) {
-    const start = timeToMinutes(startStr);
-    const end   = start + Math.round((parseFloat(durationHrs) || 2) * 60);
-    const now   = nowMinutes();
-    if (now < start) return "upcoming";
-    if (now <= end)  return "open";
-    return "closed";
-  }
-
-  function renderCard(type, checkins, settings) {
-    const isM    = type === "morning";
-    const ids    = isM
-      ? { card:"home-morning-card", badge:"home-morning-badge", locked:"home-morning-locked",
-          unlock:"home-morning-unlock-time", done:"home-morning-done", summary:"home-morning-summary",
-          form:"home-morning-form" }
-      : { card:"home-evening-card", badge:"home-evening-badge", locked:"home-evening-locked",
-          unlock:"home-evening-unlock-time", done:"home-evening-done", summary:"home-evening-summary",
-          form:"home-evening-form" };
-
-    const startStr  = settings[isM ? "morningStart" : "eveningStart"]   || (isM ? "06:00" : "19:00");
-    const durHrs    = settings[isM ? "morningDuration" : "eveningDuration"] || (isM ? 4 : 3);
-    const status    = windowStatus(startStr, durHrs);
-    const submitted = checkins.find(c => c.type === type);
-
-    const card  = document.getElementById(ids.card);
-    if (!card) return;
-    const badge = document.getElementById(ids.badge);
-    card.style.display = "";
-    card.classList.remove("brief-open", "brief-done");
-
-    // Reset sub-sections
-    ["locked","done","form"].forEach(k => document.getElementById(ids[k]).style.display = "none");
-
-    function setBadge(text, bg, color) {
-      badge.textContent = text;
-      badge.style.background = bg;
-      badge.style.color = color;
-    }
-
-    if (submitted) {
-      card.classList.add("brief-done");
-      setBadge("Done", "rgba(34,197,94,.15)", "var(--green)");
-      document.getElementById(ids.done).style.display = "";
-      document.getElementById(ids.summary).textContent = submitted.summary || "";
-    } else if (status === "upcoming") {
-      setBadge("Upcoming", "var(--surface2)", "var(--muted)");
-      document.getElementById(ids.unlock).textContent = fmtTime(startStr);
-      document.getElementById(ids.locked).style.display = "";
-    } else if (status === "open") {
-      card.classList.add("brief-open");
-      setBadge("Open now", "rgba(99,102,241,.15)", "var(--accent)");
-      document.getElementById(ids.form).style.display = "";
-    } else {
-      setBadge("Closed", "var(--surface2)", "var(--muted)");
-      document.getElementById(ids.unlock).textContent = "tomorrow";
-      document.getElementById(ids.locked).style.display = "";
-    }
-  }
-
-  function submitBrief(type) {
-    const isM       = type === "morning";
-    const notesEl   = document.getElementById(isM ? "home-morning-notes" : "home-evening-notes");
-    const goalsEl   = document.getElementById(isM ? "home-morning-goals"      : "home-evening-goals");
-    const submitBtn = document.getElementById(isM ? "home-morning-submit"     : "home-evening-submit");
-    const spinEl    = document.getElementById(isM ? "home-morning-submitting" : "home-evening-submitting");
-    const weightEl  = isM ? document.getElementById("home-morning-weight") : null;
-    const energyEl  = isM ? document.getElementById("home-morning-energy") : null;
-    const sleepEl   = isM ? document.getElementById("home-morning-sleep")  : null;
-    const moodEl    = document.getElementById(isM ? "home-morning-mood" : "home-evening-mood");
-    const stressEl  = !isM ? document.getElementById("home-evening-stress") : null;
-    const focusEl   = !isM ? document.getElementById("home-evening-focus")  : null;
-
-    const notes = notesEl ? notesEl.value.trim() : "";
-    // Notes are optional for morning (box removed), required for evening
-    if (!isM && !notes && notesEl) { notesEl.focus(); return; }
-    const goals = goalsEl ? goalsEl.value.trim() : "";
-    const bw    = weightEl ? parseFloat(weightEl.value) : null;
-
-    // Weight is optional for morning brief — clear any previous error styling
-    if (isM && weightEl) {
-      weightEl.style.borderColor = "";
-      const wErr = document.getElementById("home-morning-weight-err");
-      if (wErr) wErr.style.display = "none";
-    }
-
-    if (submitBtn) submitBtn.disabled = true;
-    if (spinEl) spinEl.style.display = "";
-
-    const payload = { type, notes, goals };
-    if (isM && bw && bw > 0) payload.bodyweight_lbs = bw;
-    if (energyEl) payload.energy_level  = parseInt(energyEl.value);
-    if (sleepEl)  payload.sleep_quality = parseInt(sleepEl.value);
-    if (moodEl)   payload.mood_level    = parseInt(moodEl.value);
-    if (stressEl) payload.stress_level  = parseInt(stressEl.value);
-    if (focusEl)  payload.focus_level   = parseInt(focusEl.value);
-
-    const errEl = isM ? document.getElementById("home-morning-err") : null;
-    if (errEl) errEl.style.display = "none";
-
-    fetch("/api/mind/checkin", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    })
-      .then(r => r.ok ? r.json() : r.text().then(t => Promise.reject(t)))
-      .then(data => {
-        if (data && data.error) throw new Error(data.error);
-        // Persist bodyweight to localStorage immediately so dashboard updates
-        if (isM && bw && bw > 0) {
-          saveDayField(localToday(), { weight: bw });
-          syncWeightToProfile(bw);
-          if (typeof window._refreshDashboard === "function") window._refreshDashboard();
-        }
-        initBriefs();
-        if (typeof window._mindReload === "function") window._mindReload();
-        if (typeof window._momentumRefresh === "function") window._momentumRefresh();
-      })
-      .catch(e => {
-        if (submitBtn) submitBtn.disabled = false;
-        if (spinEl) spinEl.style.display = "none";
-        if (errEl) {
-          errEl.textContent = "Submission failed — " + (typeof e === "string" ? e.slice(0, 120) : (e.message || "please try again"));
-          errEl.style.display = "";
-        }
-      });
-  }
-
-  const _mBtn = document.getElementById("home-morning-submit");
-  const _eBtn = document.getElementById("home-evening-submit");
-  if (_mBtn) _mBtn.addEventListener("click", () => submitBrief("morning"));
-  if (_eBtn) _eBtn.addEventListener("click", () => submitBrief("evening"));
-
-  function initBriefs() {
-    const settings = getBriefSettings();
-    const today    = localToday();
-    _syncDateCookie();  // always fresh before the request
-    fetch("/api/mind/today?d=" + today)
-      .then(r => r.json())
-      .then(data => {
-        // Guard: ignore stale responses if date moved on while fetch was in flight
-        if (data.date && data.date !== localToday()) return;
-        const checkins = data.checkins || [];
-        renderCard("morning", checkins, settings);
-        renderCard("evening", checkins, settings);
-      })
-      .catch(e => console.warn("fetch error:", e));
-  }
-
-  initBriefs();
-  let _lastBriefDate = localToday();
-  setInterval(() => {
-    const today = localToday();
-    if (today !== _lastBriefDate) {
-      _lastBriefDate = today;
-    }
-    initBriefs();
-  }, 60000); // re-check every minute in case a window opens/closes or date rolls over
-})();
-
-
-// ══════════════════════════════════════════════════════
-//  PROFILE — BRIEF SCHEDULE SETTINGS
-// ══════════════════════════════════════════════════════
-(function () {
-  const s      = getBriefSettings();
-  const mStart = document.getElementById("brief-morning-start");
-  const mDur   = document.getElementById("brief-morning-dur");
-  const eStart = document.getElementById("brief-evening-start");
-  const eDur   = document.getElementById("brief-evening-dur");
-  if (mStart) mStart.value = s.morningStart    || "06:00";
-  if (mDur)   mDur.value   = s.morningDuration || 4;
-  if (eStart) eStart.value = s.eveningStart    || "19:00";
-  if (eDur)   eDur.value   = s.eveningDuration || 3;
-
-  const saveBtn = document.getElementById("save-brief-schedule-btn");
-  if (saveBtn) {
-    saveBtn.addEventListener("click", () => {
-      localStorage.setItem("briefSettings", JSON.stringify({
-        morningStart:    mStart ? mStart.value : "06:00",
-        morningDuration: mDur   ? parseFloat(mDur.value)   || 4 : 4,
-        eveningStart:    eStart ? eStart.value : "19:00",
-        eveningDuration: eDur   ? parseFloat(eDur.value)   || 3 : 3,
-      }));
-      const conf = document.getElementById("brief-save-confirm");
-      if (conf) { conf.classList.add("show"); setTimeout(() => conf.classList.remove("show"), 2000); }
-    });
-  }
-})();
-
-// ══════════════════════════════════════════════════════
-//  BRIEF CHECK-IN REMINDER NOTIFICATIONS
-// ══════════════════════════════════════════════════════
-(function () {
-  let _briefFiredKey = "briefNotifsFired_" + localToday();
-  function hasFired(k) {
-    try { return !!(JSON.parse(localStorage.getItem(_briefFiredKey) || "{}")[k]); }
-    catch { return false; }
-  }
-  function markFired(k) {
-    try {
-      const obj = JSON.parse(localStorage.getItem(_briefFiredKey) || "{}");
-      obj[k] = true;
-      localStorage.setItem(_briefFiredKey, JSON.stringify(obj));
-    } catch {}
-  }
-
-  function fireNotif(key, title, body) {
-    if (hasFired(key)) return;
-    markFired(key);
-    const n = new Notification(title, { body: body, icon: "/static/icon-192.png" });
-    n.addEventListener("click", function () {
-      window.focus();
-      const homeBtn = document.querySelector('.nav-btn[data-tab="home"]');
-      if (homeBtn) homeBtn.click();
-    });
-  }
-
-  function schedule() {
-    const s = getBriefSettings();
-    const mStart = s.morningStart || "06:00";
-    const eStart = s.eveningStart || "19:00";
-
-    const reminders = [
-      { key: "morning_brief", time: mStart, title: "Morning Check-in", body: "Your morning brief is open — take a moment to check in." },
-      { key: "evening_brief", time: eStart, title: "Evening Review",   body: "Your evening review is open — reflect on your day." },
-    ];
-
-    const now = new Date();
-    reminders.forEach(function (r) {
-      if (hasFired(r.key)) return;
-      const parts = (r.time || "00:00").split(":").map(Number);
-      const target = new Date(now);
-      target.setHours(parts[0], parts[1] || 0, 0, 0);
-      const ms = target - now;
-      if (ms > 0) {
-        setTimeout(function () { fireNotif(r.key, r.title, r.body); }, ms);
-      } else if (ms > -300000) {
-        // Within the last 5 minutes — fire immediately (page just loaded during window)
-        fireNotif(r.key, r.title, r.body);
-      }
-    });
-  }
-
-  if (!("Notification" in window)) return;
-  if (Notification.permission === "granted") {
-    schedule();
-  } else if (Notification.permission !== "denied") {
-    document.addEventListener("click", function req() {
-      Notification.requestPermission().then(function (p) { if (p === "granted") schedule(); });
-      document.removeEventListener("click", req);
-    }, { once: true });
-  }
-})();
+// (Removed: morning brief, evening debrief, brief schedule, brief notifications)
 
 // ══════════════════════════════════════════════════════
 //  VOICE INPUT  (Web Speech API — Chrome / Edge / Safari)

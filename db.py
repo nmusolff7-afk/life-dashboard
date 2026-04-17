@@ -73,30 +73,6 @@ def init_db():
                 PRIMARY KEY (user_id, stat_date)
             )
         """)
-        # Sleep logs — one row per user per date (device-agnostic universal fields)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS sleep_logs (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id       INTEGER REFERENCES users(id),
-                sleep_date    DATE NOT NULL,
-                total_seconds INTEGER DEFAULT 0,
-                deep_seconds  INTEGER DEFAULT 0,
-                light_seconds INTEGER DEFAULT 0,
-                rem_seconds   INTEGER DEFAULT 0,
-                awake_seconds INTEGER DEFAULT 0,
-                sleep_score   INTEGER,
-                source        TEXT DEFAULT 'garmin',
-                synced_at     TIMESTAMP NOT NULL,
-                UNIQUE(user_id, sleep_date)
-            )
-        """)
-        # Key-value store for app-level settings (e.g. garth OAuth tokens)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS app_settings (
-                key   TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            )
-        """)
         # User onboarding: raw page inputs + Claude-generated 200-var profile map
         conn.execute("""
             CREATE TABLE IF NOT EXISTS user_onboarding (
@@ -881,16 +857,6 @@ def insert_mind_checkin(user_id, checkin_type, goals, notes, focus, wellbeing, s
         conn.commit()
 
 
-def get_evening_prompt(user_id, checkin_date):
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT evening_prompt FROM mind_checkins "
-            "WHERE user_id = ? AND checkin_date = ? AND type = 'morning'",
-            (user_id, checkin_date)
-        ).fetchone()
-    return row["evening_prompt"] if row else None
-
-
 def get_mind_today(user_id, checkin_date=None):
     today = checkin_date or date.today().isoformat()
     with get_conn() as conn:
@@ -1563,7 +1529,3 @@ def get_user_goal(user_id: int):
     return dict(row) if row else None
 
 
-def delete_user_goal(user_id: int):
-    with get_conn() as conn:
-        conn.execute("DELETE FROM user_goals WHERE user_id = ?", (user_id,))
-        conn.commit()

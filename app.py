@@ -27,11 +27,11 @@ from db import (
     upsert_user_goal, get_user_goal,
     get_momentum_history_with_deltas, save_momentum_summary, get_momentum_summary,
     get_insight_bundle,
-    save_meal, get_saved_meals, delete_saved_meal, is_meal_saved,
-    save_workout, get_saved_workouts, delete_saved_workout, is_workout_saved,
+    save_meal, get_saved_meals, delete_saved_meal,
+    save_workout, get_saved_workouts, delete_saved_workout,
 )
 from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, generate_workout_plan, generate_comprehensive_plan, generate_plan_understanding, revise_plan, shorten_label, scan_meal_image, generate_momentum_insight, generate_scale_summary, suggest_meal, identify_ingredients
-from claude_profile import generate_profile_map, compute_mind_insights, score_brief
+from claude_profile import generate_profile_map, score_brief
 import garmin_sync
 import gmail_sync
 from goal_config import compute_targets, get_goal_config
@@ -577,36 +577,6 @@ def api_mind_delete_task(task_id):
 
 # ── Meals ───────────────────────────────────────────────
 
-@app.route("/log", methods=["POST"])
-@login_required
-def log_meal():
-    description = request.form.get("description", "").strip()
-    if not description:
-        return redirect(url_for("index"))
-
-    cal_raw = request.form.get("calories", "").strip()
-    try:
-        if cal_raw:
-            nutrition = {
-                "calories":  int(request.form.get("calories", 0)),
-                "protein_g": float(request.form.get("protein_g", 0)),
-                "carbs_g":   float(request.form.get("carbs_g", 0)),
-                "fat_g":     float(request.form.get("fat_g", 0)),
-            }
-        else:
-            nutrition = estimate_nutrition(description)
-        insert_meal(uid(), description=description, log_date=client_today(), **nutrition)
-    except Exception as e:
-        return render_index(error=str(e))
-
-    return redirect(url_for("index"))
-
-
-@app.route("/delete/<int:meal_id>", methods=["POST"])
-@login_required
-def delete(meal_id):
-    delete_meal(meal_id, uid())
-    return redirect(url_for("index"))
 
 
 def _meal_response(cd=None):
@@ -800,24 +770,6 @@ def api_estimate():
 
 
 # ── Workouts ────────────────────────────────────────────
-
-@app.route("/log-workout", methods=["POST"])
-@login_required
-def log_workout():
-    description = request.form.get("description", "").strip()
-    if not description:
-        return redirect(url_for("index"))
-    calories_burned = int(request.form.get("calories_burned", 0) or 0)
-    insert_workout(uid(), description, calories_burned, log_date=client_today())
-    return redirect(url_for("index") + "#tab-workout")
-
-
-@app.route("/delete-workout/<int:workout_id>", methods=["POST"])
-@login_required
-def delete_workout_entry(workout_id):
-    delete_workout(workout_id, uid())
-    return redirect(url_for("index") + "#tab-workout")
-
 
 @app.route("/api/burn-estimate", methods=["POST"])
 @login_required
