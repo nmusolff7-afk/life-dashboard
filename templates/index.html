@@ -10296,6 +10296,41 @@ if ("serviceWorker" in navigator) {
   const swBtn = document.getElementById("open-saved-workouts-btn");
   if (swBtn) swBtn.addEventListener("click", openSavedWorkouts);
 })();
+
+// ── Server sync on page load ──────────────────────────
+// Fetch fresh data from server to overwrite stale localStorage
+// (fixes P2-9: multi-device desync where cached data diverges from DB)
+(function() {
+  const today = localToday();
+  Promise.all([
+    fetch("/api/today-nutrition").then(r => r.json()).catch(() => null),
+    fetch("/api/today-workouts").then(r => r.json()).catch(() => null),
+  ]).then(([nutrition, workouts]) => {
+    let changed = false;
+    if (nutrition && nutrition.totals) {
+      const entry = getDayEntry(today) || {};
+      entry.calories = nutrition.totals.total_calories || 0;
+      entry.protein  = nutrition.totals.total_protein  || 0;
+      entry.carbs    = nutrition.totals.total_carbs    || 0;
+      entry.fat      = nutrition.totals.total_fat      || 0;
+      entry.sugar    = nutrition.totals.total_sugar    || 0;
+      entry.fiber    = nutrition.totals.total_fiber    || 0;
+      entry.sodium   = nutrition.totals.total_sodium   || 0;
+      saveDayField(today, entry);
+      window.CAL_CONSUMED = entry.calories;
+      changed = true;
+    }
+    if (workouts && workouts.burn != null) {
+      const entry = getDayEntry(today) || {};
+      entry.workoutBurn = workouts.burn || 0;
+      saveDayField(today, entry);
+      changed = true;
+    }
+    if (changed && typeof window._refreshDashboard === "function") {
+      window._refreshDashboard();
+    }
+  });
+})();
 </script>
 </body>
 </html>
