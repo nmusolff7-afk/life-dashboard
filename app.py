@@ -43,7 +43,12 @@ from flask_limiter.util import get_remote_address
 _AI_ERR = "Something went wrong, please try again later"
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY") or os.urandom(32).hex()
+if os.environ.get("FLASK_ENV") == "production" or os.environ.get("RAILWAY_ENVIRONMENT") == "production":
+    app.secret_key = os.environ["SECRET_KEY"]  # crash on boot if not set in production
+else:
+    app.secret_key = os.environ.get("SECRET_KEY") or os.urandom(32).hex()
+    if not os.environ.get("SECRET_KEY"):
+        _log.warning("SECRET_KEY not set — using ephemeral dev key (sessions lost on restart)")
 app.permanent_session_lifetime = timedelta(days=90)
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400  # cache static files 24h
 limiter = Limiter(get_remote_address, app=app, default_limits=[], storage_uri="memory://")
