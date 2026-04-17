@@ -92,6 +92,7 @@ def estimate_nutrition(meal_description: str, profile_map: dict | None = None) -
     response = _client().messages.create(
         model="claude-opus-4-6",
         max_tokens=1024,
+        timeout=30.0,
         system=NUTRITION_PROMPT,
         messages=[{"role": "user", "content": user_content}],
     )
@@ -156,6 +157,7 @@ def scan_meal_image(image_b64: str, media_type: str, context: str = "") -> dict:
     response = _client().messages.create(
         model="claude-opus-4-6",
         max_tokens=1024,
+        timeout=30.0,
         messages=[{
             "role": "user",
             "content": [
@@ -210,6 +212,7 @@ def identify_ingredients(images: list) -> list[str]:
     response = _client().messages.create(
         model="claude-opus-4-6",
         max_tokens=400,
+        timeout=30.0,
         messages=[{"role": "user", "content": content}],
     )
     text = next((b.text for b in response.content if b.type == "text"), "").strip()
@@ -307,6 +310,7 @@ def suggest_meal(
     response = _client().messages.create(
         model="claude-opus-4-6",
         max_tokens=1200,
+        timeout=30.0,
         system=SUGGEST_PROMPT,
         messages=[{"role": "user", "content": content}],
     )
@@ -383,6 +387,7 @@ def estimate_burn(workout_description: str, profile_map: dict | None = None) -> 
     response = _client().messages.create(
         model="claude-opus-4-6",
         max_tokens=300,
+        timeout=30.0,
         system=BURN_PROMPT,
         messages=[{"role": "user", "content": user_content}],
     )
@@ -411,6 +416,7 @@ def shorten_label(description: str) -> str:
     response = _client().messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=32,
+        timeout=30.0,
         system=SHORTEN_PROMPT,
         messages=[{"role": "user", "content": description}],
     )
@@ -499,6 +505,7 @@ def generate_workout_plan(goal: str, days_per_week: int = 3, experience: str = "
     response = _client().messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=1024,
+        timeout=30.0,
         system=prompt,
         messages=[{"role": "user", "content": "Generate my workout plan."}],
     )
@@ -572,6 +579,7 @@ FORMAT RULES:
     response = _client().messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=8192,
+        timeout=60.0,
         messages=[{"role": "user", "content": prompt}],
     )
     raw = next((b.text for b in response.content if b.type == "text"), "")
@@ -627,6 +635,7 @@ No quotes, no markdown, no labels. Just the 3 sentences."""
     response = _client().messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=200,
+        timeout=30.0,
         messages=[{"role": "user", "content": prompt}],
     )
     return next((b.text for b in response.content if b.type == "text"), "").strip()
@@ -655,6 +664,7 @@ RULES:
     response = _client().messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=8192,
+        timeout=60.0,
         messages=[{"role": "user", "content": prompt}],
     )
     raw = next((b.text for b in response.content if b.type == "text"), "")
@@ -739,6 +749,7 @@ def generate_scale_summary(scale: str, goal_label: str, history: list) -> str:
         response = _client().messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=200,
+            timeout=30.0,
             system=prompt,
             messages=[{"role": "user", "content": data_text}],
         )
@@ -886,6 +897,7 @@ Give a brief, practical observation about where they stand on calories right now
     response = _client().messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=200,
+        timeout=30.0,
         system=_MOMENTUM_INSIGHT_SYSTEM,
         messages=[{"role": "user", "content": user_msg}],
     )
@@ -901,6 +913,7 @@ def parse_workout_plan(text: str) -> dict:
     response = _client().messages.create(
         model="claude-opus-4-6",
         max_tokens=1024,
+        timeout=30.0,
         system=PLAN_PROMPT,
         messages=[{"role": "user", "content": text}],
     )

@@ -271,6 +271,7 @@ Return ONLY the bullet points, no intro text. Use • as bullet character."""
         resp = client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=300,
+            timeout=30.0,
             messages=[{"role": "user", "content": prompt}],
         )
         return resp.content[0].text.strip()

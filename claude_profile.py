@@ -64,6 +64,7 @@ def generate_profile_map(raw_inputs: dict) -> dict:
     response = _client().messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=1024,
+        timeout=60.0,
         system=PROFILE_GENERATION_PROMPT,
         messages=[{"role": "user", "content": user_content}],
     )
@@ -269,6 +270,7 @@ def generate_evening_prompt(goals: str, notes: str, summary: str) -> str | None:
         msg = _client().messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=80,
+            timeout=30.0,
             messages=[{"role": "user", "content": (
                 "Based on this morning check-in, write ONE short follow-up question for the "
                 "evening debrief. Reference something specific they mentioned — a goal, plan, "
@@ -306,6 +308,7 @@ def score_brief(brief_type: str, notes: str, goals: str) -> dict:
         msg = _client().messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=400,
+            timeout=30.0,
             messages=[{"role": "user", "content": prompt}],
         )
         text = msg.content[0].text.strip()
