@@ -75,6 +75,8 @@ def fmt_time_12h(ts: str) -> str:
 
 # In-memory store for async onboarding jobs: {user_id: {"status": "pending"|"done"|"error", "profile": {...}, "error": "..."}}
 _ob_jobs: dict = {}
+_ob_jobs_ts: dict = {}  # {user_id: time.time()} — tracks when each job was created
+_OB_TTL_SEC = 3600      # evict stale entries after 1 hour
 
 def get_rmr() -> int:
     """Return the user's RMR from their profile map, falling back to 1550."""
@@ -432,7 +434,15 @@ def api_onboarding_complete():
         return jsonify({"error": "No onboarding data found — go back to page 1 and hit Continue, then try again."}), 400
 
     raw = json.loads(row.get("raw_inputs") or "{}")
+    # Evict stale entries older than _OB_TTL_SEC
+    import time as _time_mod
+    now = _time_mod.time()
+    stale = [k for k, ts in _ob_jobs_ts.items() if now - ts > _OB_TTL_SEC]
+    for uid_stale in stale:
+        _ob_jobs.pop(uid_stale, None)
+        _ob_jobs_ts.pop(uid_stale, None)
     _ob_jobs[user] = {"status": "pending"}
+    _ob_jobs_ts[user] = now
     t = threading.Thread(target=_run_profile_generation, args=(user, raw), daemon=True)
     t.start()
     return jsonify({"queued": True})
@@ -450,6 +460,10 @@ def api_onboarding_poll():
             profile = get_profile_map(user)
             return jsonify({"status": "done", "profile": profile, "targets": {}})
         return jsonify({"status": "not_started"})
+    # Pop terminal states so the entry doesn't persist forever
+    if job.get("status") in ("done", "error"):
+        _ob_jobs.pop(user, None)
+        _ob_jobs_ts.pop(user, None)
     return jsonify(job)
 
 
