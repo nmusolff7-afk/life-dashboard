@@ -2,8 +2,6 @@ anthropic
 flask
 gunicorn
 python-dotenv
-garminconnect
-garth
 requests
 werkzeug
 flask-limiter

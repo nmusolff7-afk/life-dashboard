@@ -323,10 +323,11 @@ def init_db():
 def delete_account(user_id):
     """Permanently delete a user and all their data."""
     tables = [
-        "meal_logs", "workout_logs", "daily_activity", "garmin_daily",
-        "sleep_logs", "mind_checkins", "mind_tasks", "daily_momentum",
+        "meal_logs", "workout_logs", "daily_activity",
+        "mind_tasks", "daily_momentum",
         "momentum_summaries", "user_goals", "user_onboarding",
         "gmail_tokens", "gmail_cache", "gmail_summaries", "gmail_importance",
+        "saved_meals", "saved_workouts",
     ]
     with get_conn() as conn:
         for table in tables:
@@ -611,138 +612,6 @@ def get_day_detail(user_id, date_str):
     }
 
 
-# ── Garmin ────────────────────────────────────────────
-
-def upsert_garmin_daily(user_id, stat_date, steps, active_calories, total_calories, resting_hr):
-    """Insert or replace Garmin daily stats for a user/date."""
-    with get_conn() as conn:
-        conn.execute("""
-            INSERT INTO garmin_daily
-                (user_id, stat_date, steps, active_calories, total_calories, resting_hr, synced_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(user_id, stat_date) DO UPDATE SET
-                steps            = excluded.steps,
-                active_calories  = excluded.active_calories,
-                total_calories   = excluded.total_calories,
-                resting_hr       = excluded.resting_hr,
-                synced_at        = excluded.synced_at
-        """, (user_id, stat_date, steps, active_calories, total_calories, resting_hr,
-              datetime.now().isoformat()))
-        conn.commit()
-
-
-def get_garmin_daily(user_id, stat_date):
-    """Return Garmin stats row for a user/date, or None."""
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM garmin_daily WHERE user_id = ? AND stat_date = ?",
-            (user_id, stat_date)
-        ).fetchone()
-    return dict(row) if row else None
-
-
-def get_garmin_history(user_id, days=90):
-    """Per-date Garmin stats for the last N days. Returns {date: {steps, active_calories, ...}}."""
-    cutoff = (date.today() - timedelta(days=days)).isoformat()
-    with get_conn() as conn:
-        rows = conn.execute(
-            "SELECT stat_date, steps, active_calories, total_calories, resting_hr "
-            "FROM garmin_daily WHERE user_id = ? AND stat_date >= ? ORDER BY stat_date",
-            (user_id, cutoff)
-        ).fetchall()
-    return {r["stat_date"]: {"steps": r["steps"], "active_calories": r["active_calories"],
-                              "total_calories": r["total_calories"], "resting_hr": r["resting_hr"]}
-            for r in rows}
-
-
-def get_garmin_last_sync(user_id):
-    """Return the most recent synced_at timestamp for any date, or None."""
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT MAX(synced_at) as last FROM garmin_daily WHERE user_id = ?",
-            (user_id,)
-        ).fetchone()
-    return row["last"] if row else None
-
-
-# ── Sleep ─────────────────────────────────────────────
-
-def upsert_sleep(user_id: int, sleep_date: str, total_seconds: int,
-                 deep_seconds: int, light_seconds: int, rem_seconds: int,
-                 awake_seconds: int, sleep_score=None, source: str = "garmin"):
-    """Insert or update a sleep record for a user/date."""
-    with get_conn() as conn:
-        conn.execute("""
-            INSERT INTO sleep_logs
-                (user_id, sleep_date, total_seconds, deep_seconds, light_seconds,
-                 rem_seconds, awake_seconds, sleep_score, source, synced_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(user_id, sleep_date) DO UPDATE SET
-                total_seconds = excluded.total_seconds,
-                deep_seconds  = excluded.deep_seconds,
-                light_seconds = excluded.light_seconds,
-                rem_seconds   = excluded.rem_seconds,
-                awake_seconds = excluded.awake_seconds,
-                sleep_score   = excluded.sleep_score,
-                source        = excluded.source,
-                synced_at     = excluded.synced_at
-        """, (user_id, sleep_date, total_seconds, deep_seconds, light_seconds,
-              rem_seconds, awake_seconds, sleep_score, source,
-              datetime.now().isoformat()))
-        conn.commit()
-
-
-def get_sleep(user_id: int, sleep_date: str):
-    """Return sleep row for a user/date as dict, or None."""
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM sleep_logs WHERE user_id = ? AND sleep_date = ?",
-            (user_id, sleep_date)
-        ).fetchone()
-    return dict(row) if row else None
-
-
-def get_sleep_history(user_id: int, days: int = 90) -> dict:
-    """Return {date: sleep_dict} for the last N days."""
-    cutoff = (date.today() - timedelta(days=days)).isoformat()
-    with get_conn() as conn:
-        rows = conn.execute("""
-            SELECT sleep_date, total_seconds, deep_seconds, light_seconds,
-                   rem_seconds, awake_seconds, sleep_score, source
-            FROM sleep_logs
-            WHERE user_id = ? AND sleep_date >= ?
-            ORDER BY sleep_date
-        """, (user_id, cutoff)).fetchall()
-    return {r["sleep_date"]: dict(r) for r in rows}
-
-
-def garmin_activity_exists(user_id, garmin_activity_id):
-    """Return True if a workout with this Garmin activity ID already exists."""
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT id FROM workout_logs WHERE user_id = ? AND garmin_activity_id = ?",
-            (user_id, garmin_activity_id)
-        ).fetchone()
-    return row is not None
-
-
-def insert_garmin_workout(user_id, log_date, description, calories_burned, garmin_activity_id, logged_at=None):
-    """Insert a Garmin-sourced workout, tagged with its Garmin activity ID."""
-    ts = logged_at or datetime.now().isoformat()
-    with get_conn() as conn:
-        conn.execute("""
-            INSERT INTO workout_logs
-                (user_id, logged_at, log_date, description, calories_burned, garmin_activity_id)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (user_id, ts, log_date, description, calories_burned, garmin_activity_id))
-        conn.commit()
-
-
-# ── App settings (key-value) ──────────────────────────
-
-
-
-
 # ── User onboarding ────────────────────────────────────
 
 def get_onboarding(user_id):
@@ -823,48 +692,7 @@ def get_daily_weight(user_id: int, date_str: str):
     return row["weight_lbs"] if row else None
 
 
-# ── Mind check-ins ──────────────────────────────────────
-
-def insert_mind_checkin(user_id, checkin_type, goals, notes, focus, wellbeing, summary,
-                        energy_level=None, stress_level=None, checkin_date=None,
-                        sleep_quality=None, mood_level=None, focus_level=None,
-                        evening_prompt=None):
-    today = checkin_date or date.today().isoformat()
-    now = datetime.now().isoformat()
-    with get_conn() as conn:
-        conn.execute("""
-            INSERT INTO mind_checkins
-                (user_id, checkin_date, type, goals, notes, focus, wellbeing, summary,
-                 energy_level, stress_level, sleep_quality, mood_level, focus_level,
-                 evening_prompt, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (user_id, today, checkin_type, goals, notes, focus, wellbeing, summary,
-              energy_level, stress_level, sleep_quality, mood_level, focus_level,
-              evening_prompt, now))
-        conn.commit()
-
-
-def get_mind_today(user_id, checkin_date=None):
-    today = checkin_date or date.today().isoformat()
-    with get_conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM mind_checkins WHERE user_id = ? AND checkin_date = ? ORDER BY created_at",
-            (user_id, today)
-        ).fetchall()
-    return [dict(r) for r in rows]
-
-
-def get_mind_history(user_id, days=14):
-    cutoff = (date.today() - timedelta(days=days)).isoformat()
-    with get_conn() as conn:
-        rows = conn.execute("""
-            SELECT checkin_date, type, focus, wellbeing, summary, created_at
-            FROM mind_checkins
-            WHERE user_id = ? AND checkin_date >= ?
-            ORDER BY created_at DESC
-        """, (user_id, cutoff)).fetchall()
-    return [dict(r) for r in rows]
-
+# ── Mind tasks ──────────────────────────────────────
 
 def insert_mind_task(user_id, description, source='manual', task_date=None):
     td = task_date or date.today().isoformat()

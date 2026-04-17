@@ -11,14 +11,10 @@ from db import (
     insert_meal, get_today_meals, get_today_totals, update_meal, delete_meal,
     insert_workout, get_today_workouts, update_workout, delete_workout, get_today_workout_burn,
     get_meal_history, get_workout_history, get_day_detail,
-    upsert_garmin_daily, get_garmin_daily, get_garmin_last_sync,
-    garmin_activity_exists, insert_garmin_workout,
     get_onboarding, upsert_onboarding_inputs, complete_onboarding,
     get_profile_map, is_onboarding_complete,
-    insert_mind_checkin, get_mind_today, get_mind_history, get_garmin_history,
     insert_mind_task, get_mind_tasks, toggle_mind_task, delete_mind_task,
     save_daily_weight, get_daily_weight,
-    upsert_sleep, get_sleep, get_sleep_history,
     compute_momentum, get_momentum_history,
     save_gmail_tokens, get_gmail_tokens, delete_gmail_tokens, update_gmail_access_token,
     upsert_gmail_cache, get_gmail_cache, clear_gmail_cache,
@@ -30,8 +26,7 @@ from db import (
     save_workout, get_saved_workouts, delete_saved_workout,
 )
 from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, generate_workout_plan, generate_comprehensive_plan, generate_plan_understanding, revise_plan, shorten_label, scan_meal_image, generate_momentum_insight, generate_scale_summary, suggest_meal, identify_ingredients
-from claude_profile import generate_profile_map, score_brief
-import garmin_sync
+from claude_profile import generate_profile_map
 import gmail_sync
 from goal_config import compute_targets, get_goal_config
 import json
@@ -492,14 +487,13 @@ def api_mind_today():
     except (ValueError, TypeError):
         today = client_today()
     tasks    = get_mind_tasks(uid(), today)
-    checkins = get_mind_today(uid(), today)
     total    = len(tasks)
     done     = sum(1 for t in tasks if t["completed"])
     resp = jsonify({
         "date":       today,
         "tasks":      tasks,
-        "checkins":   checkins,
-        "history":    get_mind_history(uid(), days=14),
+        "checkins":   [],
+        "history":    [],
         "completion": round(done / total * 100) if total else 0,
         "total":      total,
         "done":       done,
@@ -507,72 +501,6 @@ def api_mind_today():
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     return resp
 
-
-@app.route("/api/mind/checkin", methods=["POST"])
-@login_required
-def api_mind_checkin():
-    data         = request.get_json(force=True) or {}
-    checkin_type = data.get("type", "morning")
-    goals        = data.get("goals", "").strip()
-    notes        = data.get("notes", "").strip()
-    if not notes:
-        return jsonify({"error": "notes required"}), 400
-
-    today_str = client_today()
-
-    # Persist bodyweight first (independent of AI — should never block checkin)
-    bodyweight_lbs = data.get("bodyweight_lbs")
-    if checkin_type == "morning" and bodyweight_lbs:
-        try:
-            save_daily_weight(uid(), today_str, float(bodyweight_lbs))
-        except Exception:
-            pass  # weight save failure should not block the checkin
-
-    def _clamp(v):
-        try:
-            return max(1, min(10, int(v))) if v is not None else None
-        except (ValueError, TypeError):
-            return None
-
-    energy_level  = _clamp(data.get("energy_level"))
-    stress_level  = _clamp(data.get("stress_level"))
-    sleep_quality = _clamp(data.get("sleep_quality"))
-    mood_level    = _clamp(data.get("mood_level"))
-    focus_level   = _clamp(data.get("focus_level"))
-
-    # AI scoring — use fallback if it fails so the checkin still saves
-    try:
-        scores = score_brief(checkin_type, notes, goals)
-    except Exception as e:
-        _log.warning("score_brief failed, using fallback: %s", e)
-        scores = {"focus": 5, "wellbeing": 5, "summary": "Check-in recorded.", "tasks": []}
-
-    try:
-        insert_mind_checkin(uid(), checkin_type, goals, notes,
-                            scores["focus"], scores["wellbeing"], scores["summary"],
-                            energy_level=energy_level, stress_level=stress_level,
-                            checkin_date=today_str,
-                            sleep_quality=sleep_quality, mood_level=mood_level,
-                            focus_level=focus_level)
-    except Exception as e:
-        _log.exception("mind/checkin DB insert failed")
-        return jsonify({"error": "Could not save check-in. Please try again."}), 500
-
-    # Evening tasks are for tomorrow; morning tasks are for today
-    from datetime import date as _date, timedelta as _td
-    task_date_str = ((_date.fromisoformat(today_str) + _td(days=1)).isoformat()
-                     if checkin_type == "evening" else today_str)
-    tasks_added = []
-    for task_text in scores.get("tasks", []):
-        if task_text:
-            try:
-                tid = insert_mind_task(uid(), task_text, source=checkin_type + "_brief",
-                                       task_date=task_date_str)
-                tasks_added.append({"id": tid, "description": task_text})
-            except Exception:
-                pass
-    return jsonify({**scores, "tasks_added": tasks_added,
-                    "bodyweight_lbs": float(bodyweight_lbs) if bodyweight_lbs else None})
 
 
 @app.route("/api/mind/task", methods=["POST"])
@@ -842,8 +770,8 @@ def api_shorten():
 @login_required
 def api_day(date_str):
     detail = get_day_detail(uid(), date_str)
-    detail["sleep"]  = get_sleep(uid(), date_str)
-    detail["garmin"] = None  # Garmin disconnected
+    detail["sleep"]  = None
+    detail["garmin"] = None
     return jsonify(detail)
 
 
@@ -960,21 +888,15 @@ def api_ai_edit_workout():
 @app.route("/api/history")
 @login_required
 def api_history():
-    # Build briefs map: {date: ["morning", "evening", ...]}
-    briefs_raw = get_mind_history(uid(), 90)
-    briefs: dict = {}
-    for row in briefs_raw:
-        d = row["checkin_date"]
-        briefs.setdefault(d, []).append(row["type"])
     momentum_rows = get_momentum_history(uid(), 90)
     momentum = {r["score_date"]: r["momentum_score"] for r in momentum_rows}
     return jsonify({
         "meals":    get_meal_history(uid(), 90),
         "workouts": get_workout_history(uid(), 90),
-        "briefs":   briefs,
-        "sleep":    get_sleep_history(uid(), 90),
+        "briefs":   {},
+        "sleep":    {},
         "momentum": momentum,
-        "garmin":   {},  # Garmin disconnected
+        "garmin":   {},
     })
 
 
@@ -1042,117 +964,6 @@ def api_revise_plan():
     except Exception as e:
         _log.exception("plan-revision failed")
         return jsonify({"error": _AI_ERR}), 500
-
-
-# ── Garmin ──────────────────────────────────────────────
-
-def _garmin_save(user_id: int, date_str: str, result: dict) -> list[str]:
-    """Persist Garmin daily stats, sleep, and activities. Returns imported activity names."""
-    upsert_garmin_daily(
-        user_id, date_str,
-        result["steps"],
-        result["active_calories"],
-        result["total_calories"],
-        result["resting_hr"],
-    )
-    sleep = result.get("sleep")
-    if sleep:
-        upsert_sleep(user_id, date_str,
-                     sleep["total_seconds"], sleep["deep_seconds"],
-                     sleep["light_seconds"], sleep["rem_seconds"],
-                     sleep["awake_seconds"], sleep.get("sleep_score"))
-    imported = []
-    for act in result.get("activities", []):
-        gid = act.get("garmin_activity_id", "") or act.get("garmin_id", "")
-        if gid and garmin_activity_exists(user_id, gid):
-            continue
-        logged_at = act.get("start_time_local") or None
-        insert_garmin_workout(user_id, date_str, act["description"], act["calories"], gid,
-                              logged_at=logged_at)
-        imported.append(act["description"])
-    return imported
-
-
-# Start background poll for the first user in the DB (Garmin creds are global for now)
-def _get_garmin_user_id():
-    """Find the first user to associate Garmin data with."""
-    try:
-        from db import get_conn
-        with get_conn() as conn:
-            row = conn.execute("SELECT id FROM users ORDER BY id LIMIT 1").fetchone()
-            return row["id"] if row else 1
-    except Exception:
-        return 1
-
-# Garmin background poll disabled — not connected
-# garmin_sync.start_background_poll(_garmin_save, user_id=_get_garmin_user_id())
-
-
-@app.route("/api/garmin")
-@login_required
-def api_garmin():
-    today    = client_today()
-    day_data = get_garmin_daily(uid(), today)
-    last_sync = get_garmin_last_sync(uid())
-    return jsonify({
-        "configured": garmin_sync.is_configured(),
-        "today":      day_data,
-        "last_sync":  last_sync,
-    })
-
-
-@app.route("/api/garmin/status")
-@login_required
-def api_garmin_status():
-    configured = garmin_sync.is_configured()
-    today      = client_today()
-    day_data   = get_garmin_daily(uid(), today) if configured else None
-    last_sync  = get_garmin_last_sync(uid()) if configured else None
-    sleep      = get_sleep(uid(), today) if configured else None
-    return jsonify({
-        "configured": configured,
-        "last_sync":  last_sync,
-        "today":      day_data,
-        "sleep":      sleep,
-    })
-
-
-@app.route("/api/garmin/sync", methods=["POST"])
-@login_required
-def api_garmin_sync():
-    if not garmin_sync.is_configured():
-        return jsonify({"error": "GARMIN_EMAIL and GARMIN_PASSWORD are not set in environment variables."}), 400
-
-    import time as _time
-    data      = request.get_json() or {}
-    sync_date = data.get("date") or client_today()
-    force     = data.get("force", False)
-
-    # Throttle manual syncs: skip if fetched within the last 5 minutes (unless forced)
-    elapsed = _time.time() - garmin_sync._last_fetch_time
-    if not force and elapsed < 300:
-        return jsonify({"skipped": True, "reason": f"synced {int(elapsed)}s ago — wait a moment"}), 200
-
-    try:
-        result = garmin_sync.fetch_day(sync_date)
-        garmin_sync._last_fetch_time = _time.time()
-    except Exception as e:
-        return jsonify({"error": str(e)}), 502
-
-    imported = _garmin_save(uid(), sync_date, result)
-
-    return jsonify({
-        "date":            sync_date,
-        "steps":           result["steps"],
-        "active_calories": result["active_calories"],
-        "total_calories":  result["total_calories"],
-        "resting_hr":      result["resting_hr"],
-        "sleep":           get_sleep(uid(), sync_date),
-        "activities_imported": len(imported),
-        "activities":      imported,
-        "workouts":        get_today_workouts(uid(), sync_date),
-        "burn":            get_today_workout_burn(uid(), sync_date),
-    })
 
 
 # ── Gmail ──────────────────────────────────────────────
