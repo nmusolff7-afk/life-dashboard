@@ -585,7 +585,8 @@ def api_log_meal():
         insert_meal(uid(), description=description, log_date=cd, logged_at=ct, **nutrition)
         return _meal_response(cd)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        _log.exception("log-meal failed")
+        return jsonify({"error": "Could not save meal. Please try again."}), 500
 
 
 @app.route("/api/edit-meal/<int:meal_id>", methods=["POST"])
@@ -956,7 +957,7 @@ def api_generate_comprehensive_plan():
         plan = generate_comprehensive_plan(payload)
     except Exception as e:
         _log.exception("comprehensive-plan generation failed")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": _AI_ERR}), 500
     try:
         understanding = generate_plan_understanding(payload)
     except Exception as e:
@@ -1194,7 +1195,8 @@ def api_momentum_today():
                                      client_target_intake=client_target)
         return jsonify(breakdown)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        _log.exception("momentum/today failed")
+        return jsonify({"error": "Could not compute score. Please try again."}), 500
 
 
 @app.route("/api/momentum/history")
@@ -1275,7 +1277,7 @@ def api_goal_update():
         }})
     except Exception as e:
         _log.exception("goal/update failed")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Could not update goals. Please try again."}), 500
 
 
 @app.route("/api/momentum/summary", methods=["POST"])
