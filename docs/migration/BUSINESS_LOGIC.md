@@ -616,3 +616,58 @@ KCAL_PER_NET_STEP = 0.04
 - 7 consecutive days logged, today not yet: streak = 7
 - Today logged, yesterday not: streak = 1
 - Nothing logged ever: streak = 0
+
+---
+
+## Appendix A: Dormant Feature Logic (preserved for React Native rebuild)
+
+### A.1 Check-In Scoring (score_brief)
+
+**Status:** Dormant — UI removed, backend route exists but unreachable. Deleted from Flask codebase during pre-migration hardening. Rebuild in React Native when check-in feature is re-implemented.
+
+**Purpose:** Score a morning or evening check-in and extract actionable tasks from free-text notes.
+
+**AI Model:** Claude Haiku
+
+**Prompt template:**
+```
+Analyze this {brief_type} check-in. Return ONLY valid JSON with these exact keys:
+- "focus": integer 1-10 (goal clarity, motivation, mental sharpness)
+- "wellbeing": integer 1-10 (mood, energy, stress — higher is better)
+- "summary": string under 15 words capturing the key takeaway
+- "tasks": array of CONCRETE actionable tasks only. STRICT RULES:
+  1. Only include items the user EXPLICITLY stated as a specific thing they need to DO
+  2. DO NOT include goals, aspirations, intentions, or desires
+  3. DO NOT include habits, lifestyle advice, or anything implied by context
+  4. DO NOT infer or suggest tasks — even if they seem obvious or helpful
+  5. A task must be completable in a single action or session — not an ongoing goal
+  6. Copy the user's wording closely. If nothing explicit, return empty array.
+  Max 10 tasks.
+
+Goals: {goals}
+Notes: {notes}
+
+Return JSON only, no other text:
+```
+
+**Output processing:**
+- `focus`: clamped to 1-10
+- `wellbeing`: clamped to 1-10
+- `summary`: truncated to 100 chars
+- `tasks`: each truncated to 120 chars, max 10 items
+- Fallback on error: `{focus: 5, wellbeing: 5, summary: "Check-in recorded.", tasks: []}`
+
+**Task routing:**
+- Morning check-in tasks → created for today
+- Evening check-in tasks → created for tomorrow
+- Task source field set to `"morning_brief"` or `"evening_brief"`
+
+### A.2 Check-In Momentum Weight
+
+Check-ins were tracked in the momentum score but assigned **zero weight** (disabled):
+```
+MOMENTUM_WEIGHTS = { ..., "checkin": 0, ... }
+```
+If re-enabled, the penalty structure was:
+- No morning check-in: 50% of checkin weight
+- No evening check-in: 50% of checkin weight
