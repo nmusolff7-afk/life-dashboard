@@ -79,10 +79,22 @@ _ob_jobs_ts: dict = {}  # {user_id: time.time()} — tracks when each job was cr
 _ob_lock = threading.Lock()  # protects _ob_jobs and _ob_jobs_ts from concurrent access
 _OB_TTL_SEC = 3600      # evict stale entries after 1 hour
 
+_RMR_FALLBACK = 1550
+
 def get_rmr() -> int:
-    """Return the user's RMR from their profile map, falling back to 1550."""
+    """Return the user's RMR from their profile map, falling back to _RMR_FALLBACK."""
     profile = get_profile_map(uid())
-    return int(profile.get("rmr_kcal") or 1550)
+    rmr = profile.get("rmr_kcal")
+    if rmr:
+        return int(rmr)
+    _log.warning("RMR fallback active for user %s — using %d kcal (onboarding incomplete)", uid(), _RMR_FALLBACK)
+    return _RMR_FALLBACK
+
+
+def is_rmr_fallback() -> bool:
+    """True if the user's RMR is the generic fallback (onboarding incomplete)."""
+    profile = get_profile_map(uid())
+    return not profile.get("rmr_kcal")
 
 
 # ── Auth helpers ────────────────────────────────────────
@@ -363,6 +375,7 @@ def api_profile():
         "age":                        raw.get("age"),
         "gender":                     raw.get("gender"),
         "work_style":                 raw.get("work_style"),
+        "rmr_is_fallback":            is_rmr_fallback(),
     }
     # Include computed goal targets if available
     if goal:
