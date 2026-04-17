@@ -1224,7 +1224,8 @@ def api_gmail_callback():
     """Handle OAuth callback from Google."""
     error = request.args.get("error")
     if error:
-        return redirect(url_for("index") + "?gmail_error=" + error)
+        from urllib.parse import urlencode
+        return redirect(url_for("index") + "?" + urlencode({"gmail_error": error}))
 
     returned_state = request.args.get("state", "")
     expected_state = session.pop("gmail_oauth_state", None)
