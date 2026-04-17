@@ -90,7 +90,7 @@ def estimate_nutrition(meal_description: str, profile_map: dict | None = None) -
             user_content = meal_description + context
 
     response = _client().messages.create(
-        model="claude-opus-4-6",
+        model="claude-haiku-4-5-20251001",
         max_tokens=1024,
         timeout=30.0,
         system=NUTRITION_PROMPT,
@@ -210,7 +210,7 @@ def identify_ingredients(images: list) -> list[str]:
         })
     content.append({"type": "text", "text": IDENTIFY_PROMPT})
     response = _client().messages.create(
-        model="claude-opus-4-6",
+        model="claude-haiku-4-5-20251001",
         max_tokens=400,
         timeout=30.0,
         messages=[{"role": "user", "content": content}],
@@ -308,7 +308,7 @@ def suggest_meal(
     content.append({"type": "text", "text": context_text})
 
     response = _client().messages.create(
-        model="claude-opus-4-6",
+        model="claude-haiku-4-5-20251001",
         max_tokens=1200,
         timeout=30.0,
         system=SUGGEST_PROMPT,
@@ -385,7 +385,7 @@ def estimate_burn(workout_description: str, profile_map: dict | None = None) -> 
             user_content = workout_description + context
 
     response = _client().messages.create(
-        model="claude-opus-4-6",
+        model="claude-haiku-4-5-20251001",
         max_tokens=300,
         timeout=30.0,
         system=BURN_PROMPT,
@@ -911,7 +911,7 @@ Give a brief, practical observation about where they stand on calories right now
 
 def parse_workout_plan(text: str) -> dict:
     response = _client().messages.create(
-        model="claude-opus-4-6",
+        model="claude-haiku-4-5-20251001",
         max_tokens=1024,
         timeout=30.0,
         system=PLAN_PROMPT,
