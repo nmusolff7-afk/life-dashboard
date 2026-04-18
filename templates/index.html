@@ -3765,6 +3765,105 @@ function _parseStrengthDesc(desc) {
   return { minutes, exercises };
 }
 
+// Shared: parse any exercise set string like "Bench Press: 3/4 sets (135×8, 135×8, 135×8)"
+function _parseExerciseSets(exStr) {
+  const match = exStr.match(/^(.+?):\s*(\d+)\/(\d+)\s*sets?\s*\((.+)\)$/);
+  if (!match) return { name: exStr.trim(), sets: [] };
+  const sets = match[4].split(",").map(s => {
+    const m = s.trim().match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+)/);
+    return m ? { weight: m[1], reps: m[2] } : null;
+  }).filter(Boolean);
+  return { name: match[1].trim(), sets };
+}
+
+// Shared: parse cardio description like "4mi run at 7:50/mi and 145bpm hr"
+function _parseCardioDesc(desc) {
+  const d = desc.toLowerCase();
+  const info = {};
+  const dist = desc.match(/(\d+(?:\.\d+)?)\s*(mi|km|mile|miles|k)\b/i);
+  if (dist) info.distance = dist[1] + " " + (dist[2] === "k" ? "km" : dist[2]);
+  const pace = desc.match(/(\d+:\d+)\s*\/?\s*(mi|km)/i);
+  if (pace) info.pace = pace[1] + "/" + pace[2];
+  const hr = desc.match(/(\d+)\s*bpm/i);
+  if (hr) info.hr = hr[1] + " bpm";
+  const dur = desc.match(/(\d+)\s*min/i);
+  if (dur) info.duration = dur[1] + " min";
+  const type = /run|jog|sprint/i.test(d) ? "Run" :
+    /walk|hike/i.test(d) ? "Walk" :
+    /bike|cycl|spin|ride/i.test(d) ? "Ride" :
+    /swim/i.test(d) ? "Swim" :
+    /row/i.test(d) ? "Row" :
+    /yoga|stretch/i.test(d) ? "Yoga" : null;
+  info.type = type;
+  return info;
+}
+
+// Shared SVG icons for workout cards
+const _wdIcons = {
+  dumbbell: '<svg viewBox="0 0 24 24" width="16" height="16" stroke="var(--accent)" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7v10M18 7v10M2 9v6h4V9H2zM18 9v6h4V9h-4zM6 12h12"/></svg>',
+  run: '<svg viewBox="0 0 24 24" width="16" height="16" stroke="var(--green)" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="17" cy="4" r="2"/><path d="M15 21l-3-6-4 3-3-4"/><path d="M8 14l3-3 4 2 3-4"/></svg>',
+  activity: '<svg viewBox="0 0 24 24" width="16" height="16" stroke="var(--accent2,var(--accent))" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+};
+
+// Shared: build workout detail cards HTML from a workout object
+function buildWorkoutCards(w) {
+  const parsed = _parseStrengthDesc(w.description);
+  const isStrength = !!parsed;
+  const cardio = !isStrength ? _parseCardioDesc(w.description) : null;
+  const icon = isStrength ? _wdIcons.dumbbell : (cardio && cardio.type ? _wdIcons.run : _wdIcons.activity);
+  let html = "";
+
+  if (isStrength && parsed.exercises.length > 0) {
+    parsed.exercises.forEach(exStr => {
+      const ex = _parseExerciseSets(exStr);
+      html += '<div class="wd-ex-card">';
+      html += '<div class="wd-ex-header">';
+      html += '<div class="wd-ex-icon">' + _wdIcons.dumbbell + '</div>';
+      html += '<div class="wd-ex-name">' + esc(ex.name) + '</div>';
+      if (ex.sets.length) html += '<div class="wd-ex-badge">' + ex.sets.length + ' sets</div>';
+      html += '</div>';
+      if (ex.sets.length) {
+        html += '<div class="wd-set-grid">';
+        html += '<div class="hdr">Set</div><div class="hdr">Weight</div><div class="hdr">Reps</div>';
+        ex.sets.forEach((s, i) => {
+          html += '<div class="cell set-num">' + (i + 1) + '</div>';
+          html += '<div class="cell">' + s.weight + ' lbs</div>';
+          html += '<div class="cell">' + s.reps + '</div>';
+        });
+        html += '</div>';
+      }
+      html += '</div>';
+    });
+  } else {
+    // Cardio / general workout card
+    html += '<div class="wd-ex-card">';
+    html += '<div class="wd-ex-header">';
+    html += '<div class="wd-ex-icon">' + icon + '</div>';
+    html += '<div class="wd-ex-name">' + esc(cardio && cardio.type ? cardio.type : w.description) + '</div>';
+    if (w.calories_burned) html += '<div class="wd-ex-badge">' + w.calories_burned + ' kcal</div>';
+    html += '</div>';
+    // Stat pills for parsed details
+    const pills = [];
+    if (cardio) {
+      if (cardio.distance) pills.push(cardio.distance);
+      if (cardio.pace) pills.push(cardio.pace);
+      if (cardio.duration) pills.push(cardio.duration);
+      if (cardio.hr) pills.push(cardio.hr);
+    }
+    if (pills.length) {
+      html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">';
+      pills.forEach(p => {
+        html += '<span style="font-size:12px;font-weight:600;background:var(--surface2);color:var(--text);border-radius:6px;padding:3px 10px">' + esc(p) + '</span>';
+      });
+      html += '</div>';
+    } else if (!isStrength) {
+      html += '<div style="font-size:0.85rem;color:var(--muted);line-height:1.5;margin-top:4px">' + esc(w.description) + '</div>';
+    }
+    html += '</div>';
+  }
+  return { html, isStrength, parsed, cardio };
+}
+
 window._latestWorkouts = window._latestWorkouts || [];
 
 function renderWorkoutList(workouts, burn) {
@@ -7852,22 +7951,16 @@ function fmtDate(iso) {
 
   function _buildWorkoutsHtml(workouts) {
     if (!workouts.length) return '<div style="color:var(--muted);font-size:0.85rem;padding:0.25rem 0">No workouts logged.</div>';
-    let h = '<div class="card" style="padding:0 1rem">';
+    let h = '';
     workouts.forEach(w => {
-      const icon = CARDIO_KW.test(w.description.toLowerCase()) ? IC.run : IC.dumbbell;
-      h += `<div class="hd-item">
-        <div style="display:flex;align-items:flex-start;gap:0.5rem">
-          <span style="font-size:1.1rem;flex-shrink:0">${icon}</span>
-          <div style="flex:1">
-            <div class="hd-item-name" style="font-weight:400">${_esc(w.description)}</div>
-            ${w.calories_burned ? `<div class="hd-item-meta">~${w.calories_burned} kcal burned</div>` : ""}
-          </div>
-          <div style="display:flex;gap:0.3rem;flex-shrink:0;margin-top:0.15rem">
-            <button type="button" class="done-edit-btn hd-w-edit" data-id="${w.id}">Edit</button>
-            <button type="button" class="done-edit-btn hd-w-del"  data-id="${w.id}" style="color:var(--danger)">Del</button>
-          </div>
+      const result = buildWorkoutCards(w);
+      h += `<div class="hd-item" style="padding:0;border:none">
+        ${result.html}
+        <div style="display:flex;gap:0.3rem;justify-content:flex-end;margin:-6px 0 8px">
+          <button type="button" class="done-edit-btn hd-w-edit" data-id="${w.id}">Edit</button>
+          <button type="button" class="done-edit-btn hd-w-del"  data-id="${w.id}" style="color:var(--danger)">Del</button>
         </div>
-        <div id="hd-wef-${w.id}" style="display:none;margin-top:0.65rem;padding-top:0.65rem;border-top:1px solid var(--border)">
+        <div id="hd-wef-${w.id}" style="display:none;margin-top:0.35rem;padding-top:0.65rem;border-top:1px solid var(--border)">
           <textarea class="hd-wef-desc" rows="2" autocomplete="off" style="${_taStyle}">${_esc(w.description)}</textarea>
           <div class="field" style="margin-bottom:0.5rem"><label>Calories Burned</label><input type="number" class="hd-wef-cal" value="${w.calories_burned || 0}" min="0" step="1"></div>
           <div style="display:flex;gap:0.5rem">
@@ -7877,7 +7970,7 @@ function fmtDate(iso) {
         </div>
       </div>`;
     });
-    return h + '</div>';
+    return h;
   }
 
   // ── Delegated click handler for all history-detail dynamic buttons ──
@@ -10063,88 +10156,43 @@ if ("serviceWorker" in navigator) {
   // ── WORKOUT DETAIL ──────────────────────────────────
   let _activeWorkout = null;
 
-  const _dumbbell = '<svg viewBox="0 0 24 24" width="16" height="16" stroke="var(--accent)" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7v10M18 7v10M2 9v6h4V9H2zM18 9v6h4V9h-4zM6 12h12"/></svg>';
-
-  function _parseExerciseSets(exStr) {
-    // "Bench Press: 3/4 sets (135x8, 135x8, 135x8)" or "Bench Press: 4/4 sets (135×8, 135×8, 135×8, 135×8)"
-    const match = exStr.match(/^(.+?):\s*(\d+)\/(\d+)\s*sets?\s*\((.+)\)$/);
-    if (!match) return { name: exStr.trim(), sets: [] };
-    const name = match[1].trim();
-    const setsStr = match[4];
-    const sets = setsStr.split(",").map(s => {
-      const m = s.trim().match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+)/);
-      return m ? { weight: m[1], reps: m[2] } : null;
-    }).filter(Boolean);
-    return { name, sets };
-  }
-
   window.openWorkoutDetail = function(workoutId) {
     const w = (window._latestWorkouts || []).find(x => x.id === workoutId);
     if (!w) return;
     _activeWorkout = w;
 
-    const parsed = _parseStrengthDesc(w.description);
-    const isStrength = !!parsed;
+    const result = buildWorkoutCards(w);
 
     // Header
     document.getElementById("workout-detail-title").textContent = "Workout Detail";
     document.getElementById("workout-detail-icon").textContent = workoutIcon(w.description);
     document.getElementById("workout-detail-time").textContent = fmtTime(w.logged_at);
 
-    // Name: show workout type label for strength, or full desc for others
+    // Name
     const nameEl = document.getElementById("workout-detail-name");
-    if (isStrength) {
-      // Extract label from the plan if available
+    if (result.isStrength) {
       const plan = JSON.parse(localStorage.getItem("weeklyPlan") || "null");
       const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-      const today = dayNames[new Date(w.logged_at || Date.now()).getDay()];
-      const dayPlan = plan && plan[today];
-      const label = (dayPlan && typeof dayPlan === "object" && dayPlan.label) ? dayPlan.label : "Strength Workout";
-      nameEl.textContent = label;
+      const wDay = dayNames[new Date(w.logged_at || Date.now()).getDay()];
+      const dayPlan = plan && plan[wDay];
+      nameEl.textContent = (dayPlan && typeof dayPlan === "object" && dayPlan.label) ? dayPlan.label : "Strength Workout";
+    } else if (result.cardio && result.cardio.type) {
+      nameEl.textContent = result.cardio.type + (result.cardio.distance ? " — " + result.cardio.distance : "");
     } else {
       nameEl.textContent = w.description;
     }
 
     // Stat cards
     document.getElementById("wd-cal").textContent = w.calories_burned || "—";
-    document.getElementById("wd-duration").textContent = isStrength ? parsed.minutes + " min" : "—";
+    const dur = result.isStrength ? result.parsed.minutes + " min" : (result.cardio && result.cardio.duration ? result.cardio.duration : "—");
+    document.getElementById("wd-duration").textContent = dur;
+    document.getElementById("wd-exercises").textContent = result.isStrength ? result.parsed.exercises.length : "—";
 
-    // Exercise cards
+    // Exercise / activity cards
     const listEl = document.getElementById("wd-exercise-list");
     const rawEl = document.getElementById("wd-raw-desc");
-
-    if (isStrength && parsed.exercises.length > 0) {
-      document.getElementById("wd-exercises").textContent = parsed.exercises.length;
-      let html = '<div class="ed-section-title">Exercises</div>';
-      parsed.exercises.forEach(exStr => {
-        const ex = _parseExerciseSets(exStr);
-        html += '<div class="wd-ex-card">';
-        html += '<div class="wd-ex-header">';
-        html += '<div class="wd-ex-icon">' + _dumbbell + '</div>';
-        html += '<div class="wd-ex-name">' + esc(ex.name) + '</div>';
-        if (ex.sets.length) html += '<div class="wd-ex-badge">' + ex.sets.length + ' sets</div>';
-        html += '</div>';
-        if (ex.sets.length) {
-          html += '<div class="wd-set-grid">';
-          html += '<div class="hdr">Set</div><div class="hdr">Weight</div><div class="hdr">Reps</div>';
-          ex.sets.forEach((s, i) => {
-            html += '<div class="cell set-num">' + (i + 1) + '</div>';
-            html += '<div class="cell">' + s.weight + ' lbs</div>';
-            html += '<div class="cell">' + s.reps + '</div>';
-          });
-          html += '</div>';
-        }
-        html += '</div>';
-      });
-      listEl.innerHTML = html;
-      rawEl.style.display = "none";
-    } else {
-      // Non-strength workout: show raw description
-      document.getElementById("wd-exercises").textContent = "—";
-      listEl.innerHTML = "";
-      document.getElementById("workout-detail-original").textContent = w.description;
-      rawEl.style.display = "";
-    }
+    listEl.innerHTML = '<div class="ed-section-title">' + (result.isStrength ? 'Exercises' : 'Activity') + '</div>' + result.html;
+    rawEl.style.display = "none";
 
     // Check saved status
     const saveBtn = document.getElementById("workout-detail-save-btn");
