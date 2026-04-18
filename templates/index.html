@@ -3064,6 +3064,7 @@ function closeFabModal(type) {
 
 // FAB activity: Get Burn → log
 document.getElementById("fab-activity-burn-btn").addEventListener("click", function() {
+  if (typeof window._voiceStop === "function") window._voiceStop();
   const input = document.getElementById("fab-activity-input");
   const status = document.getElementById("fab-activity-status");
   const val = input.value.trim();
@@ -4859,6 +4860,7 @@ function deleteWorkout(id) {
   let shortLabel = null;
 
   burnBtn.addEventListener("click", () => {
+    if (typeof window._voiceStop === "function") window._voiceStop();
     const val = input.value.trim();
     if (!val) return;
     burnBtn.disabled = true; burnBtn.textContent = "Estimating…";
