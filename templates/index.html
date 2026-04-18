@@ -2092,6 +2092,12 @@
               <span>−500</span><span>0</span><span>+500</span>
             </div>
           </div>
+
+          <!-- Live Preview (always visible, nested under NEAT) -->
+          <div style="margin-top:1rem">
+            <div class="card-title" style="margin-bottom:0.5rem" data-i18n="live_preview">Live Preview</div>
+            <div class="profile-preview" id="profile-preview">Fill in your details above to see your personalized plan.</div>
+          </div>
         </div>
         </div><!-- /collapse-body About You -->
       </div>
@@ -2257,11 +2263,6 @@
         </div><!-- /collapse-body -->
       </div>
 
-      <!-- Live Preview -->
-      <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
-        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1" data-i18n="live_preview">Live Preview</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
-        <div class="collapse-body" onclick="event.stopPropagation()"><div class="profile-preview" id="profile-preview">Fill in your details above to see your personalized plan.</div></div>
-      </div>
 
       <!-- Workout Plan -->
       <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
@@ -5973,7 +5974,11 @@ try {
   function recalcAll() {
     const inp   = readInputs();
     const rmr   = calcRMR(inp.curWeight, inp.heightFt, inp.heightIn, inp.age, inp.sex, inp.bfPct);
-    setSlider("rmr", rmr);
+    const rmrLockEl = document.getElementById("rmr-lock");
+    const rmrLocked = (rmrLockEl && rmrLockEl.checked) || localStorage.getItem("rmr-locked") !== "0";
+    if (!rmrLocked) setSlider("rmr", rmr);
+    // NEAT always follows occupation — not gated by RMR lock
+    setSlider("neat", OCC_BASE[inp.occupation] || 200);
     updatePreview();
   }
 
