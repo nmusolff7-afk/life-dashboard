@@ -1284,6 +1284,7 @@
           <div class="dash-ring-center">
             <div class="dash-ring-value" id="dash-deficit-val" style="color:var(--muted)">—</div>
             <div class="dash-ring-label" id="dash-deficit-lbl">deficit</div>
+            <div id="dash-ring-goal" style="font-size:10px;color:var(--muted);margin-top:1px"></div>
           </div>
         </div>
         <div id="dash-cal-equation" style="display:flex;align-items:center;justify-content:center;gap:0.4rem;margin-top:0.5rem;font-size:0.82rem;color:var(--muted)">
@@ -9266,21 +9267,25 @@ if ("serviceWorker" in navigator) {
 
     const valEl = document.getElementById("dash-deficit-val");
     const lblEl = document.getElementById("dash-deficit-lbl");
+    const goalEl = document.getElementById("dash-ring-goal");
     if (valEl) {
       if ((calories > 0 || tdee > 0) && calTarget > 0) {
         if (remaining >= 0) {
           valEl.textContent = remaining.toLocaleString();
           valEl.style.color = "var(--green)";
           if (lblEl) lblEl.textContent = "cals left";
+          if (goalEl) goalEl.textContent = "to " + calTarget.toLocaleString() + " kcal goal";
         } else {
           valEl.textContent = Math.abs(remaining).toLocaleString();
           valEl.style.color = "var(--danger)";
           if (lblEl) lblEl.textContent = "over target";
+          if (goalEl) goalEl.textContent = "of " + calTarget.toLocaleString() + " kcal goal";
         }
       } else {
         valEl.textContent = "—";
         valEl.style.color = "var(--muted)";
         if (lblEl) lblEl.textContent = "balance";
+        if (goalEl) goalEl.textContent = "";
       }
     }
 
