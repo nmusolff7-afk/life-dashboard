@@ -3611,7 +3611,6 @@ function activateTab(t) {
   if (t === "progress" && typeof window._onChartsActivate  === "function") window._onChartsActivate();
   if (t === "progress" && typeof window._onHistoryActivate === "function") window._onHistoryActivate();
   if (t === "mind"     && typeof window._onMindActivate    === "function") window._onMindActivate();
-  if (t === "profile"  && typeof window._onProfileActivate === "function") window._onProfileActivate();
 }
 
 document.querySelectorAll(".nav-btn").forEach(btn => {
@@ -6382,9 +6381,6 @@ try {
 
   // Expose so weight/steps save handlers can trigger a full TDEE recalc + preview refresh
   window._refreshProfilePreview = recalcAll;
-
-  // Refresh preview when switching to Profile tab
-  window._onProfileActivate = updatePreview;
 })();
 
 // ══════════════════════════════════════════════════════
@@ -7561,14 +7557,6 @@ function fmtDate(iso) {
   };
   window._onWorkoutActivate = function() {
     if (typeof origWorkoutActivate === "function") origWorkoutActivate();
-    // Refresh workout list from server
-    fetch("/api/today-workouts").then(r => r.json()).then(d => {
-      if (d.workouts) {
-        WORKOUT_BURN_TODAY = d.burn || 0;
-        window._latestWorkouts = d.workouts;
-        if (typeof renderWorkoutList === "function") renderWorkoutList(d.workouts, d.burn);
-      }
-    }).catch(e => console.warn("workout refresh:", e));
     if (histData) { buildBurnCalChart(); return; }
     fetch("/api/history").then(r => r.json()).then(data => {
       histData = data; window._appHistory = data;
@@ -8872,7 +8860,7 @@ function fmtDate(iso) {
   });
 
   window._onMindActivate = () => {
-    loadMind();
+    if (!mindLoaded) loadMind();
     if (typeof window._gmailLoad === "function") window._gmailLoad();
   };
   window._mindReload = () => { loadMind(); if (typeof window._gmailReload === "function") window._gmailReload(); };
