@@ -1649,10 +1649,10 @@
       <div class="card" id="suggest-card">
         <div class="card-title">Meal Suggestion</div>
 
-        <!-- ── My Pantry ── -->
-        <div style="margin-bottom:0.75rem">
+        <!-- ── My Pantry (sub-card) ── -->
+        <div style="background:var(--surface);border-radius:var(--r-inner);padding:0.85rem 1rem;margin-bottom:0.75rem;box-shadow:var(--shadow-card)">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
-            <span class="suggest-section-label" style="margin-bottom:0">My Pantry</span>
+            <span style="font-size:13px;font-weight:700;color:var(--text)">My Pantry</span>
             <button type="button" id="pantry-manual-add-btn" class="btn-edit-meal" style="font-size:0.72rem">+ Add</button>
           </div>
           <div id="pantry-empty-hint" style="font-size:0.82rem;color:var(--muted);padding:0.2rem 0">
@@ -1661,7 +1661,7 @@
           <div id="suggest-pantry-chips" style="display:flex;flex-wrap:wrap;gap:0.3rem"></div>
           <div id="pantry-add-row" style="display:none;margin-top:0.45rem;gap:0.4rem;align-items:center">
             <input id="pantry-add-input" type="text" placeholder="e.g. eggs, spinach, chicken…"
-              style="flex:1;min-width:0;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;
+              style="flex:1;min-width:0;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;
                      color:var(--text);font-size:0.85rem;padding:0.4rem 0.65rem;font-family:inherit;outline:none">
             <button type="button" id="pantry-add-ok" class="btn btn-accent"
               style="padding:0.4rem 0.85rem;font-size:0.82rem;flex-shrink:0">Add</button>
@@ -1677,7 +1677,7 @@
         <input type="file" id="suggest-camera-input" accept="image/*" capture="environment" style="display:none">
         <input type="file" id="suggest-gallery-input" accept="image/*" style="display:none">
 
-        <div id="scan-loading" style="display:none;margin-top:0.5rem;font-size:0.85rem;color:var(--accent);display:flex;align-items:center;gap:0.5rem">
+        <div id="scan-loading" style="display:none;margin-top:0.5rem;font-size:0.85rem;color:var(--accent);align-items:center;gap:0.5rem">
           <span style="animation:spin 1.2s linear infinite;display:inline-block;width:14px;height:14px;border:2px solid var(--accent);border-top-color:transparent;border-radius:50%"></span>
           Scanning...
         </div>
@@ -1710,7 +1710,7 @@
           <button class="btn btn-primary btn-full" id="suggest-btn">Suggest a Meal</button>
         </div>
 
-        <div id="suggest-loading" style="display:none;margin-top:0.75rem;font-size:0.85rem;color:var(--accent);display:flex;align-items:center;gap:0.5rem">
+        <div id="suggest-loading" style="display:none;margin-top:0.75rem;font-size:0.85rem;color:var(--accent);align-items:center;gap:0.5rem">
           <span style="animation:spin 1.2s linear infinite;display:inline-block;width:14px;height:14px;border:2px solid var(--accent);border-top-color:transparent;border-radius:50%"></span>
           Finding the best meal...
         </div>
