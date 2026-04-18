@@ -3817,13 +3817,14 @@ function buildWorkoutCards(w) {
     parsed.exercises.forEach(exStr => {
       const ex = _parseExerciseSets(exStr);
       html += '<div class="wd-ex-card">';
-      html += '<div class="wd-ex-header">';
+      html += '<div class="wd-ex-header" style="cursor:pointer" onclick="var g=this.nextElementSibling;if(g&&g.classList.contains(\'wd-set-grid\')){g.style.display=g.style.display===\'none\'?\'grid\':\'none\';this.querySelector(\'.wd-chevron\').style.transform=g.style.display===\'none\'?\'\':\' rotate(90deg)\'}">';
       html += '<div class="wd-ex-icon">' + _wdIcons.dumbbell + '</div>';
       html += '<div class="wd-ex-name">' + esc(ex.name) + '</div>';
       if (ex.sets.length) html += '<div class="wd-ex-badge">' + ex.sets.length + ' sets</div>';
+      html += '<svg class="wd-chevron" viewBox="0 0 24 24" width="14" height="14" stroke="var(--muted)" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;transition:transform 0.2s"><polyline points="9 18 15 12 9 6"/></svg>';
       html += '</div>';
       if (ex.sets.length) {
-        html += '<div class="wd-set-grid">';
+        html += '<div class="wd-set-grid" style="display:none">';
         html += '<div class="hdr">Set</div><div class="hdr">Weight</div><div class="hdr">Reps</div>';
         ex.sets.forEach((s, i) => {
           html += '<div class="cell set-num">' + (i + 1) + '</div>';
