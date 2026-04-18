@@ -2490,54 +2490,6 @@
 
   <!-- ── Bottom nav ── -->
   <!-- FAB quick-log modals -->
-  <div class="fab-modal" id="fab-meal-modal">
-    <div class="fab-modal-backdrop" onclick="closeFabModal('meal')"></div>
-    <div class="fab-modal-box">
-      <div class="fab-modal-header">
-        <div class="fab-modal-title" data-i18n="log_a_meal">Log a Meal</div>
-        <button class="fab-modal-close" onclick="closeFabModal('meal')">
-          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-      <div class="field">
-        <textarea id="fab-meal-input" placeholder="What did you have to eat?" style="min-height:60px"></textarea>
-      </div>
-      <button class="btn btn-primary btn-full" id="fab-meal-macros-btn">Get Macros</button>
-      <div class="meal-or-divider" style="margin:10px 0"><span>or</span></div>
-      <button class="btn btn-ghost btn-full" id="fab-scan-btn">
-        <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-        Log a meal with a photo
-      </button>
-      <!-- Photo preview area -->
-      <div id="fab-scan-preview" style="display:none;position:relative;width:fit-content;margin-top:10px">
-        <img id="fab-scan-preview-img" style="max-height:100px;border-radius:8px;border:1px solid var(--border);display:block">
-        <button type="button" id="fab-scan-remove" style="position:absolute;top:-8px;right:-8px;width:22px;height:22px;border-radius:50%;background:var(--danger);color:#fff;border:none;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">
-          <svg viewBox="0 0 24 24" width="12" height="12" stroke="#fff" fill="none" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-      <div id="fab-scan-context" class="field" style="display:none;margin-top:10px">
-        <textarea id="fab-scan-context-input" rows="2" placeholder='Add context (optional) — e.g. "only ate half"' style="min-height:44px"></textarea>
-      </div>
-      <button class="btn btn-primary btn-full" id="fab-analyze-btn" style="display:none;margin-top:8px">Analyze Photo</button>
-      <div id="fab-scan-status" style="display:none;margin-top:8px;font-size:13px;color:var(--accent);text-align:center;display:none;align-items:center;justify-content:center;gap:6px">
-        <span style="display:inline-block;width:16px;height:16px;border:2px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite"></span>
-        Analyzing...
-      </div>
-      <div class="meal-or-divider barcode-feature" style="margin:10px 0"><span>or</span></div>
-      <button class="btn btn-ghost btn-full barcode-feature" onclick="closeFabModal('meal');openBarcodeScanner()">
-        <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="6" y1="8" x2="6" y2="16"/><line x1="9" y1="8" x2="9" y2="16"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="15" y1="8" x2="15" y2="16"/><line x1="18" y1="8" x2="18" y2="16"/></svg>
-        Scan a barcode
-      </button>
-      <div class="meal-or-divider" style="margin:10px 0"><span>or</span></div>
-      <button class="btn btn-ghost btn-full" onclick="closeFabModal('meal');openSavedMeals()">
-        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-        Log a saved meal
-      </button>
-      <div id="fab-meal-status" style="font-size:13px;color:var(--muted);text-align:center;margin-top:8px"></div>
-      <input type="file" id="fab-photo-input" accept="image/*" capture="environment" style="display:none">
-      <input type="file" id="fab-gallery-input" accept="image/*" style="display:none">
-    </div>
-  </div>
 
   <div class="fab-modal" id="fab-activity-modal">
     <div class="fab-modal-backdrop" onclick="closeFabModal('activity')"></div>
@@ -2583,7 +2535,7 @@
   <!-- FAB + menu -->
   <div id="fab-backdrop" onclick="toggleFab()"></div>
   <div id="fab-menu">
-    <button class="fab-option" onclick="toggleFab();openFabModal('meal')">
+    <button class="fab-option" onclick="toggleFab();activateTab('meals');setTimeout(function(){var el=document.getElementById('meal-input');if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.focus();}},150);">
       <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg>
       Log a Meal
     </button>
@@ -3052,40 +3004,6 @@ function closeFabModal(type) {
   document.getElementById("fab-" + type + "-modal").classList.remove("open");
 }
 
-// FAB meal: Get Macros → estimate → log
-document.getElementById("fab-meal-macros-btn").addEventListener("click", function() {
-  const input = document.getElementById("fab-meal-input");
-  const status = document.getElementById("fab-meal-status");
-  const val = input.value.trim();
-  if (!val) { input.focus(); return; }
-  const btn = this;
-  btn.disabled = true; btn.textContent = "Analyzing...";
-  status.textContent = "";
-  fetch("/api/estimate", {
-    method: "POST", headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ description: val }),
-  }).then(r => r.json()).then(data => {
-    btn.disabled = false; btn.textContent = "Get Macros";
-    if (data.error) { status.textContent = data.error; return; }
-    // Log it directly
-    fetch("/api/log-meal", {
-      method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({
-        description: val,
-        calories: data.calories, protein_g: data.protein_g,
-        carbs_g: data.carbs_g, fat_g: data.fat_g,
-        client_date: localToday(), client_time: localNow(),
-      }),
-    }).then(r => r.json()).then(resp => {
-      input.value = "";
-      closeFabModal("meal");
-      if (resp.meals) renderMealTable(resp.meals, resp.totals);
-      if (typeof flashGreen === "function") flashGreen();
-      if (typeof window._refreshDashboard === "function") window._refreshDashboard();
-    });
-  }).catch(() => { btn.disabled = false; btn.textContent = "Get Macros"; status.textContent = "Failed"; });
-});
-
 // FAB activity: Get Burn → log
 document.getElementById("fab-activity-burn-btn").addEventListener("click", function() {
   const input = document.getElementById("fab-activity-input");
@@ -3118,90 +3036,6 @@ document.getElementById("fab-activity-burn-btn").addEventListener("click", funct
     });
   }).catch(() => { btn.disabled = false; btn.textContent = "Get Burn Estimate"; status.textContent = "Failed"; });
 });
-
-// FAB photo scan flow
-(function() {
-  let _fabImage = null;
-  const scanBtn     = document.getElementById("fab-scan-btn");
-  const photoInput  = document.getElementById("fab-photo-input");
-  const galleryInput= document.getElementById("fab-gallery-input");
-  const preview     = document.getElementById("fab-scan-preview");
-  const previewImg  = document.getElementById("fab-scan-preview-img");
-  const removeBtn   = document.getElementById("fab-scan-remove");
-  const contextWrap = document.getElementById("fab-scan-context");
-  const contextIn   = document.getElementById("fab-scan-context-input");
-  const analyzeBtn  = document.getElementById("fab-analyze-btn");
-  const scanStatus  = document.getElementById("fab-scan-status");
-  const mealStatus  = document.getElementById("fab-meal-status");
-
-  // Use the photo source modal (same as main app)
-  scanBtn.addEventListener("click", () => {
-    // On mobile try camera, on desktop try gallery
-    if (/Mobi|Android/i.test(navigator.userAgent)) {
-      photoInput.click();
-    } else {
-      galleryInput.click();
-    }
-  });
-
-  function handleFile(file) {
-    if (!file) return;
-    previewImg.src = URL.createObjectURL(file);
-    preview.style.display = "";
-    contextWrap.style.display = "";
-    analyzeBtn.style.display = "";
-    // Resize and encode
-    resizeAndEncode(file, (b64, mediaType) => { _fabImage = { b64, mediaType }; });
-  }
-
-  photoInput.addEventListener("change", () => { handleFile(photoInput.files[0]); photoInput.value = ""; });
-  galleryInput.addEventListener("change", () => { handleFile(galleryInput.files[0]); galleryInput.value = ""; });
-
-  removeBtn.addEventListener("click", () => {
-    _fabImage = null;
-    preview.style.display = "none";
-    contextWrap.style.display = "none";
-    analyzeBtn.style.display = "none";
-    previewImg.src = "";
-    contextIn.value = "";
-  });
-
-  analyzeBtn.addEventListener("click", () => {
-    if (!_fabImage) return;
-    analyzeBtn.disabled = true; analyzeBtn.textContent = "Analyzing...";
-    scanStatus.style.display = "flex";
-    const context = contextIn.value.trim();
-    fetch("/api/scan-meal", {
-      method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ image_b64: _fabImage.b64, media_type: _fabImage.mediaType, context: context || "" }),
-    }).then(r => r.json()).then(data => {
-      analyzeBtn.disabled = false; analyzeBtn.textContent = "Analyze Photo";
-      scanStatus.style.display = "none";
-      if (data.error) { mealStatus.textContent = data.error; return; }
-      // Log it
-      const desc = data.description || "Photo meal";
-      fetch("/api/log-meal", {
-        method: "POST", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({
-          description: desc, calories: data.calories, protein_g: data.protein_g,
-          carbs_g: data.carbs_g, fat_g: data.fat_g,
-          client_date: localToday(), client_time: localNow(),
-        }),
-      }).then(r => r.json()).then(resp => {
-        // Reset
-        _fabImage = null; preview.style.display = "none"; contextWrap.style.display = "none";
-        analyzeBtn.style.display = "none"; contextIn.value = "";
-        closeFabModal("meal");
-        if (resp.meals) renderMealTable(resp.meals, resp.totals);
-        if (typeof flashGreen === "function") flashGreen();
-        if (typeof window._refreshDashboard === "function") window._refreshDashboard();
-      });
-    }).catch(() => {
-      analyzeBtn.disabled = false; analyzeBtn.textContent = "Analyze Photo";
-      scanStatus.style.display = "none"; mealStatus.textContent = "Failed";
-    });
-  });
-})();
 
 // ── Barcode Scanner ──
 (function() {
