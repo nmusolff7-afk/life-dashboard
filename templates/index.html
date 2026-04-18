@@ -2087,7 +2087,7 @@
                 <span class="slider-unit">kcal</span>
               </div>
             </div>
-            <input type="range" id="neat-slider" min="0" max="2000" step="25">
+            <input type="range" id="neat-slider" min="0" max="2000" step="25" value="200">
             <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:3px">
               <span>0</span><span>1000</span><span>2000</span>
             </div>
@@ -5698,11 +5698,9 @@ function applyProfileToMeals(profile) {
   if (!profile) return;
   const steps = getTodaySteps();
   const rmr   = profile.rmr || SERVER_RMR;
-  // Use Live Preview NEAT slider if available (stays in sync with occupation changes),
-  // fall back to stored neatAdjust, then occupation base
-  const neatSliderEl = document.getElementById("neat-slider");
-  const neatBase = (neatSliderEl ? parseInt(neatSliderEl.value) : null)
-    || profile.neatAdjust
+  // Use stored neatAdjust from profile (set by slider auto-save),
+  // fall back to occupation base
+  const neatBase = profile.neatAdjust
     || (OCC_BASE[profile.occupation || "sedentary"] || 200);
   const { workoutSteps, netSteps } = calcNEAT(profile.occupation || "sedentary", steps, TODAY_WORKOUT_DESCS);
   const stepBonus = Math.round(netSteps * 0.04);
