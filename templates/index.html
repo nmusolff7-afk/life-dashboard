@@ -3544,7 +3544,7 @@ fetch("/api/profile")
       }
       _seed("sex",       p.gender);
       _seed("bfPct",    p.body_fat_pct);
-      _seed("occupation", { desk: "sedentary", standing: "standing", physical: "physical", remote: "sedentary", mixed: "standing" }[p.work_style] || null);
+      _seed("occupation", { desk: "sedentary", standing: "standing", physical: "physical", remote: "sedentary", mixed: "standing", sedentary: "sedentary" }[p.work_style] || p.work_style || null);
       _seed("goal",      p.primary_goal);
 
       // Goal targets
@@ -5896,7 +5896,7 @@ try {
           age:                profile.age       || null,
           gender:             profile.sex       || null,
           body_fat_pct:       profile.bfPct     || null,
-          work_style:         profile.occupation || null,
+          work_style:         { sedentary: "desk", standing: "standing", physical: "physical" }[profile.occupation] || profile.occupation || null,
           primary_goal:       profile.goal      || null,
         }),
       }).catch(e => console.warn("body stats save:", e));
@@ -6178,6 +6178,7 @@ try {
     document.querySelectorAll(".goal-btn").forEach(b =>
       b.classList.toggle("active", b.dataset.val === (profile.goal || DEFAULTS.goal)));
     setSlider("rmr",     profile.rmr     ?? DEFAULTS.rmr);
+    setSlider("neat",    profile.neatAdjust ?? (OCC_BASE[profile.occupation] || OCC_BASE[DEFAULTS.occupation]));
     setSlider("deficit", profile.deficit ?? DEFAULTS.deficit);
     setSlider("protein", profile.protein ?? DEFAULTS.protein);
     setSlider("carbs",   profile.carbs   ?? DEFAULTS.carbs);
