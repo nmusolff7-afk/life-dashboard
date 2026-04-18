@@ -3538,6 +3538,7 @@ fetch("/api/profile")
         _seed("age", p.age);
       }
       _seed("sex",       p.gender);
+      _seed("bfPct",    p.body_fat_pct);
       _seed("occupation", { desk: "sedentary", standing: "standing", physical: "physical", remote: "sedentary", mixed: "standing" }[p.work_style] || null);
       _seed("goal",      p.primary_goal);
 
@@ -5864,6 +5865,22 @@ try {
           fat: profile.fat || 65,
         }),
       }).catch(e => console.warn("goal update:", e));
+      // Persist body stats to server (onboarding inputs) so they survive across devices
+      fetch("/api/onboarding/save", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          current_weight_lbs: profile.curWeight || null,
+          target_weight_lbs:  profile.tgtWeight || null,
+          height_ft:          profile.heightFt  || null,
+          height_in:          profile.heightIn  || null,
+          age:                profile.age       || null,
+          gender:             profile.sex       || null,
+          body_fat_pct:       profile.bfPct     || null,
+          work_style:         profile.occupation || null,
+          primary_goal:       profile.goal      || null,
+        }),
+      }).catch(e => console.warn("body stats save:", e));
     }, 600);  // debounce
   }
 

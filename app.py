@@ -375,6 +375,7 @@ def api_profile():
         "age":                        raw.get("age"),
         "gender":                     raw.get("gender"),
         "work_style":                 raw.get("work_style"),
+        "body_fat_pct":               raw.get("body_fat_pct") or p.get("body_fat_pct"),
         "rmr_is_fallback":            is_rmr_fallback(),
     }
     # Include computed goal targets if available
