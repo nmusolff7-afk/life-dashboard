@@ -684,15 +684,14 @@ def api_meals_suggest():
     else:
         meal_type = "dinner"
 
-    # Calculate calories remaining to goal
-    cal_target = int(data.get("calorie_target", 0))
-    if not cal_target:
-        goal = get_user_goal(uid())
-        cal_target = goal["calorie_target"] if goal else 2000
-    if not cal_consumed:
-        totals = get_today_totals(uid(), client_today())
-        cal_consumed = int((totals or {}).get("total_calories", 0) or 0)
+    # Always fetch fresh consumed + target from DB (don't trust stale client globals)
+    totals = get_today_totals(uid(), client_today())
+    cal_consumed = int((totals or {}).get("total_calories", 0) or 0)
+    goal = get_user_goal(uid())
+    cal_target = goal["calorie_target"] if goal else 2000
     cal_remaining = max(0, cal_target - cal_consumed)
+    _log.info("SUGGEST: user=%s cal_target=%s cal_consumed=%s cal_remaining=%s",
+              uid(), cal_target, cal_consumed, cal_remaining)
 
     try:
         result = suggest_meal(
