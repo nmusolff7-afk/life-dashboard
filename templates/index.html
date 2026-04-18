@@ -268,7 +268,7 @@
       border-radius: var(--r-input); color: var(--text); font-size: 15px;
       padding: 14px 16px; outline: none; transition: border-color 180ms ease;
       -webkit-appearance: none; }
-    textarea { resize: vertical; min-height: 72px; line-height: 1.5; font-family: inherit; }
+    textarea { resize: vertical; min-height: 72px; max-height: 300px; line-height: 1.5; font-family: inherit; overflow-y: auto; }
     textarea::placeholder { text-align: center; color: var(--subtle, #555570); }
     textarea:placeholder-shown { padding-top: 24px; }
     input::placeholder { color: var(--subtle, #555570); }
@@ -9839,7 +9839,6 @@ if ("serviceWorker" in navigator) {
         else                        interim += ev.results[i][0].transcript;
       }
       if (finals) {
-        // Add spacing between committed and new final text
         var sep = (committed && !/\s$/.test(committed)) ? " " : "";
         committed += sep + finals;
         lastInterim = "";
@@ -9849,6 +9848,10 @@ if ("serviceWorker" in navigator) {
         el.value = committed + sep + interim;
         lastInterim = interim;
       }
+      // Auto-grow textarea and scroll to bottom
+      el.style.height = "auto";
+      el.style.height = Math.min(el.scrollHeight, 300) + "px";
+      el.scrollTop = el.scrollHeight;
       el.dispatchEvent(new Event("input", { bubbles: true }));
     };
 
@@ -9864,6 +9867,9 @@ if ("serviceWorker" in navigator) {
         var sep = (committed && !/\s$/.test(committed)) ? " " : "";
         committed += sep + lastInterim;
         el.value = committed;
+        el.style.height = "auto";
+        el.style.height = Math.min(el.scrollHeight, 300) + "px";
+        el.scrollTop = el.scrollHeight;
         el.dispatchEvent(new Event("input", { bubbles: true }));
         lastInterim = "";
       }
@@ -10423,6 +10429,15 @@ if ("serviceWorker" in navigator) {
   const swBtn = document.getElementById("open-saved-workouts-btn");
   if (swBtn) swBtn.addEventListener("click", openSavedWorkouts);
 })();
+
+// ── Auto-grow textareas on typing ──────────────────────
+["meal-input", "activity-input", "fab-activity-input"].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener("input", () => {
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 300) + "px";
+  });
+});
 
 // ── Server sync on page load ──────────────────────────
 // Fetch fresh data from server to overwrite stale localStorage
