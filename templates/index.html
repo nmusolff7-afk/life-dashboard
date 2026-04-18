@@ -2936,22 +2936,41 @@ if (!("BarcodeDetector" in window)) {
   if (!bar) return;
   const log = JSON.parse(localStorage.getItem("dailyLog") || "{}");
   const today = localToday();
+
+  // Helper: format date as YYYY-MM-DD
+  function fmtDate(d) {
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  }
+  function isLogged(ds) {
+    const entry = log[ds];
+    return entry && (entry.calories > 0 || entry.weight || entry.steps > 0 || entry.deficit != null);
+  }
+
+  // Build 90-day scroll window
   const days = [];
-  for (let i = 29; i >= 0; i--) {
+  for (let i = 89; i >= 0; i--) {
     const d = new Date(today + "T00:00:00");
     d.setDate(d.getDate() - i);
-    const ds = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
-    const entry = log[ds];
-    const logged = entry && (entry.calories > 0 || entry.weight || entry.steps > 0 || entry.deficit != null);
-    days.push({ date: ds, day: d, logged });
+    const ds = fmtDate(d);
+    days.push({ date: ds, day: d, logged: isLogged(ds) });
   }
-  // Compute current streak (consecutive days ending at today or yesterday)
+
+  // Compute unlimited streak — scan backwards from today through ALL of dailyLog
   let streak = 0;
-  for (let i = days.length - 1; i >= 0; i--) {
-    if (days[i].logged) streak++;
-    else if (i < days.length - 1) break; // allow today to be unlogged if streak continues from yesterday
-    else break;
+  const todayDate = new Date(today + "T00:00:00");
+  // Allow today to be unlogged (streak counts from yesterday if today not yet logged)
+  const startOffset = isLogged(today) ? 0 : 1;
+  for (let i = startOffset; ; i++) {
+    const d = new Date(today + "T00:00:00");
+    d.setDate(d.getDate() - i);
+    const ds = fmtDate(d);
+    if (isLogged(ds)) {
+      streak++;
+    } else {
+      break;
+    }
   }
+
   const dows = ["S","M","T","W","T","F","S"];
   let html = '';
   days.forEach(d => {

@@ -416,28 +416,31 @@ Count consecutive days where the user logged any data.
 
 ### Algorithm
 ```
-// Build 30-day window ending today
-days = last 30 days, each with:
-  logged = (entry.calories > 0 OR entry.weight OR entry.steps > 0 OR entry.deficit != null)
+// Scroll window: 90 days displayed in horizontal bar
+// Streak count: unlimited — scans backwards through entire dailyLog
 
-// Count streak backwards from today
+logged(date) = entry.calories > 0 OR entry.weight OR entry.steps > 0 OR entry.deficit != null
+
+// If today is logged, start counting from today
+// If today is not yet logged, start counting from yesterday
+startOffset = logged(today) ? 0 : 1
+
 streak = 0
-for i from last_day down to first_day:
-  if days[i].logged:
+for i from startOffset to infinity:
+  date = today - i days
+  if logged(date):
     streak++
-  else if i < last_index:
-    break    // streak broken
   else:
-    break    // today not logged yet, streak ends at yesterday
+    break
 ```
 
 ### Output
-`streak: integer` — consecutive days with any logged data
+`streak: integer` — consecutive days with any logged data (no upper limit)
 
 ### Edge Cases
 - Today is allowed to be unlogged (streak counts from yesterday)
 - If user has never logged: streak = 0
-- Maximum display: 30 days (limited by window)
+- Scroll bar shows 90 days; streak number can exceed 90 if logging history goes further back
 
 ---
 
