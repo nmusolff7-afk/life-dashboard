@@ -1074,6 +1074,46 @@
     .ed-ai-row { display: flex; gap: 8px; margin-top: 8px; }
     .ed-status { font-size: 13px; color: var(--muted); margin-top: 8px; text-align: center; }
 
+    /* ── Workout detail exercise cards ── */
+    .wd-ex-card {
+      background: var(--surface); border-radius: var(--r-inner);
+      padding: 14px 16px; margin-bottom: 10px;
+      box-shadow: var(--shadow-card);
+    }
+    .wd-ex-header {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+    }
+    .wd-ex-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: var(--accent); opacity: 0.15;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; position: relative;
+    }
+    .wd-ex-icon svg { position: absolute; opacity: 1; }
+    .wd-ex-name {
+      font-size: 15px; font-weight: 700; color: var(--text); flex: 1;
+    }
+    .wd-ex-badge {
+      font-size: 11px; font-weight: 600; color: var(--muted);
+      background: var(--surface2); border-radius: 6px;
+      padding: 2px 8px; white-space: nowrap;
+    }
+    .wd-set-grid {
+      display: grid; grid-template-columns: 2.5rem 1fr 1fr;
+      gap: 0; font-size: 13px;
+    }
+    .wd-set-grid .hdr {
+      font-size: 10px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .08em; color: var(--muted); padding: 0 4px 6px;
+    }
+    .wd-set-grid .cell {
+      padding: 6px 4px; border-top: 1px solid rgba(255,255,255,0.04);
+      font-variant-numeric: tabular-nums; color: var(--text);
+    }
+    .wd-set-grid .set-num {
+      color: var(--muted); font-weight: 600;
+    }
+
     /* ══ SAVED LIST OVERLAY ═══════════════════════ */
     .saved-list-overlay {
       position: fixed; inset: 0; z-index: 260;
@@ -2653,11 +2693,20 @@
       <div class="ed-hero-name" id="workout-detail-name"></div>
       <div class="ed-hero-time" id="workout-detail-time"></div>
     </div>
-    <div class="ed-macro-row" style="grid-template-columns: 1fr">
-      <div class="ed-macro-tile"><div class="ed-macro-val" id="wd-cal" style="color:var(--text)">—</div><div class="ed-macro-lbl">Calories Burned</div></div>
+    <!-- Stat cards row -->
+    <div class="ed-macro-row" style="grid-template-columns: repeat(3,1fr)" id="wd-stats-row">
+      <div class="ed-macro-tile"><div class="ed-macro-val" id="wd-duration" style="color:var(--text)">—</div><div class="ed-macro-lbl">Duration</div></div>
+      <div class="ed-macro-tile"><div class="ed-macro-val" id="wd-cal" style="color:var(--green)">—</div><div class="ed-macro-lbl">Calories</div></div>
+      <div class="ed-macro-tile"><div class="ed-macro-val" id="wd-exercises" style="color:var(--accent)">—</div><div class="ed-macro-lbl">Exercises</div></div>
     </div>
-    <div class="ed-section-title">Original Input</div>
-    <div id="workout-detail-original" style="font-size:0.85rem;color:var(--muted);line-height:1.5;padding:0.5rem 0"></div>
+    <!-- Parsed exercise cards (filled by JS) -->
+    <div id="wd-exercise-list"></div>
+    <!-- Fallback: raw description for non-strength workouts -->
+    <div id="wd-raw-desc" style="display:none">
+      <div class="ed-section-title">Details</div>
+      <div id="workout-detail-original" style="font-size:0.85rem;color:var(--muted);line-height:1.5;padding:0.5rem 0"></div>
+    </div>
+    <!-- Edit + Delete -->
     <div class="ed-ai-edit">
       <div class="ed-section-title">Edit with AI</div>
       <textarea id="workout-detail-edit-input" rows="2" placeholder='e.g. "actually did 45 min not 30", "add 10 min cooldown"'></textarea>
@@ -2665,6 +2714,10 @@
         <button class="btn btn-primary btn-full" id="workout-detail-edit-btn">Update Workout</button>
       </div>
       <div class="ed-status" id="workout-detail-edit-status"></div>
+    </div>
+    <div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--border)">
+      <button class="btn btn-full" id="workout-detail-delete-btn"
+        style="background:var(--danger);color:#fff;font-size:0.9rem;padding:0.7rem 1rem">Delete Workout</button>
     </div>
   </div>
 </div>
@@ -10010,16 +10063,89 @@ if ("serviceWorker" in navigator) {
   // ── WORKOUT DETAIL ──────────────────────────────────
   let _activeWorkout = null;
 
+  const _dumbbell = '<svg viewBox="0 0 24 24" width="16" height="16" stroke="var(--accent)" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7v10M18 7v10M2 9v6h4V9H2zM18 9v6h4V9h-4zM6 12h12"/></svg>';
+
+  function _parseExerciseSets(exStr) {
+    // "Bench Press: 3/4 sets (135x8, 135x8, 135x8)" or "Bench Press: 4/4 sets (135×8, 135×8, 135×8, 135×8)"
+    const match = exStr.match(/^(.+?):\s*(\d+)\/(\d+)\s*sets?\s*\((.+)\)$/);
+    if (!match) return { name: exStr.trim(), sets: [] };
+    const name = match[1].trim();
+    const setsStr = match[4];
+    const sets = setsStr.split(",").map(s => {
+      const m = s.trim().match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+)/);
+      return m ? { weight: m[1], reps: m[2] } : null;
+    }).filter(Boolean);
+    return { name, sets };
+  }
+
   window.openWorkoutDetail = function(workoutId) {
     const w = (window._latestWorkouts || []).find(x => x.id === workoutId);
     if (!w) return;
     _activeWorkout = w;
+
+    const parsed = _parseStrengthDesc(w.description);
+    const isStrength = !!parsed;
+
+    // Header
     document.getElementById("workout-detail-title").textContent = "Workout Detail";
     document.getElementById("workout-detail-icon").textContent = workoutIcon(w.description);
-    document.getElementById("workout-detail-name").textContent = w.description;
     document.getElementById("workout-detail-time").textContent = fmtTime(w.logged_at);
+
+    // Name: show workout type label for strength, or full desc for others
+    const nameEl = document.getElementById("workout-detail-name");
+    if (isStrength) {
+      // Extract label from the plan if available
+      const plan = JSON.parse(localStorage.getItem("weeklyPlan") || "null");
+      const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+      const today = dayNames[new Date(w.logged_at || Date.now()).getDay()];
+      const dayPlan = plan && plan[today];
+      const label = (dayPlan && typeof dayPlan === "object" && dayPlan.label) ? dayPlan.label : "Strength Workout";
+      nameEl.textContent = label;
+    } else {
+      nameEl.textContent = w.description;
+    }
+
+    // Stat cards
     document.getElementById("wd-cal").textContent = w.calories_burned || "—";
-    document.getElementById("workout-detail-original").textContent = w.description;
+    document.getElementById("wd-duration").textContent = isStrength ? parsed.minutes + " min" : "—";
+
+    // Exercise cards
+    const listEl = document.getElementById("wd-exercise-list");
+    const rawEl = document.getElementById("wd-raw-desc");
+
+    if (isStrength && parsed.exercises.length > 0) {
+      document.getElementById("wd-exercises").textContent = parsed.exercises.length;
+      let html = '<div class="ed-section-title">Exercises</div>';
+      parsed.exercises.forEach(exStr => {
+        const ex = _parseExerciseSets(exStr);
+        html += '<div class="wd-ex-card">';
+        html += '<div class="wd-ex-header">';
+        html += '<div class="wd-ex-icon">' + _dumbbell + '</div>';
+        html += '<div class="wd-ex-name">' + esc(ex.name) + '</div>';
+        if (ex.sets.length) html += '<div class="wd-ex-badge">' + ex.sets.length + ' sets</div>';
+        html += '</div>';
+        if (ex.sets.length) {
+          html += '<div class="wd-set-grid">';
+          html += '<div class="hdr">Set</div><div class="hdr">Weight</div><div class="hdr">Reps</div>';
+          ex.sets.forEach((s, i) => {
+            html += '<div class="cell set-num">' + (i + 1) + '</div>';
+            html += '<div class="cell">' + s.weight + ' lbs</div>';
+            html += '<div class="cell">' + s.reps + '</div>';
+          });
+          html += '</div>';
+        }
+        html += '</div>';
+      });
+      listEl.innerHTML = html;
+      rawEl.style.display = "none";
+    } else {
+      // Non-strength workout: show raw description
+      document.getElementById("wd-exercises").textContent = "—";
+      listEl.innerHTML = "";
+      document.getElementById("workout-detail-original").textContent = w.description;
+      rawEl.style.display = "";
+    }
+
     // Check saved status
     const saveBtn = document.getElementById("workout-detail-save-btn");
     saveBtn.classList.remove("saved");
@@ -10117,6 +10243,21 @@ if ("serviceWorker" in navigator) {
       status.textContent = "Failed — please try again";
       status.style.color = "var(--danger)";
     });
+  });
+
+  // Delete workout from detail view
+  document.getElementById("workout-detail-delete-btn").addEventListener("click", function() {
+    if (!_activeWorkout) return;
+    if (!confirm("Delete this workout?")) return;
+    fetch("/api/delete-workout/" + _activeWorkout.id, { method: "POST" })
+      .then(r => r.json())
+      .then(resp => {
+        document.getElementById("workout-detail-overlay").classList.remove("active");
+        _activeWorkout = null;
+        if (resp.workouts) renderWorkoutList(resp.workouts, resp.burn);
+        if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+      })
+      .catch(() => alert("Failed to delete workout"));
   });
 
   // ── SAVED MEALS LIST ────────────────────────────────
