@@ -366,8 +366,8 @@ def api_profile():
         "first_name":                 p.get("first_name") or raw.get("first_name"),
         "one_sentence_summary":       p.get("one_sentence_summary"),
         "biggest_leverage_point":     p.get("biggest_leverage_point"),
-        # Body stats from onboarding raw inputs
-        "current_weight_lbs":         raw.get("current_weight_lbs"),
+        # Body stats — prefer profile_map (updated by /api/log-weight) over raw_inputs
+        "current_weight_lbs":         p.get("current_weight_lbs") or raw.get("current_weight_lbs"),
         "target_weight_lbs":          raw.get("target_weight_lbs"),
         "height_ft":                  raw.get("height_ft"),
         "height_in":                  raw.get("height_in"),

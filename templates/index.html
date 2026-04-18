@@ -3392,7 +3392,7 @@ function localCutoff(days) {
 
 
 function getProfileData() {
-  try { return getProfileData(); }
+  try { return JSON.parse(localStorage.getItem("profileData") || "{}"); }
   catch (_) { return {}; }
 }
 
