@@ -227,75 +227,41 @@ def identify_ingredients(images: list) -> list[str]:
 
 # ── Meal suggestion ───────────────────────────────────
 
-SUGGEST_PROMPT = """You are a personal nutrition coach. The user has told you what ingredients they have available. Suggest THREE different meal options that:
-1. Are appropriate for the stated meal time
-2. Use ingredients they actually have
-3. FIT WITHIN their remaining calorie budget — each meal's calories MUST be at or below the "Calories remaining today" value
-4. Help them get as close as possible to their remaining macro targets (protein, carbs, fat) — prioritize hitting protein first, then balance carbs and fat
-5. Respect their dietary preferences
-6. Vary enough to give a real choice (e.g. light vs hearty, quick vs more involved)
+SUGGEST_PROMPT = """You are a practical home cook. The user will tell you what ingredients they have, what meal they need (breakfast, lunch, dinner, or snack), and how many calories they have left for the day.
 
-IMPORTANT: The calorie and macro remaining values represent what the user has LEFT to eat today.
-Do NOT suggest meals that exceed the remaining calorie budget. If the budget is small (e.g. under 300 kcal),
-suggest appropriately light meals or snacks. If macros remaining are provided, tailor suggestions to close
-the gap — for example if protein remaining is high relative to calories, suggest protein-dense options.
+Your job: suggest THREE meals using ONLY the ingredients they listed. The meals should:
+1. Use ONLY ingredients from their list — do not add items they don't have
+2. Fit within their remaining calorie budget — each meal MUST be at or below the calories remaining
+3. Be appropriate for the meal type (e.g. lighter for breakfast/snack, heartier for lunch/dinner)
+4. Be practical to cook at home with simple instructions
+5. Vary in size/effort so the user has a real choice (e.g. quick snack vs proper meal)
+
+If the calorie budget is small (under 300 kcal), suggest light snacks or small portions.
+If the calorie budget is large (over 800 kcal), suggest satisfying full meals.
 
 Respond ONLY with this exact JSON structure (no markdown, no explanation):
 {
   "options": [
     {
       "meal_name": "<2-5 word meal name>",
-      "why": "<1 sentence: why this fits their calorie and macro goals right now>",
+      "why": "<1 sentence: why this fits their calorie budget and meal time>",
       "instructions": "<brief recipe: 2-4 steps separated by | >",
       "calories": <integer>,
       "protein_g": <number with one decimal>,
       "carbs_g": <number with one decimal>,
       "fat_g": <number with one decimal>
-    },
-    { ... },
-    { ... }
-  ],
-  "identified_ingredients": ["<ingredient>", ...]
-}
-
-The identified_ingredients array should contain every distinct ingredient visible in any photos OR mentioned by the user — normalized to simple names (e.g. "chicken breast", "eggs", "broccoli"). Real food items only."""
+    }
+  ]
+}"""
 
 
 def suggest_meal(
     ingredients: str,
-    images: list,           # [{b64: str, media_type: str}]
-    profile_map: dict | None,
-    calories_remaining: int | None,
-    meal_type: str,         # "breakfast", "lunch", "dinner", "snack"
-    macro_remaining: dict | None = None,
+    images: list,
+    calories_remaining: int,
+    meal_type: str,
 ) -> dict:
-    # Build context string from profile
-    ctx_parts = [f"Meal time: {meal_type}"]
-    if calories_remaining is not None:
-        ctx_parts.append(f"Calories remaining today: {calories_remaining} kcal")
-    if macro_remaining:
-        ctx_parts.append(
-            f"Macros remaining today: "
-            f"{macro_remaining['protein_remaining_g']:.0f}g protein, "
-            f"{macro_remaining['carbs_remaining_g']:.0f}g carbs, "
-            f"{macro_remaining['fat_remaining_g']:.0f}g fat"
-        )
-    if profile_map:
-        for key, label in [
-            ("diet_type",            "Diet style"),
-            ("dietary_restrictions", "Restrictions/allergies"),
-            ("foods_disliked_list",  "Foods to avoid"),
-        ]:
-            val = profile_map.get(key)
-            if val:
-                ctx_parts.append(f"{label}: {val}")
-
-    context_text = "\n".join(ctx_parts)
-    if ingredients.strip():
-        context_text += f"\n\nAvailable ingredients: {ingredients.strip()}"
-    if images:
-        context_text += f"\n\n{len(images)} photo(s) attached — use them to identify additional ingredients."
-
+    """Suggest meals using only available ingredients, sized to hit calorie target."""
     # Build message content
     content = []
     for img in images[:6]:
@@ -307,7 +273,14 @@ def suggest_meal(
                 "data":       img["b64"],
             },
         })
-    content.append({"type": "text", "text": context_text})
+
+    user_text = f"Meal type: {meal_type}\nCalories remaining today: {calories_remaining} kcal"
+    if ingredients.strip():
+        user_text += f"\n\nAvailable ingredients:\n{ingredients.strip()}"
+    if images:
+        user_text += f"\n\n{len(images)} photo(s) attached — identify ingredients from them."
+
+    content.append({"type": "text", "text": user_text})
 
     response = _client().messages.create(
         model="claude-haiku-4-5-20251001",
@@ -323,23 +296,17 @@ def suggest_meal(
     for opt in raw_options[:3]:
         try:
             options.append({
-                "meal_name":  opt.get("meal_name", "Suggested Meal"),
-                "why":        opt.get("why", ""),
+                "meal_name":    opt.get("meal_name", "Suggested Meal"),
+                "why":          opt.get("why", ""),
                 "instructions": opt.get("instructions", ""),
-                "calories":   int(opt["calories"]),
-                "protein_g":  float(opt["protein_g"]),
-                "carbs_g":    float(opt["carbs_g"]),
-                "fat_g":      float(opt["fat_g"]),
+                "calories":     int(opt["calories"]),
+                "protein_g":    float(opt["protein_g"]),
+                "carbs_g":      float(opt["carbs_g"]),
+                "fat_g":        float(opt["fat_g"]),
             })
         except (KeyError, TypeError, ValueError):
             continue
-    raw_ingredients = data.get("identified_ingredients") or []
-    if not isinstance(raw_ingredients, list):
-        raw_ingredients = []
-    return {
-        "options":                options,
-        "identified_ingredients": [str(i).strip() for i in raw_ingredients if i],
-    }
+    return {"options": options}
 
 
 # ── Workout burn estimation ────────────────────────────
