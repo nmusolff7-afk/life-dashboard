@@ -2630,6 +2630,10 @@
       </div>
       <div class="ed-status" id="meal-detail-edit-status"></div>
     </div>
+    <div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--border)">
+      <button class="btn btn-full" id="meal-detail-delete-btn"
+        style="background:var(--danger);color:#fff;font-size:0.9rem;padding:0.7rem 1rem">Delete Meal</button>
+    </div>
   </div>
 </div>
 
@@ -3138,6 +3142,7 @@ document.getElementById("fab-activity-burn-btn").addEventListener("click", funct
       body: JSON.stringify({
         description: desc, calories: _product.calories,
         protein_g: _product.protein_g, carbs_g: _product.carbs_g, fat_g: _product.fat_g,
+        sugar_g: _product.sugar_g || 0, fiber_g: _product.fiber_g || 0, sodium_mg: _product.sodium_mg || 0,
         client_date: localToday(), client_time: localNow(),
       }),
     }).then(r => r.json()).then(resp => {
@@ -4338,6 +4343,9 @@ function deleteWorkout(id) {
 
   pairs.forEach(([vis,hid]) => vis.addEventListener("input", () => hid.value = vis.value));
 
+  // Micro totals from breakdown (not shown in edit grid, but sent when logging)
+  let _microSugar = 0, _microFiber = 0, _microSodium = 0;
+
   function recalcBreakdown() {
     const rows = breakdownEl.querySelectorAll(".bd-row");
     if (!rows.length) {
@@ -4345,19 +4353,24 @@ function deleteWorkout(id) {
       macroFields.classList.remove("visible");
       logBtn.style.display         = "none";
       aiNotes.textContent          = "";
+      _microSugar = 0; _microFiber = 0; _microSodium = 0;
       return;
     }
-    let cal = 0, pro = 0, carb = 0, fat = 0;
+    let cal = 0, pro = 0, carb = 0, fat = 0, sug = 0, fib = 0, sod = 0;
     rows.forEach(row => {
       cal  += parseFloat(row.dataset.origCal) || 0;
       pro  += parseFloat(row.dataset.pro)  || 0;
       carb += parseFloat(row.dataset.carb) || 0;
       fat  += parseFloat(row.dataset.fat)  || 0;
+      sug  += parseFloat(row.dataset.sugar)  || 0;
+      fib  += parseFloat(row.dataset.fiber)  || 0;
+      sod  += parseFloat(row.dataset.sodium) || 0;
     });
     pairs[0][0].value = Math.round(cal);  pairs[0][1].value = Math.round(cal);
     pairs[1][0].value = pro.toFixed(1);   pairs[1][1].value = pro.toFixed(1);
     pairs[2][0].value = carb.toFixed(1);  pairs[2][1].value = carb.toFixed(1);
     pairs[3][0].value = fat.toFixed(1);   pairs[3][1].value = fat.toFixed(1);
+    _microSugar = sug; _microFiber = fib; _microSodium = sod;
   }
 
   function renderBreakdown(items) {
@@ -4371,6 +4384,9 @@ function deleteWorkout(id) {
       row.dataset.pro     = it.protein_g.toFixed(1);
       row.dataset.carb    = it.carbs_g.toFixed(1);
       row.dataset.fat     = it.fat_g.toFixed(1);
+      row.dataset.sugar   = (it.sugar_g || 0).toFixed(1);
+      row.dataset.fiber   = (it.fiber_g || 0).toFixed(1);
+      row.dataset.sodium  = (it.sodium_mg || 0).toFixed(0);
       row.innerHTML =
         '<button type="button" class="bd-del" title="Remove">&times;</button>' +
         '<span class="bd-name">' + (it.name || "").replace(/</g, "&lt;") + '</span>' +
@@ -4640,6 +4656,9 @@ function deleteWorkout(id) {
         protein_g:    parseFloat(pairs[1][1].value) || 0,
         carbs_g:      parseFloat(pairs[2][1].value) || 0,
         fat_g:        parseFloat(pairs[3][1].value) || 0,
+        sugar_g:      Math.round(_microSugar * 10) / 10,
+        fiber_g:      Math.round(_microFiber * 10) / 10,
+        sodium_mg:    Math.round(_microSodium),
         client_date:  localToday(),
         client_time:  localNow(),
       })
@@ -8097,6 +8116,8 @@ function fmtDate(iso) {
           document.getElementById("hd-meal-pro").value   = d.protein_g;
           document.getElementById("hd-meal-carbs").value = d.carbs_g;
           document.getElementById("hd-meal-fat").value   = d.fat_g;
+          // Store micros for logging
+          window._hdMealMicros = { sugar_g: d.sugar_g || 0, fiber_g: d.fiber_g || 0, sodium_mg: d.sodium_mg || 0 };
           document.getElementById("hd-meal-macros-wrap").style.display = "";
           document.getElementById("hd-meal-log-btn").style.display = "";
           btn.disabled = false; btn.textContent = "Get Macros";
@@ -8118,6 +8139,9 @@ function fmtDate(iso) {
           protein_g: parseFloat(document.getElementById("hd-meal-pro").value)   || 0,
           carbs_g:   parseFloat(document.getElementById("hd-meal-carbs").value) || 0,
           fat_g:     parseFloat(document.getElementById("hd-meal-fat").value)   || 0,
+          sugar_g:   (window._hdMealMicros || {}).sugar_g   || 0,
+          fiber_g:   (window._hdMealMicros || {}).fiber_g   || 0,
+          sodium_mg: (window._hdMealMicros || {}).sodium_mg || 0,
           client_date: _hdDate,
         })
       }).then(() => {
@@ -9923,6 +9947,9 @@ if ("serviceWorker" in navigator) {
           protein_g: data.protein_g,
           carbs_g: data.carbs_g,
           fat_g: data.fat_g,
+          sugar_g: data.sugar_g || 0,
+          fiber_g: data.fiber_g || 0,
+          sodium_mg: data.sodium_mg || 0,
         }),
       }).then(r => r.json()).then(resp => {
         status.textContent = "Meal updated!";
@@ -9933,11 +9960,17 @@ if ("serviceWorker" in navigator) {
         _activeMeal.protein_g = data.protein_g;
         _activeMeal.carbs_g = data.carbs_g;
         _activeMeal.fat_g = data.fat_g;
+        _activeMeal.sugar_g = data.sugar_g || 0;
+        _activeMeal.fiber_g = data.fiber_g || 0;
+        _activeMeal.sodium_mg = data.sodium_mg || 0;
         document.getElementById("meal-detail-name").textContent = _activeMeal.description;
         document.getElementById("md-cal").textContent = data.calories;
         document.getElementById("md-pro").textContent = Math.round(data.protein_g) + "g";
         document.getElementById("md-carb").textContent = Math.round(data.carbs_g) + "g";
         document.getElementById("md-fat").textContent = Math.round(data.fat_g) + "g";
+        document.getElementById("md-sugar").textContent = Math.round(data.sugar_g || 0) + "g";
+        document.getElementById("md-fiber").textContent = Math.round(data.fiber_g || 0) + "g";
+        document.getElementById("md-sodium").textContent = Math.round(data.sodium_mg || 0) + "mg";
         document.getElementById("meal-detail-icon").textContent = mealIcon(_activeMeal.description);
         // Update breakdown
         const itemsEl = document.getElementById("meal-detail-items");
@@ -9958,6 +9991,21 @@ if ("serviceWorker" in navigator) {
       status.textContent = "Failed — please try again";
       status.style.color = "var(--danger)";
     });
+  });
+
+  // Delete meal from detail view
+  document.getElementById("meal-detail-delete-btn").addEventListener("click", function() {
+    if (!_activeMeal) return;
+    if (!confirm("Delete this meal?")) return;
+    fetch("/api/delete-meal/" + _activeMeal.id, { method: "POST" })
+      .then(r => r.json())
+      .then(resp => {
+        document.getElementById("meal-detail-overlay").classList.remove("active");
+        _activeMeal = null;
+        if (resp.meals) renderMealTable(resp.meals, resp.totals);
+        if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+      })
+      .catch(() => alert("Failed to delete meal"));
   });
 
   // ── WORKOUT DETAIL ──────────────────────────────────
@@ -10107,6 +10155,9 @@ if ("serviceWorker" in navigator) {
           protein_g: s.protein_g,
           carbs_g: s.carbs_g,
           fat_g: s.fat_g,
+          sugar_g: s.sugar_g || 0,
+          fiber_g: s.fiber_g || 0,
+          sodium_mg: s.sodium_mg || 0,
         }),
       }).then(r => r.json()).then(data => {
         document.getElementById("saved-meals-overlay").classList.remove("active");
