@@ -63,6 +63,10 @@
       --protein:  #5BB8FF;
       --carbs:    #A78BFA;
       --fat:      #F472B6;
+      /* ── Micro colors ── */
+      --sugar:    #FFD060;
+      --fiber:    #2DD4A8;
+      --sodium:   #8B9FCC;
       /* ── Semantic ── */
       --danger:   #FF4D4D;
       --green:    #34D87A;
@@ -104,6 +108,9 @@
       --protein:  #5BB8FF;
       --carbs:    #A78BFA;
       --fat:      #F472B6;
+      --sugar:    #E6B030;
+      --fiber:    #28BA94;
+      --sodium:   #7088B0;
       --danger:   #FF3B30;
       --green:    #34C759;
       --amber:    #F5A623;
@@ -1468,16 +1475,16 @@
             </div>
             <div class="progress-section">
               <div class="progress-row" style="margin-bottom:0.55rem">
-                <div class="progress-header"><span class="p-label">Sugar</span><span id="goal-label-sugar" style="font-weight:600;color:var(--amber)">0g / 50g</span></div>
-                <div class="progress-bar-track"><div class="progress-bar-fill pro" id="bar-fill-sugar" style="width:0%;background:var(--amber)"></div></div>
+                <div class="progress-header"><span class="p-label">Sugar</span><span id="goal-label-sugar" style="font-weight:600;color:var(--sugar)">0g / 50g</span></div>
+                <div class="progress-bar-track"><div class="progress-bar-fill" id="bar-fill-sugar" style="width:0%;background:var(--sugar)"></div></div>
               </div>
               <div class="progress-row" style="margin-bottom:0.55rem">
-                <div class="progress-header"><span class="p-label">Fiber</span><span id="goal-label-fiber" style="font-weight:600;color:var(--green)">0g / 30g</span></div>
-                <div class="progress-bar-track"><div class="progress-bar-fill pro" id="bar-fill-fiber" style="width:0%;background:var(--green)"></div></div>
+                <div class="progress-header"><span class="p-label">Fiber</span><span id="goal-label-fiber" style="font-weight:600;color:var(--fiber)">0g / 30g</span></div>
+                <div class="progress-bar-track"><div class="progress-bar-fill" id="bar-fill-fiber" style="width:0%;background:var(--fiber)"></div></div>
               </div>
               <div class="progress-row" style="margin-bottom:0.55rem">
-                <div class="progress-header"><span class="p-label">Sodium</span><span id="goal-label-sodium" style="font-weight:600;color:var(--muted)">0mg / 2300mg</span></div>
-                <div class="progress-bar-track"><div class="progress-bar-fill pro" id="bar-fill-sodium" style="width:0%"></div></div>
+                <div class="progress-header"><span class="p-label">Sodium</span><span id="goal-label-sodium" style="font-weight:600;color:var(--sodium)">0mg / 2300mg</span></div>
+                <div class="progress-bar-track"><div class="progress-bar-fill" id="bar-fill-sodium" style="width:0%;background:var(--sodium)"></div></div>
               </div>
             </div>
           </div>
@@ -2254,7 +2261,7 @@
 
         <div class="slider-row">
           <div class="slider-header">
-            <span class="slider-label" style="color:var(--amber)">Sugar Limit</span>
+            <span class="slider-label" style="color:var(--sugar)">Sugar Limit</span>
             <div class="slider-val-row">
               <input type="number" id="sugar-num" class="slider-num" min="0" max="150">
               <span class="slider-unit">g / day</span>
@@ -2265,7 +2272,7 @@
 
         <div class="slider-row">
           <div class="slider-header">
-            <span class="slider-label" style="color:var(--green)">Fiber Goal</span>
+            <span class="slider-label" style="color:var(--fiber)">Fiber Goal</span>
             <div class="slider-val-row">
               <input type="number" id="fiber-num" class="slider-num" min="0" max="80">
               <span class="slider-unit">g / day</span>
@@ -2276,7 +2283,7 @@
 
         <div class="slider-row" style="margin-bottom:0">
           <div class="slider-header">
-            <span class="slider-label">Sodium Limit</span>
+            <span class="slider-label" style="color:var(--sodium)">Sodium Limit</span>
             <div class="slider-val-row">
               <input type="number" id="sodium-num" class="slider-num" min="500" max="5000" style="width:78px">
               <span class="slider-unit">mg / day</span>
@@ -2638,9 +2645,9 @@
       <div class="ed-macro-tile"><div class="ed-macro-val" id="md-fat" style="color:var(--fat)">—</div><div class="ed-macro-lbl">Fat</div></div>
     </div>
     <div class="ed-macro-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
-      <div class="ed-macro-tile"><div class="ed-macro-val" id="md-sugar" style="color:var(--amber);font-size:17px">—</div><div class="ed-macro-lbl">Sugar</div></div>
-      <div class="ed-macro-tile"><div class="ed-macro-val" id="md-fiber" style="color:var(--green);font-size:17px">—</div><div class="ed-macro-lbl">Fiber</div></div>
-      <div class="ed-macro-tile"><div class="ed-macro-val" id="md-sodium" style="color:var(--muted);font-size:17px">—</div><div class="ed-macro-lbl">Sodium</div></div>
+      <div class="ed-macro-tile"><div class="ed-macro-val" id="md-sugar" style="color:var(--sugar);font-size:17px">—</div><div class="ed-macro-lbl">Sugar</div></div>
+      <div class="ed-macro-tile"><div class="ed-macro-val" id="md-fiber" style="color:var(--fiber);font-size:17px">—</div><div class="ed-macro-lbl">Fiber</div></div>
+      <div class="ed-macro-tile"><div class="ed-macro-val" id="md-sodium" style="color:var(--sodium);font-size:17px">—</div><div class="ed-macro-lbl">Sodium</div></div>
     </div>
     <div class="ed-section-title">Breakdown</div>
     <div id="meal-detail-items"></div>
@@ -8119,9 +8126,9 @@ function fmtDate(iso) {
       html += `<div class="hd-stat"><div class="v" style="color:var(--protein)">${dayData.protein}g</div><div class="l">Protein</div></div>`;
       html += `<div class="hd-stat"><div class="v" style="color:var(--carbs)">${dayData.carbs}g</div><div class="l">Carbs</div></div>`;
       html += `<div class="hd-stat"><div class="v" style="color:var(--fat)">${dayData.fat}g</div><div class="l">Fat</div></div>`;
-      html += `<div class="hd-stat"><div class="v" style="color:var(--amber)">${dayData.sugar || 0}g</div><div class="l">Sugar</div></div>`;
-      html += `<div class="hd-stat"><div class="v" style="color:var(--green)">${dayData.fiber || 0}g</div><div class="l">Fiber</div></div>`;
-      html += `<div class="hd-stat"><div class="v">${dayData.sodium || 0}mg</div><div class="l">Sodium</div></div>`;
+      html += `<div class="hd-stat"><div class="v" style="color:var(--sugar)">${dayData.sugar || 0}g</div><div class="l">Sugar</div></div>`;
+      html += `<div class="hd-stat"><div class="v" style="color:var(--fiber)">${dayData.fiber || 0}g</div><div class="l">Fiber</div></div>`;
+      html += `<div class="hd-stat"><div class="v" style="color:var(--sodium)">${dayData.sodium || 0}mg</div><div class="l">Sodium</div></div>`;
     } else if ((serverDay.meals || []).length) {
       const cal = serverDay.meals.reduce((s, m) => s + (m.calories || 0), 0);
       const pro = serverDay.meals.reduce((s, m) => s + (m.protein_g || 0), 0);
@@ -8134,9 +8141,9 @@ function fmtDate(iso) {
       html += `<div class="hd-stat"><div class="v" style="color:var(--protein)">${Math.round(pro)}g</div><div class="l">Protein</div></div>`;
       html += `<div class="hd-stat"><div class="v" style="color:var(--carbs)">${Math.round(carb)}g</div><div class="l">Carbs</div></div>`;
       html += `<div class="hd-stat"><div class="v" style="color:var(--fat)">${Math.round(fat)}g</div><div class="l">Fat</div></div>`;
-      html += `<div class="hd-stat"><div class="v" style="color:var(--amber)">${Math.round(sug)}g</div><div class="l">Sugar</div></div>`;
-      html += `<div class="hd-stat"><div class="v" style="color:var(--green)">${Math.round(fib)}g</div><div class="l">Fiber</div></div>`;
-      html += `<div class="hd-stat"><div class="v">${Math.round(sod)}mg</div><div class="l">Sodium</div></div>`;
+      html += `<div class="hd-stat"><div class="v" style="color:var(--sugar)">${Math.round(sug)}g</div><div class="l">Sugar</div></div>`;
+      html += `<div class="hd-stat"><div class="v" style="color:var(--fiber)">${Math.round(fib)}g</div><div class="l">Fiber</div></div>`;
+      html += `<div class="hd-stat"><div class="v" style="color:var(--sodium)">${Math.round(sod)}mg</div><div class="l">Sodium</div></div>`;
     }
     html += '</div>';
 
@@ -9552,7 +9559,7 @@ if ("serviceWorker" in navigator) {
               <span style="font-weight:600;font-size:0.78rem;color:${hit ? "var(--green)" : color}">${val}${unit} / ${goal}${unit}</span>
             </div>
             <div class="progress-bar-track">
-              <div class="progress-bar-fill ${cls}${hit ? " hit" : ""}" style="width:${pct}%"></div>
+              <div class="progress-bar-fill ${cls}${hit ? " hit" : ""}" style="width:${pct}%;background:${color}"></div>
             </div>
           </div>`;
         };
@@ -9565,9 +9572,9 @@ if ("serviceWorker" in navigator) {
         const sodiumGoal = profile ? (profile.sodiumGoal || 2300) : 2300;
         const microEl = document.getElementById("dash-micro-bars");
         if (microEl) {
-          microEl.innerHTML = barHtml("Sugar", s, sugarGoal, "pro", "var(--amber)", "g")
-            + barHtml("Fiber", f, fiberGoal, "pro", "var(--green)", "g")
-            + barHtml("Sodium", na, sodiumGoal, "pro", "var(--muted)", "mg");
+          microEl.innerHTML = barHtml("Sugar", s, sugarGoal, "pro", "var(--sugar)", "g")
+            + barHtml("Fiber", f, fiberGoal, "pro", "var(--fiber)", "g")
+            + barHtml("Sodium", na, sodiumGoal, "pro", "var(--sodium)", "mg");
         }
       } else {
         barsEl.innerHTML = `<div style="color:var(--muted);font-size:0.85rem">Log meals to see macros.</div>`;
