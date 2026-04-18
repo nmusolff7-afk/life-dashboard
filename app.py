@@ -715,10 +715,11 @@ def api_estimate():
     description = (data or {}).get("description", "").strip()
     if not description:
         return jsonify({"error": "No description provided"}), 400
+    _log.info("estimate: user=%s len=%d words=%d", uid(), len(description), len(description.split()))
     try:
         return jsonify(estimate_nutrition(description, profile_map=get_profile_map(uid())))
     except Exception as e:
-        _log.exception("estimate failed")
+        _log.exception("estimate failed for %d-char input", len(description))
         return jsonify({"error": _AI_ERR}), 500
 
 
@@ -731,10 +732,11 @@ def api_burn_estimate():
     description = (data or {}).get("description", "").strip()
     if not description:
         return jsonify({"error": "No description provided"}), 400
+    _log.info("burn-estimate: user=%s len=%d words=%d", uid(), len(description), len(description.split()))
     try:
         return jsonify(estimate_burn(description, profile_map=get_profile_map(uid())))
     except Exception as e:
-        _log.exception("burn-estimate failed")
+        _log.exception("burn-estimate failed for %d-char input", len(description))
         return jsonify({"error": _AI_ERR}), 500
 
 

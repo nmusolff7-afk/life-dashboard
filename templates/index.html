@@ -4692,15 +4692,21 @@ function deleteWorkout(id) {
       .then(d => { shortLabel = d.label || val; hDesc.value = shortLabel; })
       .catch(e => console.warn("fetch error:", e));
 
+    console.log("[estimate] sending", val.length, "chars:", val.slice(0, 100));
     fetch("/api/estimate", { method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({description: val}) })
-      .then(r => r.json())
+      .then(r => {
+        console.log("[estimate] response status:", r.status);
+        if (!r.ok) return r.text().then(t => { throw new Error("Server " + r.status + ": " + (t || "").slice(0, 200)); });
+        return r.json();
+      })
       .then(data => {
         macrosBtn.disabled = false; macrosBtn.textContent = "Get Macros";
         if (data.error) {
           aiNotes.textContent = "⚠ " + data.error; aiNotes.style.color = "var(--danger)";
           macroFields.classList.add("visible"); return;
         }
+        console.log("[estimate] success:", data.calories, "cal,", (data.items||[]).length, "items");
         renderBreakdown(data.items);
         aiNotes.style.color = ""; aiNotes.textContent = data.notes ? "Note: " + data.notes : "";
         macroFields.classList.add("visible");
@@ -4714,7 +4720,13 @@ function deleteWorkout(id) {
         mealInput.closest(".field").style.display = "none";
         mealInput.removeAttribute("required");
       })
-      .catch(() => { macrosBtn.disabled = false; macrosBtn.textContent = "Get Macros"; });
+      .catch(err => {
+        console.error("[estimate] FAILED:", err);
+        macrosBtn.disabled = false; macrosBtn.textContent = "Get Macros";
+        aiNotes.textContent = "⚠ Failed: " + (err.message || "Network error — try again");
+        aiNotes.style.color = "var(--danger)";
+        macroFields.classList.add("visible");
+      });
   });
 
   // Re-analyze with corrections
@@ -4858,21 +4870,33 @@ function deleteWorkout(id) {
       .then(d => { shortLabel = d.label || val; })
       .catch(e => console.warn("fetch error:", e));
 
+    console.log("[burn] sending", val.length, "chars:", val.slice(0, 100));
     fetch("/api/burn-estimate", { method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({description: val}) })
-      .then(r => r.json())
+      .then(r => {
+        console.log("[burn] response status:", r.status);
+        if (!r.ok) return r.text().then(t => { throw new Error("Server " + r.status + ": " + (t || "").slice(0, 200)); });
+        return r.json();
+      })
       .then(data => {
         burnBtn.disabled = false; burnBtn.textContent = "Get Burn Estimate";
         if (data.error) {
           notes.textContent = "⚠ " + data.error; notes.style.color = "var(--danger)";
           panel.classList.add("visible"); return;
         }
+        console.log("[burn] success:", data.calories_burned, "kcal");
         burnVal.value = data.calories_burned;
         notes.style.color = ""; notes.textContent = data.notes ? "Note: " + data.notes : "";
         panel.classList.add("visible");
         logBtn.style.display = "";
       })
-      .catch(() => { burnBtn.disabled = false; burnBtn.textContent = "Get Burn Estimate"; });
+      .catch(err => {
+        console.error("[burn] FAILED:", err);
+        burnBtn.disabled = false; burnBtn.textContent = "Get Burn Estimate";
+        notes.textContent = "⚠ Failed: " + (err.message || "Network error — try again");
+        notes.style.color = "var(--danger)";
+        panel.classList.add("visible");
+      });
   });
 
   logBtn.addEventListener("click", () => {
