@@ -1465,10 +1465,6 @@
           <input type="hidden" name="fat_g"     id="h-fat">
 
           <div id="macro-fields">
-            <!-- Log button at the top -->
-            <button type="submit" class="btn btn-primary btn-full" id="log-btn"
-              style="display:none;font-size:1rem;padding:0.8rem 1rem;margin-bottom:0.75rem" data-i18n="log_this_meal">Log This Meal</button>
-
             <div class="macro-edit-grid">
               <div class="field"><label>Cal</label><input type="number" id="e-calories" min="0" step="1"></div>
               <div class="field"><label>Protein</label><input type="number" id="e-protein" min="0" step="0.1"></div>
@@ -1479,7 +1475,11 @@
             <div id="item-breakdown"></div>
             <div id="ai-notes"></div>
 
-            <!-- Details/corrections box (shown after analysis, below breakdown) -->
+            <!-- Log button below breakdown + notes -->
+            <button type="submit" class="btn btn-primary btn-full" id="log-btn"
+              style="display:none;font-size:1rem;padding:0.8rem 1rem;margin-top:0.75rem" data-i18n="log_this_meal">Log This Meal</button>
+
+            <!-- Details/corrections box (shown after analysis, below log button) -->
             <div id="meal-details-section" style="display:none;margin-top:0.5rem">
               <div class="field" style="margin-bottom:8px">
                 <textarea id="meal-details-input" rows="2"
@@ -4259,6 +4259,7 @@ function deleteWorkout(id) {
 
   // ── Suggest ──────────────────────────────────────────────────────────
   suggestBtn.addEventListener("click", async () => {
+    // Gather fresh pantry + ingredient data on each press
     const pantryItems = loadPantry();
     const extraText   = ingredientsEl.value.trim();
     const ingredients = [...pantryItems, ...(extraText ? [extraText] : [])].join(", ");
@@ -4272,32 +4273,21 @@ function deleteWorkout(id) {
     loadingEl.style.display = "flex";
     resultEl.style.display  = "none";
 
-    const _prof = getProfileData();
-    const _goalPro  = _prof.protein || 175;
-    const _goalCarb = _prof.carbs   || 250;
-    const _goalFat  = _prof.fat     || 75;
-
     try {
+      // Send only what the backend needs — it fetches fresh calories
+      // from the DB so we never send stale client-side globals
       const res  = await fetch("/api/meals/suggest", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ingredients,
           images: imgPayload,
           hour: new Date().getHours(),
-          calories_consumed: Math.round(CAL_CONSUMED),
-          tdee: CURRENT_TDEE,
-          protein_consumed: PROTEIN_CONSUMED,
-          carbs_consumed: CARBS_CONSUMED,
-          fat_consumed: FAT_CONSUMED,
-          protein_goal: _goalPro,
-          carbs_goal: _goalCarb,
-          fat_goal: _goalFat,
         }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       lastOptions = data.options || [];
-      if (!lastOptions.length) throw new Error("No options returned.");
+      if (!lastOptions.length) throw new Error("No meal suggestions returned. Try adding more ingredients.");
       renderOptions(lastOptions);
     } catch(err) {
       alert("Suggestion failed: " + err.message);
@@ -4667,7 +4657,7 @@ function deleteWorkout(id) {
     })
     .then(r => r.json())
     .then(data => {
-      logBtn.disabled = false; logBtn.textContent = "Log Meal";
+      logBtn.disabled = false; logBtn.textContent = "Log This Meal";
       if (data.error) { aiNotes.textContent = "⚠ " + data.error; aiNotes.style.color = "var(--danger)"; return; }
       // Update global consumed vars
       CAL_CONSUMED     = data.totals.total_calories;
@@ -4689,7 +4679,7 @@ function deleteWorkout(id) {
       refreshAllUIs(data.totals, null);
       flashGreen();
     })
-    .catch(() => { logBtn.disabled = false; logBtn.textContent = "Log Meal"; });
+    .catch(() => { logBtn.disabled = false; logBtn.textContent = "Log This Meal"; });
   });
 })();
 
