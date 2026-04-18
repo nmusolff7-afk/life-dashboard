@@ -5677,7 +5677,12 @@ function applyProfileToMeals(profile) {
   if (!profile) return;
   const steps = getTodaySteps();
   const rmr   = profile.rmr || SERVER_RMR;
-  const neatBase = profile.neatAdjust || (OCC_BASE[profile.occupation || "sedentary"] || 200);
+  // Use Live Preview NEAT slider if available (stays in sync with occupation changes),
+  // fall back to stored neatAdjust, then occupation base
+  const neatSliderEl = document.getElementById("neat-slider");
+  const neatBase = (neatSliderEl ? parseInt(neatSliderEl.value) : null)
+    || profile.neatAdjust
+    || (OCC_BASE[profile.occupation || "sedentary"] || 200);
   const { workoutSteps, netSteps } = calcNEAT(profile.occupation || "sedentary", steps, TODAY_WORKOUT_DESCS);
   const stepBonus = Math.round(netSteps * 0.04);
   const neat  = neatBase + stepBonus;
@@ -5686,6 +5691,7 @@ function applyProfileToMeals(profile) {
   const tdee  = rmr + neat + eat + tef;
 
   CURRENT_TDEE = Math.round(tdee);          // keep global in sync
+  window._LIVE_TDEE = CURRENT_TDEE;         // unify both globals
   const balance  = tdee - CAL_CONSUMED;   // actual caloric deficit vs TDEE
   const goalPro  = profile.protein || 175;
   const goalCarb = profile.carbs   || 250;
@@ -5987,10 +5993,10 @@ try {
     const rmrLocked = (rmrLockEl && rmrLockEl.checked) || localStorage.getItem("rmr-locked") !== "0";
     if (!rmrLocked) {
       setSlider("rmr", rmr);
-      // NEAT base from occupation (OCC_BASE) — user can override via slider
-      const neatBase = (OCC_BASE[inp.occupation] || 200);
-      setSlider("neat", neatBase);
     }
+    // NEAT always updates from occupation — not gated by RMR lock
+    const neatBase = (OCC_BASE[inp.occupation] || 200);
+    setSlider("neat", neatBase);
     setSlider("deficit", adjust);
     setSlider("protein", macros.protein);
     setSlider("carbs",   macros.carbs);
@@ -9300,8 +9306,8 @@ if ("serviceWorker" in navigator) {
 
     const burnEl = document.getElementById("dash-burn-val");
     if (burnEl) {
-      if (CURRENT_TDEE > 0) {
-        burnEl.textContent = CURRENT_TDEE.toLocaleString() + " kcal";
+      if (tdee > 0) {
+        burnEl.textContent = tdee.toLocaleString() + " kcal";
         burnEl.style.color = "var(--text)";
       } else {
         burnEl.textContent = "—";
