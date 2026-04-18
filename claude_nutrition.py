@@ -41,7 +41,8 @@ Rules:
 - ALWAYS break the meal into individual items, even if only one item is described.
 - Each item should include the portion/quantity in its name.
 - The top-level totals MUST equal the exact sum of all items.
-- For complex meals (e.g. a burrito), break into component ingredients (tortilla, rice, beans, meat, cheese, etc.)."""
+- For complex meals (e.g. a burrito), break into component ingredients (tortilla, rice, beans, meat, cheese, etc.).
+- sugar_g, fiber_g, and sodium_mg are REQUIRED for every item. Look up real nutritional data — most foods have non-zero values for at least one of these. Do NOT default them to 0 unless the food genuinely contains none."""
 
 
 def _parse_json(text: str) -> dict:
@@ -147,7 +148,8 @@ Rules:
 - Each item should include the estimated portion/quantity in its name.
 - The top-level totals MUST equal the exact sum of all items.
 - For complex dishes, break into component ingredients.
-- Be realistic about portion sizes based on what is visible in the image."""
+- Be realistic about portion sizes based on what is visible in the image.
+- sugar_g, fiber_g, and sodium_mg are REQUIRED for every item. Look up real nutritional data — most foods have non-zero values for at least one of these. Do NOT default them to 0 unless the food genuinely contains none."""
 
 
 def scan_meal_image(image_b64: str, media_type: str, context: str = "") -> dict:

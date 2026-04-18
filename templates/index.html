@@ -1387,7 +1387,7 @@
       {% set cal_consumed = totals.total_calories %}
       {% set balance = tdee - cal_consumed %}
 
-      <div class="card" style="order:2;padding:0;overflow:hidden">
+      <div class="card" style="order:3;padding:0;overflow:hidden">
         <div class="card-title" style="padding:var(--pad-card) var(--pad-card) 0" data-i18n="daily_summary">Daily summary</div>
         <div style="display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch" id="summary-swipe">
           <!-- Page 1: Deficit + Macros -->
@@ -1547,9 +1547,7 @@
         </form>
       </div>
 
-      </div><!-- /flex reorder -->
-
-      <div class="card" id="meal-table-wrap">
+      <div class="card" id="meal-table-wrap" style="order:2">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
           <div class="card-title" style="margin:0;flex:1">Today's meal entries</div>
           <button type="button" class="btn-edit-meal" id="open-saved-meals-btn" style="font-size:0.72rem">Saved</button>
@@ -1591,6 +1589,8 @@
         <div class="empty"><div class="icon" style="color:var(--muted)"><svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg></div>No meals logged yet.</div>
         {% endif %}
       </div>
+
+      </div><!-- /flex reorder -->
 
       <!-- Calories Consumed Chart -->
       <div class="card">
@@ -8079,11 +8079,9 @@ function fmtDate(iso) {
       html += `<div class="hd-stat"><div class="v" style="color:var(--protein)">${dayData.protein}g</div><div class="l">Protein</div></div>`;
       html += `<div class="hd-stat"><div class="v" style="color:var(--carbs)">${dayData.carbs}g</div><div class="l">Carbs</div></div>`;
       html += `<div class="hd-stat"><div class="v" style="color:var(--fat)">${dayData.fat}g</div><div class="l">Fat</div></div>`;
-      if (dayData.sugar || dayData.fiber || dayData.sodium) {
-        html += `<div class="hd-stat"><div class="v" style="color:var(--amber)">${dayData.sugar || 0}g</div><div class="l">Sugar</div></div>`;
-        html += `<div class="hd-stat"><div class="v" style="color:var(--green)">${dayData.fiber || 0}g</div><div class="l">Fiber</div></div>`;
-        html += `<div class="hd-stat"><div class="v">${dayData.sodium || 0}mg</div><div class="l">Sodium</div></div>`;
-      }
+      html += `<div class="hd-stat"><div class="v" style="color:var(--amber)">${dayData.sugar || 0}g</div><div class="l">Sugar</div></div>`;
+      html += `<div class="hd-stat"><div class="v" style="color:var(--green)">${dayData.fiber || 0}g</div><div class="l">Fiber</div></div>`;
+      html += `<div class="hd-stat"><div class="v">${dayData.sodium || 0}mg</div><div class="l">Sodium</div></div>`;
     } else if ((serverDay.meals || []).length) {
       const cal = serverDay.meals.reduce((s, m) => s + (m.calories || 0), 0);
       const pro = serverDay.meals.reduce((s, m) => s + (m.protein_g || 0), 0);
@@ -8096,11 +8094,9 @@ function fmtDate(iso) {
       html += `<div class="hd-stat"><div class="v" style="color:var(--protein)">${Math.round(pro)}g</div><div class="l">Protein</div></div>`;
       html += `<div class="hd-stat"><div class="v" style="color:var(--carbs)">${Math.round(carb)}g</div><div class="l">Carbs</div></div>`;
       html += `<div class="hd-stat"><div class="v" style="color:var(--fat)">${Math.round(fat)}g</div><div class="l">Fat</div></div>`;
-      if (sug > 0 || fib > 0 || sod > 0) {
-        html += `<div class="hd-stat"><div class="v" style="color:var(--amber)">${Math.round(sug)}g</div><div class="l">Sugar</div></div>`;
-        html += `<div class="hd-stat"><div class="v" style="color:var(--green)">${Math.round(fib)}g</div><div class="l">Fiber</div></div>`;
-        html += `<div class="hd-stat"><div class="v">${Math.round(sod)}mg</div><div class="l">Sodium</div></div>`;
-      }
+      html += `<div class="hd-stat"><div class="v" style="color:var(--amber)">${Math.round(sug)}g</div><div class="l">Sugar</div></div>`;
+      html += `<div class="hd-stat"><div class="v" style="color:var(--green)">${Math.round(fib)}g</div><div class="l">Fiber</div></div>`;
+      html += `<div class="hd-stat"><div class="v">${Math.round(sod)}mg</div><div class="l">Sodium</div></div>`;
     }
     html += '</div>';
 
