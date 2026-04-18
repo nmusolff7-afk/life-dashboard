@@ -688,8 +688,8 @@ def api_meals_suggest():
     totals = get_today_totals(uid(), client_today())
     cal_consumed = int((totals or {}).get("total_calories", 0) or 0)
     goal = get_user_goal(uid())
-    cal_target = goal["calorie_target"] if goal else 2000
-    cal_remaining = max(0, cal_target - cal_consumed)
+    cal_target = goal["calorie_target"] if goal and goal["calorie_target"] > 0 else 2000
+    cal_remaining = max(100, cal_target - cal_consumed)  # floor at 100 — always suggest something
     _log.info("SUGGEST: user=%s cal_target=%s cal_consumed=%s cal_remaining=%s",
               uid(), cal_target, cal_consumed, cal_remaining)
 
