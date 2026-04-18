@@ -2083,13 +2083,13 @@
             <div class="slider-header">
               <span class="slider-label">NEAT Adjustment</span>
               <div class="slider-val-row">
-                <input type="number" id="neat-num" class="slider-num" min="-500" max="500" style="width:68px">
+                <input type="number" id="neat-num" class="slider-num" min="0" max="2000" style="width:68px">
                 <span class="slider-unit">kcal</span>
               </div>
             </div>
-            <input type="range" id="neat-slider" min="-500" max="500" step="25">
+            <input type="range" id="neat-slider" min="0" max="2000" step="25">
             <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:3px">
-              <span>−500</span><span>0</span><span>+500</span>
+              <span>0</span><span>1000</span><span>2000</span>
             </div>
           </div>
 
@@ -6266,6 +6266,9 @@ try {
     const el = document.getElementById(id);
     if (el) el.addEventListener("input", () => { recalcAll(); _autoSave(); });
   });
+
+  // Wire all sliders: sync slider↔number, update preview, auto-save
+  ["rmr","neat","deficit","protein","carbs","fat","sugar","fiber","sodium"].forEach(id => linkSlider(id));
 
   // Fields that affect target calculations
   const TARGET_FIELDS = ["curWeight", "tgtWeight", "heightFt", "heightIn", "age", "sex", "bfPct", "goal"];
