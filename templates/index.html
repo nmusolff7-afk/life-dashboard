@@ -15,7 +15,9 @@
     // Apply saved theme BEFORE first paint to prevent flash
     (function() {
       var uid = "{{ user_id|default('0') }}";
-      var t = localStorage.getItem("u" + uid + ":apex-theme") || localStorage.getItem("apex-theme") || "dark";
+      // Check profileData.theme first (survives across devices), then localStorage, then default
+      var _pd; try { _pd = JSON.parse(localStorage.getItem("u" + uid + ":profileData") || localStorage.getItem("profileData") || "{}"); } catch(e) { _pd = {}; }
+      var t = _pd.theme || localStorage.getItem("u" + uid + ":apex-theme") || localStorage.getItem("apex-theme") || "dark";
       if (t === "light") t = "medium"; // migrate old light theme users
       document.documentElement.setAttribute("data-theme", t);
       var m = document.querySelector('meta[name="theme-color"]');
@@ -2383,6 +2385,29 @@
         </div><!-- /collapse-body -->
       </div>
 
+      <!-- Settings -->
+      <div class="card collapse-card open" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
+        <div class="collapse-header"><div class="card-title" style="margin:0;flex:1">Settings</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="collapse-body" onclick="event.stopPropagation()">
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer">
+              <div>
+                <div style="font-size:14px;font-weight:600;color:var(--text)">Calorie Rollover</div>
+                <div style="font-size:12px;color:var(--muted);line-height:1.4;margin-top:2px">Roll up to 200 uneaten calories from yesterday into today's budget</div>
+              </div>
+              <input type="checkbox" id="setting-calorie-rollover" style="width:20px;height:20px;accent-color:var(--accent);flex-shrink:0;margin-left:12px">
+            </label>
+            <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer">
+              <div>
+                <div style="font-size:14px;font-weight:600;color:var(--text)">Auto-Adjust Targets</div>
+                <div style="font-size:12px;color:var(--muted);line-height:1.4;margin-top:2px">Recalculate RMR and calorie targets when you log a new weight</div>
+              </div>
+              <input type="checkbox" id="setting-auto-adjust" style="width:20px;height:20px;accent-color:var(--accent);flex-shrink:0;margin-left:12px" checked>
+            </label>
+          </div>
+        </div>
+      </div>
+
       <!-- Meal Reminders -->
       <div class="card collapse-card" onclick="if(event.target.closest('.collapse-body'))return;this.classList.toggle('open')">
         <div class="collapse-header"><div class="card-title" style="margin:0;flex:1" data-i18n="meal_reminders">Meal Reminders</div><svg class="collapse-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
@@ -3464,11 +3489,15 @@ function syncWeightToProfile(weight) {
   try {
     const profile = getProfileData();
     profile.curWeight = weight;
-    // Recalculate RMR with new weight
-    const hFt = profile.heightFt || 5, hIn = profile.heightIn || 10;
-    const age = profile.age || 25, sex = profile.sex || "male";
-    const bf  = profile.bfPct || 0;
-    profile.rmr = calcRMR(weight, hFt, hIn, age, sex, bf);
+    // Auto-recalculate RMR if setting is enabled (default: on)
+    const autoAdjust = typeof window._settingEnabled === "function"
+      ? window._settingEnabled("autoAdjustTargets", true) : true;
+    if (autoAdjust) {
+      const hFt = profile.heightFt || 5, hIn = profile.heightIn || 10;
+      const age = profile.age || 25, sex = profile.sex || "male";
+      const bf  = profile.bfPct || 0;
+      profile.rmr = calcRMR(weight, hFt, hIn, age, sex, bf);
+    }
     localStorage.setItem("profileData", JSON.stringify(profile));
     // Update the profile-tab input if visible
     const el = document.getElementById("p-cur-weight");
@@ -9131,6 +9160,12 @@ if ("serviceWorker" in navigator) {
   function applyTheme(theme) {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem(_uKey("apex-theme"), theme);
+    // Also persist in profileData so it syncs across devices
+    try {
+      const p = JSON.parse(localStorage.getItem("profileData") || "{}");
+      p.theme = theme;
+      localStorage.setItem("profileData", JSON.stringify(p));
+    } catch(e) {}
     // Update status bar color
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute("content", THEME_COLORS[theme] || THEME_COLORS.dark);
@@ -9159,6 +9194,47 @@ if ("serviceWorker" in navigator) {
     s.style.borderColor = s.dataset.theme === current ? "var(--accent2)" : "transparent";
     s.addEventListener("click", () => applyTheme(s.dataset.theme));
   });
+})();
+
+// ══════════════════════════════════════════════════════
+//  SETTINGS TOGGLES
+// ══════════════════════════════════════════════════════
+
+(function() {
+  // Persist settings in profileData so they survive across devices
+  function _getSetting(key, defaultVal) {
+    const p = getProfileData();
+    return p[key] !== undefined ? p[key] : defaultVal;
+  }
+  function _setSetting(key, val) {
+    const p = getProfileData();
+    p[key] = val;
+    localStorage.setItem("profileData", JSON.stringify(p));
+  }
+
+  // Calorie rollover toggle
+  const rolloverEl = document.getElementById("setting-calorie-rollover");
+  if (rolloverEl) {
+    rolloverEl.checked = _getSetting("calorieRollover", false);
+    rolloverEl.addEventListener("change", () => {
+      _setSetting("calorieRollover", rolloverEl.checked);
+      if (typeof window._refreshDashboard === "function") window._refreshDashboard();
+    });
+  }
+
+  // Auto-adjust targets toggle
+  const autoAdjustEl = document.getElementById("setting-auto-adjust");
+  if (autoAdjustEl) {
+    autoAdjustEl.checked = _getSetting("autoAdjustTargets", true);
+    autoAdjustEl.addEventListener("change", () => {
+      _setSetting("autoAdjustTargets", autoAdjustEl.checked);
+    });
+  }
+
+  // Expose for other code to check
+  window._settingEnabled = function(key, defaultVal) {
+    return _getSetting(key, defaultVal);
+  };
 })();
 
 // ══════════════════════════════════════════════════════
@@ -9405,7 +9481,20 @@ if ("serviceWorker" in navigator) {
 
     // ── Numbers — use EXACT same values as Live Preview in Profile tab ──
     const tdee      = window._LIVE_TDEE || entry.tdee || SERVER_TDEE;
-    const calTarget = window._LIVE_TARGET_INTAKE || tdee;
+    let   calTarget = window._LIVE_TARGET_INTAKE || tdee;
+    // Calorie rollover: add up to 200 uneaten calories from yesterday
+    if (typeof window._settingEnabled === "function" && window._settingEnabled("calorieRollover", false)) {
+      const yesterday = new Date(today + "T00:00:00");
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yd = yesterday.getFullYear() + "-" + String(yesterday.getMonth()+1).padStart(2,"0") + "-" + String(yesterday.getDate()).padStart(2,"0");
+      const yEntry = getDayEntry(yd);
+      if (yEntry && yEntry.calories != null && calTarget > 0) {
+        const yTarget = yEntry.tdee ? (yEntry.tdee + (profile.deficit || 0)) : calTarget;
+        const uneaten = Math.max(0, yTarget - (yEntry.calories || 0));
+        const rollover = Math.min(200, uneaten);
+        if (rollover > 0) calTarget += rollover;
+      }
+    }
     const calories  = CAL_CONSUMED;
     const actualDeficit = tdee - calories;  // for equation line
     const remaining = calTarget - calories;  // for ring
