@@ -1,6 +1,6 @@
 # APEX Life Dashboard — Frontend Inventory
 
-Generated: 2026-04-17 | 3 templates | 10,845 total lines
+Generated: 2026-04-19 | 3 templates
 
 ---
 
@@ -72,10 +72,10 @@ All UI is a single 10,296-line HTML file with tab-based navigation.
 | **Accessibility** | None |
 
 ### Components:
-- **Streak Bar** — horizontal scroll, 30 days, clickable to open day detail, flame emoji + day count
-- **Calorie Balance Ring** — SVG donut, green (deficit) / red (surplus), center number
+- **Streak Bar** — horizontal scroll, 90 days, clickable to open day detail, flame emoji + unlimited day count
+- **Calorie Balance Ring** — SVG donut, green (deficit) / red (surplus), center number + calorie goal text below
 - **Stats Grid** — 2x2: Weight, Steps, Proj. Burn, Cals Consumed
-- **Macros/Micros Card** — swipeable 2-page (scroll-snap), page dots, page 1: protein/carbs/fat bars, page 2: sugar/fiber/sodium bars
+- **Macros/Micros Card** — swipeable 2-page (scroll-snap), page dots, page 1: protein/carbs/fat bars, page 2: sugar/fiber/sodium bars (unique colors per macro/micro)
 - **Today's Tasks** — add button, checkbox list, completion count
 
 ---
@@ -96,11 +96,11 @@ All UI is a single 10,296-line HTML file with tab-based navigation.
 | **Accessibility** | None |
 
 ### Components:
-- **Log a Meal Card** — textarea + Get Macros button + photo/barcode/saved options
+- **Log a Meal Card** — auto-grow textarea + Get Macros button + photo/barcode/saved options; voice-to-text stops on Get Macros press
+- **Meal Table** — description (32 char cap), cal, pro, carb, fat columns, edit/delete buttons, totals row (displayed above daily summary)
 - **Daily Summary** — swipeable 2-page with page dots: page 1 (deficit + P/C/F bars), page 2 (calories remaining + sugar/fiber/sodium)
 - **Macro Edit Grid** — 4 inline number inputs (Cal, Protein, Carbs, Fat)
-- **Item Breakdown** — per-item calorie list with remove buttons
-- **Meal Table** — description (32 char cap), cal, pro, carb, fat columns, edit/delete buttons, totals row
+- **Item Breakdown** — per-item calorie list with remove buttons, Log button below
 - **Barcode Scanner** — full-screen camera overlay with frame + scan animation
 - **Calories Consumed Chart** — Chart.js bar chart, 7/30/90 day toggle
 
@@ -122,10 +122,10 @@ All UI is a single 10,296-line HTML file with tab-based navigation.
 | **Accessibility** | `role="button" aria-label="Return to workout"` on workout banner |
 
 ### Components:
-- **Log Activity Card** — textarea + Get Burn Estimate + Log Activity
-- **Strength Card** — workout complete summary / idle plan preview / start workout button / "Log Another" button
+- **Log Activity Card** — auto-grow textarea + Get Burn Estimate + Log Activity; voice-to-text stops on Get Burn press
+- **Strength Card** — workout complete summary / idle plan preview / start workout button / "Log Another" button; collapsible exercise sets (tap to expand)
 - **Workout Checklist Overlay** — full-screen, exercise blocks with set rows (checkbox, weight input, reps input), live timer, rest timer
-- **Workout Entries** — card-based list with icon circles, calorie pills
+- **Workout Entries** — unified card design for all types (strength/cardio/mixed), icon circles, calorie pills; cardio shows distance/pace/HR pills
 - **Daily Steps Card** — number input + Save Steps + NEAT breakdown
 - **Today's Weight Card** — number input + Save Weight
 - **Total Daily Burn Chart** — Chart.js bar chart with stats row (Today / RMR / Active)
@@ -202,7 +202,8 @@ All UI is a single 10,296-line HTML file with tab-based navigation.
 - **Live Preview** — computed daily plan text
 - **Workout Plan** — AI Import textarea + Manual Builder (Sortable.js) + preview grid
 - **My Profile** — summary line + Edit Profile / View Plan buttons
-- **Theme** — 2-button grid (Dark / Light)
+- **Settings** — calorie rollover toggle, auto-adjust toggle (persistent in localStorage)
+- **Theme** — 2-button grid (Dark / Light), persists across sessions
 - **Meal Reminders** — time inputs with add/remove, browser Notification API
 - **Language** — 10 flag buttons (EN, ES, FR, DE, PT, IT, NL, PL, ZH, AR)
 - **Timezone** — Automatic/Manual toggle + timezone select
@@ -236,7 +237,7 @@ All UI is a single 10,296-line HTML file with tab-based navigation.
 | **ID** | `#meal-detail-overlay` |
 | **Trigger** | Click meal row in table or history |
 | **APIs** | `/api/saved-meals`, `/api/ai-edit-meal`, `/api/edit-meal/{id}` |
-| **Components** | Hero (emoji icon, name, time), macro tiles (cal, pro, carb, fat, sugar, fiber, sodium), breakdown, AI edit textarea, Save/Saved button |
+| **Components** | Hero (emoji icon, name, time), macro tiles (cal, pro, carb, fat, sugar, fiber, sodium), breakdown, AI edit textarea, Save/Saved button, Delete button |
 
 ### Workout Detail Overlay
 | Property | Value |
@@ -244,7 +245,7 @@ All UI is a single 10,296-line HTML file with tab-based navigation.
 | **ID** | `#workout-detail-overlay` |
 | **Trigger** | Click workout entry |
 | **APIs** | `/api/saved-workouts`, `/api/ai-edit-workout`, `/api/edit-workout/{id}` |
-| **Components** | Hero (emoji icon, name, time), calories burned tile, AI edit textarea, Save button |
+| **Components** | Hero (emoji icon, name, time), exercise cards with set grids (weight x reps), cardio stats (distance/pace/HR pills), calories burned tile, AI edit textarea, Save button, Delete button |
 
 ### Day Detail Overlay
 | Property | Value |
@@ -316,7 +317,7 @@ All UI is a single 10,296-line HTML file with tab-based navigation.
 | navigator.mediaDevices.getUserMedia | Camera for barcode/photos | File input fallback |
 | Notification | Meal reminders, workout alerts | Silent (no notification) |
 | Service Worker | PWA caching, offline, workout notifications | App works without it |
-| Web Speech API | Voice input on textareas | Mic button hidden if unsupported |
+| Web Speech API | Voice input on textareas; auto-stops on Get Macros / Get Burn press | Mic button hidden if unsupported |
 | CSS scroll-snap | Swipeable card pages | Falls back to horizontal scroll |
 | CSS env() | Safe area insets (notch) | Falls back to 0px |
 

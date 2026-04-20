@@ -1,6 +1,6 @@
 # APEX Life Dashboard — API Contract
 
-Generated: 2026-04-17 | 52 endpoints | Flask + Session Auth
+Generated: 2026-04-19 | 45 endpoints | Flask + Session Auth
 
 ---
 
@@ -36,10 +36,20 @@ These return `render_template()` or `redirect()` instead of JSON:
 | GET/POST | `/login` | `render_template("login.html")` / `redirect()` | Convert POST to JSON, remove GET |
 | GET | `/logout` | `redirect("/login")` | Convert to `POST /api/logout` returning JSON |
 | GET | `/sw.js` | `make_response(file)` | Keep as-is (PWA only) |
-| GET | `/api/gmail/connect` | `redirect(google_auth_url)` | Return URL as JSON, let client redirect |
-| GET | `/api/gmail/callback` | `redirect("/")` | Return JSON, let client handle |
 
-**All other 45 endpoints already return JSON** — ready for React Native.
+> **Note:** `GET /api/gmail/connect` and `GET /api/gmail/callback` return redirects but are NOT listed here — the Gmail OAuth redirect flow works as-is for web and does not need conversion.
+
+**All other endpoints already return JSON** — ready for React Native.
+
+---
+
+## Error Handling
+
+All error responses use safe, static messages. Exception details (`str(e)`) are never exposed to the client. Errors follow the pattern:
+
+```json
+{ "error": "Safe descriptive message" }
+```
 
 ---
 
@@ -201,6 +211,7 @@ Response: {
   daily_calorie_goal: int,
   daily_protein_goal_g: int,
   rmr_kcal: int,
+  rmr_is_fallback: boolean,
   primary_goal: string,
   steps_per_day_estimated: int,
   behavioral_archetype: string,
@@ -214,6 +225,7 @@ Response: {
   age: int,
   gender: string,
   work_style: string,
+  body_fat_pct: float|null,
   goal_targets: {
     goal_key: string,
     goal_label: string,
@@ -623,32 +635,6 @@ Headers: Cache-Control: no-store, no-cache
 Tables: mind_tasks (R), mind_checkins (R)
 ```
 
-#### `POST /api/mind/checkin`
-```
-Auth: Required
-
-Request: {
-  type: "morning" | "evening",
-  goals: string,
-  notes: string (required),
-  bodyweight_lbs: float (optional, morning only),
-  energy_level: int 1-10 (optional),
-  stress_level: int 1-10 (optional),
-  sleep_quality: int 1-10 (optional),
-  mood_level: int 1-10 (optional),
-  focus_level: int 1-10 (optional)
-}
-
-Response: {
-  focus: int, wellbeing: int, summary: string,
-  tasks_added: [{ id, description }],
-  bodyweight_lbs: float|null
-}
-
-Tables: mind_checkins (W), mind_tasks (W), daily_activity (W — weight)
-External APIs: claude_profile.score_brief (Claude Haiku)
-```
-
 #### `POST /api/mind/task`
 ```
 Auth: Required
@@ -722,62 +708,6 @@ Tables: daily_activity (W), user_onboarding (W — updates profile weight)
 
 ---
 
-### Garmin
-
-#### `GET /api/garmin`
-```
-Auth: Required
-
-Response: {
-  configured: boolean,
-  today: { steps, active_calories, total_calories, resting_hr } | null,
-  last_sync: string | null
-}
-
-Tables: garmin_daily (R)
-External APIs: garmin_sync.is_configured()
-```
-
-#### `GET /api/garmin/status`
-```
-Auth: Required
-
-Response: {
-  configured: boolean,
-  last_sync: string | null,
-  today: {...} | null,
-  sleep: {...} | null
-}
-
-Tables: garmin_daily (R), sleep_logs (R)
-External APIs: garmin_sync.is_configured()
-```
-
-#### `POST /api/garmin/sync`
-```
-Auth: Required
-
-Request: { date: "YYYY-MM-DD" (optional), force: boolean (optional) }
-
-Response: {
-  synced: true,
-  date: string,
-  steps: int,
-  active_calories: int,
-  ...sleep data...,
-  workouts_synced: int,
-  workouts: [...],
-  burn: int
-}
-Error: { error: "Garmin not configured" } 400
-Error: { error: "Synced recently..." } 429
-
-Tables: garmin_daily (W), sleep_logs (W), workout_logs (W+R)
-External APIs: garmin_sync.fetch_day (Garmin Connect API)
-```
-
----
-
 ### Gmail
 
 #### `GET /api/gmail/status`
@@ -800,24 +730,21 @@ External APIs: gmail_sync.is_configured()
 
 #### `GET /api/gmail/connect`
 ```
-⚠️ RETURNS REDIRECT — needs conversion
-
 Auth: Required
+
 Response (current): redirect(google_auth_url)
-Response (target): { auth_url: string }
+Note: Gmail OAuth redirect flow works as-is for web. No conversion needed.
 
 External APIs: gmail_sync.get_auth_url (Google OAuth)
 ```
 
 #### `GET /api/gmail/callback`
 ```
-⚠️ RETURNS REDIRECT — needs conversion
-
 Auth: Required
 Query: ?code=string&state=string&error=string
 
 Response (current): redirect("/")
-Response (target): { ok: true, email: string }
+Note: Gmail OAuth callback redirect flow works as-is for web. No conversion needed.
 
 Tables: gmail_tokens (W)
 External APIs: gmail_sync.exchange_code, gmail_sync.get_user_email (Google APIs)
@@ -955,23 +882,24 @@ Tables: user_goals (W)
 | Service | Endpoints Using It | Model/Protocol | Cost |
 |---------|-------------------|----------------|------|
 | **Claude Opus** | estimate, scan-meal, meals/scan, meals/suggest, burn-estimate, ai-edit-meal, ai-edit-workout | claude-opus-4-6 | ~$0.01-0.05/call |
-| **Claude Haiku** | shorten, parse-plan, generate-plan, comprehensive-plan, revise-plan, momentum/insight, momentum/summary, onboarding/complete, mind/checkin, gmail/sync | claude-haiku-4-5-20251001 | ~$0.001-0.005/call |
+| **Claude Haiku** | shorten, parse-plan, generate-plan, comprehensive-plan, revise-plan, momentum/insight, momentum/summary, onboarding/complete, gmail/sync | claude-haiku-4-5-20251001 | ~$0.001-0.005/call |
 | **Gmail API** | gmail/connect, gmail/callback, gmail/sync | OAuth 2.0 + REST | Free |
-| **Garmin Connect** | garmin/sync | garminconnect library | Free |
 | **Open Food Facts** | (client-side only) | REST, no auth | Free |
 
 ---
 
 ## Migration Checklist for React Native
 
-### Must Convert (7 routes return HTML/redirects):
+### Must Convert (5 routes return HTML/redirects):
 - [ ] `GET /` → new `GET /api/dashboard` returning JSON
 - [ ] `GET /onboarding` → new `GET /api/onboarding/data` returning JSON
 - [ ] `GET/POST /login` → `POST /api/auth/login` + `POST /api/auth/register`
 - [ ] `GET /logout` → `POST /api/auth/logout`
-- [ ] `GET /api/gmail/connect` → return `{ auth_url }` instead of redirect
-- [ ] `GET /api/gmail/callback` → return JSON instead of redirect
-- [ ] `GET /sw.js` → remove (PWA only)
+- [x] `GET /sw.js` → remove (PWA only, not needed for React Native)
+
+### No Conversion Needed:
+- [x] `GET /api/gmail/connect` — redirect flow works as-is for web OAuth
+- [x] `GET /api/gmail/callback` — redirect flow works as-is for web OAuth
 
 ### Must Add:
 - [ ] `POST /api/auth/login` — returns JWT
@@ -980,5 +908,10 @@ Tables: user_goals (W)
 - [ ] JWT middleware replacing session-based auth
 - [ ] CORS headers for React Native requests
 
-### Already JSON-Ready (45 routes):
-All `/api/*` routes except the 5 listed above already return pure JSON and need zero changes for React Native consumption.
+### Already Done:
+- [x] Error responses use safe messages (no `str(e)` exposure)
+- [x] Garmin integration removed (3 endpoints dropped)
+- [x] `POST /api/mind/checkin` removed
+
+### Already JSON-Ready (remaining routes):
+All `/api/*` routes not listed above already return pure JSON and need zero changes for React Native consumption.

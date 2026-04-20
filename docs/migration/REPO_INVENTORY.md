@@ -1,6 +1,6 @@
 # APEX Life Dashboard — Repository Inventory
 
-Generated: 2026-04-17
+Generated: 2026-04-19
 
 ---
 
@@ -8,30 +8,29 @@ Generated: 2026-04-17
 
 ```
 life-dashboard/
-├── app.py                    (1,474 lines, 57KB)   Flask app, 52 API routes
-├── db.py                     (1,531 lines, 67KB)   SQLite schema, 17 tables, 75 CRUD functions
-├── ai_client.py              (6 lines, 119B)       Anthropic client singleton
-├── claude_nutrition.py       (909 lines, 39KB)     Nutrition AI, scanning, burn estimation
-├── claude_profile.py         (323 lines, 15KB)     Profile generation, check-in scoring
-├── goal_config.py            (242 lines, 11KB)     Goal architecture, evidence-based targets
-├── garmin_sync.py            (275 lines, 10KB)     Garmin Connect polling + sync
-├── gmail_sync.py             (279 lines, 11KB)     Gmail OAuth, fetching, AI summarization
-├── requirements.txt          (11 lines)            Python dependencies
-├── Procfile                  (1 line)              gunicorn deployment
-├── nixpacks.toml             (2 lines)             Container build config
-├── .env                      (4 lines)             Environment variables
+├── app.py                    (1,315 lines)   Flask app, ~45 API routes
+├── db.py                     (1,348 lines)   SQLite schema, 17 tables, CRUD functions
+├── ai_client.py              (6 lines)       Anthropic client singleton
+├── claude_nutrition.py       (891 lines)     Nutrition AI, scanning, burn estimation
+├── claude_profile.py         (94 lines)      Onboarding profile generation
+├── goal_config.py            (242 lines)     Goal architecture, evidence-based targets
+├── gmail_sync.py             (280 lines)     Gmail OAuth, fetching, AI summarization
+├── requirements.txt          (9 lines)       Python dependencies
+├── Procfile                  (1 line)        gunicorn deployment
+├── nixpacks.toml             (2 lines)       Container build config
+├── .env                      (4 lines)       Environment variables
 ├── .gitignore                (23B)
-├── README.md                 (226 lines)           Project documentation
-├── life_dashboard.db         (212KB)               SQLite database
-├── Apex_App_Logo.png         (167KB)               Logo source
+├── README.md                 (226 lines)     Project documentation
+├── life_dashboard.db         (212KB)         SQLite database
+├── Apex_App_Logo.png         (167KB)         Logo source
 ├── templates/
-│   ├── index.html            (10,296 lines, 508KB) Main SPA shell (all tabs)
-│   ├── login.html            (274 lines, 11KB)     Login/registration
-│   └── onboarding.html       (2,209 lines, 133KB)  Multi-step onboarding
+│   ├── index.html            (10,582 lines)  Main SPA shell (all tabs)
+│   ├── login.html            (274 lines)     Login/registration
+│   └── onboarding.html       (2,209 lines)   Multi-step onboarding
 ├── static/
-│   ├── i18n.js               (374 lines, 26KB)     10-language translations
-│   ├── sw.js                 (93 lines, 3KB)       Service Worker (PWA)
-│   ├── manifest.json         (38 lines, 823B)      PWA manifest
+│   ├── i18n.js               (374 lines)     10-language translations
+│   ├── sw.js                 (93 lines)      Service Worker (PWA)
+│   ├── manifest.json         (38 lines)      PWA manifest
 │   ├── apex-logo.png         Logo (PNG)
 │   ├── icon-192.png          PWA icon 192x192
 │   └── icon-512.png          PWA icon 512x512
@@ -44,13 +43,13 @@ life-dashboard/
 
 | Type | Files | Lines |
 |------|-------|-------|
-| Python (.py) | 8 | 5,039 |
-| HTML (.html) | 3 | 12,779 |
+| Python (.py) | 7 | 4,176 |
+| HTML (.html) | 3 | 13,065 |
 | JavaScript (.js) | 2 | 467 |
 | JSON | 1 | 38 |
-| Config | 3 | 14 |
+| Config | 3 | 12 |
 | Docs | 1 | 226 |
-| **Total** | **18** | **~18,563** |
+| **Total** | **12** | **~17,708** |
 
 Note: index.html contains ~1,100 lines CSS + ~6,000 lines JS inline.
 
@@ -60,13 +59,12 @@ Note: index.html contains ~1,100 lines CSS + ~6,000 lines JS inline.
 
 | File | Purpose |
 |------|---------|
-| `app.py` | Main Flask application: 52 API routes for auth, meals, workouts, goals, Gmail, Garmin, momentum scoring, and onboarding. |
-| `db.py` | SQLite database layer: schema initialization, migrations, and 75 CRUD functions across 17 tables. |
+| `app.py` | Main Flask application: ~45 API routes for auth, meals, workouts, goals, Gmail, momentum scoring, and onboarding. |
+| `db.py` | SQLite database layer: schema initialization, migrations, and CRUD functions across 17 tables. |
 | `ai_client.py` | Singleton factory returning an initialized Anthropic API client. |
 | `claude_nutrition.py` | All nutrition/fitness AI: meal estimation, photo scanning, burn estimation, workout plan generation, momentum insights. |
-| `claude_profile.py` | Onboarding profile generation (200-variable AI profile) and check-in scoring. |
+| `claude_profile.py` | Onboarding profile generation (200-variable AI profile). |
 | `goal_config.py` | Evidence-based goal architecture: calorie/macro targets for 4 goal types using peer-reviewed formulas. |
-| `garmin_sync.py` | Garmin Connect integration: OAuth, daily data fetch, sleep parsing, background polling thread. |
 | `gmail_sync.py` | Gmail integration: OAuth flow, email fetching, token refresh, AI email summarization. |
 
 ---
@@ -167,11 +165,10 @@ No standalone CSS files. All styling is inline within `<style>` blocks:
 | POST | `/api/ai-edit-meal` | Re-estimate meal with corrections |
 | POST | `/api/ai-edit-workout` | Re-estimate workout with corrections |
 
-### Mind / Tasks (5 routes)
+### Mind / Tasks (4 routes)
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/api/mind/today` | Today's check-ins |
-| POST | `/api/mind/checkin` | Log check-in |
+| GET | `/api/mind/today` | Today's tasks |
 | POST | `/api/mind/task` | Add task |
 | PATCH | `/api/mind/task/<id>` | Toggle task completion |
 | DELETE | `/api/mind/task/<id>` | Delete task |
@@ -182,13 +179,6 @@ No standalone CSS files. All styling is inline within `<style>` blocks:
 | GET | `/api/history` | 90-day meal + workout history |
 | GET | `/api/day/<date>` | Full day detail view |
 | POST | `/api/log-weight` | Log daily weight |
-
-### Garmin (3 routes)
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/api/garmin` | Today's Garmin stats |
-| GET | `/api/garmin/status` | Check Garmin config |
-| POST | `/api/garmin/sync` | Manual sync |
 
 ### Gmail (7 routes)
 | Method | Path | Purpose |
@@ -210,7 +200,7 @@ No standalone CSS files. All styling is inline within `<style>` blocks:
 | POST | `/api/momentum/summary` | Day/week/month summary |
 | POST | `/api/goal/update` | Save goal targets |
 
-**Total: 52 routes**
+**Total: ~45 routes**
 
 ---
 
@@ -220,11 +210,11 @@ No standalone CSS files. All styling is inline within `<style>` blocks:
 |-------|-------------|---------|
 | `users` | id, username, password_hash | Authentication |
 | `meal_logs` | user_id, log_date, description, calories, protein_g, carbs_g, fat_g, sugar_g, fiber_g, sodium_mg | Meal tracking |
-| `workout_logs` | user_id, log_date, description, calories_burned, garmin_activity_id | Workout tracking |
+| `workout_logs` | user_id, log_date, description, calories_burned | Workout tracking |
 | `daily_activity` | user_id, log_date, weight_lbs | Weight + daily metrics |
-| `garmin_daily` | user_id, stat_date, steps, active_calories, total_calories, resting_hr | Garmin sync cache |
+| `garmin_daily` | user_id, stat_date, steps, active_calories, total_calories, resting_hr | Garmin sync cache (legacy, unused) |
 | `user_onboarding` | user_id, completed, raw_inputs (JSON), profile_map (JSON) | Onboarding state + AI profile |
-| `mind_checkins` | user_id, checkin_date, type, goals, notes, focus, wellbeing, summary, energy/stress/mood/focus levels | Check-in logs |
+| `mind_checkins` | user_id, checkin_date, type, goals, notes, focus, wellbeing, summary, energy/stress/mood/focus levels | Check-in logs (legacy, unused) |
 | `mind_tasks` | user_id, task_date, description, completed, source | Task tracking |
 | `gmail_tokens` | user_id, access_token, refresh_token, token_expiry, email_address | OAuth tokens |
 | `gmail_cache` | user_id, thread_id, message_id, sender, subject, snippet, importance_score | Email metadata cache |
@@ -256,9 +246,7 @@ No standalone CSS files. All styling is inline within `<style>` blocks:
 | `claude-haiku-4-5-20251001` | `claude_nutrition.py` | Plan revision | 4096 |
 | `claude-haiku-4-5-20251001` | `claude_nutrition.py` | Momentum insight | 600 |
 | `claude-haiku-4-5-20251001` | `claude_nutrition.py` | Scale summary | 800 |
-| `claude-haiku-4-5-20251001` | `claude_profile.py` | Profile generation (200 vars) | 2500 |
-| `claude-haiku-4-5-20251001` | `claude_profile.py` | Check-in scoring | 200 |
-| `claude-haiku-4-5-20251001` | `claude_profile.py` | Evening prompt generation | 150 |
+| `claude-haiku-4-5-20251001` | `claude_profile.py` | Profile generation (200 vars) | 1024 |
 | `claude-haiku-4-5-20251001` | `gmail_sync.py` | Email summarization | 600 |
 
 ### Google/Gmail API
@@ -269,13 +257,6 @@ No standalone CSS files. All styling is inline within `<style>` blocks:
 | `gmail.googleapis.com/gmail/v1/users/me/profile` | `gmail_sync.py` | Fetch user email |
 | `gmail.googleapis.com/gmail/v1/users/me/messages` | `gmail_sync.py` | List inbox emails |
 | `gmail.googleapis.com/gmail/v1/users/me/threads/<id>` | `gmail_sync.py` | Get thread metadata |
-
-### Garmin Connect API
-| Function | Called From | Purpose |
-|----------|------------|---------|
-| `get_user_summary(date)` | `garmin_sync.py` | Daily stats (steps, calories, HR) |
-| `get_activities(0, 10)` | `garmin_sync.py` | Recent activities |
-| `get_sleep_data(date)` | `garmin_sync.py` | Sleep metrics |
 
 ### Open Food Facts API
 | URL | Called From | Purpose |
@@ -303,9 +284,6 @@ No standalone CSS files. All styling is inline within `<style>` blocks:
 | `APP_URL` | `app.py` | No | Base URL for OAuth redirects |
 | `GOOGLE_CLIENT_ID` | `gmail_sync.py` | No | Gmail OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | `gmail_sync.py` | No | Gmail OAuth client secret |
-| `GARMIN_EMAIL` | `garmin_sync.py` | No | Garmin login email |
-| `GARMIN_PASSWORD` | `garmin_sync.py` | No | Garmin login password |
-| `GARMIN_TOKENS` | `garmin_sync.py` | No | Serialized Garmin OAuth tokens |
 
 ---
 
@@ -317,8 +295,6 @@ No standalone CSS files. All styling is inline within `<style>` blocks:
 | `flask` | Web framework (routes, templates, sessions) |
 | `gunicorn` | Production WSGI server |
 | `python-dotenv` | Load .env file into environment |
-| `garminconnect` | Garmin Connect API client |
-| `garth` | Garmin OAuth token management |
 | `requests` | HTTP client (Gmail API, token exchange) |
 | `werkzeug` | Password hashing (generate_password_hash, check_password_hash) |
 | `flask-limiter` | Rate limiting on API endpoints |
@@ -332,7 +308,6 @@ No standalone CSS files. All styling is inline within `<style>` blocks:
 ### Server-Side
 | Job | Location | Interval | Status |
 |-----|----------|----------|--------|
-| Garmin background poll | `garmin_sync.py:_poll_loop()` | 60 min | **DISABLED** (commented out in app.py:1062) |
 | Profile generation | `app.py:_run_profile_generation()` | On-demand (async thread) | Active |
 
 ### Client-Side (JavaScript timers)

@@ -1,6 +1,6 @@
 # APEX Life Dashboard — State & Storage Audit
 
-Generated: 2026-04-17 | Security & Privacy Assessment
+Generated: 2026-04-19 | Security & Privacy Assessment
 
 ---
 
@@ -10,7 +10,6 @@ Generated: 2026-04-17 | Security & Privacy Assessment
 |----------|------|-------------|-----------|---------|
 | SQLite database | Server file | Permanent | **No** | **Yes — Critical** |
 | Flask session cookie | Server-signed cookie | 90 days | Signed (not encrypted) | Yes (user_id, username) |
-| Garmin token files | Server filesystem | Permanent | **No** | Yes (OAuth tokens) |
 | Environment variables | Server memory | Process lifetime | N/A | Yes (API keys, passwords) |
 | Python in-memory dicts | Server memory | Process lifetime | N/A | Yes (onboarding jobs) |
 | localStorage | Client browser | Permanent | **No** | **Yes — health data** |
@@ -37,7 +36,6 @@ Generated: 2026-04-17 | Security & Privacy Assessment
 | `user_onboarding` | `raw_inputs` (JSON: body stats, health goals), `profile_map` (200 AI-generated health variables including RMR, BMI, body fat estimates) | Full health profile |
 | `mind_checkins` | `energy_level`, `stress_level`, `sleep_quality`, `mood_level`, `focus_level`, `wellbeing`, `notes` (free text) | Mental health metrics |
 | `gmail_tokens` | `access_token`, `refresh_token`, `email_address` | OAuth credentials + email PII |
-| `garmin_daily` | `resting_hr`, `steps`, `active_calories` | Heart rate = PHI under HIPAA |
 | `sleep_logs` | `total_seconds`, `deep_seconds`, `rem_seconds`, `sleep_score` | Sleep quality = PHI |
 | `user_goals` | `calorie_target`, `protein_g`, `rmr`, `goal_key` | Health/fitness objectives |
 
@@ -72,7 +70,7 @@ Generated: 2026-04-17 | Security & Privacy Assessment
 ## 2. Server-Side: Flask Session
 
 **Storage:** Signed cookie (client-side, server-validated)
-**Signing Key:** `SECRET_KEY` env var (falls back to `os.urandom(32).hex()` — regenerates on restart!)
+**Signing Key:** `SECRET_KEY` env var — **required in production** (app crashes on boot if not set)
 **Lifetime:** 90 days (`session.permanent = True`)
 **Encryption:** **Signed but NOT encrypted** — session data is base64-encoded and readable by the client
 
@@ -85,57 +83,43 @@ Generated: 2026-04-17 | Security & Privacy Assessment
 | `gmail_oauth_state` | 32-byte random hex | Gmail connect (app.py:1195) | No — CSRF token |
 
 ### Security Issues
-1. **SECRET_KEY regeneration:** If `SECRET_KEY` env var is not set, a random key is generated on every app restart, invalidating all existing sessions
+1. ~~**SECRET_KEY regeneration:** If `SECRET_KEY` env var is not set, a random key is generated on every app restart, invalidating all existing sessions~~ **RESOLVED** — `SECRET_KEY` is now required; app crashes on boot if not set
 2. **Session content visible:** Username is readable in the cookie (not encrypted, only signed)
 3. **No session revocation:** No server-side session store means sessions can't be invalidated without changing `SECRET_KEY`
 
 ---
 
-## 3. Server-Side: Garmin Token Files
+## 3. Server-Side: Garmin Token Files — DELETED
 
-**Location:** `~/.garminconnect/` (expanded from `pathlib.Path.home()`)
-**Persistence:** Permanent (until `_invalidate_tokens()` calls `shutil.rmtree()`)
-**Encryption:** None
-**Written By:** `garmin_sync.py` lines 55-57 (from env var) and line 88 (from login)
+> **garmin_sync.py was removed entirely during pre-migration hardening.** All Garmin-related server-side state (token files, client objects, polling thread) no longer exists. This section is retained for historical reference only.
 
-### Files Written
-- `garth` library token files (OAuth tokens, refresh tokens)
-- Filename and content structure determined by the `garth` library
-- Source: `GARMIN_TOKENS` env var (JSON dict of `{filename: content}`)
-
-### Security Issue
-- Tokens are stored as plaintext files on disk
-- Any process with filesystem access can read them
-- In containerized deployment: these files are ephemeral (lost on container restart) unless `GARMIN_TOKENS` env var is set
+~~**Location:** `~/.garminconnect/` (expanded from `pathlib.Path.home()`)~~
+~~**Written By:** `garmin_sync.py`~~
 
 ---
 
 ## 4. Server-Side: Python In-Memory State
 
-### `_ob_jobs` (app.py line 77)
+### `_ob_jobs` (app.py)
 ```python
 _ob_jobs: dict = {}  # {user_id: {"status": str, "profile": dict, "error": str}}
 ```
 - **Contains:** Onboarding profile generation results (200-variable health profile)
 - **Persistence:** Process lifetime only — lost on restart
 - **Privacy Risk:** HIGH — contains full health profile during generation
-- **Cleanup:** Never explicitly cleaned — grows indefinitely (memory leak for many users)
+- **Thread Safety:** Protected by `threading.Lock` (`_ob_lock`). Fixed in commit 1f26316.
+- **TTL Sweep:** Entries are evicted after 1 hour. A background sweep removes stale entries. Fixed in commit aa077b0.
+- **Pop on Terminal State:** Done/error entries are removed from the dict after the client polls them, preventing unbounded growth.
+- ~~**Cleanup:** Never explicitly cleaned — grows indefinitely (memory leak for many users)~~ **RESOLVED** — TTL sweep + pop-on-read now bound memory usage.
 
-### `_client` (garmin_sync.py line 27)
-```python
-_client: Garmin | None = None
-```
-- **Contains:** Authenticated Garmin API client with stored credentials
-- **Persistence:** Process lifetime
-- **Privacy Risk:** HIGH — holds active authentication state
+### Garmin Globals — DELETED
 
-### `_last_fetch_time` (garmin_sync.py line 214)
-- **Contains:** Unix timestamp of last Garmin fetch
-- **Privacy Risk:** LOW — timing data only
+The following globals formerly in `garmin_sync.py` no longer exist. The entire module was removed during pre-migration hardening:
 
-### `_poll_thread` (garmin_sync.py line 213)
-- **Contains:** Reference to background daemon thread
-- **Privacy Risk:** None
+- ~~`_client` (Garmin API client)~~
+- ~~`_client_lock` (threading.Lock for client init)~~
+- ~~`_poll_thread` (background daemon thread)~~
+- ~~`_last_fetch_time` (Unix timestamp of last Garmin fetch)~~
 
 ---
 
@@ -144,21 +128,17 @@ _client: Garmin | None = None
 | Variable | Contains | Risk Level |
 |----------|----------|------------|
 | `ANTHROPIC_API_KEY` | Claude API key | CRITICAL — full API access, billing |
-| `SECRET_KEY` | Flask session signing key | CRITICAL — session forgery if leaked |
+| `SECRET_KEY` | Flask session signing key (**required — crashes on boot if missing**) | CRITICAL — session forgery if leaked |
 | `RECOVERY_KEY` | Password reset master key | CRITICAL — account takeover |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth app secret | HIGH — OAuth impersonation |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID | MEDIUM — public identifier |
-| `GARMIN_PASSWORD` | Plaintext Garmin password | HIGH — account access |
-| `GARMIN_EMAIL` | Garmin account email | MEDIUM — PII |
-| `GARMIN_TOKENS` | Serialized OAuth tokens (JSON) | HIGH — Garmin API access |
 | `DB_PATH` | Database file location | LOW — path info |
 | `APP_URL` | Application base URL | LOW — public info |
 | `PORT` | Server port | LOW |
 
 ### Security Issues
-1. **`GARMIN_PASSWORD` stored as plaintext** in environment — should use OAuth-only flow
-2. **`RECOVERY_KEY`** is a shared secret for password resets — should be per-user or use email verification
-3. **No rotation mechanism** for any key
+1. **`RECOVERY_KEY`** is a shared secret for password resets — should be per-user or use email verification
+2. **No rotation mechanism** for any key
 
 ---
 
@@ -168,6 +148,10 @@ _client: Garmin | None = None
 **Encryption:** None
 **Access:** Any JavaScript on the same origin (vulnerable to XSS)
 **Size Limit:** ~5-10MB per origin
+
+### Server Sync on Page Load
+
+On page load, the app fetches `/api/today-nutrition` and `/api/today-workouts` and overwrites localStorage with fresh server data before rendering. This ensures the client always starts with authoritative server state.
 
 ### User-Namespaced Keys (prefixed `u{user_id}:`)
 
@@ -183,7 +167,7 @@ _client: Garmin | None = None
 | Key | Data | PII/PHI |
 |-----|------|---------|
 | `appLang` | `"en"`, `"es"`, etc. | No |
-| `profileData` | Full profile JSON: weight, height, age, sex, goals, RMR, deficit, macros | **CRITICAL — full health profile** |
+| `profileData` | Full profile JSON (see keys below) | **CRITICAL — full health profile** |
 | `dailyLog` | `{"2026-04-17": {deficit, calories, tdee, protein, carbs, fat, sugar, fiber, sodium, weight, steps}}` | **HIGH — daily health metrics** |
 | `workoutPlan` | Weekly exercise plan JSON | Medium — fitness routine |
 | `weeklyPlan` | Parsed workout schedule | Medium |
@@ -193,6 +177,32 @@ _client: Garmin | None = None
 | `apexPantry` | Food item array | Low |
 | `recentMeals` | Last 20 meals with full macros | Medium — dietary patterns |
 | `rmr-locked` | `"0"` or `"1"` | No |
+
+### `profileData` Keys
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `curWeight` | number | Current weight |
+| `tgtWeight` | number | Target weight |
+| `heightFt` | number | Height (feet) |
+| `heightIn` | number | Height (inches) |
+| `age` | number | User age |
+| `sex` | string | Biological sex |
+| `bfPct` | number | Body fat percentage |
+| `occupation` | string | Occupation (activity level inference) |
+| `goal` | string | Fitness/health goal |
+| `rmr` | number | Resting metabolic rate |
+| `deficit` | number | Calorie deficit target |
+| `protein` | number | Daily protein target (g) |
+| `carbs` | number | Daily carb target (g) |
+| `fat` | number | Daily fat target (g) |
+| `neatAdjust` | number | NEAT adjustment factor |
+| `sugarGoal` | number | Daily sugar goal (g) |
+| `fiberGoal` | number | Daily fiber goal (g) |
+| `sodiumGoal` | number | Daily sodium goal (mg) |
+| `calorieRollover` | boolean | Roll over unused calories (default: false) |
+| `autoAdjustTargets` | boolean | Auto-adjust macro targets (default: true) |
+| `theme` | string | `"dark"` or `"medium"` |
 
 ### Security Issues
 1. **`profileData` contains full health profile** in plaintext localStorage — any XSS vulnerability exposes it
@@ -250,7 +260,6 @@ _client: Garmin | None = None
 | Path | Contains | Written By | PII/PHI |
 |------|----------|-----------|---------|
 | `life_dashboard.db` | All user data (17 tables) | `db.py` via sqlite3 | **CRITICAL** |
-| `~/.garminconnect/*` | Garmin OAuth tokens | `garmin_sync.py` | HIGH |
 | `.env` | API keys, passwords | Manual | CRITICAL |
 | `__pycache__/*.pyc` | Compiled bytecode | Python | No |
 
@@ -267,7 +276,6 @@ _client: Garmin | None = None
 |---------|-------------|----------------|-----------|
 | **Anthropic (Claude)** | Meal descriptions, food photos (base64), workout descriptions, user profile data, email snippets | Anthropic's usage logs (30 days per their policy) | 30 days |
 | **Google (Gmail)** | OAuth tokens (they issued them) | Google stores token grants | Until user revokes |
-| **Garmin** | OAuth tokens (they issued them) | Garmin stores token grants | Until user revokes |
 | **Open Food Facts** | Barcode numbers (in URL) | Access logs | Unknown |
 | **Google Fonts** | IP address (in request) | Google Analytics | Per Google policy |
 | **jsDelivr** | IP address (in request) | CDN logs | Unknown |
@@ -285,6 +293,7 @@ _client: Garmin | None = None
 ```
 User Input → Browser
   ├── localStorage (profile, dailyLog, workoutHistory — UNENCRYPTED)
+  │     ↑ overwritten on page load from /api/today-nutrition & /api/today-workouts
   ├── sessionStorage (active tab, cached insight)
   ├── Cookie (client_date — UNENCRYPTED)
   ├── Service Worker Cache (app shell — may contain user data)
@@ -292,13 +301,11 @@ User Input → Browser
   └── fetch() → Flask Server
         ├── Flask Session Cookie (user_id, username — SIGNED)
         ├── SQLite Database (ALL persistent data — UNENCRYPTED FILE)
-        ├── In-Memory (_ob_jobs — temporary profile data)
-        ├── Filesystem (~/.garminconnect/ — UNENCRYPTED TOKENS)
+        ├── In-Memory (_ob_jobs — temporary profile data, TTL-swept)
         │
         └── External APIs
               ├── Anthropic Claude (meal text, photos, profile, emails)
               ├── Google Gmail (OAuth tokens, email metadata)
-              ├── Garmin Connect (OAuth tokens, health data)
               └── Open Food Facts (barcode numbers)
 ```
 
@@ -326,18 +333,17 @@ User Input → Browser
 
 ### Immediate (Before Launch)
 1. **Encrypt database at rest** — use PostgreSQL with TDE or application-level encryption for PHI columns
-2. **Set `SECRET_KEY` permanently** — never fall back to random generation
+2. ~~**Set `SECRET_KEY` permanently** — never fall back to random generation~~ **RESOLVED** — now required, crashes on boot if missing
 3. **Add `Secure` and `SameSite=Lax` flags** to all cookies
 4. **Namespace all localStorage keys** with user ID — prevent cross-user data leakage
 5. **Add localStorage cleanup on logout** — clear `profileData`, `dailyLog`, `workoutHistory`
-6. **Remove `GARMIN_PASSWORD` from env** — use OAuth-only flow
-7. **Add audit logging** — track who accessed what data when
+6. **Add audit logging** — track who accessed what data when
 
 ### Before Scaling
-8. **Encrypt OAuth tokens** in database (gmail_tokens, garmin tokens)
-9. **Add data export endpoint** (`GET /api/export-my-data`) for GDPR compliance
-10. **Add rate limiting** on all AI endpoints (cost protection)
-11. **Add request timeout** on all Claude API calls (30s max)
-12. **Clean up `_ob_jobs` dict** after profile generation completes (memory leak)
-13. **Implement proper session revocation** with server-side session store (Redis)
-14. **Service Worker: exclude user data** from cache, or version cache per user
+7. **Encrypt OAuth tokens** in database (gmail_tokens)
+8. **Add data export endpoint** (`GET /api/export-my-data`) for GDPR compliance
+9. **Add rate limiting** on all AI endpoints (cost protection)
+10. **Add request timeout** on all Claude API calls (30s max)
+11. ~~**Clean up `_ob_jobs` dict** after profile generation completes (memory leak)~~ **RESOLVED** — TTL sweep + pop-on-read (commits 1f26316, aa077b0)
+12. **Implement proper session revocation** with server-side session store (Redis)
+13. **Service Worker: exclude user data** from cache, or version cache per user

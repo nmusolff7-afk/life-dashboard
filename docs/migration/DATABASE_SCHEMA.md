@@ -1,6 +1,6 @@
 # APEX Life Dashboard — Database Schema
 
-Generated: 2026-04-17 | Database: SQLite 3 | File: life_dashboard.db (212KB)
+Generated: 2026-04-19 | Database: SQLite 3 | File: life_dashboard.db (212KB)
 
 ---
 
@@ -12,9 +12,9 @@ Generated: 2026-04-17 | Database: SQLite 3 | File: life_dashboard.db (212KB)
 | 2 | `meal_logs` | 6 | Active | Meal tracking with full macros + micros |
 | 3 | `workout_logs` | 1 | Active | Workout tracking with calorie burn |
 | 4 | `daily_activity` | 1 | Active | Daily weight storage (legacy table) |
-| 5 | `garmin_daily` | 0 | Active (dormant) | Garmin sync data cache |
+| 5 | `garmin_daily` | 0 | Dormant (code removed, table persists) | Garmin sync data cache |
 | 6 | `user_onboarding` | 0 | Active | Onboarding state + AI profile map |
-| 7 | `mind_checkins` | 0 | Active | Check-in logs (morning/evening) |
+| 7 | `mind_checkins` | 0 | Dormant (code removed, table persists) | Check-in logs (morning/evening) |
 | 8 | `mind_tasks` | 0 | Active | Task tracking |
 | 9 | `gmail_tokens` | 0 | Active | Gmail OAuth tokens |
 | 10 | `gmail_cache` | 0 | Active | Email metadata cache |
@@ -25,15 +25,17 @@ Generated: 2026-04-17 | Database: SQLite 3 | File: life_dashboard.db (212KB)
 | 15 | `saved_meals` | 0 | Active | Meal template library |
 | 16 | `saved_workouts` | 0 | Active | Workout template library |
 | 17 | `momentum_summaries` | 1 | Active | Cached AI summaries |
-| 18 | `sleep_logs` | 0 | **Dead** | Removed from code, still in DB |
-| 19 | `app_settings` | 0 | **Dead** | Removed from code, still in DB |
+| 18 | `sleep_logs` | 0 | Dormant (no CREATE in init_db) | Removed sleep feature |
+| 19 | `app_settings` | 0 | Dormant (no CREATE in init_db) | Legacy key-value settings |
 | 20 | `daily_log` | 0 | **Orphan** | Not referenced in any code |
 | 21 | `ai_outputs` | 0 | **Orphan** | Not referenced in any code |
 | 22 | `debrief_questions` | 23 | **Orphan** | Not referenced in any code |
 | 23 | `exercise_sets` | 0 | **Orphan** | Not referenced in any code |
 | 24 | `wealth_logs` | 0 | **Orphan** | Not referenced in any code |
 
-**17 active tables, 2 dead (removed from code), 5 orphan (never existed in current code)**
+**13 active tables, 4 dormant (code removed or no CREATE in init_db, tables persist in DB), 5 orphan (never existed in current code)**
+
+> **Note:** Two additional dormant tables — `garmin_daily` and `mind_checkins` — had their code removed but the tables remain in the database.
 
 ---
 
@@ -123,7 +125,7 @@ Generated: 2026-04-17 | Database: SQLite 3 | File: life_dashboard.db (212KB)
 
 ---
 
-### `garmin_daily`
+### `garmin_daily` (DORMANT)
 | Column | Type | Nullable | Default | Constraint |
 |--------|------|----------|---------|------------|
 | `user_id` | INTEGER | No | - | PK (composite) |
@@ -134,8 +136,10 @@ Generated: 2026-04-17 | Database: SQLite 3 | File: life_dashboard.db (212KB)
 | `resting_hr` | INTEGER | Yes | NULL | - |
 | `synced_at` | TIMESTAMP | No | - | - |
 
-**Indexes:** `idx_garmin_daily_user_date` on (user_id, stat_date), auto PK UNIQUE
+**Indexes:** auto PK UNIQUE
 **Foreign Keys:** user_id -> users.id
+
+> **Note:** Garmin integration code has been removed. Table persists in database but is no longer read or written by any code.
 
 ---
 
@@ -153,7 +157,7 @@ Generated: 2026-04-17 | Database: SQLite 3 | File: life_dashboard.db (212KB)
 
 ---
 
-### `mind_checkins`
+### `mind_checkins` (DORMANT)
 | Column | Type | Nullable | Default | Constraint |
 |--------|------|----------|---------|------------|
 | `id` | INTEGER | No | Auto | PRIMARY KEY AUTOINCREMENT |
@@ -173,8 +177,9 @@ Generated: 2026-04-17 | Database: SQLite 3 | File: life_dashboard.db (212KB)
 | `focus_level` | INTEGER | Yes | NULL | 1-10 |
 | `evening_prompt` | TEXT | Yes | NULL | Unused |
 
-**Indexes:** `idx_mind_checkins_user_date` on (user_id, checkin_date)
 **Foreign Keys:** user_id -> users.id
+
+> **Note:** Check-in code (`POST /api/mind/checkin`) has been removed. Table persists in database but is no longer written by any code. Still read by `GET /api/mind/today` and `GET /api/history` for historical data.
 
 ---
 
@@ -321,6 +326,7 @@ Generated: 2026-04-17 | Database: SQLite 3 | File: life_dashboard.db (212KB)
 | `fiber_g` | REAL | Yes | 0 | - |
 | `sodium_mg` | REAL | Yes | 0 | - |
 
+**Indexes:** `idx_saved_meals_user` on (user_id)
 **Foreign Keys:** user_id -> users.id
 
 ---
@@ -334,6 +340,7 @@ Generated: 2026-04-17 | Database: SQLite 3 | File: life_dashboard.db (212KB)
 | `calories_burned` | INTEGER | Yes | 0 | - |
 | `saved_at` | TIMESTAMP | No | - | - |
 
+**Indexes:** `idx_saved_workouts_user` on (user_id)
 **Foreign Keys:** user_id -> users.id
 
 ---
@@ -359,9 +366,9 @@ users.id
   ├── meal_logs.user_id
   ├── workout_logs.user_id
   ├── daily_activity.user_id
-  ├── garmin_daily.user_id
+  ├── garmin_daily.user_id (dormant)
   ├── user_onboarding.user_id
-  ├── mind_checkins.user_id
+  ├── mind_checkins.user_id (dormant)
   ├── mind_tasks.user_id
   ├── gmail_tokens.user_id
   ├── gmail_cache.user_id
@@ -383,23 +390,27 @@ All tables reference `users.id`. Single-user hierarchy. No cross-table joins exc
 
 ## 4. Index Inventory
 
-| Table | Index | Columns | Unique | Type |
-|-------|-------|---------|--------|------|
-| `users` | `sqlite_autoindex_users_1` | (username) | Yes | Auto |
-| `meal_logs` | `idx_meal_logs_user_date` | (user_id, log_date) | No | Manual |
-| `workout_logs` | `idx_workout_logs_user_date` | (user_id, log_date) | No | Manual |
-| `workout_logs` | `idx_workout_garmin_uniq` | (user_id, garmin_activity_id) | Yes | Manual |
-| `daily_activity` | `sqlite_autoindex_daily_activity_1` | (log_date) | Yes | Auto PK |
-| `garmin_daily` | `idx_garmin_daily_user_date` | (user_id, stat_date) | No | Manual |
-| `mind_checkins` | `idx_mind_checkins_user_date` | (user_id, checkin_date) | No | Manual |
-| `mind_tasks` | `idx_mind_tasks_user_date` | (user_id, task_date) | No | Manual |
-| `gmail_cache` | `idx_gmail_cache_user` | (user_id) | No | Manual |
-| `gmail_cache` | `sqlite_autoindex_gmail_cache_1` | (user_id, message_id) | Yes | Auto |
-| `gmail_summaries` | `idx_gmail_summaries_user` | (user_id) | No | Manual |
-| `gmail_importance` | `sqlite_autoindex_gmail_importance_1` | (user_id, sender, label) | Yes | Auto |
-| `user_goals` | `idx_user_goals_user` | (user_id) | No | Manual |
-| `daily_momentum` | `idx_daily_momentum_user_date` | (user_id, score_date) | No | Manual |
-| `sleep_logs` | `idx_sleep_logs_user_date` | (user_id, sleep_date) | No | Manual |
+| Table | Index | Columns | Unique | Type | Status |
+|-------|-------|---------|--------|------|--------|
+| `users` | `sqlite_autoindex_users_1` | (username) | Yes | Auto | Active |
+| `meal_logs` | `idx_meal_logs_user_date` | (user_id, log_date) | No | Manual | Active |
+| `workout_logs` | `idx_workout_logs_user_date` | (user_id, log_date) | No | Manual | Active |
+| `workout_logs` | `idx_workout_garmin_uniq` | (user_id, garmin_activity_id) | Yes | Manual | Active |
+| `daily_activity` | `sqlite_autoindex_daily_activity_1` | (log_date) | Yes | Auto PK | Active |
+| `saved_meals` | `idx_saved_meals_user` | (user_id) | No | Manual | **ADDED** |
+| `saved_workouts` | `idx_saved_workouts_user` | (user_id) | No | Manual | **ADDED** |
+| `mind_tasks` | `idx_mind_tasks_user_date` | (user_id, task_date) | No | Manual | Active |
+| `gmail_cache` | `idx_gmail_cache_user` | (user_id) | No | Manual | Active |
+| `gmail_cache` | `sqlite_autoindex_gmail_cache_1` | (user_id, message_id) | Yes | Auto | Active |
+| `gmail_summaries` | `idx_gmail_summaries_user` | (user_id) | No | Manual | Active |
+| `gmail_importance` | `sqlite_autoindex_gmail_importance_1` | (user_id, sender, label) | Yes | Auto | Active |
+| `user_goals` | `idx_user_goals_user` | (user_id) | No | Manual | Active |
+| `daily_momentum` | `idx_daily_momentum_user_date` | (user_id, score_date) | No | Manual | Active |
+
+**Removed from init_db** (indexes may still exist in DB but are no longer created for new databases):
+- `idx_garmin_daily_user_date` on garmin_daily (user_id, stat_date) — Garmin code removed
+- `idx_sleep_logs_user_date` on sleep_logs (user_id, sleep_date) — sleep feature removed
+- `idx_mind_checkins_user_date` on mind_checkins (user_id, checkin_date) — checkin code removed
 
 ---
 
@@ -430,10 +441,10 @@ These tables exist in the SQLite file but are NOT created or referenced by any c
 | `debrief_questions` | 4 cols (question_text, category, last_asked_date) | 23 | Legacy evening debrief question bank |
 | `exercise_sets` | 9 cols (exercise_name, set_number, weight_lbs, reps...) | 0 | Legacy per-set tracking |
 | `wealth_logs` | 12 cols (entry_type, amount, category, merchant, hours_worked, side_income...) | 0 | Legacy financial tracking |
-| `app_settings` | 2 cols (key, value) | 0 | Legacy key-value settings |
-| `sleep_logs` | 11 cols (total_seconds, deep/light/rem/awake, sleep_score...) | 0 | Removed sleep feature |
 
-**Total orphan columns: 92 columns across 7 tables, all with 0 rows (except debrief_questions).**
+**Total: 5 orphan tables, 79 columns, all with 0 rows (except debrief_questions with 23 seed rows).**
+
+> **Note:** `app_settings` and `sleep_logs` were previously listed as orphan but are now classified as dormant (they exist in the DB but have no CREATE in init_db). `garmin_daily` and `mind_checkins` are also dormant (code removed, tables persist).
 
 ---
 
@@ -460,11 +471,8 @@ These tables exist in the SQLite file but are NOT created or referenced by any c
 
 | Query Pattern | Table | Current Index | Recommendation |
 |---------------|-------|---------------|----------------|
-| `WHERE user_id = ? AND description = ?` | `saved_meals` | None | Add index on (user_id, description) |
-| `WHERE user_id = ? AND description = ?` | `saved_workouts` | None | Add index on (user_id, description) |
-| `WHERE user_id = ?` | `saved_meals` | None | Add index on (user_id) |
-| `WHERE user_id = ?` | `saved_workouts` | None | Add index on (user_id) |
-| `WHERE user_id = ?` | `momentum_summaries` | None (PK covers) | OK — composite PK |
+| `WHERE user_id = ? AND description = ?` | `saved_meals` | `idx_saved_meals_user` (user_id only) | Consider composite (user_id, description) for dedup queries |
+| `WHERE user_id = ? AND description = ?` | `saved_workouts` | `idx_saved_workouts_user` (user_id only) | Consider composite (user_id, description) for dedup queries |
 | `WHERE user_id = ? AND log_date = ?` | `daily_activity` | PK on log_date only | Add composite (user_id, log_date) — current PK doesn't include user_id |
 
 All other query patterns are covered by existing indexes.
@@ -483,11 +491,40 @@ All other query patterns are covered by existing indexes.
 | `sqlite3.Row` | `psycopg2.extras.RealDictCursor` |
 | No type enforcement | Strict types |
 
-### Tables to Migrate (17 active)
-All 17 active tables listed in section 2.
+### Tables to Migrate (13 active)
+All 13 active tables listed in section 2.
 
-### Tables to Drop (7 orphan)
-`ai_outputs`, `daily_log`, `debrief_questions`, `exercise_sets`, `wealth_logs`, `app_settings`, `sleep_logs`
+### Tables to Drop (5 orphan + 4 dormant)
+**Orphan:** `ai_outputs`, `daily_log`, `debrief_questions`, `exercise_sets`, `wealth_logs`
+**Dormant:** `app_settings`, `sleep_logs`, `garmin_daily`, `mind_checkins`
 
 ### Columns to Drop (16 unused across active tables)
 See section 7.
+
+---
+
+## 10. delete_account Cascade
+
+The `POST /api/delete-account` endpoint deletes all user data across the following tables:
+
+**Included in cascade:**
+- `meal_logs`
+- `workout_logs`
+- `daily_activity`
+- `user_onboarding`
+- `mind_tasks`
+- `gmail_tokens`
+- `gmail_cache`
+- `gmail_summaries`
+- `gmail_importance`
+- `user_goals`
+- `daily_momentum`
+- `momentum_summaries`
+- `saved_meals`
+- `saved_workouts`
+- `users`
+
+**NOT included in cascade** (dormant tables, no longer deleted):
+- `garmin_daily`
+- `sleep_logs`
+- `mind_checkins`

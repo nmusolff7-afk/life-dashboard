@@ -1,6 +1,6 @@
 # APEX Life Dashboard — Active Features
 
-Generated: 2026-04-17 | Features currently in use and under active maintenance
+Generated: 2026-04-19 | Features currently in use and under active maintenance
 
 ---
 
@@ -12,7 +12,7 @@ Generated: 2026-04-17 | Features currently in use and under active maintenance
 | **Routes** | `POST /api/log-meal`, `POST /api/estimate`, `POST /api/edit-meal/<id>`, `POST /api/delete-meal/<id>`, `GET /api/today-nutrition`, `POST /api/ai-edit-meal`, `POST /api/shorten` |
 | **Files** | `app.py` (routes), `db.py` (insert_meal, get_today_meals, get_today_totals, update_meal, delete_meal), `claude_nutrition.py` (estimate_nutrition, shorten_label) |
 | **DB Tables** | `meal_logs` |
-| **AI Calls** | estimate_nutrition (Opus), shorten_label (Haiku), ai-edit-meal reuses estimate_nutrition (Opus) |
+| **AI Calls** | estimate_nutrition (Haiku), shorten_label (Haiku), ai-edit-meal reuses estimate_nutrition (Haiku) |
 | **Frontend** | `index.html` #tab-meals — meal form, macro edit grid, item breakdown, meal table, daily summary |
 
 ---
@@ -25,7 +25,7 @@ Generated: 2026-04-17 | Features currently in use and under active maintenance
 | **Routes** | `POST /api/scan-meal` |
 | **Files** | `app.py` (route), `claude_nutrition.py` (scan_meal_image) |
 | **DB Tables** | None (estimation only, user logs manually after) |
-| **AI Calls** | scan_meal_image (Opus, vision) |
+| **AI Calls** | scan_meal_image (Opus, vision) — the only remaining Opus call |
 | **Frontend** | `index.html` — camera overlay in Nutrition tab |
 
 ---
@@ -38,8 +38,9 @@ Generated: 2026-04-17 | Features currently in use and under active maintenance
 | **Routes** | `POST /api/meals/scan`, `POST /api/meals/suggest` |
 | **Files** | `app.py` (routes), `claude_nutrition.py` (identify_ingredients, suggest_meal) |
 | **DB Tables** | None |
-| **AI Calls** | identify_ingredients (Opus, vision), suggest_meal (Opus) |
+| **AI Calls** | identify_ingredients (Haiku, vision), suggest_meal (Haiku) |
 | **Frontend** | `index.html` — ingredient scanner flow in Nutrition tab |
+| **Note** | Meal suggestion was simplified: only ingredients + meal type + calories remaining are sent to the AI (no full macro breakdown or profile context). |
 
 ---
 
@@ -78,7 +79,7 @@ Generated: 2026-04-17 | Features currently in use and under active maintenance
 | **Routes** | `POST /api/log-workout`, `POST /api/burn-estimate`, `POST /api/edit-workout/<id>`, `POST /api/delete-workout/<id>`, `GET /api/today-workouts`, `POST /api/ai-edit-workout` |
 | **Files** | `app.py` (routes), `db.py` (insert_workout, get_today_workouts, update_workout, delete_workout, get_today_workout_burn), `claude_nutrition.py` (estimate_burn) |
 | **DB Tables** | `workout_logs` |
-| **AI Calls** | estimate_burn (Opus), ai-edit-workout reuses estimate_burn (Opus) |
+| **AI Calls** | estimate_burn (Haiku), ai-edit-workout reuses estimate_burn (Haiku) |
 | **Frontend** | `index.html` #tab-workout — activity form, workout list, burn chart |
 
 ---
@@ -117,7 +118,7 @@ Generated: 2026-04-17 | Features currently in use and under active maintenance
 | **Routes** | `POST /api/parse-workout-plan`, `POST /api/generate-plan`, `POST /api/generate-comprehensive-plan`, `POST /api/revise-plan` |
 | **Files** | `app.py` (routes), `claude_nutrition.py` (parse_workout_plan, generate_workout_plan, generate_comprehensive_plan, generate_plan_understanding, revise_plan) |
 | **DB Tables** | None (plan stored in localStorage) |
-| **AI Calls** | parse_workout_plan (Opus), generate_workout_plan (Haiku), generate_comprehensive_plan (Haiku), generate_plan_understanding (Haiku), revise_plan (Haiku) |
+| **AI Calls** | parse_workout_plan (Haiku), generate_workout_plan (Haiku), generate_comprehensive_plan (Haiku), generate_plan_understanding (Haiku), revise_plan (Haiku) |
 | **Frontend** | `index.html` #tab-profile — workout plan builder in Profile tab |
 
 ---
@@ -182,7 +183,7 @@ Generated: 2026-04-17 | Features currently in use and under active maintenance
 | **Routes** | `GET /api/mind/today`, `POST /api/mind/task`, `PATCH /api/mind/task/<id>`, `DELETE /api/mind/task/<id>` |
 | **Files** | `app.py` (routes), `db.py` (insert_mind_task, get_mind_tasks, toggle_mind_task, delete_mind_task) |
 | **DB Tables** | `mind_tasks` |
-| **AI Calls** | None (manual task creation is AI-free; AI task extraction happens via check-ins — see Dormant Features) |
+| **AI Calls** | None |
 | **Frontend** | `index.html` #tab-home and #tab-mind — task list with add/toggle/delete |
 
 ---
@@ -206,7 +207,7 @@ Generated: 2026-04-17 | Features currently in use and under active maintenance
 |----------|--------|
 | **Purpose** | 7-step onboarding wizard collecting body stats, goals, preferences; AI generates a profile map with 200+ variables |
 | **Routes** | `GET /onboarding` (HTML), `POST /api/onboarding/save`, `GET /api/onboarding/status`, `POST /api/onboarding/complete`, `GET /api/onboarding/poll` |
-| **Files** | `app.py` (routes, _run_profile_generation), `db.py` (get_onboarding, upsert_onboarding_inputs, complete_onboarding, get_profile_map, is_onboarding_complete), `claude_profile.py` (generate_profile_map), `templates/onboarding.html` |
+| **Files** | `app.py` (routes, _run_profile_generation), `db.py` (get_onboarding, upsert_onboarding_inputs, complete_onboarding, get_profile_map, is_onboarding_complete), `claude_profile.py` (generate_profile_map) |
 | **DB Tables** | `user_onboarding` |
 | **AI Calls** | generate_profile_map (Haiku) |
 | **Frontend** | `templates/onboarding.html` — 7-step wizard with polling for async AI generation |
@@ -262,6 +263,52 @@ Generated: 2026-04-17 | Features currently in use and under active maintenance
 
 ---
 
+## 21. Settings
+
+| Property | Detail |
+|----------|--------|
+| **Purpose** | User-facing toggles for calorie rollover and auto-adjust targets |
+| **Routes** | Settings are persisted via profile/goal endpoints |
+| **Files** | `app.py`, `index.html` |
+| **DB Tables** | `user_goals` (stores toggle state alongside goal data) |
+| **AI Calls** | None |
+| **Frontend** | `index.html` #tab-profile — calorie rollover toggle, auto-adjust targets toggle |
+
+---
+
+## 22. Workout Detail View
+
+| Property | Detail |
+|----------|--------|
+| **Purpose** | View detailed breakdown of a logged workout |
+| **Routes** | Reuses `GET /api/day/<date>` data |
+| **Files** | `index.html` (workout detail overlay) |
+| **DB Tables** | `workout_logs` (read-only) |
+| **AI Calls** | None |
+| **Frontend** | `index.html` — redesigned workout detail overlay with exercise cards, set grids, collapsible exercises, delete button, cardio stat pills |
+
+---
+
+## 23. Meal Detail View
+
+| Property | Detail |
+|----------|--------|
+| **Purpose** | View detailed breakdown of a logged meal |
+| **Routes** | Reuses `GET /api/day/<date>` data |
+| **Files** | `index.html` (meal detail overlay) |
+| **DB Tables** | `meal_logs` (read-only) |
+| **AI Calls** | None |
+| **Frontend** | `index.html` — meal detail view with delete button, sugar/fiber/sodium display |
+
+---
+
+## Cross-Cutting Updates (since initial doc)
+
+- **All AI calls now have timeouts** (30s default, 60s for large-output calls like comprehensive plan and profile generation).
+- **5 Opus-to-Haiku model switches completed**: estimate_nutrition, identify_ingredients, suggest_meal, estimate_burn, parse_workout_plan. Only scan_meal_image remains on Opus.
+
+---
+
 ## Active Database Tables Summary
 
 | Table | Used By Feature(s) |
@@ -276,10 +323,10 @@ Generated: 2026-04-17 | Features currently in use and under active maintenance
 | `gmail_cache` | Gmail |
 | `gmail_summaries` | Gmail |
 | `gmail_importance` | Gmail |
-| `user_goals` | Goal setting |
+| `user_goals` | Goal setting, Settings |
 | `daily_momentum` | Momentum score |
 | `saved_meals` | Saved meals |
 | `saved_workouts` | Saved workouts |
 | `momentum_summaries` | Momentum insights |
 
-**15 active tables** serving 20 active features.
+**15 active tables** serving 23 active features.

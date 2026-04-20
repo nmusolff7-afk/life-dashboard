@@ -1,6 +1,6 @@
 # APEX Life Dashboard — Technical Debt & Code Quality Audit
 
-Generated: 2026-04-17 | Honest assessment, ordered by severity
+Generated: 2026-04-19 | Honest assessment, ordered by severity
 
 ---
 
@@ -357,6 +357,7 @@ These won't crash the app but will leave the UI stale after a network error.
 | P2 (Medium) | 6 | 5 | 1 (deleted) | N+1 fixed, desync fixed, RMR flagged, XSS escaped, delete atomic; garmin race deleted |
 | P3 (Low) | 9 | 6 | 3 | Indexes added, errors standardized, barcode hidden, orphans deleted; remaining: no tests, monolith HTML, missing .catch() |
 | **Total** | **22** | **17** | **5** |
+| Post-Hardening | 5 | 5 | 0 | Bugs found and fixed during feature work |
 
 ---
 
@@ -382,6 +383,22 @@ These won't crash the app but will leave the UI stale after a network error.
 | 16 | P3-18 Missing indexes | FIXED — saved_meals/workouts indexes added | `45f8522` |
 | 17 | P3-19 Orphan tables | RESOLVED — dormant tables identified, dormant code deleted | `f565457` |
 | 18 | P3-22 Broken features | FIXED — barcode hidden when unsupported | `c7b60e0` |
+
+---
+
+## Post-Hardening Bugs Found and Fixed
+
+These bugs were discovered and fixed after the formal hardening pass, during ongoing feature work:
+
+| # | Bug | Impact | Fix | Commit |
+|---|-----|--------|-----|--------|
+| 1 | `getProfileData()` infinite recursion | Function called itself instead of reading data, returned `{}` on every call. All profile data was wiped when any field was saved. | Read from localStorage directly instead of recursive self-call. | `28b0b61` |
+| 2 | NEAT slider HTML default of 1000 | Range 0-2000 with no `value` attribute defaulted to midpoint (1000), causing TDEE overestimation by ~800 kcal for desk job users before `populateForm()` ran. | Added `value="200"` to HTML and read from `profileData` instead of slider DOM. | `dca39ad` |
+| 3 | Sugar/fiber/sodium not logged | AI estimation returned values but none of the 5 `log-meal` call sites included them in the POST body. | Fixed all 5 call sites to include sugar, fiber, and sodium. | `a5304ac` |
+| 4 | Spinner CSS display conflict | `scan-loading` and `suggest-loading` divs had both `display:none` and `display:flex` in the same style attribute, making them always visible. | Removed duplicate `display:flex`. | `ff0b4cb` |
+| 5 | Occupation/work_style round-trip bug | `_autoSave` sent "sedentary" as `work_style` but server seed expected "desk". Profile data corrupted on save/reload cycle. | Fixed mapping in both directions (client-to-server and server-to-client). | `3316833` |
+
+---
 
 ### Remaining (deferred to React Native migration)
 

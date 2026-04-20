@@ -1,6 +1,6 @@
 # APEX Life Dashboard — External Integrations Map
 
-Generated: 2026-04-17 | 5 external services
+Generated: 2026-04-19 | 4 external services (active)
 
 ---
 
@@ -18,8 +18,8 @@ Generated: 2026-04-17 | 5 external services
 
 | Model | Functions | Max Tokens | Cost Tier |
 |-------|-----------|------------|-----------|
-| `claude-opus-4-6` | estimate_nutrition, scan_meal_image, identify_ingredients, suggest_meal, estimate_burn | 300-1200 | High (~$0.01-0.05/call) |
-| `claude-haiku-4-5-20251001` | shorten_label, parse_workout_plan, generate_workout_plan, generate_comprehensive_plan, generate_plan_understanding, revise_plan, generate_momentum_insight, generate_scale_summary, generate_profile_map, score_brief, generate_evening_prompt, summarize_emails | 32-4096 | Low (~$0.001-0.005/call) |
+| `claude-opus-4-6` | scan_meal_image (1 function) | 300-1200 | High (~$0.01-0.05/call) |
+| `claude-haiku-4-5-20251001` | estimate_nutrition, identify_ingredients, suggest_meal, estimate_burn, shorten_label, parse_workout_plan, generate_workout_plan, generate_comprehensive_plan, generate_plan_understanding, revise_plan, generate_scale_summary, generate_momentum_insight, generate_profile_map, summarize_emails (14 functions) | 32-4096 | Low (~$0.001-0.005/call) |
 
 ### Error Handling
 
@@ -27,6 +27,7 @@ Generated: 2026-04-17 | 5 external services
 Pattern: try/except in app.py route → logger.exception() → return {"error": _AI_ERR}
 User sees: "Something went wrong, please try again later" (generic)
 Original error: Logged with full traceback via Python logging
+All calls: timeout parameter configured (30s default, 60s for large prompts)
 ```
 
 | Location | Pattern | Retry |
@@ -64,7 +65,7 @@ Original error: Logged with full traceback via Python logging
 | Claude API down | All AI features fail: meal estimation, photo scanning, burn estimation, plan generation, insights, profile generation | **CRITICAL** — core value prop is AI |
 | API key invalid/expired | Same as above — immediate total failure | **CRITICAL** |
 | Rate limit hit (429) | Unhandled — would surface as generic error to user | **HIGH** — no backoff or queue |
-| Slow response (>30s) | No timeout configured — request hangs until Anthropic responds or TCP times out | **MEDIUM** |
+| Slow response (>30s) | ~~No timeout configured~~ **FIXED** — all calls now have timeout parameter (30s default, 60s for large prompts) | **LOW** |
 | Malformed JSON response | `_parse_json()` has 3 fallback layers but could still fail → uncaught exception | **LOW** — rare in practice |
 
 ---
@@ -136,7 +137,9 @@ Original error: Logged with full traceback via Python logging
 
 ---
 
-## Integration 3: Garmin Connect API
+## Integration 3: Garmin Connect API (DELETED — rebuilt in React Native)
+
+> **Note:** The entire Garmin Connect integration was removed from the Flask codebase during pre-migration hardening. The documentation below is preserved as reference for the React Native rebuild.
 
 | Property | Detail |
 |----------|--------|
@@ -320,7 +323,7 @@ https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js
 |---------|-----------|----------|----------------|-------|---------------------|
 | **Anthropic Claude** | Yes (core) | Generic error message | try/except in routes | **None** | **None** |
 | **Gmail API** | No (optional) | "Not connected" state | Partial (token refresh) | Token refresh only | **None** |
-| **Garmin Connect** | No (optional) | "Not configured" state | **Comprehensive** | Background polling + auth retry | **Yes** (60-min backoff) |
+| ~~**Garmin Connect**~~ | ~~No (optional)~~ | ~~"Not configured" state~~ | ~~**Comprehensive**~~ | ~~Background polling + auth retry~~ | ~~**Yes** (60-min backoff)~~ |
 | **Open Food Facts** | No (optional) | Manual meal entry | Product not found + network error | User re-scans | **None needed** |
 | **Google Fonts** | No (cosmetic) | System font stack | CSS fallback + SW cache | N/A | N/A |
 | **jsDelivr CDN** | No (charts) | No charts rendered | SW cache | N/A | N/A |
@@ -328,10 +331,10 @@ https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js
 ### Critical Gap: Anthropic API has zero resilience
 The most important integration (Claude AI) has the weakest error handling:
 - No retry logic
-- No timeout configuration
+- ~~No timeout configuration~~ **FIXED** — all calls now have timeout (30s default, 60s for large prompts)
 - No rate limit handling
 - No circuit breaker
 - No fallback for degraded operation
 - No request queuing
 
-**Recommendation for production:** Add exponential backoff retry (3 attempts), 30-second timeout, rate limit queue, and consider caching recent identical requests to reduce API calls.
+**Recommendation for production:** Add exponential backoff retry (3 attempts), rate limit queue, and consider caching recent identical requests to reduce API calls.

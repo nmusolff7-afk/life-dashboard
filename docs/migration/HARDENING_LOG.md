@@ -1,6 +1,6 @@
 # APEX Life Dashboard — Hardening Log
 
-Branch: `pre-migration-hardening` | Started: 2026-04-17
+Branch: `pre-migration-hardening` | Started: 2026-04-17 | Updated: 2026-04-19
 
 ---
 
@@ -57,3 +57,41 @@ Branch: `pre-migration-hardening` | Started: 2026-04-17
 | 2 | Info | `get_setting`/`set_setting` imported but never called | Phase 0.5 audit | Classified as dormant, scheduled for Phase 4 deletion |
 | 3 | Info | `compute_mind_insights()` defined but never called | Phase 0.5 audit | Classified as dormant, scheduled for Phase 4 deletion |
 | 4 | Info | `generate_evening_prompt()` defined but never called | Phase 0.5 audit | Classified as dormant, scheduled for Phase 4 deletion |
+
+---
+
+## Post-Hardening Feature Work
+
+After the formal hardening pass, the following feature work and bug fixes were committed:
+
+- `3ca5b6b` — Expand streak bar to 90 days, make streak count unlimited
+- `181df2f` — Move meal entries above daily summary, fix micro estimation and history display
+- `e23e7b6` — FAB "Log a Meal" navigates to Nutrition tab instead of opening separate modal
+- `0568c9e` — Simplify meal suggestion: only ingredients, calories remaining, and meal type
+- `b8eb14e` — Fix dual TDEE values and NEAT slider not updating on occupation change
+- `9633204` — Fix NEAT slider not updating on occupation change, move Live Preview under NEAT
+- `48d4b96` — Fix body fat % not persisting or affecting calculations
+- `b88e47e` — Fix all 9 profile sliders not saving (linkSlider() was never called)
+- `a5304ac` — Add delete button to meal detail, fix sugar/fiber/sodium never being logged
+- `5c35ddd` — Refresh data on every tab switch, show calorie goal in ring label
+- `ac0e7ef` — Move Log button below breakdown, fix meal suggestion using stale data
+- `842dd31` — Fix getProfileData() infinite recursion that froze the browser
+- `1030051` — Revert tab-refresh-on-switch (data updates inline after each action instead)
+- `ecd60a6` — Revert index.html to last working state (a5304ac)
+- `4ce755e` — Show calorie goal target below ring label
+- `c18e7ff` — Revert ring goal text (broke frontend)
+- `3316833` — Fix NEAT and occupation lost on refresh (work_style round-trip bug)
+- `e18a4ec` — Fix meal suggestion using stale calorie data (always fetch fresh from DB)
+- `b7a72eb` — Fix meal suggestion showing 0 calories remaining
+- `dca39ad` — Fix daily summary overestimating burn (NEAT slider HTML default was 1000)
+- `de5c1d7` — Redesign workout detail view with exercise cards, set grids, and delete button
+- `2d96a62` — Unified workout card design for all types + history tab
+- `e5737fe` — Collapse strength exercise sets by default (tap to expand)
+- `dd86bba` — Stop voice-to-text when Get Burn Estimate is pressed
+- `5c6e273` — Auto-grow textareas during voice input and typing, scroll to bottom
+- `6a10af5` — Clean up meal suggestion + email cards, larger tab headers, 30min email refresh
+- `d04a089` — Add debugging for long meal/workout text failures
+- `28b0b61` — Fix getProfileData() infinite recursion + weight not persisting
+- `ff0b4cb` — Fix spinners always visible + pantry sub-card styling
+- `8a76639` — Unique colors for each macro and micro throughout the app
+- `d3f4f9a` — Add calorie rollover, auto-adjust toggle, and persistent theme
