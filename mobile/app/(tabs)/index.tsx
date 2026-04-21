@@ -1,5 +1,6 @@
+import { useAuth, useUser } from '@clerk/clerk-expo';
 import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { Button, Platform, StyleSheet } from 'react-native';
 
 import { HelloWave } from '@/components/hello-wave';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
@@ -8,6 +9,10 @@ import { ThemedView } from '@/components/themed-view';
 import { Link } from 'expo-router';
 
 export default function HomeScreen() {
+  const { user } = useUser();
+  const { signOut } = useAuth();
+  const email = user?.primaryEmailAddress?.emailAddress ?? '';
+
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
@@ -17,6 +22,10 @@ export default function HomeScreen() {
           style={styles.reactLogo}
         />
       }>
+      <ThemedView style={styles.authBar}>
+        <ThemedText>Signed in as {email}</ThemedText>
+        <Button title="Sign Out" onPress={() => signOut()} />
+      </ThemedView>
       <ThemedView style={styles.titleContainer}>
         <ThemedText type="title">Welcome!</ThemedText>
         <HelloWave />
@@ -79,6 +88,10 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  authBar: {
+    gap: 8,
+    marginBottom: 12,
+  },
   titleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
