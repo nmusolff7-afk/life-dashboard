@@ -2,10 +2,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
+import time
 import threading
 from datetime import date, timedelta
 from functools import wraps
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session, send_from_directory, make_response
+from typing import Optional
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, send_from_directory, make_response, g
+from flask_cors import CORS
+import jwt
 from db import (
     init_db, create_user, verify_user, delete_account,
     insert_meal, get_today_meals, get_today_totals, update_meal, delete_meal,
@@ -45,6 +49,17 @@ else:
         _log.warning("SECRET_KEY not set — using ephemeral dev key (sessions lost on restart)")
 app.permanent_session_lifetime = timedelta(days=90)
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400  # cache static files 24h
+
+# CORS — scoped to /api/* for the React Native client. Allowed origins come from CORS_ORIGINS
+# (comma-separated); default covers the three Expo dev server ports.
+_default_cors_origins = "http://localhost:8081,http://localhost:19000,http://localhost:19006"
+_cors_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", _default_cors_origins).split(",") if o.strip()]
+CORS(app, resources={r"/api/*": {"origins": _cors_origins}}, supports_credentials=True)
+
+# JWT — used for React Native bearer-token auth. Falls back to SECRET_KEY if JWT_SECRET unset.
+JWT_SECRET = os.environ.get("JWT_SECRET") or app.secret_key
+JWT_ACCESS_TTL_SECONDS = 60 * 60 * 24 * 90  # 90 days
+
 limiter = Limiter(get_remote_address, app=app, default_limits=[], storage_uri="memory://")
 init_db()
 
@@ -99,16 +114,50 @@ def is_rmr_fallback() -> bool:
 
 # ── Auth helpers ────────────────────────────────────────
 
+def issue_jwt(user_id: int) -> str:
+    """Issue an HS256 JWT for bearer-token auth (React Native client)."""
+    now = int(time.time())
+    payload = {"sub": str(user_id), "iat": now, "exp": now + JWT_ACCESS_TTL_SECONDS}
+    return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
+
+
+def verify_jwt(token: str) -> Optional[int]:
+    """Verify a JWT and return the user_id, or None if invalid/expired/malformed."""
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        return int(payload["sub"])
+    except jwt.ExpiredSignatureError:
+        _log.warning("JWT verify: token expired")
+        return None
+    except jwt.InvalidTokenError as e:
+        _log.warning("JWT verify: invalid token (%s)", type(e).__name__)
+        return None
+    except (KeyError, ValueError) as e:
+        _log.warning("JWT verify: malformed payload (%s)", e)
+        return None
+
+
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if "user_id" not in session:
-            return redirect(url_for("login_page"))
-        return f(*args, **kwargs)
+        if "user_id" in session:
+            return f(*args, **kwargs)
+        # Fallback: accept Bearer token for mobile clients. Resolved user_id is stashed
+        # on flask.g so uid() can read it without touching session.
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            user_id = verify_jwt(auth_header[7:].strip())
+            if user_id is not None:
+                g.user_id = user_id
+                return f(*args, **kwargs)
+        return redirect(url_for("login_page"))
     return decorated
 
 
 def uid():
+    # Prefer bearer-auth user_id from flask.g (set by login_required); fall back to session.
+    if getattr(g, "user_id", None) is not None:
+        return g.user_id
     return session["user_id"]
 
 

@@ -7,3 +7,5 @@ werkzeug
 flask-limiter
 google-auth
 google-auth-oauthlib
+PyJWT==2.9.0
+flask-cors==5.0.1
