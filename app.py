@@ -2,10 +2,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
+import time
 import threading
 from datetime import date, timedelta
 from functools import wraps
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session, send_from_directory, make_response
+from typing import Optional
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, send_from_directory, make_response, g
+from flask_cors import CORS
+import jwt
 from db import (
     init_db, create_user, verify_user, delete_account,
     insert_meal, get_today_meals, get_today_totals, update_meal, delete_meal,
@@ -45,6 +49,17 @@ else:
         _log.warning("SECRET_KEY not set — using ephemeral dev key (sessions lost on restart)")
 app.permanent_session_lifetime = timedelta(days=90)
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400  # cache static files 24h
+
+# CORS — scoped to /api/* for the React Native client. Allowed origins come from CORS_ORIGINS
+# (comma-separated); default covers the three Expo dev server ports.
+_default_cors_origins = "http://localhost:8081,http://localhost:19000,http://localhost:19006"
+_cors_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", _default_cors_origins).split(",") if o.strip()]
+CORS(app, resources={r"/api/*": {"origins": _cors_origins}}, supports_credentials=True)
+
+# JWT — used for React Native bearer-token auth. Falls back to SECRET_KEY if JWT_SECRET unset.
+JWT_SECRET = os.environ.get("JWT_SECRET") or app.secret_key
+JWT_ACCESS_TTL_SECONDS = 60 * 60 * 24 * 90  # 90 days
+
 limiter = Limiter(get_remote_address, app=app, default_limits=[], storage_uri="memory://")
 init_db()
 
@@ -99,17 +114,60 @@ def is_rmr_fallback() -> bool:
 
 # ── Auth helpers ────────────────────────────────────────
 
+def issue_jwt(user_id: int) -> str:
+    """Issue an HS256 JWT for bearer-token auth (React Native client)."""
+    now = int(time.time())
+    payload = {"sub": str(user_id), "iat": now, "exp": now + JWT_ACCESS_TTL_SECONDS}
+    return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
+
+
+def verify_jwt(token: str) -> Optional[int]:
+    """Verify a JWT and return the user_id, or None if invalid/expired/malformed."""
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        return int(payload["sub"])
+    except jwt.ExpiredSignatureError:
+        _log.warning("JWT verify: token expired")
+        return None
+    except jwt.InvalidTokenError as e:
+        _log.warning("JWT verify: invalid token (%s)", type(e).__name__)
+        return None
+    except (KeyError, ValueError) as e:
+        _log.warning("JWT verify: malformed payload (%s)", e)
+        return None
+
+
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if "user_id" not in session:
-            return redirect(url_for("login_page"))
-        return f(*args, **kwargs)
+        if "user_id" in session:
+            return f(*args, **kwargs)
+        # Fallback: accept Bearer token for mobile clients. Resolved user_id is stashed
+        # on flask.g so uid() can read it without touching session.
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            user_id = verify_jwt(auth_header[7:].strip())
+            if user_id is not None:
+                g.user_id = user_id
+                return f(*args, **kwargs)
+            # Bearer header present but invalid — return 401 instead of redirecting.
+            return jsonify({"error": "Invalid or expired token."}), 401
+        return redirect(url_for("login_page"))
     return decorated
 
 
 def uid():
+    # Prefer bearer-auth user_id from flask.g (set by login_required); fall back to session.
+    if getattr(g, "user_id", None) is not None:
+        return g.user_id
     return session["user_id"]
+
+
+def _wants_json() -> bool:
+    """True if the request is JSON or explicitly wants a JSON response."""
+    if request.is_json:
+        return True
+    return "application/json" in request.headers.get("Accept", "")
 
 
 def client_today():
@@ -165,13 +223,20 @@ def render_index(**kwargs):
 @app.route("/login", methods=["GET", "POST"])
 @limiter.limit("10/minute", methods=["POST"])
 def login_page():
-    if "user_id" in session:
+    # Browser clients with an existing session bounce to /; JSON clients always process.
+    if "user_id" in session and not _wants_json():
         return redirect(url_for("index"))
     error = None
     if request.method == "POST":
-        action   = request.form.get("action")
-        username = request.form.get("username", "").strip()
-        password = request.form.get("password", "")
+        if request.is_json:
+            data = request.get_json(silent=True) or {}
+            action   = (data.get("action") or "login").strip()
+            username = (data.get("username") or "").strip()
+            password = data.get("password") or ""
+        else:
+            action   = request.form.get("action")
+            username = request.form.get("username", "").strip()
+            password = request.form.get("password", "")
         if action == "register":
             if len(username) < 2:
                 error = "Username must be at least 2 characters."
@@ -185,6 +250,8 @@ def login_page():
                     session.permanent = True
                     session["user_id"]  = user_id
                     session["username"] = username.lower()
+                    if _wants_json():
+                        return jsonify({"ok": True, "user_id": user_id, "username": username.lower(), "token": issue_jwt(user_id)})
                     return redirect(url_for("index"))
         else:  # login
             user_id = verify_user(username, password)
@@ -194,8 +261,55 @@ def login_page():
                 session.permanent = True
                 session["user_id"]  = user_id
                 session["username"] = username.lower()
+                if _wants_json():
+                    return jsonify({"ok": True, "user_id": user_id, "username": username.lower(), "token": issue_jwt(user_id)})
                 return redirect(url_for("index"))
+        if _wants_json():
+            return jsonify({"error": error}), 400
     return render_template("login.html", error=error)
+
+
+@app.route("/api/auth/login", methods=["POST"])
+@limiter.limit("10/minute")
+def api_auth_login():
+    """JSON-only login alias — returns {ok, user_id, username, token}."""
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
+    user_id = verify_user(username, password)
+    if user_id is None:
+        return jsonify({"error": "Incorrect username or password."}), 401
+    session.permanent = True
+    session["user_id"]  = user_id
+    session["username"] = username.lower()
+    return jsonify({"ok": True, "user_id": user_id, "username": username.lower(), "token": issue_jwt(user_id)})
+
+
+@app.route("/api/auth/register", methods=["POST"])
+@limiter.limit("10/minute")
+def api_auth_register():
+    """JSON-only registration alias — returns {ok, user_id, username, token}."""
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
+    if len(username) < 2:
+        return jsonify({"error": "Username must be at least 2 characters."}), 400
+    if len(password) < 4:
+        return jsonify({"error": "Password must be at least 4 characters."}), 400
+    user_id = create_user(username, password)
+    if user_id is None:
+        return jsonify({"error": "That username is already taken."}), 409
+    session.permanent = True
+    session["user_id"]  = user_id
+    session["username"] = username.lower()
+    return jsonify({"ok": True, "user_id": user_id, "username": username.lower(), "token": issue_jwt(user_id)})
+
+
+@app.route("/api/auth/logout", methods=["POST"])
+def api_auth_logout():
+    """JSON-only logout alias."""
+    session.clear()
+    return jsonify({"ok": True})
 
 
 @app.route("/api/check-username", methods=["POST"])
@@ -241,9 +355,11 @@ def api_reset_password():
     return jsonify({"ok": True})
 
 
-@app.route("/logout")
+@app.route("/logout", methods=["GET", "POST"])
 def logout():
     session.clear()
+    if _wants_json():
+        return jsonify({"ok": True})
     return redirect(url_for("login_page"))
 
 
@@ -293,6 +409,30 @@ def index():
     return render_index()
 
 
+def _lookup_username(user_id: int) -> str:
+    """Look up username by id. Bearer-auth clients don't have session['username']."""
+    from db import get_conn
+    with get_conn() as conn:
+        row = conn.execute("SELECT username FROM users WHERE id = ?", (user_id,)).fetchone()
+    return row["username"] if row else ""
+
+
+@app.route("/api/dashboard")
+@login_required
+def api_dashboard():
+    """JSON dashboard payload for the React Native client (sibling of GET /)."""
+    u = uid()
+    profile = get_profile_map(u) or None
+    if profile == {}:
+        profile = None
+    return jsonify({
+        "user": {"id": u, "username": _lookup_username(u)},
+        "profile": profile,
+        "onboarding_complete": is_onboarding_complete(u),
+        "goal": get_user_goal(u),
+    })
+
+
 # ── Onboarding ──────────────────────────────────────────
 
 @app.route("/onboarding")
@@ -313,6 +453,25 @@ def onboarding():
                            username=session.get("username", ""),
                            saved=raw,
                            editing=editing)
+
+
+@app.route("/api/onboarding/data")
+@login_required
+def api_onboarding_data():
+    """JSON onboarding payload for the React Native client (sibling of GET /onboarding)."""
+    u = uid()
+    row = get_onboarding(u)
+    saved = None
+    if row and row.get("raw_inputs"):
+        try:
+            saved = json.loads(row["raw_inputs"])
+        except Exception as e:
+            _log.warning("Failed to parse onboarding raw_inputs: %s", e)
+    return jsonify({
+        "saved": saved,
+        "completed": is_onboarding_complete(u),
+        "username": _lookup_username(u),
+    })
 
 
 @app.route("/api/onboarding/save", methods=["POST"])
@@ -1026,7 +1185,7 @@ def api_gmail_debug():
 @app.route("/api/gmail/connect")
 @login_required
 def api_gmail_connect():
-    """Redirect user to Google OAuth consent screen."""
+    """Start Gmail OAuth. Browsers get a 302 to Google; JSON clients get {auth_url}."""
     if not gmail_sync.is_configured():
         return jsonify({"error": "Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET."}), 400
     import secrets
@@ -1034,25 +1193,34 @@ def api_gmail_connect():
     session["gmail_oauth_state"] = oauth_state
     redirect_uri = _gmail_redirect_uri()
     auth_url = gmail_sync.get_auth_url(redirect_uri, state=oauth_state)
+    if _wants_json():
+        return jsonify({"auth_url": auth_url})
     return redirect(auth_url)
 
 
 @app.route("/api/gmail/callback")
 @login_required
 def api_gmail_callback():
-    """Handle OAuth callback from Google."""
+    """Handle OAuth callback from Google. Browser path redirects; JSON path returns {ok, email}."""
+    json_mode = _wants_json()
     error = request.args.get("error")
     if error:
+        if json_mode:
+            return jsonify({"error": error}), 400
         from urllib.parse import urlencode
         return redirect(url_for("index") + "?" + urlencode({"gmail_error": error}))
 
     returned_state = request.args.get("state", "")
     expected_state = session.pop("gmail_oauth_state", None)
     if not expected_state or returned_state != expected_state:
+        if json_mode:
+            return jsonify({"error": "invalid_state"}), 400
         return redirect(url_for("index") + "?gmail_error=invalid_state")
 
     code = request.args.get("code", "")
     if not code:
+        if json_mode:
+            return jsonify({"error": "no_code"}), 400
         return redirect(url_for("index") + "?gmail_error=no_code")
 
     redirect_uri = _gmail_redirect_uri()
@@ -1066,9 +1234,13 @@ def api_gmail_callback():
         email_address = gmail_sync.get_user_email(access_token)
         save_gmail_tokens(uid(), access_token, refresh_token, token_expiry, email_address)
         _log.info("Gmail: connected for user %s (%s)", uid(), email_address)
+        if json_mode:
+            return jsonify({"ok": True, "email": email_address})
         return redirect(url_for("index") + "?gmail_connected=1#tab-mind")
     except Exception as e:
         _log.exception("Gmail OAuth callback failed")
+        if json_mode:
+            return jsonify({"error": "auth_failed"}), 502
         return redirect(url_for("index") + "?gmail_error=auth_failed")
 
 
