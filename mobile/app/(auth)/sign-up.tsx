@@ -5,6 +5,7 @@ import { Button, StyleSheet, TextInput } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { extractClerkError } from '../../lib/clerkError';
 
 export default function SignUpScreen() {
   const { isLoaded, signUp, setActive } = useSignUp();
@@ -13,28 +14,40 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState('');
   const [pendingVerification, setPendingVerification] = useState(false);
   const [code, setCode] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   async function onCreateAccount() {
-    if (!isLoaded) return;
+    if (!isLoaded || loading) return;
+    setError(null);
+    setLoading(true);
     try {
       await signUp.create({ emailAddress: email, password });
       await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
       setPendingVerification(true);
     } catch (err) {
-      console.error('Sign-up failed', err);
+      setError(extractClerkError(err));
+    } finally {
+      setLoading(false);
     }
   }
 
   async function onVerify() {
-    if (!isLoaded) return;
+    if (!isLoaded || loading) return;
+    setError(null);
+    setLoading(true);
     try {
       const result = await signUp.attemptEmailAddressVerification({ code });
       if (result.status === 'complete') {
         await setActive({ session: result.createdSessionId });
         router.replace('/(tabs)');
+      } else {
+        setError('Verification is incomplete. Please try again.');
       }
     } catch (err) {
-      console.error('Verification failed', err);
+      setError(extractClerkError(err));
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -49,8 +62,14 @@ export default function SignUpScreen() {
           value={code}
           onChangeText={setCode}
           keyboardType="number-pad"
+          editable={!loading}
         />
-        <Button title="Verify" onPress={onVerify} />
+        {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
+        <Button
+          title={loading ? 'Verifying…' : 'Verify'}
+          onPress={onVerify}
+          disabled={loading}
+        />
       </ThemedView>
     );
   }
@@ -65,6 +84,7 @@ export default function SignUpScreen() {
         keyboardType="email-address"
         value={email}
         onChangeText={setEmail}
+        editable={!loading}
       />
       <TextInput
         style={styles.input}
@@ -72,8 +92,14 @@ export default function SignUpScreen() {
         secureTextEntry
         value={password}
         onChangeText={setPassword}
+        editable={!loading}
       />
-      <Button title="Create Account" onPress={onCreateAccount} />
+      {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
+      <Button
+        title={loading ? 'Creating account…' : 'Create Account'}
+        onPress={onCreateAccount}
+        disabled={loading}
+      />
     </ThemedView>
   );
 }
@@ -89,4 +115,5 @@ const styles = StyleSheet.create({
     color: '#000',
     backgroundColor: '#fff',
   },
+  error: { color: '#c00' },
 });
