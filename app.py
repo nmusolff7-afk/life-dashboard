@@ -409,6 +409,30 @@ def index():
     return render_index()
 
 
+def _lookup_username(user_id: int) -> str:
+    """Look up username by id. Bearer-auth clients don't have session['username']."""
+    from db import get_conn
+    with get_conn() as conn:
+        row = conn.execute("SELECT username FROM users WHERE id = ?", (user_id,)).fetchone()
+    return row["username"] if row else ""
+
+
+@app.route("/api/dashboard")
+@login_required
+def api_dashboard():
+    """JSON dashboard payload for the React Native client (sibling of GET /)."""
+    u = uid()
+    profile = get_profile_map(u) or None
+    if profile == {}:
+        profile = None
+    return jsonify({
+        "user": {"id": u, "username": _lookup_username(u)},
+        "profile": profile,
+        "onboarding_complete": is_onboarding_complete(u),
+        "goal": get_user_goal(u),
+    })
+
+
 # ── Onboarding ──────────────────────────────────────────
 
 @app.route("/onboarding")
@@ -429,6 +453,25 @@ def onboarding():
                            username=session.get("username", ""),
                            saved=raw,
                            editing=editing)
+
+
+@app.route("/api/onboarding/data")
+@login_required
+def api_onboarding_data():
+    """JSON onboarding payload for the React Native client (sibling of GET /onboarding)."""
+    u = uid()
+    row = get_onboarding(u)
+    saved = None
+    if row and row.get("raw_inputs"):
+        try:
+            saved = json.loads(row["raw_inputs"])
+        except Exception as e:
+            _log.warning("Failed to parse onboarding raw_inputs: %s", e)
+    return jsonify({
+        "saved": saved,
+        "completed": is_onboarding_complete(u),
+        "username": _lookup_username(u),
+    })
 
 
 @app.route("/api/onboarding/save", methods=["POST"])
@@ -1142,7 +1185,7 @@ def api_gmail_debug():
 @app.route("/api/gmail/connect")
 @login_required
 def api_gmail_connect():
-    """Redirect user to Google OAuth consent screen."""
+    """Start Gmail OAuth. Browsers get a 302 to Google; JSON clients get {auth_url}."""
     if not gmail_sync.is_configured():
         return jsonify({"error": "Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET."}), 400
     import secrets
@@ -1150,25 +1193,34 @@ def api_gmail_connect():
     session["gmail_oauth_state"] = oauth_state
     redirect_uri = _gmail_redirect_uri()
     auth_url = gmail_sync.get_auth_url(redirect_uri, state=oauth_state)
+    if _wants_json():
+        return jsonify({"auth_url": auth_url})
     return redirect(auth_url)
 
 
 @app.route("/api/gmail/callback")
 @login_required
 def api_gmail_callback():
-    """Handle OAuth callback from Google."""
+    """Handle OAuth callback from Google. Browser path redirects; JSON path returns {ok, email}."""
+    json_mode = _wants_json()
     error = request.args.get("error")
     if error:
+        if json_mode:
+            return jsonify({"error": error}), 400
         from urllib.parse import urlencode
         return redirect(url_for("index") + "?" + urlencode({"gmail_error": error}))
 
     returned_state = request.args.get("state", "")
     expected_state = session.pop("gmail_oauth_state", None)
     if not expected_state or returned_state != expected_state:
+        if json_mode:
+            return jsonify({"error": "invalid_state"}), 400
         return redirect(url_for("index") + "?gmail_error=invalid_state")
 
     code = request.args.get("code", "")
     if not code:
+        if json_mode:
+            return jsonify({"error": "no_code"}), 400
         return redirect(url_for("index") + "?gmail_error=no_code")
 
     redirect_uri = _gmail_redirect_uri()
@@ -1182,9 +1234,13 @@ def api_gmail_callback():
         email_address = gmail_sync.get_user_email(access_token)
         save_gmail_tokens(uid(), access_token, refresh_token, token_expiry, email_address)
         _log.info("Gmail: connected for user %s (%s)", uid(), email_address)
+        if json_mode:
+            return jsonify({"ok": True, "email": email_address})
         return redirect(url_for("index") + "?gmail_connected=1#tab-mind")
     except Exception as e:
         _log.exception("Gmail OAuth callback failed")
+        if json_mode:
+            return jsonify({"error": "auth_failed"}), 502
         return redirect(url_for("index") + "?gmail_error=auth_failed")
 
 
