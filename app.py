@@ -150,6 +150,8 @@ def login_required(f):
             if user_id is not None:
                 g.user_id = user_id
                 return f(*args, **kwargs)
+            # Bearer header present but invalid — return 401 instead of redirecting.
+            return jsonify({"error": "Invalid or expired token."}), 401
         return redirect(url_for("login_page"))
     return decorated
 
@@ -159,6 +161,13 @@ def uid():
     if getattr(g, "user_id", None) is not None:
         return g.user_id
     return session["user_id"]
+
+
+def _wants_json() -> bool:
+    """True if the request is JSON or explicitly wants a JSON response."""
+    if request.is_json:
+        return True
+    return "application/json" in request.headers.get("Accept", "")
 
 
 def client_today():
@@ -214,13 +223,20 @@ def render_index(**kwargs):
 @app.route("/login", methods=["GET", "POST"])
 @limiter.limit("10/minute", methods=["POST"])
 def login_page():
-    if "user_id" in session:
+    # Browser clients with an existing session bounce to /; JSON clients always process.
+    if "user_id" in session and not _wants_json():
         return redirect(url_for("index"))
     error = None
     if request.method == "POST":
-        action   = request.form.get("action")
-        username = request.form.get("username", "").strip()
-        password = request.form.get("password", "")
+        if request.is_json:
+            data = request.get_json(silent=True) or {}
+            action   = (data.get("action") or "login").strip()
+            username = (data.get("username") or "").strip()
+            password = data.get("password") or ""
+        else:
+            action   = request.form.get("action")
+            username = request.form.get("username", "").strip()
+            password = request.form.get("password", "")
         if action == "register":
             if len(username) < 2:
                 error = "Username must be at least 2 characters."
@@ -234,6 +250,8 @@ def login_page():
                     session.permanent = True
                     session["user_id"]  = user_id
                     session["username"] = username.lower()
+                    if _wants_json():
+                        return jsonify({"ok": True, "user_id": user_id, "username": username.lower(), "token": issue_jwt(user_id)})
                     return redirect(url_for("index"))
         else:  # login
             user_id = verify_user(username, password)
@@ -243,8 +261,55 @@ def login_page():
                 session.permanent = True
                 session["user_id"]  = user_id
                 session["username"] = username.lower()
+                if _wants_json():
+                    return jsonify({"ok": True, "user_id": user_id, "username": username.lower(), "token": issue_jwt(user_id)})
                 return redirect(url_for("index"))
+        if _wants_json():
+            return jsonify({"error": error}), 400
     return render_template("login.html", error=error)
+
+
+@app.route("/api/auth/login", methods=["POST"])
+@limiter.limit("10/minute")
+def api_auth_login():
+    """JSON-only login alias — returns {ok, user_id, username, token}."""
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
+    user_id = verify_user(username, password)
+    if user_id is None:
+        return jsonify({"error": "Incorrect username or password."}), 401
+    session.permanent = True
+    session["user_id"]  = user_id
+    session["username"] = username.lower()
+    return jsonify({"ok": True, "user_id": user_id, "username": username.lower(), "token": issue_jwt(user_id)})
+
+
+@app.route("/api/auth/register", methods=["POST"])
+@limiter.limit("10/minute")
+def api_auth_register():
+    """JSON-only registration alias — returns {ok, user_id, username, token}."""
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
+    if len(username) < 2:
+        return jsonify({"error": "Username must be at least 2 characters."}), 400
+    if len(password) < 4:
+        return jsonify({"error": "Password must be at least 4 characters."}), 400
+    user_id = create_user(username, password)
+    if user_id is None:
+        return jsonify({"error": "That username is already taken."}), 409
+    session.permanent = True
+    session["user_id"]  = user_id
+    session["username"] = username.lower()
+    return jsonify({"ok": True, "user_id": user_id, "username": username.lower(), "token": issue_jwt(user_id)})
+
+
+@app.route("/api/auth/logout", methods=["POST"])
+def api_auth_logout():
+    """JSON-only logout alias."""
+    session.clear()
+    return jsonify({"ok": True})
 
 
 @app.route("/api/check-username", methods=["POST"])
@@ -290,9 +355,11 @@ def api_reset_password():
     return jsonify({"ok": True})
 
 
-@app.route("/logout")
+@app.route("/logout", methods=["GET", "POST"])
 def logout():
     session.clear()
+    if _wants_json():
+        return jsonify({"ok": True})
     return redirect(url_for("login_page"))
 
 
