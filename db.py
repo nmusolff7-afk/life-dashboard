@@ -24,6 +24,7 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT NOT NULL UNIQUE,
                 password_hash TEXT NOT NULL,
+                clerk_user_id TEXT UNIQUE,
                 created_at TIMESTAMP NOT NULL
             )
         """)
@@ -294,6 +295,13 @@ def init_db():
         except sqlite3.OperationalError:
             pass
 
+        # Migrate: add clerk_user_id to users for Clerk auth bridge
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN clerk_user_id TEXT")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
         # Migrate: assign orphaned rows (no user_id) to user 1 if they exist
         conn.execute("UPDATE meal_logs      SET user_id = 1 WHERE user_id IS NULL AND EXISTS (SELECT 1 FROM users WHERE id = 1)")
         conn.execute("UPDATE workout_logs   SET user_id = 1 WHERE user_id IS NULL AND EXISTS (SELECT 1 FROM users WHERE id = 1)")
@@ -310,6 +318,7 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_gmail_summaries_user     ON gmail_summaries(user_id)",
             "CREATE INDEX IF NOT EXISTS idx_saved_meals_user         ON saved_meals(user_id)",
             "CREATE INDEX IF NOT EXISTS idx_saved_workouts_user      ON saved_workouts(user_id)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_clerk_id    ON users(clerk_user_id) WHERE clerk_user_id IS NOT NULL",
         ]:
             conn.execute(idx_sql)
 
@@ -379,6 +388,52 @@ def get_user(user_id):
     with get_conn() as conn:
         row = conn.execute("SELECT id, username FROM users WHERE id = ?", (user_id,)).fetchone()
     return dict(row) if row else None
+
+
+def get_user_by_clerk_id(clerk_user_id):
+    """Return user row (id, username, clerk_user_id) for a linked Clerk identity, or None."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, username, clerk_user_id FROM users WHERE clerk_user_id = ?",
+            (clerk_user_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def create_user_from_clerk(clerk_user_id: str, email: str, username: str) -> int:
+    """Create a new user linked to a Clerk identity. Returns new user_id.
+
+    Username must be unique; appends 4 random digits on collision. password_hash
+    is a non-usable placeholder since Clerk owns credential verification.
+    """
+    import random
+    base_username = (username or "").strip().lower() or f"user{clerk_user_id[-8:].lower()}"
+    attempt = base_username
+    placeholder_hash = f"clerk:{clerk_user_id}"
+    with get_conn() as conn:
+        for _ in range(10):
+            try:
+                cur = conn.execute(
+                    "INSERT INTO users (username, password_hash, clerk_user_id, created_at) VALUES (?, ?, ?, ?)",
+                    (attempt, placeholder_hash, clerk_user_id, datetime.now().isoformat()),
+                )
+                conn.commit()
+                return cur.lastrowid
+            except sqlite3.IntegrityError as e:
+                if "clerk_user_id" in str(e):
+                    raise  # caller should have checked first
+                attempt = f"{base_username}{random.randint(1000, 9999)}"
+        raise RuntimeError(f"Could not create unique username for Clerk user {clerk_user_id}")
+
+
+def link_existing_user_to_clerk(user_id: int, clerk_user_id: str) -> None:
+    """Attach a Clerk identity to an existing Flask user. For manual reconciliation."""
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE users SET clerk_user_id = ? WHERE id = ?",
+            (clerk_user_id, user_id),
+        )
+        conn.commit()
 
 
 # ── Meals ────────────────────────────────────────────────
