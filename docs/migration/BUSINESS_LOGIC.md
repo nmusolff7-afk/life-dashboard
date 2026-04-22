@@ -2,6 +2,8 @@
 
 Generated: 2026-04-17 | Framework-agnostic | Reimplementable in any language
 
+> **Verified against TypeScript port on 2026-04-22.** Where code and this document disagreed, code wins per [BUILD_APPROACH.md](BUILD_APPROACH.md) rule 2. Values in this document now reflect actual code behavior. Specific corrections applied: RMR §13 worked-example numbers recalculated from the formulas; NEAT §2 algorithm now includes the ambulatory-keyword filter step that was missing; NEAT §2 regex patterns updated to match the actual JS source. See `shared/src/logic/` for the ported implementation and test values.
+
 ---
 
 ## 1. Resting Metabolic Rate (RMR)
@@ -88,20 +90,26 @@ STEPS_PER_MILE = 2000
 workout_steps = 0
 for each workout_description:
   lowercase = description.toLowerCase()
-  
-  // Non-ambulatory activities → 0 steps
+
+  // (a) Non-ambulatory activities → 0 steps
   if contains any of: "cycl", "bike", "row", "swim", "ellip", "strength",
      "lift", "bench", "squat", "deadlift", "press", "curl", "pulldown":
     continue
-  
-  // Extract miles
-  miles_match = regex(/(\d+\.?\d*)\s*(mi|mile)/i)
+
+  // (b) Ambulatory-keyword filter — REQUIRED for distance extraction to apply.
+  // Without a matching ambulatory keyword, workout_steps += 0 regardless of
+  // parseable distance. ("drove 5 miles" must not count as 10,000 steps.)
+  if NOT contains any of: "run", "ran", "jog", "walk", "hike", "treadmill":
+    continue
+
+  // (c) Extract miles — matches "mi", "mile", "miles" (case-insensitive via lowercase)
+  miles_match = regex(/(\d+\.?\d*)\s*mi(?:le)?s?/)
   if miles_match:
     workout_steps += miles * 2000
     continue
-  
-  // Extract kilometers
-  km_match = regex(/(\d+\.?\d*)\s*(km|kilo)/i)
+
+  // (d) Extract kilometers — matches "km" only (NOT "kilo" or "kilometers")
+  km_match = regex(/(\d+\.?\d*)\s*km/)
   if km_match:
     workout_steps += km * 0.621371 * 2000
     continue
@@ -591,9 +599,12 @@ KCAL_PER_NET_STEP = 0.04
 ### Recommended Test Cases
 
 **RMR:**
-- Male, 185 lbs, 5'10", 28 years → expect ~1823 kcal (Mifflin-St Jeor)
-- Same person with 18% body fat → expect ~1789 kcal (Katch-McArdle)
-- Female, 140 lbs, 5'4", 30 years → expect ~1369 kcal
+- Male, 185 lbs, 5'10", 28 years → **1815 kcal** (Mifflin-St Jeor)
+  — prior doc said "~1823"; formula `round(10·83.9145 + 6.25·177.8 - 5·28 + 5)` yields 1815 exactly.
+- Same person with 18% body fat → **1856 kcal** (Katch-McArdle)
+  — prior doc said "~1789"; LBM = 83.9145 × 0.82 = 68.8099, formula `round(370 + 21.6·68.8099)` yields 1856.
+- Female, 140 lbs, 5'4", 30 years → **1340 kcal**
+  — prior doc said "~1369"; formula `round(10·63.503 + 6.25·162.56 - 5·30 - 161)` yields 1340.
 
 **Calorie Targets:**
 - TDEE 2300, goal lose_weight → target = max(2300*0.8, RMR) = 1840

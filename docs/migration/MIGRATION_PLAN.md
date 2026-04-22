@@ -4,7 +4,15 @@ Generated: 2026-04-17 | 22-week timeline | Solo developer + Claude Code
 
 ---
 
+> **IMPORTANT: This plan was written assuming Flask-parity migration. The actual ship target is PRD v1.0 (see [APEX_PRD_Final.md](APEX_PRD_Final.md)). For the governing rule set, see [BUILD_APPROACH.md](BUILD_APPROACH.md). This plan remains useful for Phases 0–2 scaffolding work (authentication, design system, business logic port, onboarding wizard). Phases 3–6 as written are SUPERSEDED by the PRD feature requirements — do not follow the old Phase 3–6 as feature specifications.**
+
+---
+
 ## Target Architecture
+
+Target architecture is **PRD v1.0 §5 (Technical Architecture)**. This plan's earlier description of a Flask-to-Node migration applies to the **backend transition** only, not to the product scope. Specifically, §5 specifies the full mobile client, backend, data layer, auth, sync pipelines, AI integration layer, real-time/notification pipeline, and external vendor integrations for v1.0 — most of which are out-of-scope for this document.
+
+The high-level boundary shift documented below (React Native client, Node.js/TypeScript backend, Postgres, Clerk auth, RevenueCat billing, AWS KMS for secrets) still describes the migration *direction*. It does not describe the v1.0 feature surface. For that, follow the PRD.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -22,6 +30,8 @@ Generated: 2026-04-17 | 22-week timeline | Solo developer + Claude Code
 │  17 active tables ── proper indexes ── encrypted at rest  │
 └──────────────────────────────────────────────────────────┘
 ```
+
+Note: the "17 active tables" reflects Flask's current schema, not the PRD's data model. The PRD §5.5 / §11.6 / Appendix E specify a broader schema that includes Finance (transactions, budgets, bills, savings), Time (calendar events, email metadata, screen-time samples, location visits), Goals (22-goal library with per-goal progress), Notifications (signal log, delivery log, user rules), and Chatbot (audit log). The migration is additive beyond Flask's schema; treat Flask's 17 tables as a subset of the eventual Postgres schema.
 
 ### Migration Strategy: Frontend-First
 
@@ -291,6 +301,8 @@ Revert mobile app to Phase 1 state (placeholder screens). Flask backend unaffect
 
 ## Phase 3: Advanced Screens + Integrations (Weeks 10-13)
 
+> **SUPERSEDED — see [BUILD_APPROACH.md](BUILD_APPROACH.md) for feature scope. This phase description captures Flask-parity work only; actual v1.0 scope per the PRD is broader/different.** The PRD's §4.2 (Home), §4.3 (Fitness), §4.4 (Nutrition), §4.5 (Finance), §4.6 (Time), §4.7 (Chatbot), §4.9 (Notifications), §4.10 (Goals), and §4.11 (Data Export) collectively replace the "Progress, Status, Profile tabs + Gmail/Garmin integrations" scope below.
+
 ### Goal
 Progress, Status, and Profile tabs complete. Gmail and Garmin integrations working through Flask.
 
@@ -376,6 +388,8 @@ Revert mobile app to Phase 2 state. Flask backend unaffected.
 ---
 
 ## Phase 4: Node.js + Express Backend (Weeks 14-17)
+
+> **SUPERSEDED — see [BUILD_APPROACH.md](BUILD_APPROACH.md) for feature scope. This phase description captures Flask-parity work only; actual v1.0 scope per the PRD is broader/different.** The backend rewrite itself is still in scope (Rule 4 in BUILD_APPROACH), but "port all 52 Flask endpoints" is not the goal — the goal is to implement the PRD §5.4 backend serving the PRD §4 feature set, which includes endpoints Flask has never had (Plaid transactions, calendar ingestion, screen-time ingestion, location visits, goal library, notifications pipeline, chatbot streaming, etc.).
 
 ### Goal
 Replace Flask with Node.js + Express + TypeScript. All 52 endpoints ported. Mobile app switches to new backend.
@@ -577,6 +591,8 @@ Switch mobile app `API_BASE_URL` back to Flask. Flask backend still running and 
 
 ## Phase 5: Neon PostgreSQL + Data Migration + Billing (Weeks 18-20)
 
+> **SUPERSEDED — see [BUILD_APPROACH.md](BUILD_APPROACH.md) for feature scope. This phase description captures Flask-parity work only; actual v1.0 scope per the PRD is broader/different.** The PRD's schema (§5.5, §11.6, Appendix E) adds tables Flask has never had. The "17 Flask tables migrate to Neon" framing below is a subset of the actual schema work. RevenueCat integration scope is correct; trial mechanics follow PRD §13.4 (14-day Pro trial with force-choice at end).
+
 ### Goal
 SQLite → Neon PostgreSQL migration complete. RevenueCat billing integrated. All data migrated.
 
@@ -707,6 +723,8 @@ Phase 4 complete (Express backend running, but still reading from SQLite via a c
 ---
 
 ## Phase 6: Polish + Alpha Release (Weeks 21-22)
+
+> **SUPERSEDED — see [BUILD_APPROACH.md](BUILD_APPROACH.md) for feature scope. This phase description captures Flask-parity work only; actual v1.0 scope per the PRD is broader/different.** "All features working" means all PRD v1.0 features per §4.1–§4.11, not Flask-parity. Alpha-release mechanics (TestFlight, Play Console internal track, Sentry, Neon/Upstash monitoring) remain relevant; decommissioning Flask per the PRD's launch sequence (§1.7) is correct.
 
 ### Goal
 Production-ready alpha. All features working. TestFlight/internal testing.
