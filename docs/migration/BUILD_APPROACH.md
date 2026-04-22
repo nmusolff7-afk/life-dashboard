@@ -2,6 +2,8 @@
 
 **Purpose.** This document governs every build decision from this point forward. It resolves the ambiguity that exists because Life Dashboard has *two* reference documents: the Flask PWA (what we already built and have running with 3 users) and [APEX_PRD_Final.md](APEX_PRD_Final.md) v1.0 (what we're shipping). Those two documents agree on some things, diverge on others, and conflict on a few. This document is the tiebreaker.
 
+**Reflects PRD doc revision v1.27 (2026-04-22).** The Resolved Open Questions section below reflects decisions locked in v1.27 (unified goal system, sectional direct-edit settings, deterministic 3-signal email classifier, and three doc-bug reconciliations). If the PRD advances past v1.27, re-check the guidance here against the PRD change log before relying on it.
+
 If you are Claude Code, a future engineer, or the founder reading this later: read this document first. If its guidance contradicts an older migration document ([MIGRATION_PLAN.md](MIGRATION_PLAN.md) in particular), this document wins.
 
 ---
@@ -94,7 +96,7 @@ Legend:
 | Biometric unlock | None | Face ID / Touch ID / fingerprint enrollment flow | NEW | §4.1.3 |
 | Onboarding body-stats wizard | 3-step wizard (body stats / goal / daily life) | Same 3-step wizard preserved from Flask | PRESERVE | §4.1.4 |
 | AI profile generation | `generate_profile_map` Haiku call during onboarding | Same concept, refined; archetype / insight narration removed | ENHANCE | §4.1.5, §10.2 (removals) |
-| First goal selection | 4-goal picker (lose/build/recomp/maintain) tied to calorie/macro targets | Same 4 goals are primary calorie-goal selector; 22-goal library adds separate achievement goals (§4.10) on top | ENHANCE | §4.1.5a + §4.10 |
+| First goal selection | 4-goal picker (lose/build/recomp/maintain) tied to calorie/macro targets | Fitness-pre-filtered picker over the unified 22-goal library (PRD v1.27 §4.10.2). Picking a fitness body-composition goal sets calorie/macro targets as a deterministic side effect; picking a non-fitness goal or skipping leaves the calorie engine on maintenance defaults. | ENHANCE | §4.1.5a |
 | Workout builder | Optional workout plan wizard; outputs weekly plan | Optional sub-flow preserved; 8-step wizard | PRESERVE | §4.1.6 |
 | Connection connect | Gmail only (OAuth), Garmin (env-based, dormant) | Full connection panel: HealthKit/Health Connect, Plaid, Gmail, Outlook, Google Calendar, Apple EventKit, Strava, Garmin (pending), Screen Time, CoreLocation | ENHANCE | §4.1.7, §8 |
 | Notification permission | None | Dedicated onboarding step for push notifications | NEW | §4.1.7a |
@@ -209,10 +211,11 @@ No Flask equivalent. Entire feature is NEW per PRD §4.7.
 
 | Area | Flask state | PRD v1.0 scope | Disposition | PRD section |
 |---|---|---|---|---|
-| Primary goal (weight/body composition) | 4-goal picker → calorie/macro targets | Preserved, drives calorie/macro targets | PRESERVE | §4.1.5a |
-| Goal library | None | 22-goal library spanning Fitness, Nutrition, Finance, Time, Cross-category | NEW | §4.10.3 |
+| Primary fitness goal (calorie/macro driver) | 4-goal picker (lose/build/recomp/maintain) → calorie/macro targets | Folded into the unified goal system (PRD v1.27 §4.10.2). Among a user's active goals, at most one is the designated "primary fitness goal" — the body-comp goal that drives calorie/macro recomputation. All four Flask calorie presets survive as goal-library entries; the side effect is now a per-goal-object flag rather than a separate settings concept. | ENHANCE | §4.10.2, §4.10.10 |
+| Unified goal system (22-goal library) | None (Flask has only the 4 calorie presets) | Single unified goal system per PRD v1.27 §4.10 — all 22 goals tracked with identical rigor (progress, pace, deadline, celebration, auto-restart). Fitness body-comp goals have calorie/macro side effects; all other goals have zero side effect on user settings. | NEW (concept and catalog) | §4.10.3 |
 | Goal picker UI | None (goal is a radio group in onboarding) | Dedicated picker screen with filtering | NEW | §4.10.7 |
-| Active goal slots | None (1 implicit goal) | Up to 3 active goals per user | NEW | §4.10.10 |
+| Active goal slots | None (1 implicit goal) | Core 3 active / Pro 6 active per v1.27 (Pro raised from prior 3); at most one active goal is the designated primary fitness goal | NEW | §4.10.10 |
+| "Redo onboarding" edit flow | Available via `/onboarding?edit=1` | CUT per PRD v1.27 §4.1.1 — onboarding is first-time-only. Replaced by sectional direct-edit under §4.8.4 Profile (Body Stats / Daily Life / Diet Preferences / Advanced, each with minimum-necessary deterministic recompute). AI profile regeneration is an explicit standalone action. | CUT | §4.1.1, §4.8.4 |
 | Goal progress / pace calculations | Weight projection only | Progress + pace for every goal type | ENHANCE | §4.10.5, §4.10.6 |
 | Goal detail view | None | Dedicated view with history chart | NEW | §4.10.11 |
 | Goal failure handling | None | Auto-restart, archive, grace periods | NEW | §4.10.13 |
@@ -242,69 +245,54 @@ No Flask equivalent. Entire feature is NEW per PRD §4.7.
 
 ---
 
-## Open Questions
+## Resolved Open Questions
 
-These are decisions the founder needs to make before the relevant build task can proceed. They are concrete questions, not musings. Answer each one and it unblocks a specific workstream.
+These were open at the time BUILD_APPROACH.md was first drafted. All seven have since been answered — six by founder decisions baked into PRD v1.27, one dissolved by OQ-1's answer. Resolutions are recorded verbatim so the logic that drove the current build approach stays auditable.
 
-### OQ-1 — How does the Flask user migration work when paywall is introduced?
+### OQ-1 — Flask user migration when paywall is introduced — RESOLVED
 
-**Context.** Flask has three live users today with no billing. PRD §13.4 requires a payment method at trial start, and the force-choice screen blocks access after day 14 unless the user picks Core or Pro. If a Flask user opens the new mobile app and hits the paywall, they lose access to data they've been building for weeks.
+**Resolution.** The three existing Flask users will **re-onboard** in the new app. No migration tooling, no grandfathering shortcuts, no preserved history. Clean cutover.
 
-**Question.** When Flask users install the React Native app for the first time, do they (a) enter the 14-day Pro trial fresh, (b) bypass the paywall entirely (grandfathered to Core), (c) see a different migration flow, or (d) something else?
+**Implication.** No work spent on localStorage exfiltration, account linking, or historical-score backfill. The mobile v1 app can assume every user is starting fresh.
 
-**Unblocks.** §4.1.9 paywall implementation; migration tooling for existing users.
+### OQ-2 — Primary vs library goals — RESOLVED
 
-### OQ-2 — How does Flask's 4-goal calorie system integrate with PRD's 22-goal library?
+**Resolution.** Unified into one goal system per PRD v1.27 §4.10.2 "The Unified Goal System." There is no separate "primary goal" concept anymore. Every goal is a first-class goal object with equal tracking rigor (progress, pace, deadline, completion celebration, auto-restart). Among a user's active goals, at most one is designated the **primary fitness goal** — the body-composition goal that drives calorie/macro target recomputation as a deterministic side effect. All other goals (strength PRs, streaks, finance, time) track progress but have zero side effect on user settings. Goal slot counts updated: Core 3 active / Pro 6 active (Pro raised from prior 3).
 
-**Context.** Flask has one goal selector (lose/build/recomp/maintain) that drives calorie and macro targets via `goal_config.py`. PRD §4.1.5a keeps this selector and calls it the "primary goal selection." PRD §4.10 separately introduces a 22-goal library with up to 3 active goals, including some that overlap conceptually with the primary goal (e.g., "lose 10 lbs by June" is both a primary-goal setting and a library goal).
+**Implication.** Onboarding §4.1.5a becomes a fitness-filtered picker over the 22-goal library. Settings §4.8.4 does not edit goals at all — goals live in §4.10 exclusively. Any code that treated "primary goal" as a distinct concept must now treat it as a per-goal flag (`is_primary_fitness_goal`) on the unified goal object.
 
-**Question.** Are these two goal systems truly independent (primary goal = calorie target, library goals = separate achievement tracker), or does selecting a primary goal auto-add a corresponding library goal? If the former, what happens when a user's library goal (e.g., "reach 170 lbs") contradicts their primary goal setting (e.g., "build muscle")?
+### OQ-3 — Email-importance classifier signals — RESOLVED
 
-**Unblocks.** §4.1.5a onboarding build; §4.10 goal creation flow.
+**Resolution.** PRD v1.27 §4.6.8 locks the deterministic 3-signal classifier:
 
-### OQ-3 — What are the exact signals in the deterministic email-importance classifier?
+- **Signal 1 — Sender reputation** (clamped [-2.0, +2.0]). +1.0 / −1.0 per sender Mark-Important / Mark-Stream action; +0.5 / −0.5 domain half-credit on the same action.
+- **Signal 2 — Content cues** (user-tunable keyword rules). Seeded with 15 boost keywords (*urgent, tomorrow, meeting, interview, offer, contract, invoice, deadline, action required, RSVP, flight, appointment, confirmation, canceled, reschedule*) and 15 demote keywords (*unsubscribe, deal, newsletter, trending, recommended for you, limited time, sale, % off, you might like, weekly digest, reminder to check, invitation to, upgrade, beta, feedback*). +0.3 per boost match, −0.3 per demote match, per-email cap ±1.0 to block keyword-stuffing. Keyword editing is **Core-tier** (not Pro-gated).
+- **Signal 3 — Thread behavior** ([-0.6, +0.8]). Prior reply to the thread +0.5; direct address with ≤3 recipients +0.3; CC with >5 recipients −0.2; bulk-mail header detection (List-Unsubscribe, List-ID, Precedence:bulk, X-Bulk, X-Auto-Response-Suppress, X-Mailer mass-distribution, Feedback-ID) −0.4.
+- **Final.** Sum clamped [-3.0, +3.0]. Threshold **≥1.0 → Important**, else Stream. Ties at exactly 1.0 are Important.
 
-**Context.** Flask uses learned sender/domain rules (user clicks "important" → per-sender score accumulates). PRD §4.6.8 cuts per-email AI classification and replaces it with a "deterministic 3-signal classifier" but does not specify the three signals in detail. The port-shared-logic branch had to scaffold placeholder signals (sender rules + keyword matches + thread reply behavior) because the source material is ambiguous.
+**Implication.** [shared/src/logic/importance.ts](../../shared/src/logic/importance.ts) can now be completed — the existing `keywordRules` API shape is compatible; seed lists, signal weights, the per-email cap, and the threshold need to be updated to the v1.27 locked values. Thread signal needs the bulk-header-detection list added.
 
-**Question.** What are the three signals, their weights, and their data sources? Specifically:
-- Is "sender/domain rules" signal 1, inherited from Flask's `gmail_importance` table?
-- Is "user replied to this thread" signal 2 (with thread reply → +1 importance)?
-- Is signal 3 a keyword list (e.g., subject contains "meeting", "invoice", "urgent" → boost)? If so, is the keyword list system-defined or user-configurable?
-- What's the scoring scale and the threshold for "important" vs "stream"?
+### OQ-4 — Flask localStorage-only data on migration — RESOLVED
 
-**Unblocks.** [shared/src/logic/importance.ts](../../shared/src/logic/importance.ts) complete implementation (currently scaffolded); §4.6.8 build.
+**Resolution.** Acceptable loss. The three existing Flask users re-enter plan / steps / theme in the mobile app. No migration tooling built.
 
-### OQ-4 — What happens to Flask's localStorage-only data (steps, workout plan, theme) on migration?
+**Implication.** Same consequence as OQ-1. Steps specifically are autopulled from HealthKit / Health Connect in the mobile app (PRD §4.3.7), so the localStorage-only path is moot for the mobile target state anyway.
 
-**Context.** Several Flask features persist data in the browser's localStorage only, never on the server: daily steps, the current workout plan, theme preference, language, weekly plan details. On React Native, that data is tied to the browser the user used. Migrating to mobile means the data is gone unless we exfiltrate it first.
+### OQ-5 — Historical score reconciliation — RESOLVED
 
-**Question.** For the three existing users, do we (a) build a one-time localStorage → server migration tool before they install mobile, (b) accept the loss (users re-enter their current plan / steps), or (c) something else? This is only three users, so option (b) may be acceptable; flagging because it's easy to forget.
+**Resolution.** Fresh start on new scoring. No backfill. Mobile day 1 is scoring day 1. Flask's legacy momentum scores stay in Flask (until Flask is decommissioned); they don't carry forward.
 
-**Unblocks.** Migration runbook.
+**Implication.** No dual-scoring bridge needed. Mobile Progress / History tabs render only dates where PRD §9 scoring has data. New users see `—` for dates before install, same as any clean-start user.
 
-### OQ-5 — When does a Flask user's existing `momentum_score` / `user_goals` / `user_onboarding` data stop being authoritative?
+### OQ-6 — Opus grandfathering — DISSOLVED
 
-**Context.** Flask's momentum score is computed with a 4-weight penalty system (nutrition 40 / macros 25 / activity 25 / tasks 10). PRD §9 specifies 4 category scores + 1 Overall Score with signal/subsystem architecture. The two are not interchangeable — same inputs produce different outputs. A Flask user's trend chart will look different after migration even if their behavior is identical.
+**Resolution.** Dissolved by OQ-1. Since no migration and re-onboarding is the path, existing Flask users enter the mobile app as fresh users. Everyone — including the three existing ones — starts on Sonnet (Core) or Opus (Pro's Premium Scan) per PRD §10.2 and §13.3. No grandfathering mechanism needed.
 
-**Question.** At migration, do we (a) drop historical scores and start fresh on PRD scoring day 1, (b) re-compute all historical dates under the new scoring algorithm (requires signal data we may not have for old dates), or (c) show a hard break ("Before [date]: legacy score system; after: new system") and not try to reconcile?
+### OQ-7 — Primary-goal editing outside onboarding — RESOLVED
 
-**Unblocks.** §9 scoring migration story; Progress / History tab build.
+**Resolution.** PRD v1.27 §4.8.4 "Sectional direct-edit settings" specifies: **onboarding is first-time-only**. Post-onboarding edits are direct-edit sections under Profile — Body Stats (deterministic RMR/TDEE/macros recompute), Daily Life (deterministic NEAT/TDEE/macros recompute), Diet Preferences (flags `profile_map_out_of_sync` on user record but no automatic AI call), Advanced overrides (direct edit with Lock toggle), and "Regenerate AI profile map" as an explicit standalone action with confirmation modal. Goal editing is removed from Settings entirely — goals live in §4.10 only. Workout plan editing moves to Fitness tab §4.3.10.
 
-### OQ-6 — Do we grandfather Flask users onto Opus meal scanning?
-
-**Context.** Flask's meal photo scan uses Opus for every user — accurate and expensive (~$0.06/scan). PRD tier structure makes Opus a Pro-only feature (§10.2 "Premium Scan," 10/day); Core gets Sonnet (~$0.015/scan, lower accuracy on edge-case plates). The three current Flask users have experienced Opus accuracy; silently downgrading them to Sonnet feels like a product regression.
-
-**Question.** Do current Flask users get grandfathered to Opus for some period, or does everyone — including existing users — start on Sonnet unless they're on Pro?
-
-**Unblocks.** §4.4.5 meal scan implementation; tier gating logic.
-
-### OQ-7 — Is "primary goal" (calorie target) editable outside the onboarding flow?
-
-**Context.** Flask lets users re-enter onboarding via `/onboarding?edit=1` to change their goal type and recompute targets. PRD §4.1 doesn't explicitly discuss the re-edit path. §4.8 Settings mentions a "Profile section" but whether editing the primary goal from Settings triggers the full onboarding-style recompute (including `generate_profile_map`) or just swaps `goal_config` values is unclear.
-
-**Question.** When a user changes their primary goal in Settings, do we re-run the onboarding wizard, re-run only `generate_profile_map` with the new goal, or deterministically recompute targets from `goal_config` without any AI call? Same question for editing body stats.
-
-**Unblocks.** §4.8.4 profile editing flow.
+**Implication.** No "re-do onboarding" route in mobile. Settings is a collection of narrow edit surfaces each doing the minimum math needed per field. AI fires only via the explicit "Regenerate AI profile map" action.
 
 ---
 
@@ -312,9 +300,11 @@ These are decisions the founder needs to make before the relevant build task can
 
 These were surfaced by the `port-shared-logic` branch while porting business logic to TypeScript. They are documented here so future work doesn't re-discover them.
 
-### Importance classifier scope gap
+### Importance classifier scope gap — RESOLVED in PRD v1.27 §4.6.8
 
-Flask has a **single-signal** classifier: learned sender/domain rules from the `gmail_importance` table, surfaced via `score_email_importance(sender, rules)` in [db.py](../../db.py). PRD §4.6.8 specifies a **three-signal deterministic classifier** but does not fully specify the other two signals. The port (see [shared/src/logic/importance.ts](../../shared/src/logic/importance.ts)) implemented the Flask signal faithfully and scaffolded an extensible API for keyword + thread-reply signals, but the latter two are placeholder design, not a port from Flask or the PRD. See Open Question OQ-3.
+Flask had a **single-signal** classifier: learned sender/domain rules from the `gmail_importance` table, surfaced via `score_email_importance(sender, rules)` in [db.py](../../db.py). PRD v1.26 specified a "three-signal deterministic classifier" without pinning the other two signals, which forced the port (see [shared/src/logic/importance.ts](../../shared/src/logic/importance.ts)) to scaffold keyword and thread signals as placeholder design.
+
+**PRD v1.27 §4.6.8 locks the spec** — see Resolved OQ-3 above for full signal weights, seed lists, cold-start behavior, and the 1.0 threshold. The scaffold in `importance.ts` is API-compatible but its seed keyword lists, weights, per-email cap (±1.0), and bulk-header detection need to be updated to match v1.27. Queued as a follow-up commit, not re-surveyed here.
 
 ### Minimum-data-threshold behavior for scoring
 
