@@ -36,9 +36,7 @@ export function useClerkBridge(): void {
           if (res.ok && res.flask_token) {
             setFlaskToken(res.flask_token);
             console.log(
-              'useClerkBridge: Clerk → Flask bridged (user_id=%s, is_new=%s)',
-              res.user_id,
-              res.is_new_user,
+              `useClerkBridge: Clerk → Flask bridged (user_id=${res.user_id}, is_new=${res.is_new_user})`,
             );
           } else {
             console.error('useClerkBridge: clerk-verify failed:', res.error);
