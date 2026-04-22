@@ -1,5 +1,6 @@
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { Image } from 'expo-image';
+import { useState } from 'react';
 import { Button, Platform, StyleSheet } from 'react-native';
 
 import { HelloWave } from '@/components/hello-wave';
@@ -7,11 +8,40 @@ import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Link } from 'expo-router';
+import { apiFetch } from '../../lib/api';
+import { clearFlaskToken } from '../../lib/flaskToken';
 
 export default function HomeScreen() {
   const { user } = useUser();
   const { signOut } = useAuth();
   const email = user?.primaryEmailAddress?.emailAddress ?? '';
+  const [testResult, setTestResult] = useState<string>('');
+  const [testing, setTesting] = useState(false);
+
+  async function handleSignOut() {
+    clearFlaskToken();
+    await signOut();
+  }
+
+  async function handleTestApi() {
+    setTesting(true);
+    setTestResult('');
+    try {
+      const res = await apiFetch('/api/today-nutrition');
+      const body = await res.text();
+      let display = body;
+      try {
+        display = JSON.stringify(JSON.parse(body), null, 2);
+      } catch {
+        // non-JSON body — show raw
+      }
+      setTestResult(`HTTP ${res.status}\n${display}`);
+    } catch (err) {
+      setTestResult(`ERROR: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setTesting(false);
+    }
+  }
 
   return (
     <ParallaxScrollView
@@ -24,7 +54,9 @@ export default function HomeScreen() {
       }>
       <ThemedView style={styles.authBar}>
         <ThemedText>Signed in as {email}</ThemedText>
-        <Button title="Sign Out" onPress={() => signOut()} />
+        <Button title="Sign Out" onPress={handleSignOut} />
+        <Button title={testing ? 'Testing…' : 'Test API'} onPress={handleTestApi} disabled={testing} />
+        {testResult ? <ThemedText style={styles.testResult}>{testResult}</ThemedText> : null}
       </ThemedView>
       <ThemedView style={styles.titleContainer}>
         <ThemedText type="title">Welcome!</ThemedText>
@@ -91,6 +123,10 @@ const styles = StyleSheet.create({
   authBar: {
     gap: 8,
     marginBottom: 12,
+  },
+  testResult: {
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
+    fontSize: 11,
   },
   titleContainer: {
     flexDirection: 'row',

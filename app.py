@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
+import re
 import time
 import threading
 from datetime import date, timedelta
@@ -10,6 +11,8 @@ from typing import Optional
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, send_from_directory, make_response, g
 from flask_cors import CORS
 import jwt
+import requests
+import clerk_auth
 from db import (
     init_db, create_user, verify_user, delete_account,
     insert_meal, get_today_meals, get_today_totals, update_meal, delete_meal,
@@ -28,6 +31,7 @@ from db import (
     get_insight_bundle,
     save_meal, get_saved_meals, delete_saved_meal,
     save_workout, get_saved_workouts, delete_saved_workout,
+    get_user_by_clerk_id, create_user_from_clerk,
 )
 from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, generate_workout_plan, generate_comprehensive_plan, generate_plan_understanding, revise_plan, shorten_label, scan_meal_image, generate_momentum_insight, generate_scale_summary, suggest_meal, identify_ingredients
 from claude_profile import generate_profile_map
@@ -310,6 +314,75 @@ def api_auth_logout():
     """JSON-only logout alias."""
     session.clear()
     return jsonify({"ok": True})
+
+
+@app.route("/api/auth/clerk-verify", methods=["POST"])
+@limiter.limit("20/minute")
+def api_auth_clerk_verify():
+    """Exchange a Clerk session token for a Flask JWT. Creates the Flask user on first call."""
+    data = request.get_json(silent=True) or {}
+    clerk_token = (data.get("clerk_token") or "").strip()
+    if not clerk_token:
+        return jsonify({"ok": False, "error": "clerk_token required"}), 400
+
+    claims = clerk_auth.verify_clerk_token(clerk_token)
+    if claims is None:
+        return jsonify({"ok": False, "error": "Invalid Clerk token"}), 401
+    clerk_user_id = claims.get("sub")
+    if not clerk_user_id:
+        return jsonify({"ok": False, "error": "Clerk token missing sub claim"}), 401
+
+    existing = get_user_by_clerk_id(clerk_user_id)
+    email = ""
+    is_new_user = False
+    if existing:
+        user_id = existing["id"]
+        username = existing["username"]
+    else:
+        secret_key = os.environ.get("CLERK_SECRET_KEY", "")
+        if not secret_key:
+            _log.warning("Clerk verify: CLERK_SECRET_KEY not configured")
+            return jsonify({"ok": False, "error": "Server Clerk config missing"}), 500
+        try:
+            resp = requests.get(
+                f"https://api.clerk.com/v1/users/{clerk_user_id}",
+                headers={"Authorization": f"Bearer {secret_key}"},
+                timeout=10.0,
+            )
+            resp.raise_for_status()
+            clerk_user = resp.json()
+        except requests.RequestException as e:
+            _log.warning("Clerk API fetch failed for %s: %s", clerk_user_id, e)
+            return jsonify({"ok": False, "error": "Failed to fetch Clerk user"}), 502
+
+        primary_id = clerk_user.get("primary_email_address_id")
+        for ea in clerk_user.get("email_addresses", []):
+            if ea.get("id") == primary_id:
+                email = ea.get("email_address", "")
+                break
+        if not email and clerk_user.get("email_addresses"):
+            email = clerk_user["email_addresses"][0].get("email_address", "")
+
+        local_part = email.split("@")[0] if email else clerk_user_id[-8:]
+        base_username = re.sub(r"[^a-z0-9]", "", local_part.lower()) or f"user{clerk_user_id[-8:].lower()}"
+        try:
+            user_id = create_user_from_clerk(clerk_user_id, email, base_username)
+        except Exception:
+            _log.exception("create_user_from_clerk failed")
+            return jsonify({"ok": False, "error": "Failed to create user"}), 500
+        linked = get_user_by_clerk_id(clerk_user_id)
+        username = linked["username"] if linked else base_username
+        is_new_user = True
+
+    flask_token = issue_jwt(user_id)
+    return jsonify({
+        "ok": True,
+        "user_id": user_id,
+        "username": username,
+        "email": email,
+        "flask_token": flask_token,
+        "is_new_user": is_new_user,
+    })
 
 
 @app.route("/api/check-username", methods=["POST"])

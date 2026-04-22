@@ -6,10 +6,12 @@ import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useClerkBridge } from '../../lib/useClerkBridge';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const { isLoaded, isSignedIn } = useAuth();
+  useClerkBridge();
 
   if (!isLoaded) return null;
   if (!isSignedIn) return <Redirect href="/(auth)/sign-in" />;
