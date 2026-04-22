@@ -2,9 +2,11 @@ import { ClerkProvider } from '@clerk/clerk-expo';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { hydrateFlaskToken } from '../lib/flaskToken';
 import { tokenCache } from '../lib/tokenCache';
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
@@ -15,12 +17,19 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    hydrateFlaskToken().finally(() => setHydrated(true));
+  }, []);
 
   if (!publishableKey) {
     throw new Error(
       'EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is not set. Add it to mobile/.env.',
     );
   }
+
+  if (!hydrated) return null;
 
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>

@@ -7,11 +7,17 @@ import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Link } from 'expo-router';
+import { clearFlaskToken } from '../../lib/flaskToken';
 
 export default function HomeScreen() {
   const { user } = useUser();
   const { signOut } = useAuth();
   const email = user?.primaryEmailAddress?.emailAddress ?? '';
+
+  async function handleSignOut() {
+    clearFlaskToken();
+    await signOut();
+  }
 
   return (
     <ParallaxScrollView
@@ -24,7 +30,7 @@ export default function HomeScreen() {
       }>
       <ThemedView style={styles.authBar}>
         <ThemedText>Signed in as {email}</ThemedText>
-        <Button title="Sign Out" onPress={() => signOut()} />
+        <Button title="Sign Out" onPress={handleSignOut} />
       </ThemedView>
       <ThemedView style={styles.titleContainer}>
         <ThemedText type="title">Welcome!</ThemedText>
