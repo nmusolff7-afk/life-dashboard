@@ -17,9 +17,9 @@ const SHORTCUTS_BY_SOURCE: Record<Source, string[]> = {
 export default function ChatbotScreen() {
   const t = useTokens();
   const router = useRouter();
-  const { from = 'home' } = useLocalSearchParams<{ from?: string }>();
+  const { from = 'home', prefill } = useLocalSearchParams<{ from?: string; prefill?: string }>();
   const source = (SHORTCUTS_BY_SOURCE[from as Source] ? from : 'home') as Source;
-  const [text, setText] = useState('');
+  const [text, setText] = useState(typeof prefill === 'string' ? prefill : '');
 
   const handleSend = () => {
     if (!text.trim()) return;
