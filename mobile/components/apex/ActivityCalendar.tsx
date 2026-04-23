@@ -1,11 +1,14 @@
-import { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useMemo, useRef } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useActivityCalendar } from '../../lib/hooks/useHomeData';
 import { useTokens } from '../../lib/theme';
 import { classifyWorkout, type WorkoutType } from '../../lib/workout';
 
 type DayType = WorkoutType | 'rest';
+
+const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 function classifyDay(descriptions: string[]): DayType {
   if (descriptions.length === 0) return 'rest';
@@ -21,14 +24,21 @@ function daysBackIso(n: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function monthLabel(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short' });
+function dayFields(iso: string) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return { dow: DOW[dt.getUTCDay()], date: d };
 }
 
-/** 90-day calendar grid. Each cell = one day, colored by workout type.
- *  strength = fitness green, cardio = blue, mixed = accent, rest = muted. */
+/** Mirrors Flask's #streak-bar exactly — 28px circles with day-of-week label
+ *  above and the date number inside. Colored by workout type (strength /
+ *  cardio / mixed) instead of Flask's binary logged/not, because the Fitness
+ *  calendar is workout-specific. Horizontal scroll, auto-snaps to today on
+ *  mount. Tap a day opens the day detail route. */
 export function ActivityCalendar() {
   const t = useTokens();
+  const router = useRouter();
+  const scrollRef = useRef<ScrollView>(null);
   const { data } = useActivityCalendar(90);
 
   const byDate = useMemo(() => {
@@ -37,32 +47,16 @@ export function ActivityCalendar() {
     return map;
   }, [data]);
 
-  // Build 90 cells, oldest first. We bucket into columns of 7 (a week).
-  const cells = useMemo(() => {
-    const out: { date: string; type: DayType }[] = [];
+  const days = useMemo(() => {
+    const out: { iso: string; type: DayType; isToday: boolean }[] = [];
+    const todayIso = daysBackIso(0);
     for (let i = 89; i >= 0; i--) {
-      const date = daysBackIso(i);
-      const descs = byDate.get(date) ?? [];
-      out.push({ date, type: classifyDay(descs) });
+      const iso = daysBackIso(i);
+      out.push({ iso, type: classifyDay(byDate.get(iso) ?? []), isToday: iso === todayIso });
     }
     return out;
   }, [byDate]);
 
-  // Mark month boundaries for axis labels.
-  const monthBreaks = useMemo(() => {
-    const seen = new Set<string>();
-    const out: { index: number; label: string }[] = [];
-    cells.forEach((c, i) => {
-      const key = c.date.slice(0, 7);
-      if (!seen.has(key)) {
-        seen.add(key);
-        out.push({ index: i, label: monthLabel(c.date) });
-      }
-    });
-    return out;
-  }, [cells]);
-
-  // Use Flask's activity-calendar tokens verbatim (tokens.ts calStrength etc).
   const colorFor = (type: DayType) => {
     switch (type) {
       case 'strength': return t.calStrength;
@@ -71,30 +65,51 @@ export function ActivityCalendar() {
       default:         return t.calRest;
     }
   };
+  const textColorFor = (type: DayType) =>
+    type === 'rest' ? t.muted : '#FFFFFF';
 
   return (
     <View style={[styles.card, { backgroundColor: t.surface, shadowColor: '#000' }]}>
       <Text style={[styles.title, { color: t.muted }]}>Activity calendar</Text>
 
-      <View style={styles.months}>
-        {monthBreaks.map((mb) => (
-          <Text key={mb.index} style={[styles.monthLabel, { color: t.subtle, left: mb.index * (CELL + GAP) }]}>
-            {mb.label}
-          </Text>
-        ))}
-      </View>
-
-      <View style={styles.grid}>
-        {cells.map((c) => (
-          <View
-            key={c.date}
-            style={[
-              styles.cell,
-              { backgroundColor: colorFor(c.type) },
-            ]}
-          />
-        ))}
-      </View>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        onContentSizeChange={(w) => scrollRef.current?.scrollTo({ x: w, animated: false })}
+        contentContainerStyle={styles.strip}>
+        {days.map((d) => {
+          const { dow, date } = dayFields(d.iso);
+          return (
+            <Pressable
+              key={d.iso}
+              onPress={() => router.push({ pathname: '/day/[date]', params: { date: d.iso } })}
+              style={styles.dayCol}
+              hitSlop={3}
+              accessibilityRole="button"
+              accessibilityLabel={`${d.iso}, ${d.type === 'rest' ? 'rest day' : d.type + ' workout'}`}>
+              <Text style={[styles.dowLabel, { color: t.muted }]}>{dow}</Text>
+              <View
+                style={[
+                  styles.dot,
+                  {
+                    backgroundColor: colorFor(d.type),
+                    borderColor: d.isToday ? t.text : 'transparent',
+                    borderWidth: d.isToday ? 2 : 0,
+                  },
+                ]}>
+                <Text
+                  style={[
+                    styles.dotText,
+                    { color: textColorFor(d.type), fontWeight: d.isToday ? '800' : '700' },
+                  ]}>
+                  {date}
+                </Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
 
       <View style={styles.legend}>
         <LegendDot color={t.calStrength} label="Strength" />
@@ -121,10 +136,6 @@ function LegendDot({ color, label, border }: { color: string; label: string; bor
   );
 }
 
-const CELL = 10;
-const GAP = 3;
-// 90 cells at 10+3 = 13 each → 1170 total, scrolls horizontally via parent if needed.
-
 const styles = StyleSheet.create({
   card: {
     borderRadius: 20,
@@ -137,22 +148,20 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1.1 },
 
-  months: { position: 'relative', height: 12 },
-  monthLabel: { position: 'absolute', fontSize: 9, fontWeight: '500' },
-
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: GAP,
+  strip: { gap: 6, paddingVertical: 4, alignItems: 'center' },
+  dayCol: { alignItems: 'center', gap: 2, minWidth: 28 },
+  dowLabel: { fontSize: 9, fontWeight: '500' },
+  dot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  cell: {
-    width: CELL,
-    height: CELL,
-    borderRadius: 2,
-  },
+  dotText: { fontSize: 11 },
 
-  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 6 },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 4 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  legendSwatch: { width: 10, height: 10, borderRadius: 2 },
+  legendSwatch: { width: 10, height: 10, borderRadius: 5 },
   legendLabel: { fontSize: 10, fontWeight: '500' },
 });

@@ -28,48 +28,57 @@ export function SavedWorkoutsStrip({ saved, onLogged, onRemoved }: Props) {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.strip}>
         {saved.map((w) => (
-          <Pressable
+          <View
             key={w.id}
-            onPress={() => {
-              Alert.alert('Log this workout?', `${w.description} · ${w.calories_burned} kcal`, [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Log',
-                  onPress: async () => {
-                    try {
-                      await logWorkout(w.description, w.calories_burned);
-                      onLogged();
-                    } catch (e) {
-                      Alert.alert('Log failed', e instanceof Error ? e.message : String(e));
-                    }
-                  },
-                },
-              ]);
-            }}
-            onLongPress={() => {
-              Alert.alert('Remove template?', w.description, [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Remove',
-                  style: 'destructive',
-                  onPress: async () => {
-                    try {
-                      await deleteSavedWorkout(w.id);
-                      onRemoved();
-                    } catch (e) {
-                      Alert.alert('Remove failed', e instanceof Error ? e.message : String(e));
-                    }
-                  },
-                },
-              ]);
-            }}
             style={[styles.chip, { backgroundColor: t.surface, borderColor: t.border }]}>
-            <Ionicons name="bookmark" size={12} color={t.accent} />
-            <Text style={[styles.chipLabel, { color: t.text }]} numberOfLines={1}>
-              {w.description}
-            </Text>
-            <Text style={[styles.chipKcal, { color: t.cal }]}>{w.calories_burned}</Text>
-          </Pressable>
+            <Pressable
+              onPress={() => {
+                Alert.alert('Log this workout?', `${w.description} · ${w.calories_burned} kcal`, [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Log',
+                    onPress: async () => {
+                      try {
+                        await logWorkout(w.description, w.calories_burned);
+                        onLogged();
+                      } catch (e) {
+                        Alert.alert('Log failed', e instanceof Error ? e.message : String(e));
+                      }
+                    },
+                  },
+                ]);
+              }}
+              style={styles.chipMain}>
+              <Ionicons name="bookmark" size={12} color={t.accent} />
+              <Text style={[styles.chipLabel, { color: t.text }]} numberOfLines={1}>
+                {w.description}
+              </Text>
+              <Text style={[styles.chipKcal, { color: t.cal }]}>{w.calories_burned}</Text>
+            </Pressable>
+            <Pressable
+              hitSlop={8}
+              onPress={() => {
+                Alert.alert('Remove template?', w.description, [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Remove',
+                    style: 'destructive',
+                    onPress: async () => {
+                      try {
+                        await deleteSavedWorkout(w.id);
+                        onRemoved();
+                      } catch (e) {
+                        Alert.alert('Remove failed', e instanceof Error ? e.message : String(e));
+                      }
+                    },
+                  },
+                ]);
+              }}
+              style={[styles.chipClose, { backgroundColor: t.surface2 }]}
+              accessibilityLabel="Remove saved workout">
+              <Ionicons name="close" size={13} color={t.muted} />
+            </Pressable>
+          </View>
         ))}
       </ScrollView>
     </View>
@@ -89,13 +98,23 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
     borderWidth: 1,
     borderRadius: 100,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    maxWidth: 240,
+    paddingLeft: 14,
+    paddingRight: 4,
+    paddingVertical: 4,
+    maxWidth: 260,
+    gap: 6,
   },
+  chipMain: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, paddingVertical: 4 },
   chipLabel: { fontSize: 13, fontWeight: '500', flexShrink: 1 },
   chipKcal: { fontSize: 12, fontWeight: '700' },
+  chipClose: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 2,
+  },
 });
