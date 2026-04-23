@@ -13,3 +13,8 @@ export { SavedWorkoutsStrip } from './SavedWorkoutsStrip';
 export { NumberPromptModal } from './NumberPromptModal';
 export { WorkoutHistoryList } from './WorkoutHistoryList';
 export { WorkoutEditSheet } from './WorkoutEditSheet';
+export { LineChart } from './LineChart';
+export { RangePills } from './RangePills';
+export { BurnTrendCard } from './BurnTrendCard';
+export { WeightTrendCard } from './WeightTrendCard';
+export { ActivityCalendar } from './ActivityCalendar';

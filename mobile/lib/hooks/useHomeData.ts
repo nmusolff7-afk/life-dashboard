@@ -2,10 +2,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useState } from 'react';
 
 import type {
+  ActivityCalendarDay,
+  BurnChartPoint,
   ProfileResponse,
   SavedWorkout,
   TodayNutritionResponse,
   TodayWorkoutsResponse,
+  WeightHistoryPoint,
   Workout,
 } from '../../../shared/src/types/home';
 import { useApi, type ApiState } from './useApi';
@@ -28,6 +31,15 @@ export const useSavedWorkouts = (): ApiState<SavedWorkout[]> =>
 
 export const useWorkoutHistory = (days = 90): ApiState<Workout[]> =>
   useApi<Workout[]>(`/api/workout-history?days=${days}`);
+
+export const useWeightHistory = (days = 90): ApiState<WeightHistoryPoint[]> =>
+  useApi<WeightHistoryPoint[]>(`/api/weight-history?days=${days}`);
+
+export const useBurnChart = (days = 90): ApiState<BurnChartPoint[]> =>
+  useApi<BurnChartPoint[]>(`/api/charts/burn?days=${days}`);
+
+export const useActivityCalendar = (days = 90): ApiState<ActivityCalendarDay[]> =>
+  useApi<ActivityCalendarDay[]>(`/api/activity-calendar?days=${days}`);
 
 // Steps: Flask stores this in browser localStorage only (no API endpoint). On
 // mobile we use AsyncStorage keyed by date so refreshes are stable.

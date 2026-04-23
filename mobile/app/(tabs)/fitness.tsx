@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
+  ActivityCalendar,
+  BurnTrendCard,
   EmptyState,
   FAB,
   LogActivityCard,
@@ -10,6 +12,7 @@ import {
   StatCard,
   SubTabs,
   TodayWorkoutsList,
+  WeightTrendCard,
   WorkoutHistoryList,
 } from '../../components/apex';
 import { logWeight } from '../../lib/api/fitness';
@@ -151,11 +154,16 @@ export default function FitnessScreen() {
         ) : null}
 
         {tab === 'progress' ? (
-          <EmptyState
-            icon="📈"
-            title="Progress charts"
-            description="Daily burn, bodyweight trend, strength progression, and the activity calendar ship in Phase 3 (needs chart library + new Flask endpoints)."
-          />
+          <>
+            <BurnTrendCard />
+            <WeightTrendCard />
+            <ActivityCalendar />
+            <EmptyState
+              icon="🏋️"
+              title="Strength progression"
+              description="Per-lift top-set charts ship in Phase 4 — needs per-set data (workout_logs schema change)."
+            />
+          </>
         ) : null}
 
         {tab === 'history' ? (

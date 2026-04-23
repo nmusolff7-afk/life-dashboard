@@ -1482,6 +1482,76 @@ def api_workout_history():
     return jsonify([dict(r) for r in rows])
 
 
+@app.route("/api/weight-history")
+@login_required
+def api_weight_history():
+    """Daily weight entries within the last N days, oldest first. Used for the
+    mobile Body-weight trend chart. Returns [{date, weight_lbs}]."""
+    days = int(request.args.get("days", 90))
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    from db import get_conn
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT log_date AS date, weight_lbs
+            FROM daily_activity
+            WHERE user_id = ? AND log_date >= ? AND weight_lbs IS NOT NULL
+            ORDER BY log_date
+            """,
+            (uid(), cutoff),
+        ).fetchall()
+    return jsonify([{"date": r["date"], "weight_lbs": r["weight_lbs"]} for r in rows])
+
+
+@app.route("/api/charts/burn")
+@login_required
+def api_chart_burn():
+    """Per-day total calories burned within the last N days, oldest first.
+    Days with no workouts are omitted. Returns [{date, total_burn}]."""
+    days = int(request.args.get("days", 90))
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    from db import get_conn
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT log_date AS date, COALESCE(SUM(calories_burned), 0) AS total_burn
+            FROM workout_logs
+            WHERE user_id = ? AND log_date >= ?
+            GROUP BY log_date
+            ORDER BY log_date
+            """,
+            (uid(), cutoff),
+        ).fetchall()
+    return jsonify([{"date": r["date"], "total_burn": int(r["total_burn"])} for r in rows])
+
+
+@app.route("/api/activity-calendar")
+@login_required
+def api_activity_calendar():
+    """Workout type per day within the last N days. Strength / cardio / mixed
+    classification is deferred to the client (shares the mobile classifier) —
+    this endpoint just returns the joined descriptions for each day so the
+    mobile UI can decide the dot color. Returns [{date, descriptions}]."""
+    days = int(request.args.get("days", 90))
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    from db import get_conn
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT log_date AS date, GROUP_CONCAT(description, '|') AS descriptions
+            FROM workout_logs
+            WHERE user_id = ? AND log_date >= ?
+            GROUP BY log_date
+            ORDER BY log_date
+            """,
+            (uid(), cutoff),
+        ).fetchall()
+    return jsonify([
+        {"date": r["date"], "descriptions": (r["descriptions"] or "").split("|") if r["descriptions"] else []}
+        for r in rows
+    ])
+
+
 @app.route("/api/momentum/insight", methods=["POST"])
 @login_required
 def api_momentum_insight():

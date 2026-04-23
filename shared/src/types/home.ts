@@ -106,3 +106,20 @@ export interface BurnEstimate {
   calories_burned: number;
   notes: string;
 }
+
+export interface WeightHistoryPoint {
+  date: string;
+  weight_lbs: number;
+}
+
+export interface BurnChartPoint {
+  date: string;
+  total_burn: number;
+}
+
+export interface ActivityCalendarDay {
+  date: string;
+  /** Raw workout descriptions for that day — classified client-side into
+   *  strength / cardio / mixed so color logic stays in one place. */
+  descriptions: string[];
+}
