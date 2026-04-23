@@ -129,6 +129,47 @@ export interface MacroChartPoint {
   fat_g: number;
 }
 
+// ── Onboarding / profile editing ──────────────────────────────────────────
+
+/** Goal keys Flask's goal_config.py knows about. */
+export type GoalKey = 'lose_weight' | 'build_muscle' | 'recomp' | 'maintain';
+
+/** Raw inputs the onboarding wizard progressively saves, stored in
+ *  user_onboarding.raw_inputs (JSON) on Flask. Everything optional because
+ *  /api/onboarding/save accepts partial payloads and merges into existing. */
+export interface OnboardingRawInputs {
+  first_name?: string;
+  birthday?: string;              // YYYY-MM-DD
+  age?: number;
+  gender?: 'male' | 'female';
+  height_ft?: number;
+  height_in?: number;
+  current_weight_lbs?: number;
+  target_weight_lbs?: number;
+  body_fat_pct?: number;
+  work_style?: string;
+  occupation_description?: string;
+  stress_level_1_10?: number;
+  primary_goal?: GoalKey;
+  diet_type?: string;
+  dietary_restrictions?: string;
+  [key: string]: unknown;
+}
+
+export interface OnboardingDataResponse {
+  saved: OnboardingRawInputs | null;
+  completed: boolean;
+  username: string;
+}
+
+export type OnboardingPollStatus = 'pending' | 'done' | 'error' | 'not_started';
+
+export interface OnboardingPollResponse {
+  status: OnboardingPollStatus;
+  profile?: ProfileResponse;
+  error?: string;
+}
+
 export interface ActivityCalendarDay {
   date: string;
   /** Raw workout descriptions for that day — classified client-side into

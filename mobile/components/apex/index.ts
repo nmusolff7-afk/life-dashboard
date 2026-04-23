@@ -36,3 +36,5 @@ export { MealPhotoScanner } from './MealPhotoScanner';
 export { BarcodeScanner } from './BarcodeScanner';
 export { PantryScanner } from './PantryScanner';
 export { MealDetailModal } from './MealDetailModal';
+export { BodyStatsForm } from './BodyStatsForm';
+export { MacrosForm } from './MacrosForm';
