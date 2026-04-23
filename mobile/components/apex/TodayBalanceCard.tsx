@@ -5,32 +5,62 @@ import { useTokens } from '../../lib/theme';
 
 interface Props {
   caloriesConsumed: number;
-  caloriesBurned: number;
-  /** Projected TDEE / RMR. When provided, used as the burn figure in the equation
-   *  (matching Flask: "tdee - consumed"). When absent, falls back to caloriesBurned. */
-  projectedBurn?: number | null;
-  onPress?: () => void;
+  /** Daily calorie target (from goal_targets.calorie_target, falls back to
+   *  daily_calorie_goal). Ring progress is consumed / this. */
+  calorieTarget?: number | null;
+  /** Projected burn — Total Daily Energy Expenditure. Used in the equation
+   *  row below the ring. */
+  tdee?: number | null;
 }
 
 const RING_SIZE = 180;
 const R = 50;
 const CIRC = 2 * Math.PI * R; // 314.159...
 
-/** Mirrors Flask .dash-ring-wrap + equation. Green for deficit, red for surplus. */
-export function TodayBalanceCard({ caloriesConsumed, caloriesBurned, projectedBurn }: Props) {
+/** Ports Flask #dash-cal-card. Ring tracks consumption vs target; center
+ *  shows cals-left or over-target; equation row shows tdee − eaten.
+ *  (Flask logic: templates/index.html around line 9500.) */
+export function TodayBalanceCard({ caloriesConsumed, calorieTarget, tdee }: Props) {
   const t = useTokens();
-  const burn = projectedBurn ?? caloriesBurned;
-  const balance = burn - caloriesConsumed;
-  const isDeficit = balance >= 0;
-  const hasData = caloriesConsumed > 0 || burn > 0;
+  const consumed = Math.max(0, caloriesConsumed);
+  const target = calorieTarget ?? 0;
+  const burn = tdee ?? 0;
+  const hasData = consumed > 0 || burn > 0;
 
-  const mainColor = !hasData ? t.muted : isDeficit ? t.green : t.danger;
-  const label = !hasData ? '—' : isDeficit ? 'deficit' : 'surplus';
-  const valueText = !hasData ? '—' : String(Math.abs(Math.round(balance)));
-
-  // Ring fill: fraction of burn that calories-eaten covers (0..1), or full ring on surplus.
-  const pct = !hasData ? 0 : isDeficit ? Math.min(1, caloriesConsumed / Math.max(burn, 1)) : 1;
+  // Ring: fraction of target consumed.
+  const pct = target > 0 ? Math.min(1, consumed / target) : 0;
   const dash = CIRC * pct;
+  const remaining = target - consumed; // + = cals left; − = over target
+
+  // Ring color follows Flask's traffic-light (on remaining, not the deficit).
+  const ringColor = !hasData
+    ? t.surface2
+    : remaining > 0
+      ? t.green
+      : remaining > -200
+        ? t.amber
+        : t.danger;
+
+  // Center value: cals left (good), over target (bad), or — (no data yet).
+  let centerValue = '—';
+  let centerLabel = 'balance';
+  let centerColor = t.muted;
+  if (hasData && target > 0) {
+    if (remaining >= 0) {
+      centerValue = Math.round(remaining).toLocaleString();
+      centerLabel = 'cals left';
+      centerColor = t.green;
+    } else {
+      centerValue = Math.round(Math.abs(remaining)).toLocaleString();
+      centerLabel = 'over target';
+      centerColor = t.danger;
+    }
+  }
+
+  // Equation: burn − eaten = deficit or surplus (independent of ring).
+  const actualDeficit = burn - consumed;
+  const isDeficit = actualDeficit >= 0;
+  const equationColor = isDeficit ? t.green : t.danger;
 
   return (
     <View style={[styles.card, { backgroundColor: t.surface, shadowColor: '#000' }]}>
@@ -44,7 +74,7 @@ export function TodayBalanceCard({ caloriesConsumed, caloriesBurned, projectedBu
             cy={60}
             r={R}
             fill="none"
-            stroke={mainColor}
+            stroke={ringColor}
             strokeWidth={14}
             strokeLinecap="round"
             strokeDasharray={`${dash} ${CIRC}`}
@@ -53,23 +83,23 @@ export function TodayBalanceCard({ caloriesConsumed, caloriesBurned, projectedBu
           />
         </Svg>
         <View style={styles.ringCenter} pointerEvents="none">
-          <Text style={[styles.ringValue, { color: mainColor }]}>{valueText}</Text>
-          <Text style={[styles.ringLabel, { color: t.muted }]}>{label.toUpperCase()}</Text>
+          <Text style={[styles.ringValue, { color: centerColor }]}>{centerValue}</Text>
+          <Text style={[styles.ringLabel, { color: t.muted }]}>{centerLabel.toUpperCase()}</Text>
         </View>
       </View>
 
       {hasData ? (
         <View style={styles.eqRow}>
-          <Text style={[styles.eqStrong, { color: t.text }]}>{Math.round(burn)}</Text>
+          <Text style={[styles.eqStrong, { color: t.text }]}>{Math.round(burn).toLocaleString()}</Text>
           <Text style={[styles.eqDim, { color: t.muted }]}> burn </Text>
           <Text style={[styles.eqStrong, { color: t.text }]}>−</Text>
-          <Text style={[styles.eqStrong, { color: t.text }]}> {Math.round(caloriesConsumed)}</Text>
+          <Text style={[styles.eqStrong, { color: t.text }]}> {Math.round(consumed).toLocaleString()}</Text>
           <Text style={[styles.eqDim, { color: t.muted }]}> eaten </Text>
           <Text style={[styles.eqStrong, { color: t.text }]}>= </Text>
-          <Text style={[styles.eqStrong, { color: mainColor }]}>
-            {Math.abs(Math.round(balance))}
+          <Text style={[styles.eqStrong, { color: equationColor }]}>
+            {Math.abs(Math.round(actualDeficit)).toLocaleString()}
           </Text>
-          <Text style={[styles.eqDim, { color: t.muted }]}> {label}</Text>
+          <Text style={[styles.eqDim, { color: t.muted }]}> {isDeficit ? 'deficit' : 'surplus'}</Text>
         </View>
       ) : (
         <Text style={[styles.meta, { color: t.muted }]}>Log meals to see your balance</Text>

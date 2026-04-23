@@ -7,9 +7,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTokens } from '../../lib/theme';
 
@@ -24,7 +22,6 @@ interface Props {
 export function FAB({ from = 'home' }: Props) {
   const t = useTokens();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
   const anim = useRef(new Animated.Value(0)).current;
 
@@ -50,7 +47,11 @@ export function FAB({ from = 'home' }: Props) {
     router.push({ pathname: '/chatbot', params: { from, prefill: 'I just did: ' } });
   };
 
-  const bottomBase = 64 + insets.bottom + 14; // above the 64px bottom nav
+  // In Expo Router tab screens, the parent View already sits above the tab
+  // bar — so `bottom: 14` puts the FAB 14px above the top of the nav, which
+  // matches Flask's `bottom: nav-h + safe-area + 14px` from viewport root.
+  const BOTTOM = 14;
+  const MENU_BOTTOM = BOTTOM + 52 + 10; // FAB height + small gap
 
   return (
     <>
@@ -67,7 +68,7 @@ export function FAB({ from = 'home' }: Props) {
           pointerEvents={open ? 'auto' : 'none'}
           style={[
             styles.menu,
-            { bottom: bottomBase + 62, opacity: anim, transform: [{ translateY: optionTranslate }] },
+            { bottom: MENU_BOTTOM, opacity: anim, transform: [{ translateY: optionTranslate }] },
           ]}>
           <FabOption
             label="Log a Meal"
@@ -94,7 +95,7 @@ export function FAB({ from = 'home' }: Props) {
           styles.fab,
           {
             backgroundColor: t.accent,
-            bottom: bottomBase,
+            bottom: BOTTOM,
             transform: [{ scale: pressed ? 0.92 : 1 }],
             shadowColor: '#000',
           },

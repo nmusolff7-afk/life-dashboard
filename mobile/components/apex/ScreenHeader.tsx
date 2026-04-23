@@ -4,10 +4,12 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTokens } from '../../lib/theme';
+import { useLiveDateTime } from '../../lib/useLiveDateTime';
 
 interface Props {
   title: string;
-  /** Shown below the title in smaller muted text (e.g. today's date). */
+  /** Shown below the title in smaller muted text. Defaults to a live date+time
+   *  ticker matching Flask's header subtitle. Pass null to hide. */
   subtitle?: string | null;
   /** Override profile tap. Defaults to routing to /settings. */
   onProfilePress?: () => void;
@@ -21,6 +23,8 @@ export function ScreenHeader({ title, subtitle, onProfilePress, hideProfile }: P
   const t = useTokens();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const liveDateTime = useLiveDateTime();
+  const resolvedSubtitle = subtitle === undefined ? liveDateTime : subtitle;
   const handleProfile = onProfilePress ?? (() => router.push('/settings'));
 
   return (
@@ -44,9 +48,9 @@ export function ScreenHeader({ title, subtitle, onProfilePress, hideProfile }: P
           <Text style={[styles.title, { color: t.text }]} numberOfLines={1}>
             {title}
           </Text>
-          {subtitle ? (
+          {resolvedSubtitle ? (
             <Text style={[styles.subtitle, { color: t.muted }]} numberOfLines={1}>
-              {subtitle}
+              {resolvedSubtitle}
             </Text>
           ) : null}
         </View>
@@ -74,8 +78,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderBottomWidth: 1,
   },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
-  logo: { width: 28, height: 28 },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  // Apex logo is ~3:1 aspect ratio (3840×1299). Lock to height 28 and let
+  // width grow, otherwise the logo renders as a sliver inside a square box.
+  logo: { height: 28, aspectRatio: 3840 / 1299 },
   brandText: { flexShrink: 1 },
   title: {
     fontSize: 14,

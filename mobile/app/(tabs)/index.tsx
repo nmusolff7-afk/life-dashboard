@@ -7,7 +7,6 @@ import {
   FAB,
   MacroMicroGrid,
   ScreenHeader,
-  StatCard,
   StreakBar,
   TodayBalanceCard,
 } from '../../components/apex';
@@ -15,7 +14,6 @@ import {
   useLoggedDates,
   useProfile,
   useTodayNutrition,
-  useTodaySteps,
   useTodayWorkouts,
 } from '../../lib/hooks/useHomeData';
 import { useTokens } from '../../lib/theme';
@@ -37,7 +35,6 @@ export default function HomeScreen() {
   const workouts = useTodayWorkouts();
   const profile = useProfile();
   const loggedDatesApi = useLoggedDates(90);
-  const stepsState = useTodaySteps();
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
@@ -48,12 +45,11 @@ export default function HomeScreen() {
         workouts.refetch(),
         profile.refetch(),
         loggedDatesApi.refetch(),
-        stepsState.refetch(),
       ]);
     } finally {
       setRefreshing(false);
     }
-  }, [nutrition, workouts, profile, loggedDatesApi, stepsState]);
+  }, [nutrition, workouts, profile, loggedDatesApi]);
 
   // Derived values ---------------------------------------------------------
 
@@ -63,7 +59,6 @@ export default function HomeScreen() {
   const burn = workouts.data?.burn ?? 0;
   const consumed = totals?.total_calories ?? 0;
   const calorieTarget = profile.data?.goal_targets?.calorie_target ?? profile.data?.daily_calorie_goal ?? null;
-  const weight = profile.data?.current_weight_lbs ?? null;
   const firstName = profile.data?.first_name?.trim();
 
   const targets = profile.data?.goal_targets;
@@ -84,25 +79,16 @@ export default function HomeScreen() {
     sodiumMg: totals?.total_sodium ?? 0,
   };
 
-  // CTA: logging is reachable via the chatbot prefill for now.
-  const askBot = (prefill: string) =>
-    router.push({ pathname: '/chatbot', params: { from: 'home', prefill } });
-
   // Backend-error detection: if core calls fail together, surface a single banner.
   const backendError = nutrition.error && workouts.error && profile.error;
 
   const headerTitle = firstName
     ? `${firstName.toUpperCase()}'S DASHBOARD`
     : 'YOUR DASHBOARD';
-  const headerSubtitle = new Date().toLocaleDateString(undefined, {
-    weekday: 'long',
-    month: 'short',
-    day: 'numeric',
-  });
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScreenHeader title={headerTitle} subtitle={headerSubtitle} />
+      <ScreenHeader title={headerTitle} />
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.muted} />}>
@@ -116,7 +102,6 @@ export default function HomeScreen() {
           </Pressable>
         ) : null}
 
-        {/* Page header — ports Flask .page-header hero */}
         <View style={styles.pageHeader}>
           <Text style={[styles.pageTitle, { color: t.text }]}>Today's Overview</Text>
           <Text style={[styles.pageSubtitle, { color: t.muted }]}>
@@ -124,49 +109,16 @@ export default function HomeScreen() {
           </Text>
         </View>
 
-        {/* 1. 90-day streak bar */}
         <StreakBar loggedDates={loggedDates} today={today} days={90} />
 
-        {/* 2. Today's balance ring */}
         <View style={styles.horizPad}>
           <TodayBalanceCard
             caloriesConsumed={consumed}
-            caloriesBurned={burn}
-            projectedBurn={profile.data?.rmr_kcal ?? null}
+            calorieTarget={calorieTarget}
+            tdee={profile.data?.rmr_kcal ?? null}
           />
         </View>
 
-        {/* 4–7. 2×2 stat grid */}
-        <View style={styles.statGrid}>
-          <StatCard
-            label="Weight"
-            value={weight == null ? '—' : String(Math.round(weight))}
-            onPress={() => askBot('Log my weight: ')}
-            style={styles.statHalf}
-          />
-          <StatCard
-            label="Steps"
-            value={stepsState.steps == null ? '—' : stepsState.steps.toLocaleString()}
-            onPress={() => askBot('Log steps: ')}
-            style={styles.statHalf}
-          />
-          <StatCard
-            label="Proj. Burn"
-            value={burn > 0 ? String(Math.round(burn)) : '—'}
-            valueColor={burn > 0 ? t.cal : undefined}
-            onPress={() => askBot('I just did: ')}
-            style={styles.statHalf}
-          />
-          <StatCard
-            label="Cals Consumed"
-            value={consumed > 0 ? String(Math.round(consumed)) : '—'}
-            valueColor={consumed > 0 ? t.cal : undefined}
-            onPress={() => askBot('I just ate: ')}
-            style={styles.statHalf}
-          />
-        </View>
-
-        {/* 8. Macros / micros swipe card */}
         <View style={styles.horizPad}>
           <MacroMicroGrid
             consumed={macroValues}
@@ -175,7 +127,6 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* 9–12. Category score cards (2×2) */}
         <View style={styles.catGrid}>
           <CategoryScoreCard
             label="Fitness"
@@ -203,7 +154,6 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* 13. Day Timeline stub */}
         <Pressable
           onPress={() => router.push({ pathname: '/day/[date]', params: { date: today } })}
           style={[styles.stub, { backgroundColor: t.surface, shadowColor: '#000' }]}>
@@ -215,7 +165,6 @@ export default function HomeScreen() {
           </Text>
         </Pressable>
 
-        {/* 14. Active goals stub */}
         <Pressable
           onPress={() => router.push('/goals')}
           style={[styles.stub, { backgroundColor: t.surface, shadowColor: '#000' }]}>
@@ -244,9 +193,6 @@ const styles = StyleSheet.create({
   pageHeader: { alignItems: 'center', paddingHorizontal: 18, paddingTop: 4, paddingBottom: 2 },
   pageTitle: { fontSize: 28, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.1, lineHeight: 30 },
   pageSubtitle: { fontSize: 13, marginTop: 4 },
-
-  statGrid: { paddingHorizontal: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  statHalf: { flexBasis: '48%', flexGrow: 1 },
 
   catGrid: { paddingHorizontal: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
 

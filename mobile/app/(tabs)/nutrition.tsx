@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { EmptyState, FAB, ScreenHeader, SubTabs } from '../../components/apex';
+import { EmptyState, FAB, ScreenHeader, StatCard, SubTabs } from '../../components/apex';
+import { useTodayNutrition, useTodayWorkouts } from '../../lib/hooks/useHomeData';
 import { useTokens } from '../../lib/theme';
 
 type Tab = 'today' | 'progress' | 'history';
@@ -9,6 +10,11 @@ type Tab = 'today' | 'progress' | 'history';
 export default function NutritionScreen() {
   const t = useTokens();
   const [tab, setTab] = useState<Tab>('today');
+
+  const nutrition = useTodayNutrition();
+  const workouts = useTodayWorkouts();
+  const burn = workouts.data?.burn ?? 0;
+  const consumed = nutrition.data?.totals.total_calories ?? 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
@@ -31,6 +37,21 @@ export default function NutritionScreen() {
                 <Text style={[styles.ringBig, { color: t.text }]}>—</Text>
                 <Text style={[styles.ringLabel, { color: t.muted }]}>kcal remaining</Text>
               </View>
+            </View>
+
+            <View style={styles.statRow}>
+              <StatCard
+                label="Proj. Burn"
+                value={burn > 0 ? String(Math.round(burn)) : '—'}
+                valueColor={burn > 0 ? t.cal : undefined}
+                style={styles.statHalf}
+              />
+              <StatCard
+                label="Cals Consumed"
+                value={consumed > 0 ? String(Math.round(consumed)) : '—'}
+                valueColor={consumed > 0 ? t.cal : undefined}
+                style={styles.statHalf}
+              />
             </View>
 
             {/* Macro summary card shell */}
@@ -87,6 +108,8 @@ const styles = StyleSheet.create({
   ringCircle: { width: 180, height: 180, borderRadius: 90, borderWidth: 10, alignItems: 'center', justifyContent: 'center' },
   ringBig: { fontSize: 40, fontWeight: '700' },
   ringLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 4 },
+  statRow: { flexDirection: 'row', gap: 10 },
+  statHalf: { flexBasis: '48%', flexGrow: 1 },
   card: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 12 },
   cardTitle: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6 },
   macroRow: { flexDirection: 'row' },

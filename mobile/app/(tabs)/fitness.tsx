@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { EmptyState, FAB, ScreenHeader, SubTabs } from '../../components/apex';
+import { EmptyState, FAB, ScreenHeader, StatCard, SubTabs } from '../../components/apex';
+import { useProfile, useTodaySteps } from '../../lib/hooks/useHomeData';
 import { useTokens } from '../../lib/theme';
 
 type Tab = 'today' | 'progress' | 'history';
@@ -33,6 +34,10 @@ export default function FitnessScreen() {
   const t = useTokens();
   const [tab, setTab] = useState<Tab>('today');
 
+  const profile = useProfile();
+  const stepsState = useTodaySteps();
+  const weight = profile.data?.current_weight_lbs ?? null;
+
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <ScreenHeader title="Fitness" />
@@ -51,6 +56,18 @@ export default function FitnessScreen() {
             <View style={styles.scoreBlock}>
               <Text style={[styles.scoreBig, { color: t.text }]}>—</Text>
               <Text style={[styles.scoreLabel, { color: t.fitness }]}>Fitness score</Text>
+            </View>
+            <View style={styles.statRow}>
+              <StatCard
+                label="Weight"
+                value={weight == null ? '—' : String(Math.round(weight))}
+                style={styles.statHalf}
+              />
+              <StatCard
+                label="Steps"
+                value={stepsState.steps == null ? '—' : stepsState.steps.toLocaleString()}
+                style={styles.statHalf}
+              />
             </View>
             <View style={styles.subsystems}>
               {SUBSYSTEMS.map((s) => (
@@ -76,6 +93,8 @@ const styles = StyleSheet.create({
   scoreBlock: { alignItems: 'center', paddingVertical: 12 },
   scoreBig: { fontSize: 48, fontWeight: '700' },
   scoreLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8 },
+  statRow: { flexDirection: 'row', gap: 10 },
+  statHalf: { flexBasis: '48%', flexGrow: 1 },
   subsystems: { gap: 10 },
   card: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 4 },
   cardTitle: { fontSize: 15, fontWeight: '700' },
