@@ -1482,6 +1482,29 @@ def api_workout_history():
     return jsonify([dict(r) for r in rows])
 
 
+@app.route("/api/meal-history")
+@login_required
+def api_meal_history():
+    """Individual meal rows within the last N days, newest first. Parallels
+    /api/workout-history — /api/history groups per day and drops ids, which
+    makes tap-to-edit impossible on the mobile History list."""
+    days = int(request.args.get("days", 90))
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    from db import get_conn
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, user_id, log_date, logged_at, description,
+                   calories, protein_g, carbs_g, fat_g, sugar_g, fiber_g, sodium_mg
+            FROM meal_logs
+            WHERE user_id = ? AND log_date >= ?
+            ORDER BY log_date DESC, logged_at DESC, id DESC
+            """,
+            (uid(), cutoff),
+        ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
 @app.route("/api/weight-history")
 @login_required
 def api_weight_history():

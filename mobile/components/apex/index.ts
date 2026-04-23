@@ -27,3 +27,4 @@ export { RecentMealsChips } from './RecentMealsChips';
 export { LogMealCard } from './LogMealCard';
 export { TodayMealsList } from './TodayMealsList';
 export { MealEditSheet } from './MealEditSheet';
+export { MealHistoryList } from './MealHistoryList';

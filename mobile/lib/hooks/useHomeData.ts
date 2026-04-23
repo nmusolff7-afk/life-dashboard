@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type {
   ActivityCalendarDay,
   BurnChartPoint,
+  Meal,
   ProfileResponse,
   SavedMeal,
   SavedWorkout,
@@ -32,6 +33,9 @@ export const useSavedWorkouts = (): ApiState<SavedWorkout[]> =>
 
 export const useSavedMeals = (): ApiState<SavedMeal[]> =>
   useApi<SavedMeal[]>('/api/saved-meals');
+
+export const useMealHistory = (days = 90): ApiState<Meal[]> =>
+  useApi<Meal[]>(`/api/meal-history?days=${days}`);
 
 export const useWorkoutHistory = (days = 90): ApiState<Workout[]> =>
   useApi<Workout[]>(`/api/workout-history?days=${days}`);

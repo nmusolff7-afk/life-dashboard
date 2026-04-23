@@ -6,12 +6,14 @@ import {
   EmptyState,
   FAB,
   LogMealCard,
+  MealHistoryList,
   NutritionMacrosCard,
   RecentMealsChips,
   SubTabs,
   TodayMealsList,
 } from '../../components/apex';
 import {
+  useMealHistory,
   useProfile,
   useSavedMeals,
   useTodayNutrition,
@@ -29,6 +31,7 @@ export default function NutritionScreen() {
   const workouts = useTodayWorkouts();
   const profile = useProfile();
   const savedMeals = useSavedMeals();
+  const history = useMealHistory(90);
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
@@ -39,10 +42,17 @@ export default function NutritionScreen() {
         workouts.refetch(),
         profile.refetch(),
         savedMeals.refetch(),
+        history.refetch(),
       ]);
     } finally {
       setRefreshing(false);
     }
+  };
+
+  // Any meal mutation refreshes both today's meals and the full history.
+  const refreshAllMeals = () => {
+    nutrition.refetch();
+    history.refetch();
   };
 
   const totals = nutrition.data?.totals;
@@ -110,16 +120,16 @@ export default function NutritionScreen() {
 
             <RecentMealsChips
               saved={savedMeals.data ?? []}
-              onLogged={nutrition.refetch}
+              onLogged={refreshAllMeals}
               onRemoved={savedMeals.refetch}
             />
 
             <LogMealCard
-              onLogged={nutrition.refetch}
+              onLogged={refreshAllMeals}
               onTemplateSaved={savedMeals.refetch}
             />
 
-            <TodayMealsList meals={meals} onChanged={nutrition.refetch} />
+            <TodayMealsList meals={meals} onChanged={refreshAllMeals} />
           </>
         ) : null}
 
@@ -132,11 +142,7 @@ export default function NutritionScreen() {
         ) : null}
 
         {tab === 'history' ? (
-          <EmptyState
-            icon="🍽️"
-            title="Meal history"
-            description="Date-grouped meal list with filters lands in Nutrition Phase 2 (needs /api/meal-history endpoint)."
-          />
+          <MealHistoryList meals={history.data ?? []} onChanged={refreshAllMeals} />
         ) : null}
       </ScrollView>
       <FAB from="nutrition" />
