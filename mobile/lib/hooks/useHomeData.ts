@@ -7,6 +7,7 @@ import type {
   CalorieChartPoint,
   MacroChartPoint,
   Meal,
+  OnboardingDataResponse,
   ProfileResponse,
   SavedMeal,
   SavedWorkout,
@@ -25,6 +26,11 @@ export const useTodayWorkouts = (): ApiState<TodayWorkoutsResponse> =>
 
 export const useProfile = (): ApiState<ProfileResponse> =>
   useApi<ProfileResponse>('/api/profile');
+
+/** User's raw onboarding inputs — used by the profile editors to pre-fill
+ *  height / weight / age / gender / etc. */
+export const useOnboardingData = (): ApiState<OnboardingDataResponse> =>
+  useApi<OnboardingDataResponse>('/api/onboarding/data');
 
 /** Dates (YYYY-MM-DD) where user logged at least one meal or workout. */
 export const useLoggedDates = (days = 90): ApiState<string[]> =>

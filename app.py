@@ -1664,18 +1664,28 @@ def api_momentum_insight():
 @app.route("/api/goal/update", methods=["POST"])
 @login_required
 def api_goal_update():
-    """Persist goal targets — uses the user's exact slider values."""
+    """Persist goal targets — uses the user's exact slider values.
+
+    The client sends `rmr` (resting floor) and `tdee` (full daily expenditure)
+    as separate fields. Calorie target = max(tdee + deficit, rmr) — deficit
+    bites against TDEE but the target never drops below RMR. Legacy callers
+    that only send `rmr` still work (tdee falls back to rmr = old behavior).
+    """
     data = request.get_json() or {}
     goal_key = data.get("goal", "lose_weight")
     try:
-        rmr = int(data.get("rmr") or data.get("tdee") or 0)
+        rmr = int(data.get("rmr") or 0)
+        tdee_val = int(data.get("tdee") or rmr)
         deficit = int(data.get("deficit", 0))
         protein = int(data.get("protein", 150))
         carbs = int(data.get("carbs", 200))
         fat = int(data.get("fat", 65))
-        # Calorie target = TDEE + deficit (deficit is negative for cut)
-        tdee_val = rmr  # RMR is the closest we have to TDEE from client
-        cal_target = max(tdee_val + deficit, rmr) if tdee_val > 0 else 2000
+        # Calorie target = TDEE + deficit, floored at RMR so deficits never
+        # drop below resting burn.
+        if tdee_val > 0 or rmr > 0:
+            cal_target = max(tdee_val + deficit, rmr)
+        else:
+            cal_target = 2000
 
         upsert_user_goal(
             user_id=uid(),
