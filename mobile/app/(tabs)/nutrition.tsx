@@ -12,6 +12,7 @@ import {
   MealHistoryList,
   MealPhotoScanner,
   NutritionMacrosCard,
+  PantryScanner,
   RecentMealsChips,
   SavedMealsPicker,
   SubTabs,
@@ -42,6 +43,7 @@ export default function NutritionScreen() {
   const [photoOpen, setPhotoOpen] = useState(false);
   const [savedOpen, setSavedOpen] = useState(false);
   const [barcodeOpen, setBarcodeOpen] = useState(false);
+  const [pantryOpen, setPantryOpen] = useState(false);
   const onRefresh = async () => {
     setRefreshing(true);
     try {
@@ -137,6 +139,7 @@ export default function NutritionScreen() {
               onTemplateSaved={savedMeals.refetch}
               onPhotoScan={() => setPhotoOpen(true)}
               onBarcodeScan={() => setBarcodeOpen(true)}
+              onPantryScan={() => setPantryOpen(true)}
               onSavedPick={() => setSavedOpen(true)}
             />
 
@@ -167,6 +170,12 @@ export default function NutritionScreen() {
         visible={barcodeOpen}
         onClose={() => setBarcodeOpen(false)}
         onLogged={refreshAllMeals}
+      />
+      <PantryScanner
+        visible={pantryOpen}
+        onClose={() => setPantryOpen(false)}
+        onLogged={refreshAllMeals}
+        caloriesConsumedToday={consumed}
       />
       <SavedMealsPicker
         visible={savedOpen}
