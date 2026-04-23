@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { hydrateFlaskToken } from '../lib/flaskToken';
 import { ThemeProvider, useTheme } from '../lib/theme';
@@ -53,10 +54,12 @@ export default function RootLayout() {
   if (!hydrated) return null;
 
   return (
-    <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-      <ThemeProvider>
-        <ThemedStack />
-      </ThemeProvider>
-    </ClerkProvider>
+    <SafeAreaProvider>
+      <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
+        <ThemeProvider>
+          <ThemedStack />
+        </ThemeProvider>
+      </ClerkProvider>
+    </SafeAreaProvider>
   );
 }
