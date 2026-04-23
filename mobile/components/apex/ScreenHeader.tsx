@@ -77,12 +77,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderBottomWidth: 1,
+    // Clip any child that tries to bleed outside the 56px bar — guards against
+    // the logo layout going sideways on image-load before dimensions settle.
+    overflow: 'hidden',
   },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  // Apex logo is ~3:1 aspect ratio (3840×1299). Lock to height 28 and let
-  // width grow, otherwise the logo renders as a sliver inside a square box.
-  logo: { height: 28, aspectRatio: 3840 / 1299 },
-  brandText: { flexShrink: 1 },
+  // Logo occupies a hard-pinned box. `flexShrink: 0` keeps the flex container
+  // from squeezing it to zero; explicit width + height prevent the
+  // aspectRatio quirk where RN would expand the image to fill the row.
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 },
+  logo: { width: 84, height: 28, flexShrink: 0 },
+  // flex:1 + minWidth:0 allows the text to shrink and ellipsize instead of
+  // pushing the logo or profile button out of the header.
+  brandText: { flex: 1, minWidth: 0 },
   title: {
     fontSize: 14,
     fontWeight: '700',
@@ -91,6 +97,6 @@ const styles = StyleSheet.create({
   },
   subtitle: { fontSize: 12, fontWeight: '400', marginTop: 2 },
 
-  profileBtn: { alignItems: 'center', gap: 2, paddingHorizontal: 4 },
+  profileBtn: { alignItems: 'center', gap: 2, paddingHorizontal: 4, flexShrink: 0 },
   profileLabel: { fontSize: 9, fontWeight: '500' },
 });
