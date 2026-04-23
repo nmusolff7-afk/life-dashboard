@@ -41,3 +41,4 @@ export { MacrosForm } from './MacrosForm';
 export { DailyLifeForm } from './DailyLifeForm';
 export { DietForm } from './DietForm';
 export { RegenerateAiProfileCard } from './RegenerateAiProfileCard';
+export { AdvancedOverridesForm } from './AdvancedOverridesForm';
