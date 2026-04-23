@@ -69,18 +69,21 @@ export interface PrivacyPrefs {
 
 const PRIVACY_KEY = 'apex.privacy';
 
-/** PRD §3.5 / §6.4 — every source defaults to OFF. User explicitly opts in. */
+/** AI consent is granted at the time the user connects a source — once
+ *  connected, feeding that source's data into AI prompts defaults to ON. The
+ *  toggles on this screen exist to let users revoke consent post-connection
+ *  without severing the connection itself. */
 export const DEFAULT_PRIVACY: PrivacyPrefs = {
-  healthkit: false,
-  healthConnect: false,
-  plaid: false,
-  gmail: false,
-  outlook: false,
-  calendar: false,
-  screenTime: false,
-  location: false,
-  strava: false,
-  weather: false,
+  healthkit: true,
+  healthConnect: true,
+  plaid: true,
+  gmail: true,
+  outlook: true,
+  calendar: true,
+  screenTime: true,
+  location: true,
+  strava: true,
+  weather: true,
 };
 
 export async function loadPrivacyPrefs(): Promise<PrivacyPrefs> {

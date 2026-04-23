@@ -11,10 +11,12 @@ import {
 } from 'react-native';
 
 import type { GoalKey, OnboardingDataResponse, ProfileResponse } from '../../../shared/src/types/home';
+import { composeTdee } from '../../../shared/src/logic/tdee';
 import {
   computeTargets,
   GOAL_CONFIGS,
 } from '../../../shared/src/logic/targets';
+import type { Occupation } from '../../../shared/src/logic/neat';
 import { updateGoal } from '../../lib/api/profile';
 import { useTokens } from '../../lib/theme';
 import { SliderRow } from './SliderRow';
@@ -65,14 +67,43 @@ export function MacrosForm({ onboarding, profile, onSaved }: Props) {
     const bd = saved?.birthday as string | undefined;
     const ageRaw = (saved?.age as number | undefined) ?? profile?.age ?? null;
     const age = ageFromBirthday(bd) ?? ageRaw;
+    const workStyleRaw = (saved?.work_style as string | undefined) ?? profile?.work_style;
+    const workStyle: Occupation =
+      workStyleRaw === 'sedentary' || workStyleRaw === 'standing' || workStyleRaw === 'physical'
+        ? workStyleRaw
+        : 'sedentary';
+    const steps = profile?.steps_per_day_estimated ?? 4000;
     if (weightLbs == null || heightFt == null || heightIn == null || !sex || age == null) {
       return null;
     }
-    return { weightLbs, targetLbs: targetLbs ?? undefined, heightFt, heightIn, sex, age, bf };
+    return {
+      weightLbs, targetLbs: targetLbs ?? undefined, heightFt, heightIn, sex, age, bf,
+      workStyle, steps,
+    };
   }, [saved, profile]);
 
-  const suggestion = useMemo(() => {
+  // Compose full TDEE (RMR + NEAT + EAT + TEF) client-side — Flask's
+  // goal_config falls back to RMR when given tdee=0, which collapses every
+  // goal to the same target. We pass a real TDEE so deficit actually bites.
+  const tdeeResult = useMemo(() => {
     if (!bodyStats) return null;
+    const weightKg = bodyStats.weightLbs * 0.453592;
+    const heightCm = (bodyStats.heightFt * 12 + bodyStats.heightIn) * 2.54;
+    return composeTdee({
+      rmr: {
+        weightKg, heightCm,
+        ageYears: bodyStats.age, sex: bodyStats.sex,
+        bodyFatPct: bodyStats.bf,
+      },
+      neat: { occupation: bodyStats.workStyle, totalSteps: bodyStats.steps },
+      eatKcal: 0,
+      macros: {},
+      caloriesConsumed: 0,
+    });
+  }, [bodyStats]);
+
+  const suggestion = useMemo(() => {
+    if (!bodyStats || !tdeeResult) return null;
     return computeTargets({
       goal,
       weightLbs: bodyStats.weightLbs,
@@ -82,14 +113,16 @@ export function MacrosForm({ onboarding, profile, onSaved }: Props) {
       ageYears: bodyStats.age,
       sex: bodyStats.sex,
       bodyFatPct: bodyStats.bf,
+      tdee: tdeeResult.tdee,
     });
-  }, [goal, bodyStats]);
+  }, [goal, bodyStats, tdeeResult]);
 
-  // RMR is the Flask TDEE proxy used by /api/goal/update.
-  const burn = suggestion?.rmr ?? 0;
+  const burn = tdeeResult?.tdee ?? 0;
+  const rmrFloor = suggestion?.rmr ?? 0;
   const suggestedDeficit = suggestion ? suggestion.deficitSurplus : 0;
-  // Live calorie-target = max(burn + deficit, rmr), matching Flask.
-  const calorieTarget = Math.max(burn + deficit, burn > 0 ? burn : 0);
+  // Live calorie-target = max(burn + deficit, rmr). Floored at RMR (not TDEE)
+  // so deficit has room to bite without ever dropping below resting burn.
+  const calorieTarget = Math.max(burn + deficit, rmrFloor);
 
   // Seed goal + sliders when data loads.
   useEffect(() => {
@@ -103,11 +136,9 @@ export function MacrosForm({ onboarding, profile, onSaved }: Props) {
   useEffect(() => {
     const gt = profile?.goal_targets;
     if (gt) {
-      // Server has saved targets — use them. Deficit is derived from
-      // goal_targets.calorie_target vs rmr.
-      if (gt.calorie_target != null && gt.rmr != null) {
-        setDeficit(gt.calorie_target - gt.rmr);
-      }
+      // Server has saved targets — prefer the persisted deficit_surplus
+      // (already stored on user_goals) so round-trip is exact.
+      setDeficit(gt.deficit_surplus ?? 0);
       setProtein(gt.protein_g ?? 150);
       setCarbs(gt.carbs_g ?? 200);
       setFat(gt.fat_g ?? 65);
@@ -145,6 +176,7 @@ export function MacrosForm({ onboarding, profile, onSaved }: Props) {
       await updateGoal({
         goal,
         rmr: suggestion.rmr,
+        tdee: burn, // full TDEE so Flask's target math differentiates goals
         deficit: Math.round(deficit),
         protein: Math.round(protein),
         carbs: Math.round(carbs),

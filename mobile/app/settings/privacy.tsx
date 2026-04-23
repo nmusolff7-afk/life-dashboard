@@ -53,9 +53,9 @@ export default function Privacy() {
       />
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={[styles.intro, { color: t.muted }]}>
-          Per-source AI consent. All default OFF per PRD §3.5 / §6.4. The data still syncs for
-          scoring and display; these toggles only control whether the chatbot can see it in
-          prompts.
+          Per-source AI consent. You granted consent at the time you connected each source — these
+          toggles let you revoke it without disconnecting. Data still syncs for scoring and
+          display; turning a toggle off just stops the chatbot from seeing it in prompts.
         </Text>
         {loading ? (
           <ActivityIndicator color={t.accent} />

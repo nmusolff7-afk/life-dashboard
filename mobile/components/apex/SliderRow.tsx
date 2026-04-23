@@ -1,4 +1,4 @@
-import Slider from '@react-native-community/slider';
+import { Slider } from '@miblanchard/react-native-slider';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useTokens } from '../../lib/theme';
@@ -21,7 +21,8 @@ interface Props {
 }
 
 /** Horizontal slider row with a label + live-updating value + optional hint.
- *  Used by every profile editor that asks for a tuneable number. */
+ *  Uses @miblanchard/react-native-slider (pure JS — avoids the Windows
+ *  path-resolution bug on @react-native-community/slider). */
 export function SliderRow({
   label,
   value,
@@ -49,11 +50,11 @@ export function SliderRow({
         minimumValue={min}
         maximumValue={max}
         step={step}
-        onValueChange={onChange}
+        onValueChange={(v) => onChange(Array.isArray(v) ? v[0] : v)}
         minimumTrackTintColor={tint}
         maximumTrackTintColor={t.surface2}
         thumbTintColor={tint}
-        style={styles.slider}
+        containerStyle={styles.slider}
       />
       {hint ? <Text style={[styles.hint, { color: t.subtle }]}>{hint}</Text> : null}
     </View>
@@ -65,6 +66,6 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   label: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 },
   value: { fontSize: 16, fontWeight: '700' },
-  slider: { width: '100%', height: 32 },
+  slider: { height: 32 },
   hint: { fontSize: 11 },
 });

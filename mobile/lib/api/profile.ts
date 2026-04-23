@@ -37,13 +37,20 @@ export async function saveOnboardingInputs(patch: Partial<OnboardingRawInputs>):
   await jsonOrThrow<{ ok: boolean }>(res, 'onboarding/save');
 }
 
-/** /api/goal/update persists slider-driven targets. The endpoint requires
- *  rmr (used as TDEE proxy) + deficit + protein/carbs/fat macros.
- *  sugar/fiber/sodium are supported too but optional. */
+/** /api/goal/update persists slider-driven targets. The endpoint takes:
+ *  - rmr: resting metabolic rate, used as the floor for the calorie target.
+ *  - tdee: full daily expenditure (RMR + NEAT + EAT + TEF), used as the base
+ *          the deficit bites against.
+ *  - deficit: negative for cut, positive for bulk, 0 for maintain.
+ *  Target = max(tdee + deficit, rmr). Flask accepts `rmr` without `tdee`
+ *  (legacy behavior) but we always send both so goal adjustments actually
+ *  differentiate targets.
+ */
 export interface GoalUpdatePayload {
   goal: string;          // goal_key
-  rmr: number;           // TDEE proxy
-  deficit: number;       // negative for cut, positive for bulk, 0 for maintain
+  rmr: number;           // kcal/day resting floor
+  tdee: number;          // kcal/day full expenditure base
+  deficit: number;       // kcal offset from tdee
   protein: number;       // g
   carbs: number;         // g
   fat: number;           // g
