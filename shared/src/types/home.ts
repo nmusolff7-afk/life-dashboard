@@ -90,3 +90,19 @@ export interface MomentumHistoryItem {
   protein_pct?: number;
   activity_pct?: number;
 }
+
+// ── Fitness ──────────────────────────────────────────────────────────────
+
+export interface SavedWorkout {
+  id: number;
+  user_id: number;
+  description: string;
+  calories_burned: number;
+  saved_at: string;
+}
+
+/** Response from /api/burn-estimate (Claude-estimated). */
+export interface BurnEstimate {
+  calories_burned: number;
+  notes: string;
+}

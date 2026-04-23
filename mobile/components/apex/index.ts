@@ -7,3 +7,7 @@ export { StatCard } from './StatCard';
 export { StreakBar } from './StreakBar';
 export { TodayBalanceCard } from './TodayBalanceCard';
 export { CategoryScoreCard } from './CategoryScoreCard';
+export { LogActivityCard } from './LogActivityCard';
+export { TodayWorkoutsList } from './TodayWorkoutsList';
+export { SavedWorkoutsStrip } from './SavedWorkoutsStrip';
+export { NumberPromptModal } from './NumberPromptModal';

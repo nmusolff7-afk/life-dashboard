@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import type {
   ProfileResponse,
+  SavedWorkout,
   TodayNutritionResponse,
   TodayWorkoutsResponse,
 } from '../../../shared/src/types/home';
@@ -20,6 +21,9 @@ export const useProfile = (): ApiState<ProfileResponse> =>
 /** Dates (YYYY-MM-DD) where user logged at least one meal or workout. */
 export const useLoggedDates = (days = 90): ApiState<string[]> =>
   useApi<string[]>(`/api/logged-dates?days=${days}`);
+
+export const useSavedWorkouts = (): ApiState<SavedWorkout[]> =>
+  useApi<SavedWorkout[]>('/api/saved-workouts');
 
 // Steps: Flask stores this in browser localStorage only (no API endpoint). On
 // mobile we use AsyncStorage keyed by date so refreshes are stable.
