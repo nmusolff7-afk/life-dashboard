@@ -1,4 +1,4 @@
-import type { BurnEstimate, SavedWorkout } from '../../../shared/src/types/home';
+import type { BurnEstimate, SavedWorkout, Workout } from '../../../shared/src/types/home';
 import { apiFetch } from '../api';
 
 async function jsonOrThrow<T>(res: Response, ctx: string): Promise<T> {
@@ -74,4 +74,9 @@ export async function saveWorkoutTemplate(description: string, caloriesBurned: n
 export async function deleteSavedWorkout(id: number): Promise<void> {
   const res = await apiFetch(`/api/saved-workouts/${id}`, { method: 'DELETE' });
   await jsonOrThrow<{ ok: boolean }>(res, 'delete-saved-workout');
+}
+
+export async function fetchWorkoutHistory(days = 90): Promise<Workout[]> {
+  const res = await apiFetch(`/api/workout-history?days=${days}`);
+  return jsonOrThrow<Workout[]>(res, 'workout-history');
 }

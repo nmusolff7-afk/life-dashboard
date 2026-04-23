@@ -11,3 +11,5 @@ export { LogActivityCard } from './LogActivityCard';
 export { TodayWorkoutsList } from './TodayWorkoutsList';
 export { SavedWorkoutsStrip } from './SavedWorkoutsStrip';
 export { NumberPromptModal } from './NumberPromptModal';
+export { WorkoutHistoryList } from './WorkoutHistoryList';
+export { WorkoutEditSheet } from './WorkoutEditSheet';

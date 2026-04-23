@@ -1460,6 +1460,28 @@ def api_logged_dates():
     return jsonify([r["log_date"] for r in rows])
 
 
+@app.route("/api/workout-history")
+@login_required
+def api_workout_history():
+    """Individual workout rows within the last N days, newest first.
+    Unlike /api/history's grouped workouts, this keeps ids + logged_at so the
+    mobile History list can offer tap-to-edit / delete on each entry."""
+    days = int(request.args.get("days", 90))
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    from db import get_conn
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, user_id, log_date, logged_at, description, calories_burned
+            FROM workout_logs
+            WHERE user_id = ? AND log_date >= ?
+            ORDER BY log_date DESC, logged_at DESC, id DESC
+            """,
+            (uid(), cutoff),
+        ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
 @app.route("/api/momentum/insight", methods=["POST"])
 @login_required
 def api_momentum_insight():

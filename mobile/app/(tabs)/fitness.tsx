@@ -10,6 +10,7 @@ import {
   StatCard,
   SubTabs,
   TodayWorkoutsList,
+  WorkoutHistoryList,
 } from '../../components/apex';
 import { logWeight } from '../../lib/api/fitness';
 import {
@@ -17,6 +18,7 @@ import {
   useSavedWorkouts,
   useTodaySteps,
   useTodayWorkouts,
+  useWorkoutHistory,
 } from '../../lib/hooks/useHomeData';
 import { useTokens } from '../../lib/theme';
 
@@ -53,6 +55,7 @@ export default function FitnessScreen() {
   const workouts = useTodayWorkouts();
   const saved = useSavedWorkouts();
   const stepsState = useTodaySteps();
+  const history = useWorkoutHistory(90);
 
   const [refreshing, setRefreshing] = useState(false);
   const [weightModal, setWeightModal] = useState(false);
@@ -61,10 +64,23 @@ export default function FitnessScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([profile.refetch(), workouts.refetch(), saved.refetch(), stepsState.refetch()]);
+      await Promise.all([
+        profile.refetch(),
+        workouts.refetch(),
+        saved.refetch(),
+        stepsState.refetch(),
+        history.refetch(),
+      ]);
     } finally {
       setRefreshing(false);
     }
+  };
+
+  // Any mutation that touches a workout (log / edit / delete) needs to
+  // refresh both today's list and the 90-day history list.
+  const refreshAllWorkouts = () => {
+    workouts.refetch();
+    history.refetch();
   };
 
   const weight = profile.data?.current_weight_lbs ?? null;
@@ -114,18 +130,16 @@ export default function FitnessScreen() {
 
             <SavedWorkoutsStrip
               saved={saved.data ?? []}
-              onLogged={workouts.refetch}
+              onLogged={refreshAllWorkouts}
               onRemoved={saved.refetch}
             />
 
             <LogActivityCard
-              onLogged={() => {
-                workouts.refetch();
-              }}
+              onLogged={refreshAllWorkouts}
               onTemplateSaved={saved.refetch}
             />
 
-            <TodayWorkoutsList workouts={todayWorkouts} onChanged={workouts.refetch} />
+            <TodayWorkoutsList workouts={todayWorkouts} onChanged={refreshAllWorkouts} />
 
             <Text style={[styles.subsystemsLabel, { color: t.muted }]}>Subsystems</Text>
             <View style={styles.subsystems}>
@@ -145,10 +159,9 @@ export default function FitnessScreen() {
         ) : null}
 
         {tab === 'history' ? (
-          <EmptyState
-            icon="📅"
-            title="Workout history"
-            description="Filtered history with strength/cardio/both chips ships in Phase 2 (uses existing /api/history)."
+          <WorkoutHistoryList
+            workouts={history.data ?? []}
+            onChanged={refreshAllWorkouts}
           />
         ) : null}
       </ScrollView>

@@ -6,6 +6,7 @@ import type {
   SavedWorkout,
   TodayNutritionResponse,
   TodayWorkoutsResponse,
+  Workout,
 } from '../../../shared/src/types/home';
 import { useApi, type ApiState } from './useApi';
 
@@ -24,6 +25,9 @@ export const useLoggedDates = (days = 90): ApiState<string[]> =>
 
 export const useSavedWorkouts = (): ApiState<SavedWorkout[]> =>
   useApi<SavedWorkout[]>('/api/saved-workouts');
+
+export const useWorkoutHistory = (days = 90): ApiState<Workout[]> =>
+  useApi<Workout[]>(`/api/workout-history?days=${days}`);
 
 // Steps: Flask stores this in browser localStorage only (no API endpoint). On
 // mobile we use AsyncStorage keyed by date so refreshes are stable.
