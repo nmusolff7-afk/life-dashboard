@@ -72,9 +72,34 @@ export default function GeneratingScreen() {
       {status === 'error' ? (
         <>
           <Text style={styles.emoji}>⚠️</Text>
-          <Text style={[styles.title, { color: t.text }]}>Something went wrong</Text>
-          <Text style={[styles.subtitle, { color: t.muted }]}>{error}</Text>
-          <Button title="Continue anyway" variant="secondary" onPress={next} style={{ marginTop: 24, alignSelf: 'stretch' }} />
+          <Text style={[styles.title, { color: t.text }]}>Profile generation failed</Text>
+          <Text style={[styles.subtitle, { color: t.muted }]}>
+            Your body stats and goal are saved. The AI profile step needs Claude to succeed before
+            onboarding can finalize server-side. Common cause: ANTHROPIC_API_KEY is invalid or
+            revoked — check the Flask terminal for the exact error.
+          </Text>
+          <Text style={[styles.insight, { color: t.subtle, fontStyle: 'normal', fontSize: 12 }]}>
+            Debug: {error}
+          </Text>
+          <Button
+            title="Try again"
+            onPress={() => {
+              setStatus('pending');
+              setError(null);
+              router.replace('/(onboarding)/step-3');
+            }}
+            style={{ marginTop: 16, alignSelf: 'stretch' }}
+          />
+          <Button
+            title="Continue without AI profile"
+            variant="secondary"
+            onPress={next}
+            style={{ marginTop: 8, alignSelf: 'stretch' }}
+          />
+          <Text style={[styles.subtitle, { color: t.subtle, fontSize: 11, marginTop: 8 }]}>
+            &quot;Continue&quot; will land you in the app but the onboarding gate will keep redirecting you here
+            until the server marks you complete. Fix the Claude key first.
+          </Text>
         </>
       ) : null}
     </View>

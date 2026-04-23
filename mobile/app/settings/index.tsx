@@ -17,7 +17,7 @@ export default function SettingsScreen() {
       <Stack.Screen options={{ title: 'Settings' }} />
       <ScrollView contentContainerStyle={styles.content}>
         {/* Profile hero */}
-        <SettingsRow title={email} hint="Tap to edit profile" onPress={() => router.push('/settings/profile/index')} />
+        <SettingsRow title={email} hint="Tap to edit profile" onPress={() => router.push('/settings/profile')} />
 
         <Text style={[styles.section, { color: t.muted }]}>Account</Text>
         <SettingsRow title="Subscription & billing" onPress={() => router.push('/settings/subscription')} />

@@ -2,24 +2,17 @@ import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '../../components/ui';
-import { apiFetch } from '../../lib/api';
 import { useTokens } from '../../lib/theme';
 
 export default function NotificationsScreen() {
   const t = useTokens();
   const router = useRouter();
 
-  const finish = async () => {
-    // Flag onboarding complete server-side if not already done. Flask's
-    // is_onboarding_complete is set by /api/onboarding/complete; /complete is
-    // idempotent so re-hitting is safe.
-    try {
-      await apiFetch('/api/onboarding/complete', { method: 'POST' });
-    } catch {
-      // skeleton: swallow; status check will fall through to tabs anyway
-    }
-    router.replace('/(tabs)');
-  };
+  // Onboarding was finalized server-side when step-3 called
+  // /api/onboarding/complete and /generating confirmed status=done. Do NOT call
+  // /complete again here — doing so resets _ob_jobs to pending and re-runs
+  // profile generation (wastes a Claude call and creates a race with the tabs gate).
+  const finish = () => router.replace('/(tabs)');
 
   const requestPermission = async () => {
     // Skeleton: don't actually request OS permission here. Requires

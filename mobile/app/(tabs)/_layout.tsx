@@ -1,6 +1,6 @@
 import { useAuth } from '@clerk/clerk-expo';
 import { Redirect, Tabs } from 'expo-router';
-import { Text } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { useTokens } from '../../lib/theme';
 import { useClerkBridge } from '../../lib/useClerkBridge';
@@ -18,8 +18,19 @@ export default function TabLayout() {
 
   if (!isLoaded) return null;
   if (!isSignedIn) return <Redirect href="/(auth)/sign-in" />;
-  // Wait until we know onboarding state. Skeleton shows a blank dark screen.
-  if (isSignedIn && onboarding === 'loading') return null;
+
+  // Waiting on the clerk→flask bridge + /api/onboarding/status. Surface a
+  // visible loading state instead of a blank black screen so a stuck fetch is
+  // obvious.
+  if (onboarding === 'loading') {
+    return (
+      <View style={[styles.loading, { backgroundColor: t.bg }]}>
+        <ActivityIndicator size="large" color={t.accent} />
+        <Text style={[styles.loadingText, { color: t.muted }]}>Checking account…</Text>
+      </View>
+    );
+  }
+
   if (onboarding === 'incomplete') return <Redirect href="/(onboarding)/biometric" />;
 
   return (
@@ -54,3 +65,8 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  loadingText: { fontSize: 13 },
+});
