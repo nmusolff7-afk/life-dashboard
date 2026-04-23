@@ -35,3 +35,4 @@ export { SavedMealsPicker } from './SavedMealsPicker';
 export { MealPhotoScanner } from './MealPhotoScanner';
 export { BarcodeScanner } from './BarcodeScanner';
 export { PantryScanner } from './PantryScanner';
+export { MealDetailModal } from './MealDetailModal';

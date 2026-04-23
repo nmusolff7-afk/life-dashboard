@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Meal } from '../../../shared/src/types/home';
 import { useTokens } from '../../lib/theme';
 import { EmptyState } from './EmptyState';
-import { MealEditSheet } from './MealEditSheet';
+import { MealDetailModal } from './MealDetailModal';
 
 type Filter = 'all' | 'week' | 'month';
 
@@ -169,7 +169,7 @@ export function MealHistoryList({ meals, onChanged }: Props) {
         );
       })}
 
-      <MealEditSheet meal={editing} onClose={() => setEditing(null)} onSaved={onChanged} />
+      <MealDetailModal meal={editing} onClose={() => setEditing(null)} onChanged={onChanged} />
     </View>
   );
 }

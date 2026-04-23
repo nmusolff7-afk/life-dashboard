@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Meal } from '../../../shared/src/types/home';
 import { useTokens } from '../../lib/theme';
-import { MealEditSheet } from './MealEditSheet';
+import { MealDetailModal } from './MealDetailModal';
 
 interface Props {
   meals: Meal[];
@@ -83,10 +83,10 @@ export function TodayMealsList({ meals, onChanged }: Props) {
         </Pressable>
       ))}
 
-      <MealEditSheet
+      <MealDetailModal
         meal={editing}
         onClose={() => setEditing(null)}
-        onSaved={onChanged}
+        onChanged={onChanged}
       />
     </View>
   );
