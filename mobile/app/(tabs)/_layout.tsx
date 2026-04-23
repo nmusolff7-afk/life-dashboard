@@ -1,41 +1,55 @@
 import { useAuth } from '@clerk/clerk-expo';
 import { Redirect, Tabs } from 'expo-router';
-import React from 'react';
+import { Text } from 'react-native';
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTokens } from '../../lib/theme';
 import { useClerkBridge } from '../../lib/useClerkBridge';
+import { useOnboardingStatus } from '../../lib/useOnboardingStatus';
+
+function TabIcon({ label, color }: { label: string; color: string }) {
+  return <Text style={{ fontSize: 22, color }}>{label}</Text>;
+}
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
   const { isLoaded, isSignedIn } = useAuth();
+  const t = useTokens();
   useClerkBridge();
+  const onboarding = useOnboardingStatus();
 
   if (!isLoaded) return null;
   if (!isSignedIn) return <Redirect href="/(auth)/sign-in" />;
+  // Wait until we know onboarding state. Skeleton shows a blank dark screen.
+  if (isSignedIn && onboarding === 'loading') return null;
+  if (onboarding === 'incomplete') return <Redirect href="/(onboarding)/biometric" />;
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
-        tabBarButton: HapticTab,
+        tabBarStyle: { backgroundColor: t.bg, borderTopColor: t.border },
+        tabBarActiveTintColor: t.accent,
+        tabBarInactiveTintColor: t.muted,
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       }}>
       <Tabs.Screen
         name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-        }}
+        options={{ title: 'Home', tabBarIcon: ({ color }) => <TabIcon label="⌂" color={color} /> }}
       />
       <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
+        name="fitness"
+        options={{ title: 'Fitness', tabBarIcon: ({ color }) => <TabIcon label="◉" color={color} /> }}
+      />
+      <Tabs.Screen
+        name="nutrition"
+        options={{ title: 'Nutrition', tabBarIcon: ({ color }) => <TabIcon label="▣" color={color} /> }}
+      />
+      <Tabs.Screen
+        name="finance"
+        options={{ title: 'Finance', tabBarIcon: ({ color }) => <TabIcon label="$" color={color} /> }}
+      />
+      <Tabs.Screen
+        name="time"
+        options={{ title: 'Time', tabBarIcon: ({ color }) => <TabIcon label="◷" color={color} /> }}
       />
     </Tabs>
   );

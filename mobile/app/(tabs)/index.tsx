@@ -1,147 +1,105 @@
-import { useAuth, useUser } from '@clerk/clerk-expo';
-import { Image } from 'expo-image';
-import { useState } from 'react';
-import { Button, Platform, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
-import { apiFetch } from '../../lib/api';
-import { clearFlaskToken } from '../../lib/flaskToken';
+import { FAB, ScreenHeader } from '../../components/apex';
+import { useTokens } from '../../lib/theme';
+
+const STREAK_DAYS = 90;
+
+interface CategoryCardProps {
+  label: string;
+  color: string;
+  onPress: () => void;
+}
+
+function CategoryCard({ label, color, onPress }: CategoryCardProps) {
+  const t = useTokens();
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[styles.catCard, { backgroundColor: t.surface, borderColor: t.border }]}>
+      <Text style={[styles.catLabel, { color }]}>{label}</Text>
+      <Text style={[styles.catScore, { color: t.subtle }]}>—</Text>
+      <Text style={[styles.catHint, { color: t.subtle }]}>Connect sources to activate</Text>
+    </Pressable>
+  );
+}
 
 export default function HomeScreen() {
-  const { user } = useUser();
-  const { signOut } = useAuth();
-  const email = user?.primaryEmailAddress?.emailAddress ?? '';
-  const [testResult, setTestResult] = useState<string>('');
-  const [testing, setTesting] = useState(false);
-
-  async function handleSignOut() {
-    clearFlaskToken();
-    await signOut();
-  }
-
-  async function handleTestApi() {
-    setTesting(true);
-    setTestResult('');
-    try {
-      const res = await apiFetch('/api/today-nutrition');
-      const body = await res.text();
-      let display = body;
-      try {
-        display = JSON.stringify(JSON.parse(body), null, 2);
-      } catch {
-        // non-JSON body — show raw
-      }
-      setTestResult(`HTTP ${res.status}\n${display}`);
-    } catch (err) {
-      setTestResult(`ERROR: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setTesting(false);
-    }
-  }
+  const t = useTokens();
+  const router = useRouter();
 
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.authBar}>
-        <ThemedText>Signed in as {email}</ThemedText>
-        <Button title="Sign Out" onPress={handleSignOut} />
-        <Button title={testing ? 'Testing…' : 'Test API'} onPress={handleTestApi} disabled={testing} />
-        {testResult ? <ThemedText style={styles.testResult}>{testResult}</ThemedText> : null}
-      </ThemedView>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
+    <View style={{ flex: 1, backgroundColor: t.bg }}>
+      <ScreenHeader title="Life Dashboard" weather="72°" />
+      <ScrollView contentContainerStyle={styles.content}>
+        {/* Streak strip — 90 days, empty */}
+        <View style={styles.streakWrap}>
+          <Text style={[styles.sectionLabel, { color: t.muted }]}>Streak · 90 days</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.streakStrip}>
+            {Array.from({ length: STREAK_DAYS }).map((_, i) => (
+              <Pressable
+                key={i}
+                onPress={() => {
+                  // Skeleton: link back N days from today. Real date math lives in Day Detail.
+                  const d = new Date();
+                  d.setDate(d.getDate() - (STREAK_DAYS - 1 - i));
+                  const iso = d.toISOString().slice(0, 10);
+                  router.push(`/day/${iso}`);
+                }}
+                style={[styles.streakDot, { backgroundColor: t.surface2 }]}
               />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+            ))}
+          </ScrollView>
+        </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+        {/* Overall Score */}
+        <View style={styles.overallWrap}>
+          <Text style={[styles.overallBig, { color: t.text }]}>—</Text>
+          <Text style={[styles.overallLabel, { color: t.muted }]}>Overall</Text>
+        </View>
+
+        {/* 4 category cards */}
+        <View style={styles.catGrid}>
+          <CategoryCard label="Fitness" color={t.fitness} onPress={() => router.push('/(tabs)/fitness')} />
+          <CategoryCard label="Nutrition" color={t.nutrition} onPress={() => router.push('/(tabs)/nutrition')} />
+          <CategoryCard label="Finance" color={t.finance} onPress={() => router.push('/(tabs)/finance')} />
+          <CategoryCard label="Time" color={t.time} onPress={() => router.push('/(tabs)/time')} />
+        </View>
+
+        {/* Day Timeline preview strip */}
+        <View style={[styles.timelineStrip, { backgroundColor: t.surface, borderColor: t.border }]}>
+          <Text style={[styles.sectionLabel, { color: t.muted, marginBottom: 6 }]}>Today</Text>
+          <Text style={[styles.timelineEmpty, { color: t.subtle }]}>Day Timeline will appear here once connections are granted.</Text>
+        </View>
+
+        {/* Goals strip */}
+        <Pressable onPress={() => router.push('/goals')} style={[styles.goalsStrip, { backgroundColor: t.surface, borderColor: t.border }]}>
+          <Text style={[styles.sectionLabel, { color: t.muted }]}>Active goals</Text>
+          <Text style={[styles.goalsEmpty, { color: t.subtle }]}>No active goals yet. Tap to browse the library.</Text>
+        </Pressable>
+      </ScrollView>
+      <FAB />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  authBar: {
-    gap: 8,
-    marginBottom: 12,
-  },
-  testResult: {
-    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
-    fontSize: 11,
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
+  content: { paddingBottom: 96, gap: 16 },
+  sectionLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6 },
+  streakWrap: { paddingHorizontal: 16, paddingTop: 12, gap: 6 },
+  streakStrip: { gap: 3, paddingVertical: 4 },
+  streakDot: { width: 10, height: 28, borderRadius: 3 },
+  overallWrap: { alignItems: 'center', paddingVertical: 12 },
+  overallBig: { fontSize: 56, fontWeight: '700' },
+  overallLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 2 },
+  catGrid: { paddingHorizontal: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  catCard: { flexBasis: '48%', flexGrow: 1, borderWidth: 1, borderRadius: 20, padding: 18, gap: 4 },
+  catLabel: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 },
+  catScore: { fontSize: 32, fontWeight: '700' },
+  catHint: { fontSize: 11, marginTop: 4 },
+  timelineStrip: { marginHorizontal: 16, borderRadius: 20, borderWidth: 1, padding: 16 },
+  timelineEmpty: { fontSize: 13 },
+  goalsStrip: { marginHorizontal: 16, borderRadius: 20, borderWidth: 1, padding: 16, gap: 6 },
+  goalsEmpty: { fontSize: 13 },
 });
