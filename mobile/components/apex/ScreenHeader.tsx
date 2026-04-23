@@ -16,7 +16,7 @@ interface Props {
 export function ScreenHeader({ title, onProfilePress, hideProfile, weather }: Props) {
   const t = useTokens();
   const router = useRouter();
-  const handleProfile = onProfilePress ?? (() => router.push('/settings'));
+  const handleProfile = onProfilePress ?? (() => router.push('/settings/index'));
 
   return (
     <View style={[styles.header, { backgroundColor: t.bg, borderBottomColor: t.border }]}>

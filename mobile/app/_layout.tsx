@@ -31,7 +31,6 @@ function ThemedStack() {
         <Stack.Screen name="day/[date]" options={{ title: '' }} />
         <Stack.Screen name="goals" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style={resolved === 'dark' ? 'light' : 'dark'} />
     </NavThemeProvider>

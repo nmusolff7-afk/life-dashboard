@@ -45,7 +45,7 @@ export default function HomeScreen() {
                   const d = new Date();
                   d.setDate(d.getDate() - (STREAK_DAYS - 1 - i));
                   const iso = d.toISOString().slice(0, 10);
-                  router.push(`/day/${iso}`);
+                  router.push({ pathname: '/day/[date]', params: { date: iso } });
                 }}
                 style={[styles.streakDot, { backgroundColor: t.surface2 }]}
               />
@@ -74,7 +74,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Goals strip */}
-        <Pressable onPress={() => router.push('/goals')} style={[styles.goalsStrip, { backgroundColor: t.surface, borderColor: t.border }]}>
+        <Pressable onPress={() => router.push('/goals/index')} style={[styles.goalsStrip, { backgroundColor: t.surface, borderColor: t.border }]}>
           <Text style={[styles.sectionLabel, { color: t.muted }]}>Active goals</Text>
           <Text style={[styles.goalsEmpty, { color: t.subtle }]}>No active goals yet. Tap to browse the library.</Text>
         </Pressable>
