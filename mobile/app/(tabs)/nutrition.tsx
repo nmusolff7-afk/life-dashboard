@@ -76,7 +76,7 @@ export default function NutritionScreen() {
           <EmptyState icon="🍽️" title="Meal history" description="Logged meals by date appear here." />
         ) : null}
       </ScrollView>
-      <FAB />
+      <FAB from="nutrition" />
     </View>
   );
 }

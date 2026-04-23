@@ -75,7 +75,7 @@ export default function TimeScreen() {
           <EmptyState icon="⏱️" title="Day Timeline" description="Your day minute-by-minute, inferred from calendar + Screen Time + location." />
         ) : null}
       </ScrollView>
-      <FAB />
+      <FAB from="time" />
     </View>
   );
 }

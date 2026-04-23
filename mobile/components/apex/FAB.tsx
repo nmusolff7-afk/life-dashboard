@@ -5,12 +5,14 @@ import { useTokens } from '../../lib/theme';
 
 interface Props {
   onPress?: () => void;
+  /** Passed to the chatbot overlay so it can render context-specific shortcuts. */
+  from?: 'home' | 'fitness' | 'nutrition' | 'finance' | 'time';
 }
 
-export function FAB({ onPress }: Props) {
+export function FAB({ onPress, from = 'home' }: Props) {
   const t = useTokens();
   const router = useRouter();
-  const handlePress = onPress ?? (() => router.push('/chatbot'));
+  const handlePress = onPress ?? (() => router.push({ pathname: '/chatbot', params: { from } }));
   return (
     <Pressable
       accessibilityRole="button"

@@ -58,7 +58,7 @@ export default function FinanceScreen() {
           <EmptyState icon="🧾" title="Transaction history" description="Transactions by date appear here." />
         ) : null}
       </ScrollView>
-      <FAB />
+      <FAB from="finance" />
     </View>
   );
 }

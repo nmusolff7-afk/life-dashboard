@@ -66,7 +66,7 @@ export default function FitnessScreen() {
           <EmptyState icon="📅" title="Workout history" description="A card-per-day history list will appear here." />
         ) : null}
       </ScrollView>
-      <FAB />
+      <FAB from="fitness" />
     </View>
   );
 }
