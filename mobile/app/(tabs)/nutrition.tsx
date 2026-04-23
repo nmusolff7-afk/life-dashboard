@@ -9,8 +9,10 @@ import {
   LogMealCard,
   MacroTrendsCard,
   MealHistoryList,
+  MealPhotoScanner,
   NutritionMacrosCard,
   RecentMealsChips,
+  SavedMealsPicker,
   SubTabs,
   TodayMealsList,
 } from '../../components/apex';
@@ -36,6 +38,8 @@ export default function NutritionScreen() {
   const history = useMealHistory(90);
 
   const [refreshing, setRefreshing] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
+  const [savedOpen, setSavedOpen] = useState(false);
   const onRefresh = async () => {
     setRefreshing(true);
     try {
@@ -129,6 +133,8 @@ export default function NutritionScreen() {
             <LogMealCard
               onLogged={refreshAllMeals}
               onTemplateSaved={savedMeals.refetch}
+              onPhotoScan={() => setPhotoOpen(true)}
+              onSavedPick={() => setSavedOpen(true)}
             />
 
             <TodayMealsList meals={meals} onChanged={refreshAllMeals} />
@@ -148,6 +154,19 @@ export default function NutritionScreen() {
         ) : null}
       </ScrollView>
       <FAB from="nutrition" />
+
+      <MealPhotoScanner
+        visible={photoOpen}
+        onClose={() => setPhotoOpen(false)}
+        onLogged={refreshAllMeals}
+      />
+      <SavedMealsPicker
+        visible={savedOpen}
+        meals={savedMeals.data ?? []}
+        onClose={() => setSavedOpen(false)}
+        onLogged={refreshAllMeals}
+        onRemoved={savedMeals.refetch}
+      />
     </View>
   );
 }

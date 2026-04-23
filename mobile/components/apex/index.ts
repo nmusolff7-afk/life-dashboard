@@ -31,3 +31,5 @@ export { MealHistoryList } from './MealHistoryList';
 export { CalorieBalanceChart } from './CalorieBalanceChart';
 export { CaloriesConsumedChart } from './CaloriesConsumedChart';
 export { MacroTrendsCard } from './MacroTrendsCard';
+export { SavedMealsPicker } from './SavedMealsPicker';
+export { MealPhotoScanner } from './MealPhotoScanner';

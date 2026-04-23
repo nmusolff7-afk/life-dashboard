@@ -21,6 +21,14 @@ import { useTokens } from '../../lib/theme';
 interface Props {
   onLogged: () => void;
   onTemplateSaved?: () => void;
+  /** Opens the full-screen meal photo scanner. */
+  onPhotoScan?: () => void;
+  /** Opens the barcode scanner (Phase 4 continued). */
+  onBarcodeScan?: () => void;
+  /** Opens the pantry scanner (Phase 4 continued). */
+  onPantryScan?: () => void;
+  /** Opens the saved-meals picker bottom sheet. */
+  onSavedPick?: () => void;
 }
 
 type Mode = 'input' | 'estimated';
@@ -28,7 +36,14 @@ type Mode = 'input' | 'estimated';
 /** Flask log-meal flow: type description → Estimate (AI) → review macros +
  *  items → Log Meal. Re-estimate clears current estimate and returns to input
  *  mode. Save template saves to /api/saved-meals so it appears in Recent. */
-export function LogMealCard({ onLogged, onTemplateSaved }: Props) {
+export function LogMealCard({
+  onLogged,
+  onTemplateSaved,
+  onPhotoScan,
+  onBarcodeScan,
+  onPantryScan,
+  onSavedPick,
+}: Props) {
   const t = useTokens();
   const [description, setDescription] = useState('');
   const [estimate, setEstimate] = useState<NutritionEstimate | null>(null);
@@ -146,10 +161,10 @@ export function LogMealCard({ onLogged, onTemplateSaved }: Props) {
           </Pressable>
 
           <View style={styles.iconRow}>
-            <IconBtn icon="camera-outline" label="Photo" disabled comingSoon />
-            <IconBtn icon="barcode-outline" label="Barcode" disabled comingSoon />
-            <IconBtn icon="restaurant-outline" label="Pantry" disabled comingSoon />
-            <IconBtn icon="bookmark-outline" label="Saved" disabled comingSoon />
+            <IconBtn icon="camera-outline" label="Photo" onPress={onPhotoScan} comingSoon={!onPhotoScan} />
+            <IconBtn icon="barcode-outline" label="Barcode" onPress={onBarcodeScan} comingSoon={!onBarcodeScan} />
+            <IconBtn icon="restaurant-outline" label="Pantry" onPress={onPantryScan} comingSoon={!onPantryScan} />
+            <IconBtn icon="bookmark-outline" label="Saved" onPress={onSavedPick} comingSoon={!onSavedPick} />
           </View>
         </>
       ) : estimate ? (

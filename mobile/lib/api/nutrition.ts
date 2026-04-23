@@ -93,3 +93,71 @@ export async function aiEditMeal(original: string, edits: string): Promise<Nutri
   });
   return jsonOrThrow<NutritionEstimate>(res, 'ai-edit-meal');
 }
+
+/** Meal photo scan — sends a single base64 image to Claude via Flask and
+ *  returns the identified description + full macro breakdown. */
+export interface MealScanResponse extends NutritionEstimate {
+  description: string;
+}
+
+export async function scanMealImage(
+  imageBase64: string,
+  mediaType: string = 'image/jpeg',
+  context: string = '',
+): Promise<MealScanResponse> {
+  const res = await apiFetch('/api/scan-meal', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image_b64: imageBase64, media_type: mediaType, context }),
+  });
+  return jsonOrThrow<MealScanResponse>(res, 'scan-meal');
+}
+
+/** Pantry: list of ingredients detected from one or more photos. */
+export interface PantryIngredient {
+  name: string;
+  confidence?: number;
+}
+
+export async function identifyIngredients(
+  images: { b64: string; media_type?: string }[],
+): Promise<PantryIngredient[]> {
+  const res = await apiFetch('/api/meals/scan', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ images }),
+  });
+  const body = await jsonOrThrow<{ ingredients: PantryIngredient[] }>(res, 'meals/scan');
+  return body.ingredients ?? [];
+}
+
+/** Meal suggestion payload — options fit inside remaining calories. */
+export interface MealSuggestion {
+  meal_name: string;
+  why: string;
+  instructions: string;
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+}
+
+export interface MealSuggestResponse {
+  options: MealSuggestion[];
+  meal_type?: string;
+  cal_remaining?: number;
+}
+
+export async function suggestMeals(params: {
+  ingredients?: string[];
+  images?: { b64: string; media_type?: string }[];
+  hour?: number;
+  calories_consumed?: number;
+}): Promise<MealSuggestResponse> {
+  const res = await apiFetch('/api/meals/suggest', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  return jsonOrThrow<MealSuggestResponse>(res, 'meals/suggest');
+}
