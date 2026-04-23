@@ -1438,6 +1438,28 @@ def api_momentum_history():
     return jsonify(get_momentum_history(uid(), days))
 
 
+@app.route("/api/logged-dates")
+@login_required
+def api_logged_dates():
+    """Return sorted ISO dates where the user logged at least one meal or
+    workout, within the last N days (default 90). Used by the mobile StreakBar
+    as the authoritative 'did the user show up today' signal."""
+    days = int(request.args.get("days", 90))
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    from db import get_conn
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT log_date FROM meal_logs    WHERE user_id = ? AND log_date >= ?
+            UNION
+            SELECT log_date FROM workout_logs WHERE user_id = ? AND log_date >= ?
+            ORDER BY log_date
+            """,
+            (uid(), cutoff, uid(), cutoff),
+        ).fetchall()
+    return jsonify([r["log_date"] for r in rows])
+
+
 @app.route("/api/momentum/insight", methods=["POST"])
 @login_required
 def api_momentum_insight():
