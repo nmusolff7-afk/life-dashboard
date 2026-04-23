@@ -4,7 +4,6 @@ export { FAB } from './FAB';
 export { SubTabs } from './SubTabs';
 export { SettingsRow } from './SettingsRow';
 export { StatCard } from './StatCard';
-export { MacroMicroGrid } from './MacroMicroGrid';
 export { StreakBar } from './StreakBar';
 export { TodayBalanceCard } from './TodayBalanceCard';
 export { CategoryScoreCard } from './CategoryScoreCard';

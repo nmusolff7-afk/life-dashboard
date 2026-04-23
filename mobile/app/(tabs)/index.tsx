@@ -5,7 +5,6 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 import {
   CategoryScoreCard,
   FAB,
-  MacroMicroGrid,
   ScreenHeader,
   StreakBar,
   TodayBalanceCard,
@@ -116,13 +115,8 @@ export default function HomeScreen() {
             caloriesConsumed={consumed}
             calorieTarget={calorieTarget}
             tdee={profile.data?.rmr_kcal ?? null}
-          />
-        </View>
-
-        <View style={styles.horizPad}>
-          <MacroMicroGrid
-            consumed={macroValues}
-            targets={macroTargets}
+            macroValues={macroValues}
+            macroTargets={macroTargets}
             empty={(nutrition.data?.meals.length ?? 0) === 0}
           />
         </View>
