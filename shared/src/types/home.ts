@@ -81,6 +81,14 @@ export interface ProfileResponse {
   daily_calorie_goal?: number | null;
   daily_protein_goal_g?: number | null;
   goal_targets?: GoalTargets;
+  /** AI-generated insights persisted on user_onboarding.profile_map during
+   *  /api/onboarding/complete. Null until the first successful generation. */
+  one_sentence_summary?: string | null;
+  biggest_leverage_point?: string | null;
+  behavioral_archetype?: string | null;
+  energy_level_typical_1_10?: number | null;
+  mood_baseline_1_10?: number | null;
+  stress_level_1_10?: number | null;
 }
 
 export interface MomentumHistoryItem {

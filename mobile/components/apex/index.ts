@@ -38,3 +38,6 @@ export { PantryScanner } from './PantryScanner';
 export { MealDetailModal } from './MealDetailModal';
 export { BodyStatsForm } from './BodyStatsForm';
 export { MacrosForm } from './MacrosForm';
+export { DailyLifeForm } from './DailyLifeForm';
+export { DietForm } from './DietForm';
+export { RegenerateAiProfileCard } from './RegenerateAiProfileCard';
