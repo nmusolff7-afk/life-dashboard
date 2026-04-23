@@ -2,7 +2,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useState } from 'react';
 
 import type {
-  MomentumHistoryItem,
   ProfileResponse,
   TodayNutritionResponse,
   TodayWorkoutsResponse,
@@ -17,9 +16,6 @@ export const useTodayWorkouts = (): ApiState<TodayWorkoutsResponse> =>
 
 export const useProfile = (): ApiState<ProfileResponse> =>
   useApi<ProfileResponse>('/api/profile');
-
-export const useMomentumHistory = (days = 90): ApiState<MomentumHistoryItem[]> =>
-  useApi<MomentumHistoryItem[]>(`/api/momentum/history?days=${days}`);
 
 /** Dates (YYYY-MM-DD) where user logged at least one meal or workout. */
 export const useLoggedDates = (days = 90): ApiState<string[]> =>

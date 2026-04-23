@@ -13,7 +13,6 @@ import {
 } from '../../components/apex';
 import {
   useLoggedDates,
-  useMomentumHistory,
   useProfile,
   useTodayNutrition,
   useTodaySteps,
@@ -37,7 +36,6 @@ export default function HomeScreen() {
   const nutrition = useTodayNutrition();
   const workouts = useTodayWorkouts();
   const profile = useProfile();
-  const momentum = useMomentumHistory(90);
   const loggedDatesApi = useLoggedDates(90);
   const stepsState = useTodaySteps();
 
@@ -49,36 +47,17 @@ export default function HomeScreen() {
         nutrition.refetch(),
         workouts.refetch(),
         profile.refetch(),
-        momentum.refetch(),
         loggedDatesApi.refetch(),
         stepsState.refetch(),
       ]);
     } finally {
       setRefreshing(false);
     }
-  }, [nutrition, workouts, profile, momentum, loggedDatesApi, stepsState]);
+  }, [nutrition, workouts, profile, loggedDatesApi, stepsState]);
 
   // Derived values ---------------------------------------------------------
 
   const loggedDates = useMemo(() => new Set(loggedDatesApi.data ?? []), [loggedDatesApi.data]);
-
-  const overallScore = useMemo(() => {
-    const list = momentum.data;
-    if (!list || list.length === 0) return null;
-    const todays = list.find((r) => r.score_date === today);
-    const latest = todays ?? list[list.length - 1];
-    return Math.round(latest.momentum_score);
-  }, [momentum.data, today]);
-
-  // Flask's traffic-light thresholds: >=80 green, >=50 amber, <50 danger.
-  const overallColor =
-    overallScore == null
-      ? t.subtle
-      : overallScore >= 80
-        ? t.green
-        : overallScore >= 50
-          ? t.amber
-          : t.danger;
 
   const totals = nutrition.data?.totals;
   const burn = workouts.data?.burn ?? 0;
@@ -141,16 +120,7 @@ export default function HomeScreen() {
         {/* 1. 90-day streak bar */}
         <StreakBar loggedDates={loggedDates} today={today} days={90} />
 
-        {/* 2. Overall momentum score */}
-        <View style={styles.overallWrap}>
-          <Text style={[styles.overallBig, { color: overallColor }]}>
-            {overallScore == null ? '—' : overallScore}
-          </Text>
-          <Text style={[styles.overallDenom, { color: t.muted }]}>/ 100</Text>
-          <Text style={[styles.overallLabel, { color: t.muted }]}>Daily momentum</Text>
-        </View>
-
-        {/* 3. Today's balance ring */}
+        {/* 2. Today's balance ring */}
         <View style={styles.horizPad}>
           <TodayBalanceCard
             caloriesConsumed={consumed}
@@ -267,11 +237,6 @@ const styles = StyleSheet.create({
   pageHeader: { alignItems: 'center', paddingHorizontal: 18, paddingTop: 4, paddingBottom: 2 },
   pageTitle: { fontSize: 28, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.1, lineHeight: 30 },
   pageSubtitle: { fontSize: 13, marginTop: 4 },
-
-  overallWrap: { alignItems: 'center', paddingVertical: 8 },
-  overallBig: { fontSize: 72, fontWeight: '700', lineHeight: 74, letterSpacing: -1.5 },
-  overallDenom: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: -2 },
-  overallLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 6 },
 
   statGrid: { paddingHorizontal: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   statHalf: { flexBasis: '48%', flexGrow: 1 },

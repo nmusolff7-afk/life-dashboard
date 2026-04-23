@@ -1,13 +1,78 @@
 import { useAuth } from '@clerk/clerk-expo';
+import { Feather } from '@expo/vector-icons';
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Redirect, Tabs } from 'expo-router';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTokens } from '../../lib/theme';
 import { useClerkBridge } from '../../lib/useClerkBridge';
 import { useOnboardingStatus } from '../../lib/useOnboardingStatus';
 
-function TabIcon({ label, color }: { label: string; color: string }) {
-  return <Text style={{ fontSize: 22, color }}>{label}</Text>;
+type IconName = React.ComponentProps<typeof Feather>['name'];
+
+const TAB_ICONS: Record<string, IconName> = {
+  index: 'home',
+  fitness: 'activity',
+  nutrition: 'coffee',
+  finance: 'dollar-sign',
+  time: 'clock',
+};
+
+/** Mirrors Flask's fixed bottom `<nav>` — 64px bar, #0D0D14 background,
+ *  hairline top border, 2px accent pill above the active button. */
+function FlaskTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const t = useTokens();
+  const insets = useSafeAreaInsets();
+
+  return (
+    <View
+      style={[
+        styles.bar,
+        {
+          backgroundColor: '#0D0D14',
+          borderTopColor: 'rgba(255,255,255,0.03)',
+          paddingBottom: insets.bottom,
+          height: 64 + insets.bottom,
+        },
+      ]}>
+      {state.routes.map((route, index) => {
+        const focused = state.index === index;
+        const { options } = descriptors[route.key];
+        const label =
+          typeof options.tabBarLabel === 'string'
+            ? options.tabBarLabel
+            : options.title ?? route.name;
+        const iconName = TAB_ICONS[route.name] ?? 'circle';
+        const color = focused ? t.accent : t.subtle;
+
+        const onPress = () => {
+          const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+          if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
+        };
+        const onLongPress = () => {
+          navigation.emit({ type: 'tabLongPress', target: route.key });
+        };
+
+        return (
+          <Pressable
+            key={route.key}
+            accessibilityRole="button"
+            accessibilityState={focused ? { selected: true } : {}}
+            accessibilityLabel={options.tabBarAccessibilityLabel}
+            onPress={onPress}
+            onLongPress={onLongPress}
+            style={styles.btn}>
+            {focused ? <View style={[styles.pill, { backgroundColor: t.accent }]} /> : null}
+            <Feather name={iconName} size={22} color={color} strokeWidth={1.7} />
+            <Text style={[styles.label, { color, fontWeight: focused ? '600' : '400' }]}>
+              {label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
 }
 
 export default function TabLayout() {
@@ -19,9 +84,6 @@ export default function TabLayout() {
   if (!isLoaded) return null;
   if (!isSignedIn) return <Redirect href="/(auth)/sign-in" />;
 
-  // Waiting on the clerk→flask bridge + /api/onboarding/status. Surface a
-  // visible loading state instead of a blank black screen so a stuck fetch is
-  // obvious.
   if (onboarding === 'loading') {
     return (
       <View style={[styles.loading, { backgroundColor: t.bg }]}>
@@ -35,38 +97,37 @@ export default function TabLayout() {
 
   return (
     <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: { backgroundColor: t.bg, borderTopColor: t.border },
-        tabBarActiveTintColor: t.accent,
-        tabBarInactiveTintColor: t.muted,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{ title: 'Home', tabBarIcon: ({ color }) => <TabIcon label="⌂" color={color} /> }}
-      />
-      <Tabs.Screen
-        name="fitness"
-        options={{ title: 'Fitness', tabBarIcon: ({ color }) => <TabIcon label="◉" color={color} /> }}
-      />
-      <Tabs.Screen
-        name="nutrition"
-        options={{ title: 'Nutrition', tabBarIcon: ({ color }) => <TabIcon label="▣" color={color} /> }}
-      />
-      <Tabs.Screen
-        name="finance"
-        options={{ title: 'Finance', tabBarIcon: ({ color }) => <TabIcon label="$" color={color} /> }}
-      />
-      <Tabs.Screen
-        name="time"
-        options={{ title: 'Time', tabBarIcon: ({ color }) => <TabIcon label="◷" color={color} /> }}
-      />
+      screenOptions={{ headerShown: false }}
+      tabBar={(props) => <FlaskTabBar {...props} />}>
+      <Tabs.Screen name="index" options={{ title: 'Home' }} />
+      <Tabs.Screen name="fitness" options={{ title: 'Fitness' }} />
+      <Tabs.Screen name="nutrition" options={{ title: 'Nutrition' }} />
+      <Tabs.Screen name="finance" options={{ title: 'Finance' }} />
+      <Tabs.Screen name="time" options={{ title: 'Time' }} />
     </Tabs>
   );
 }
 
 const styles = StyleSheet.create({
+  bar: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+  },
+  btn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    position: 'relative',
+  },
+  pill: {
+    position: 'absolute',
+    top: 0,
+    width: '60%',
+    height: 2,
+    borderRadius: 100,
+  },
+  label: { fontSize: 11 },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   loadingText: { fontSize: 13 },
 });

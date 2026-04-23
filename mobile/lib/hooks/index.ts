@@ -4,7 +4,7 @@ export {
   useTodayNutrition,
   useTodayWorkouts,
   useProfile,
-  useMomentumHistory,
+  useLoggedDates,
   useTodaySteps,
 } from './useHomeData';
 export type { StepsState } from './useHomeData';
