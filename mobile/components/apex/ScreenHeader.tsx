@@ -4,6 +4,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme, useTokens } from '../../lib/theme';
+import { useLiveDateTime } from '../../lib/useLiveDateTime';
 
 interface Props {
   title: string;
@@ -20,6 +21,7 @@ export function ScreenHeader({ title, onProfilePress, hideProfile }: Props) {
   const { resolved } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const dateTime = useLiveDateTime();
   const handleProfile = onProfilePress ?? (() => router.push('/settings'));
 
   return (
@@ -50,6 +52,9 @@ export function ScreenHeader({ title, onProfilePress, hideProfile }: Props) {
         <View style={styles.brandText}>
           <Text style={[styles.title, { color: t.text }]} numberOfLines={1}>
             {title}
+          </Text>
+          <Text style={[styles.subtitle, { color: t.muted }]} numberOfLines={1}>
+            {dateTime}
           </Text>
         </View>
       </View>
@@ -92,6 +97,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.2,
   },
+  subtitle: { fontSize: 11, fontWeight: '400', marginTop: 1 },
 
   profileBtn: { alignItems: 'center', gap: 2, paddingHorizontal: 4, flexShrink: 0 },
   profileLabel: { fontSize: 9, fontWeight: '500' },
