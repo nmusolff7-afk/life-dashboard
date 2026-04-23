@@ -1,5 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
   ActivityCalendar,
@@ -10,6 +11,7 @@ import {
   NumberPromptModal,
   SavedWorkoutsStrip,
   StatCard,
+  StrengthTrackerModal,
   SubTabs,
   TodayWorkoutsList,
   WeightTrendCard,
@@ -27,16 +29,23 @@ import { useTokens } from '../../lib/theme';
 
 type Tab = 'today' | 'progress' | 'history';
 
-interface SubsystemCardProps { name: string; description: string }
+interface SubsystemCardProps {
+  name: string;
+  description: string;
+  onPress?: () => void;
+}
 
-function SubsystemCard({ name, description }: SubsystemCardProps) {
+function SubsystemCard({ name, description, onPress }: SubsystemCardProps) {
   const t = useTokens();
+  const Container: React.ElementType = onPress ? Pressable : View;
   return (
-    <View style={[styles.subCard, { backgroundColor: t.surface, borderColor: t.border }]}>
+    <Container
+      onPress={onPress}
+      style={[styles.subCard, { backgroundColor: t.surface, borderColor: t.border }]}>
       <Text style={[styles.subTitle, { color: t.text }]}>{name}</Text>
       <Text style={[styles.subScore, { color: t.subtle }]}>—</Text>
       <Text style={[styles.subHint, { color: t.muted }]}>{description}</Text>
-    </View>
+    </Container>
   );
 }
 
@@ -63,6 +72,7 @@ export default function FitnessScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [weightModal, setWeightModal] = useState(false);
   const [stepsModal, setStepsModal] = useState(false);
+  const [trackerOpen, setTrackerOpen] = useState(false);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -131,6 +141,16 @@ export default function FitnessScreen() {
               />
             </View>
 
+            <Pressable
+              onPress={() => setTrackerOpen(true)}
+              style={({ pressed }) => [
+                styles.startStrengthBtn,
+                { backgroundColor: t.accent, opacity: pressed ? 0.85 : 1 },
+              ]}>
+              <Ionicons name="barbell" size={18} color="#fff" />
+              <Text style={styles.startStrengthLabel}>Start strength session</Text>
+            </Pressable>
+
             <SavedWorkoutsStrip
               saved={saved.data ?? []}
               onLogged={refreshAllWorkouts}
@@ -147,7 +167,12 @@ export default function FitnessScreen() {
             <Text style={[styles.subsystemsLabel, { color: t.muted }]}>Subsystems</Text>
             <View style={styles.subsystems}>
               {SUBSYSTEMS.map((s) => (
-                <SubsystemCard key={s.name} name={s.name} description={s.description} />
+                <SubsystemCard
+                  key={s.name}
+                  name={s.name}
+                  description={s.description}
+                  onPress={s.name === 'Plan' ? () => setTrackerOpen(true) : undefined}
+                />
               ))}
             </View>
           </>
@@ -197,6 +222,12 @@ export default function FitnessScreen() {
           await stepsState.save(Math.round(n));
         }}
       />
+
+      <StrengthTrackerModal
+        visible={trackerOpen}
+        onClose={() => setTrackerOpen(false)}
+        onLogged={refreshAllWorkouts}
+      />
     </View>
   );
 }
@@ -211,6 +242,16 @@ const styles = StyleSheet.create({
 
   statRow: { flexDirection: 'row', gap: 10 },
   statHalf: { flexBasis: '48%', flexGrow: 1 },
+
+  startStrengthBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 16,
+    paddingVertical: 14,
+  },
+  startStrengthLabel: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
   subsystemsLabel: {
     fontSize: 11,

@@ -18,3 +18,4 @@ export { RangePills } from './RangePills';
 export { BurnTrendCard } from './BurnTrendCard';
 export { WeightTrendCard } from './WeightTrendCard';
 export { ActivityCalendar } from './ActivityCalendar';
+export { StrengthTrackerModal } from './StrengthTrackerModal';
