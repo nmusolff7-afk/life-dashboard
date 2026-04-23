@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { EmptyState, FAB, SubTabs } from '../../components/apex';
 import { useTokens } from '../../lib/theme';
+import { useResetScrollOnFocus } from '../../lib/useResetScrollOnFocus';
 
 type Tab = 'today' | 'progress' | 'history';
 
@@ -16,6 +17,7 @@ const SUBSYSTEMS = [
 export default function FinanceScreen() {
   const t = useTokens();
   const [tab, setTab] = useState<Tab>('today');
+  const { ref: scrollRef, resetScroll } = useResetScrollOnFocus();
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
@@ -26,9 +28,12 @@ export default function FinanceScreen() {
           { value: 'history', label: 'History' },
         ]}
         value={tab}
-        onChange={setTab}
+        onChange={(next) => {
+          setTab(next);
+          resetScroll();
+        }}
       />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.content}>
         {tab === 'today' ? (
           <>
             {/* Safe to Spend hero */}

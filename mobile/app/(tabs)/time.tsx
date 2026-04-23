@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { EmptyState, FAB, SubTabs } from '../../components/apex';
 import { useTokens } from '../../lib/theme';
+import { useResetScrollOnFocus } from '../../lib/useResetScrollOnFocus';
 
 type Tab = 'today' | 'patterns' | 'timeline';
 
@@ -20,6 +21,7 @@ const ATTENTION = [
 export default function TimeScreen() {
   const t = useTokens();
   const [tab, setTab] = useState<Tab>('today');
+  const { ref: scrollRef, resetScroll } = useResetScrollOnFocus();
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
@@ -30,9 +32,12 @@ export default function TimeScreen() {
           { value: 'timeline', label: 'Timeline' },
         ]}
         value={tab}
-        onChange={setTab}
+        onChange={(next) => {
+          setTab(next);
+          resetScroll();
+        }}
       />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.content}>
         {tab === 'today' ? (
           <>
             {/* Today's Focus card */}

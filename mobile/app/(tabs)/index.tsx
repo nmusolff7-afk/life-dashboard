@@ -15,6 +15,7 @@ import {
   useTodayWorkouts,
 } from '../../lib/hooks/useHomeData';
 import { useTokens } from '../../lib/theme';
+import { useResetScrollOnFocus } from '../../lib/useResetScrollOnFocus';
 
 function todayIso(): string {
   const d = new Date();
@@ -28,6 +29,8 @@ export default function HomeScreen() {
   const t = useTokens();
   const router = useRouter();
   const today = todayIso();
+
+  const { ref: scrollRef } = useResetScrollOnFocus();
 
   const nutrition = useTodayNutrition();
   const workouts = useTodayWorkouts();
@@ -82,6 +85,7 @@ export default function HomeScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.muted} />}>
         {backendError ? (

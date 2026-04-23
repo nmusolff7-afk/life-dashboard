@@ -27,12 +27,14 @@ import {
   useWorkoutHistory,
 } from '../../lib/hooks/useHomeData';
 import { useTokens } from '../../lib/theme';
+import { useResetScrollOnFocus } from '../../lib/useResetScrollOnFocus';
 
 type Tab = 'today' | 'progress' | 'history';
 
 export default function FitnessScreen() {
   const t = useTokens();
   const [tab, setTab] = useState<Tab>('today');
+  const { ref: scrollRef, resetScroll } = useResetScrollOnFocus();
 
   const profile = useProfile();
   const workouts = useTodayWorkouts();
@@ -77,9 +79,13 @@ export default function FitnessScreen() {
           { value: 'history', label: 'History' },
         ]}
         value={tab}
-        onChange={setTab}
+        onChange={(next) => {
+          setTab(next);
+          resetScroll();
+        }}
       />
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.muted} />

@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { computeStreak, type DailyEntry } from '../../../shared/src/logic/streak';
@@ -33,6 +33,7 @@ function dayOfWeek(iso: string): string {
 export function StreakBar({ loggedDates, today, days = 90 }: Props) {
   const t = useTokens();
   const router = useRouter();
+  const scrollRef = useRef<ScrollView>(null);
 
   const dates = useMemo(
     () => Array.from({ length: days }, (_, i) => subDaysIso(today, days - 1 - i)),
@@ -50,9 +51,11 @@ export function StreakBar({ loggedDates, today, days = 90 }: Props) {
   return (
     <View style={styles.wrap}>
       <ScrollView
+        ref={scrollRef}
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.strip}>
+        contentContainerStyle={styles.strip}
+        onContentSizeChange={(w) => scrollRef.current?.scrollTo({ x: w, animated: false })}>
         {dates.map((d) => {
           const logged = loggedDates.has(d);
           const isToday = d === today;
