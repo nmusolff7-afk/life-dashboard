@@ -1,31 +1,27 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTokens } from '../../lib/theme';
 
 interface Props {
   title: string;
+  /** Shown below the title in smaller muted text (e.g. today's date). */
+  subtitle?: string | null;
   /** Override profile tap. Defaults to routing to /settings. */
   onProfilePress?: () => void;
   /** Hide the profile icon (e.g. on Settings screens where it's redundant). */
   hideProfile?: boolean;
-  /** Optional weather pill text; hidden if empty. */
-  weather?: string | null;
-  /** Show a calendar icon that navigates to /history. */
-  showHistory?: boolean;
-  /** Override calendar tap. Defaults to routing to /history. */
-  onHistoryPress?: () => void;
 }
 
 /** Mirrors Flask's fixed top `<header>` — 56px bar, bg-colored, hairline border
- *  underneath. Respects the device status bar via safe-area inset top. */
-export function ScreenHeader({ title, onProfilePress, hideProfile, weather, showHistory, onHistoryPress }: Props) {
+ *  underneath, logo + uppercase title on the left, profile icon on the right. */
+export function ScreenHeader({ title, subtitle, onProfilePress, hideProfile }: Props) {
   const t = useTokens();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const handleProfile = onProfilePress ?? (() => router.push('/settings'));
-  const handleHistory = onHistoryPress ?? (() => router.push('/history'));
 
   return (
     <View
@@ -38,28 +34,34 @@ export function ScreenHeader({ title, onProfilePress, hideProfile, weather, show
           height: 56 + insets.top,
         },
       ]}>
-      <Text style={[styles.title, { color: t.text }]} numberOfLines={1}>
-        {title}
-      </Text>
-      <View style={styles.right}>
-        {weather ? (
-          <Text style={[styles.weather, { color: t.muted }]}>{weather}</Text>
-        ) : null}
-        {showHistory ? (
-          <Pressable onPress={handleHistory} accessibilityRole="button" accessibilityLabel="History">
-            <View style={[styles.iconBtn, { backgroundColor: t.surface, borderColor: t.border }]}>
-              <Text style={[styles.iconText, { color: t.text }]}>📅</Text>
-            </View>
-          </Pressable>
-        ) : null}
-        {!hideProfile ? (
-          <Pressable onPress={handleProfile} accessibilityRole="button" accessibilityLabel="Settings">
-            <View style={[styles.iconBtn, { backgroundColor: t.surface, borderColor: t.border }]}>
-              <Text style={[styles.iconText, { color: t.text }]}>◉</Text>
-            </View>
-          </Pressable>
-        ) : null}
+      <View style={styles.brand}>
+        <Image
+          source={require('../../assets/images/apex-logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+        <View style={styles.brandText}>
+          <Text style={[styles.title, { color: t.text }]} numberOfLines={1}>
+            {title}
+          </Text>
+          {subtitle ? (
+            <Text style={[styles.subtitle, { color: t.muted }]} numberOfLines={1}>
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
       </View>
+      {!hideProfile ? (
+        <Pressable
+          onPress={handleProfile}
+          accessibilityRole="button"
+          accessibilityLabel="Profile"
+          style={styles.profileBtn}
+          hitSlop={8}>
+          <Ionicons name="person-outline" size={22} color={t.muted} />
+          <Text style={[styles.profileLabel, { color: t.muted }]}>Profile</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -72,15 +74,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderBottomWidth: 1,
   },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+  logo: { width: 28, height: 28 },
+  brandText: { flexShrink: 1 },
   title: {
     fontSize: 14,
     fontWeight: '700',
     letterSpacing: 1.1,
     textTransform: 'uppercase',
-    maxWidth: '55%',
   },
-  right: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  weather: { fontSize: 13, fontWeight: '500' },
-  iconBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  iconText: { fontSize: 16 },
+  subtitle: { fontSize: 12, fontWeight: '400', marginTop: 2 },
+
+  profileBtn: { alignItems: 'center', gap: 2, paddingHorizontal: 4 },
+  profileLabel: { fontSize: 9, fontWeight: '500' },
 });

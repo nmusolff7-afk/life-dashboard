@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/clerk-expo';
-import { Feather } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Redirect, Tabs } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -9,14 +9,14 @@ import { useTokens } from '../../lib/theme';
 import { useClerkBridge } from '../../lib/useClerkBridge';
 import { useOnboardingStatus } from '../../lib/useOnboardingStatus';
 
-type IconName = React.ComponentProps<typeof Feather>['name'];
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
 const TAB_ICONS: Record<string, IconName> = {
-  index: 'home',
-  fitness: 'activity',
-  nutrition: 'coffee',
-  finance: 'dollar-sign',
-  time: 'clock',
+  index: 'home-outline',
+  fitness: 'barbell-outline',
+  nutrition: 'restaurant-outline',
+  finance: 'wallet-outline',
+  time: 'time-outline',
 };
 
 /** Mirrors Flask's fixed bottom `<nav>` — 64px bar, #0D0D14 background,
@@ -43,7 +43,7 @@ function FlaskTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           typeof options.tabBarLabel === 'string'
             ? options.tabBarLabel
             : options.title ?? route.name;
-        const iconName = TAB_ICONS[route.name] ?? 'circle';
+        const iconName = TAB_ICONS[route.name] ?? 'ellipse-outline';
         const color = focused ? t.accent : t.subtle;
 
         const onPress = () => {
@@ -64,7 +64,7 @@ function FlaskTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             onLongPress={onLongPress}
             style={styles.btn}>
             {focused ? <View style={[styles.pill, { backgroundColor: t.accent }]} /> : null}
-            <Feather name={iconName} size={22} color={color} strokeWidth={1.7} />
+            <Ionicons name={iconName} size={22} color={color} />
             <Text style={[styles.label, { color, fontWeight: focused ? '600' : '400' }]}>
               {label}
             </Text>

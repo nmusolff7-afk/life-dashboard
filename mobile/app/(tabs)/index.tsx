@@ -91,11 +91,18 @@ export default function HomeScreen() {
   // Backend-error detection: if core calls fail together, surface a single banner.
   const backendError = nutrition.error && workouts.error && profile.error;
 
-  const greeting = firstName ? `Hi, ${firstName}` : 'Life Dashboard';
+  const headerTitle = firstName
+    ? `${firstName.toUpperCase()}'S DASHBOARD`
+    : 'YOUR DASHBOARD';
+  const headerSubtitle = new Date().toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+  });
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScreenHeader title={greeting} showHistory />
+      <ScreenHeader title={headerTitle} subtitle={headerSubtitle} />
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.muted} />}>
