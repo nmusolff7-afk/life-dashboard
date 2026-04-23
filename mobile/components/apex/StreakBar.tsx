@@ -9,8 +9,10 @@ interface Props {
   /** Dates (YYYY-MM-DD) that count as "logged". */
   loggedDates: Set<string>;
   today: string;
-  days?: number; // default 90
+  days?: number;
 }
+
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function subDaysIso(dateIso: string, n: number): string {
   const [y, m, d] = dateIso.split('-').map(Number);
@@ -19,17 +21,24 @@ function subDaysIso(dateIso: string, n: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
+function dayOfMonth(iso: string): string {
+  return String(parseInt(iso.slice(8, 10), 10));
+}
+
+function dayOfWeek(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  return DOW[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+}
+
 export function StreakBar({ loggedDates, today, days = 90 }: Props) {
   const t = useTokens();
   const router = useRouter();
 
-  // Oldest on the left, today on the right.
   const dates = useMemo(
     () => Array.from({ length: days }, (_, i) => subDaysIso(today, days - 1 - i)),
     [days, today],
   );
 
-  // Build entries that satisfy streak.isLogged (we encode loggedness as calories: 1).
   const streak = useMemo(() => {
     const log: Record<string, DailyEntry> = {};
     loggedDates.forEach((d) => {
@@ -40,13 +49,6 @@ export function StreakBar({ loggedDates, today, days = 90 }: Props) {
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.header}>
-        <Text style={[styles.label, { color: t.muted }]}>{days}-day streak</Text>
-        <View style={styles.counter}>
-          <Text style={styles.flame}>🔥</Text>
-          <Text style={[styles.count, { color: streak > 0 ? t.cal : t.subtle }]}>{streak}</Text>
-        </View>
-      </View>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -58,32 +60,62 @@ export function StreakBar({ loggedDates, today, days = 90 }: Props) {
             <Pressable
               key={d}
               onPress={() => router.push({ pathname: '/day/[date]', params: { date: d } })}
-              hitSlop={6}
-              style={[
-                styles.dot,
-                {
-                  backgroundColor: logged ? t.green : t.surface2,
-                  borderColor: isToday ? t.text : 'transparent',
-                  borderWidth: isToday ? 2 : 0,
-                },
-              ]}
+              hitSlop={4}
+              style={styles.dayCol}
               accessibilityRole="button"
-              accessibilityLabel={`${d}${logged ? ', logged' : ''}${isToday ? ', today' : ''}`}
-            />
+              accessibilityLabel={`${d}${logged ? ', logged' : ''}${isToday ? ', today' : ''}`}>
+              <Text style={[styles.dowLabel, { color: t.muted }]}>{dayOfWeek(d)}</Text>
+              <View
+                style={[
+                  styles.dot,
+                  {
+                    backgroundColor: logged ? t.green : t.surface2,
+                    borderColor: isToday ? t.text : 'transparent',
+                    borderWidth: isToday ? 2 : 0,
+                  },
+                ]}>
+                <Text
+                  style={[
+                    styles.dotText,
+                    { color: logged ? '#FFFFFF' : t.muted, fontWeight: isToday ? '700' : '500' },
+                  ]}>
+                  {dayOfMonth(d)}
+                </Text>
+              </View>
+            </Pressable>
           );
         })}
+        <View style={styles.flameWrap}>
+          <Text style={styles.flame}>🔥</Text>
+          <Text style={[styles.flameCount, { color: streak > 0 ? t.text : t.muted }]}>
+            {streak}d
+          </Text>
+        </View>
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 6 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16 },
-  label: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6 },
-  counter: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  flame: { fontSize: 14 },
-  count: { fontSize: 15, fontWeight: '700' },
-  strip: { gap: 4, paddingHorizontal: 16, paddingVertical: 4 },
-  dot: { width: 14, height: 28, borderRadius: 3 },
+  wrap: { marginBottom: 4 },
+  strip: { gap: 6, paddingHorizontal: 16, paddingVertical: 4, alignItems: 'center' },
+  dayCol: { alignItems: 'center', gap: 2 },
+  dowLabel: { fontSize: 9, fontWeight: '500' },
+  dot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dotText: { fontSize: 11 },
+  flameWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingLeft: 10,
+    paddingRight: 4,
+  },
+  flame: { fontSize: 18 },
+  flameCount: { fontSize: 14, fontWeight: '600' },
 });

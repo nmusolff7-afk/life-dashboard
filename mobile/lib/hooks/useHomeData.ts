@@ -21,6 +21,10 @@ export const useProfile = (): ApiState<ProfileResponse> =>
 export const useMomentumHistory = (days = 90): ApiState<MomentumHistoryItem[]> =>
   useApi<MomentumHistoryItem[]>(`/api/momentum/history?days=${days}`);
 
+/** Dates (YYYY-MM-DD) where user logged at least one meal or workout. */
+export const useLoggedDates = (days = 90): ApiState<string[]> =>
+  useApi<string[]>(`/api/logged-dates?days=${days}`);
+
 // Steps: Flask stores this in browser localStorage only (no API endpoint). On
 // mobile we use AsyncStorage keyed by date so refreshes are stable.
 

@@ -12,6 +12,7 @@ import {
   TodayBalanceCard,
 } from '../../components/apex';
 import {
+  useLoggedDates,
   useMomentumHistory,
   useProfile,
   useTodayNutrition,
@@ -37,6 +38,7 @@ export default function HomeScreen() {
   const workouts = useTodayWorkouts();
   const profile = useProfile();
   const momentum = useMomentumHistory(90);
+  const loggedDatesApi = useLoggedDates(90);
   const stepsState = useTodaySteps();
 
   const [refreshing, setRefreshing] = useState(false);
@@ -48,24 +50,17 @@ export default function HomeScreen() {
         workouts.refetch(),
         profile.refetch(),
         momentum.refetch(),
+        loggedDatesApi.refetch(),
         stepsState.refetch(),
       ]);
     } finally {
       setRefreshing(false);
     }
-  }, [nutrition, workouts, profile, momentum, stepsState]);
+  }, [nutrition, workouts, profile, momentum, loggedDatesApi, stepsState]);
 
   // Derived values ---------------------------------------------------------
 
-  // Streak: momentum history as proxy for "logged" days (score > 0).
-  // Flagged imperfection — a dedicated logged-days endpoint should replace this.
-  const loggedDates = useMemo(() => {
-    const set = new Set<string>();
-    (momentum.data ?? []).forEach((row) => {
-      if (row.momentum_score > 0) set.add(row.score_date);
-    });
-    return set;
-  }, [momentum.data]);
+  const loggedDates = useMemo(() => new Set(loggedDatesApi.data ?? []), [loggedDatesApi.data]);
 
   const overallScore = useMemo(() => {
     const list = momentum.data;
@@ -74,6 +69,16 @@ export default function HomeScreen() {
     const latest = todays ?? list[list.length - 1];
     return Math.round(latest.momentum_score);
   }, [momentum.data, today]);
+
+  // Flask's traffic-light thresholds: >=80 green, >=50 amber, <50 danger.
+  const overallColor =
+    overallScore == null
+      ? t.subtle
+      : overallScore >= 80
+        ? t.green
+        : overallScore >= 50
+          ? t.amber
+          : t.danger;
 
   const totals = nutrition.data?.totals;
   const burn = workouts.data?.burn ?? 0;
@@ -100,47 +105,52 @@ export default function HomeScreen() {
     sodiumMg: totals?.total_sodium ?? 0,
   };
 
-  // Chatbot shortcut helper for logging CTAs.
+  // CTA: logging is reachable via the chatbot prefill for now.
   const askBot = (prefill: string) =>
     router.push({ pathname: '/chatbot', params: { from: 'home', prefill } });
 
-  // Backend-error detection: if core calls fail together, surface a single banner
-  // instead of letting every card silently show "—". A single failure (e.g. momentum
-  // 404 on a new account) stays quiet to avoid noise.
+  // Backend-error detection: if core calls fail together, surface a single banner.
   const backendError = nutrition.error && workouts.error && profile.error;
 
-  // Render -----------------------------------------------------------------
-
-  const title = firstName ? `Hi, ${firstName}` : 'Life Dashboard';
+  const greeting = firstName ? `Hi, ${firstName}` : 'Life Dashboard';
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScreenHeader title={title} showHistory />
+      <ScreenHeader title={greeting} showHistory />
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.muted} />}>
         {backendError ? (
           <Pressable
             onPress={onRefresh}
-            style={[styles.errorBanner, { backgroundColor: t.surface, borderColor: t.danger }]}>
+            style={[styles.errorBanner, { backgroundColor: 'rgba(255,77,77,0.08)' }]}>
             <Text style={[styles.errorText, { color: t.danger }]}>
-              Can't reach the backend. Pull to refresh or tap to retry.
+              ⚠ Can't reach the backend. Pull down to refresh.
             </Text>
           </Pressable>
         ) : null}
 
+        {/* Page header — ports Flask .page-header hero */}
+        <View style={styles.pageHeader}>
+          <Text style={[styles.pageTitle, { color: t.text }]}>Today's Overview</Text>
+          <Text style={[styles.pageSubtitle, { color: t.muted }]}>
+            Your daily snapshot at a glance
+          </Text>
+        </View>
+
         {/* 1. 90-day streak bar */}
         <StreakBar loggedDates={loggedDates} today={today} days={90} />
 
-        {/* 2. Overall score */}
+        {/* 2. Overall momentum score */}
         <View style={styles.overallWrap}>
-          <Text style={[styles.overallBig, { color: overallScore == null ? t.subtle : t.text }]}>
+          <Text style={[styles.overallBig, { color: overallColor }]}>
             {overallScore == null ? '—' : overallScore}
           </Text>
-          <Text style={[styles.overallLabel, { color: t.muted }]}>Overall momentum</Text>
+          <Text style={[styles.overallDenom, { color: t.muted }]}>/ 100</Text>
+          <Text style={[styles.overallLabel, { color: t.muted }]}>Daily momentum</Text>
         </View>
 
-        {/* 3. Today's balance */}
+        {/* 3. Today's balance ring */}
         <View style={styles.horizPad}>
           <TodayBalanceCard
             caloriesConsumed={consumed}
@@ -149,49 +159,37 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* 4–7. Weight / Steps / Burned / Consumed */}
+        {/* 4–7. 2×2 stat grid */}
         <View style={styles.statGrid}>
           <StatCard
             label="Weight"
             value={weight == null ? '—' : String(Math.round(weight))}
-            unit={weight == null ? undefined : 'lbs'}
-            cta={{ label: weight == null ? 'Log weight' : 'Update', onPress: () => askBot('Log my weight: ') }}
+            onPress={() => askBot('Log my weight: ')}
             style={styles.statHalf}
           />
           <StatCard
             label="Steps"
             value={stepsState.steps == null ? '—' : stepsState.steps.toLocaleString()}
-            cta={{
-              label: stepsState.steps == null ? 'Log steps' : 'Update',
-              onPress: () => askBot('Log steps: '),
-            }}
+            onPress={() => askBot('Log steps: ')}
             style={styles.statHalf}
           />
           <StatCard
-            label="Calories burned"
+            label="Proj. Burn"
             value={burn > 0 ? String(Math.round(burn)) : '—'}
-            unit={burn > 0 ? 'kcal' : undefined}
-            valueColor={burn > 0 ? t.green : undefined}
-            cta={{ label: 'Log workout', onPress: () => askBot('I just did: ') }}
+            valueColor={burn > 0 ? t.cal : undefined}
+            onPress={() => askBot('I just did: ')}
             style={styles.statHalf}
           />
           <StatCard
-            label="Calories eaten"
+            label="Cals Consumed"
             value={consumed > 0 ? String(Math.round(consumed)) : '—'}
-            unit={
-              consumed > 0
-                ? calorieTarget
-                  ? `/ ${Math.round(calorieTarget)} kcal`
-                  : 'kcal'
-                : undefined
-            }
             valueColor={consumed > 0 ? t.cal : undefined}
-            cta={{ label: 'Log meal', onPress: () => askBot('I just ate: ') }}
+            onPress={() => askBot('I just ate: ')}
             style={styles.statHalf}
           />
         </View>
 
-        {/* 8. Macro/micro grid */}
+        {/* 8. Macros / micros swipe card */}
         <View style={styles.horizPad}>
           <MacroMicroGrid
             consumed={macroValues}
@@ -231,7 +229,7 @@ export default function HomeScreen() {
         {/* 13. Day Timeline stub */}
         <Pressable
           onPress={() => router.push({ pathname: '/day/[date]', params: { date: today } })}
-          style={[styles.stub, { backgroundColor: t.surface, borderColor: t.border }]}>
+          style={[styles.stub, { backgroundColor: t.surface, shadowColor: '#000' }]}>
           <Text style={[styles.stubLabel, { color: t.muted }]}>Today</Text>
           <Text style={[styles.stubBody, { color: t.subtle }]}>
             {nutrition.data && workouts.data && (nutrition.data.meals.length > 0 || workouts.data.workouts.length > 0)
@@ -243,7 +241,7 @@ export default function HomeScreen() {
         {/* 14. Active goals stub */}
         <Pressable
           onPress={() => router.push('/goals')}
-          style={[styles.stub, { backgroundColor: t.surface, borderColor: t.border }]}>
+          style={[styles.stub, { backgroundColor: t.surface, shadowColor: '#000' }]}>
           <Text style={[styles.stubLabel, { color: t.muted }]}>Active goals</Text>
           <Text style={[styles.stubBody, { color: t.subtle }]}>
             No active goals yet. Tap to browse the library.
@@ -255,18 +253,41 @@ export default function HomeScreen() {
   );
 }
 
+const cardShadow = {
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.45,
+  shadowRadius: 20,
+  elevation: 3,
+};
+
 const styles = StyleSheet.create({
-  content: { paddingTop: 8, paddingBottom: 96, gap: 16 },
+  content: { paddingTop: 8, paddingBottom: 96, gap: 14 },
   horizPad: { paddingHorizontal: 16 },
+
+  pageHeader: { alignItems: 'center', paddingHorizontal: 18, paddingTop: 4, paddingBottom: 2 },
+  pageTitle: { fontSize: 28, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.1, lineHeight: 30 },
+  pageSubtitle: { fontSize: 13, marginTop: 4 },
+
   overallWrap: { alignItems: 'center', paddingVertical: 8 },
-  overallBig: { fontSize: 56, fontWeight: '700' },
-  overallLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 2 },
-  statGrid: { paddingHorizontal: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  overallBig: { fontSize: 72, fontWeight: '700', lineHeight: 74, letterSpacing: -1.5 },
+  overallDenom: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: -2 },
+  overallLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 6 },
+
+  statGrid: { paddingHorizontal: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   statHalf: { flexBasis: '48%', flexGrow: 1 },
+
   catGrid: { paddingHorizontal: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  stub: { marginHorizontal: 16, borderRadius: 20, borderWidth: 1, padding: 16, gap: 6 },
-  stubLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6 },
+
+  stub: {
+    marginHorizontal: 16,
+    borderRadius: 20,
+    padding: 16,
+    gap: 6,
+    ...cardShadow,
+  },
+  stubLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8 },
   stubBody: { fontSize: 13 },
-  errorBanner: { marginHorizontal: 16, borderWidth: 1, borderRadius: 14, padding: 12 },
-  errorText: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
+
+  errorBanner: { marginHorizontal: 16, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16 },
+  errorText: { fontSize: 14, fontWeight: '500' },
 });

@@ -1,4 +1,13 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useRef, useState } from 'react';
+import {
+  Dimensions,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { useTokens } from '../../lib/theme';
 
@@ -23,65 +32,143 @@ interface Targets {
 interface Props {
   consumed: Values;
   targets?: Targets;
-  /** When true, render "—" across all cells (meaningful "nothing logged" state). */
+  /** When true, render empty-state copy (no meals logged). */
   empty?: boolean;
 }
 
-function fmt(n: number, unit: string): string {
-  return `${Math.round(n)}${unit}`;
+interface RowProps {
+  label: string;
+  color: string;
+  consumed: number;
+  target: number | null | undefined;
+  unit: string;
 }
 
-function fmtPair(consumed: number, target: number | null | undefined, unit: string): string {
-  if (target == null) return fmt(consumed, unit);
-  return `${Math.round(consumed)} / ${Math.round(target)}${unit}`;
-}
-
-/** 3×2 compact grid — protein/carbs/fat on top row, sugar/fiber/sodium bottom. */
-export function MacroMicroGrid({ consumed, targets, empty }: Props) {
+function ProgressRow({ label, color, consumed, target, unit }: RowProps) {
   const t = useTokens();
+  const hasTarget = target != null && target > 0;
+  const pct = hasTarget ? Math.min(1, consumed / (target as number)) : 0;
+  const hit = hasTarget && consumed >= (target as number) * 0.95 && consumed <= (target as number) * 1.05;
+  const over = hasTarget && consumed > (target as number) * 1.2;
+  const fillColor = over ? t.danger : hit ? t.green : color;
+  const valueColor = over ? t.danger : hit ? t.green : color;
 
-  const cells = empty
-    ? [
-        { label: 'Protein', color: t.protein, value: '—' },
-        { label: 'Carbs',   color: t.carbs,   value: '—' },
-        { label: 'Fat',     color: t.fat,     value: '—' },
-        { label: 'Sugar',   color: t.sugar,   value: '—' },
-        { label: 'Fiber',   color: t.fiber,   value: '—' },
-        { label: 'Sodium',  color: t.sodium,  value: '—' },
-      ]
-    : [
-        { label: 'Protein', color: t.protein, value: fmtPair(consumed.proteinG, targets?.proteinG, 'g') },
-        { label: 'Carbs',   color: t.carbs,   value: fmtPair(consumed.carbsG,   targets?.carbsG,   'g') },
-        { label: 'Fat',     color: t.fat,     value: fmtPair(consumed.fatG,     targets?.fatG,     'g') },
-        { label: 'Sugar',   color: t.sugar,   value: fmtPair(consumed.sugarG,   targets?.sugarG,   'g') },
-        { label: 'Fiber',   color: t.fiber,   value: fmtPair(consumed.fiberG,   targets?.fiberG,   'g') },
-        { label: 'Sodium',  color: t.sodium,  value: fmtPair(consumed.sodiumMg, targets?.sodiumMg, 'mg') },
-      ];
+  const valueText = hasTarget
+    ? `${Math.round(consumed)}${unit} / ${Math.round(target as number)}${unit}`
+    : `${Math.round(consumed)}${unit}`;
 
   return (
-    <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
-      <Text style={[styles.title, { color: t.muted }]}>Macros &amp; micros today</Text>
-      <View style={styles.grid}>
-        {cells.map((c) => (
-          <View key={c.label} style={styles.cell}>
-            <Text style={[styles.cellLabel, { color: c.color }]}>{c.label}</Text>
-            <Text style={[styles.cellValue, { color: c.value === '—' ? t.subtle : t.text }]}>{c.value}</Text>
-          </View>
-        ))}
+    <View style={rowStyles.row}>
+      <View style={rowStyles.header}>
+        <Text style={[rowStyles.label, { color: t.muted }]}>{label}</Text>
+        <Text style={[rowStyles.value, { color: valueColor }]}>{valueText}</Text>
       </View>
-      {empty ? (
-        <Text style={[styles.footer, { color: t.subtle }]}>Log a meal to fill this in.</Text>
-      ) : null}
+      <View style={[rowStyles.track, { backgroundColor: 'rgba(255,255,255,0.06)' }]}>
+        <View
+          style={[
+            rowStyles.fill,
+            { backgroundColor: fillColor, width: `${Math.max(pct * 100, hasTarget ? 2 : 0)}%` },
+          ]}
+        />
+      </View>
+    </View>
+  );
+}
+
+/** Mirrors Flask dash-macro-card: two swipeable pages (macros / micros) with
+ *  horizontal progress bars and a page dot indicator at the bottom. */
+export function MacroMicroGrid({ consumed, targets, empty }: Props) {
+  const t = useTokens();
+  const [page, setPage] = useState(0);
+  const widthRef = useRef<number>(Dimensions.get('window').width - 32);
+
+  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const w = widthRef.current || 1;
+    const idx = Math.round(e.nativeEvent.contentOffset.x / w);
+    if (idx !== page) setPage(idx);
+  };
+
+  const onLayout = (e: { nativeEvent: { layout: { width: number } } }) => {
+    widthRef.current = e.nativeEvent.layout.width;
+  };
+
+  return (
+    <View
+      onLayout={onLayout}
+      style={[styles.card, { backgroundColor: t.surface, shadowColor: '#000' }]}>
+      <ScrollView
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={32}
+        style={{ width: '100%' }}>
+        <View style={[styles.page, { width: widthRef.current }]}>
+          <Text style={[styles.cardTitle, { color: t.muted }]}>Macros</Text>
+          {empty ? (
+            <Text style={[styles.emptyText, { color: t.muted }]}>Log meals to see macros.</Text>
+          ) : (
+            <>
+              <ProgressRow label="Protein" color={t.protein} consumed={consumed.proteinG} target={targets?.proteinG} unit="g" />
+              <ProgressRow label="Carbs"   color={t.carbs}   consumed={consumed.carbsG}   target={targets?.carbsG}   unit="g" />
+              <ProgressRow label="Fat"     color={t.fat}     consumed={consumed.fatG}     target={targets?.fatG}     unit="g" />
+            </>
+          )}
+        </View>
+        <View style={[styles.page, { width: widthRef.current }]}>
+          <Text style={[styles.cardTitle, { color: t.muted }]}>Micros</Text>
+          {empty ? (
+            <Text style={[styles.emptyText, { color: t.muted }]}>Log meals to see micros.</Text>
+          ) : (
+            <>
+              <ProgressRow label="Sugar"  color={t.sugar}  consumed={consumed.sugarG}   target={targets?.sugarG}   unit="g" />
+              <ProgressRow label="Fiber"  color={t.fiber}  consumed={consumed.fiberG}   target={targets?.fiberG}   unit="g" />
+              <ProgressRow label="Sodium" color={t.sodium} consumed={consumed.sodiumMg} target={targets?.sodiumMg} unit="mg" />
+            </>
+          )}
+        </View>
+      </ScrollView>
+      <View style={styles.dots}>
+        <View style={[styles.dot, { backgroundColor: page === 0 ? t.accent : t.surface2 }]} />
+        <View style={[styles.dot, { backgroundColor: page === 1 ? t.accent : t.surface2 }]} />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 12 },
-  title: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  cell: { width: '33.333%', paddingVertical: 6, gap: 2 },
-  cellLabel: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6 },
-  cellValue: { fontSize: 14, fontWeight: '700' },
-  footer: { fontSize: 11, marginTop: 2 },
+  card: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.45,
+    shadowRadius: 20,
+    elevation: 3,
+  },
+  page: { padding: 20 },
+  cardTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1.1,
+    marginBottom: 12,
+  },
+  emptyText: { fontSize: 14 },
+  dots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+    paddingTop: 6,
+    paddingBottom: 10,
+  },
+  dot: { width: 6, height: 6, borderRadius: 3 },
+});
+
+const rowStyles = StyleSheet.create({
+  row: { marginBottom: 12 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  label: { fontSize: 13 },
+  value: { fontSize: 13, fontWeight: '600' },
+  track: { height: 6, borderRadius: 100, overflow: 'hidden' },
+  fill: { height: '100%', borderRadius: 100 },
 });
