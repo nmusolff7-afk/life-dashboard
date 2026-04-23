@@ -1,5 +1,8 @@
 from dotenv import load_dotenv
-load_dotenv()
+# override=True: .env is authoritative for this process, ignoring any pre-existing
+# OS-level env vars. Protects against stale User/Machine-scope values on dev machines
+# shadowing the real secrets.
+load_dotenv(override=True)
 
 import os
 import re
@@ -1433,6 +1436,199 @@ def api_momentum_today():
 def api_momentum_history():
     days = int(request.args.get("days", 14))
     return jsonify(get_momentum_history(uid(), days))
+
+
+@app.route("/api/logged-dates")
+@login_required
+def api_logged_dates():
+    """Return sorted ISO dates where the user logged at least one meal or
+    workout, within the last N days (default 90). Used by the mobile StreakBar
+    as the authoritative 'did the user show up today' signal."""
+    days = int(request.args.get("days", 90))
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    from db import get_conn
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT log_date FROM meal_logs    WHERE user_id = ? AND log_date >= ?
+            UNION
+            SELECT log_date FROM workout_logs WHERE user_id = ? AND log_date >= ?
+            ORDER BY log_date
+            """,
+            (uid(), cutoff, uid(), cutoff),
+        ).fetchall()
+    return jsonify([r["log_date"] for r in rows])
+
+
+@app.route("/api/workout-history")
+@login_required
+def api_workout_history():
+    """Individual workout rows within the last N days, newest first.
+    Unlike /api/history's grouped workouts, this keeps ids + logged_at so the
+    mobile History list can offer tap-to-edit / delete on each entry."""
+    days = int(request.args.get("days", 90))
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    from db import get_conn
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, user_id, log_date, logged_at, description, calories_burned
+            FROM workout_logs
+            WHERE user_id = ? AND log_date >= ?
+            ORDER BY log_date DESC, logged_at DESC, id DESC
+            """,
+            (uid(), cutoff),
+        ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/meal-history")
+@login_required
+def api_meal_history():
+    """Individual meal rows within the last N days, newest first. Parallels
+    /api/workout-history — /api/history groups per day and drops ids, which
+    makes tap-to-edit impossible on the mobile History list."""
+    days = int(request.args.get("days", 90))
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    from db import get_conn
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, user_id, log_date, logged_at, description,
+                   calories, protein_g, carbs_g, fat_g, sugar_g, fiber_g, sodium_mg
+            FROM meal_logs
+            WHERE user_id = ? AND log_date >= ?
+            ORDER BY log_date DESC, logged_at DESC, id DESC
+            """,
+            (uid(), cutoff),
+        ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/weight-history")
+@login_required
+def api_weight_history():
+    """Daily weight entries within the last N days, oldest first. Used for the
+    mobile Body-weight trend chart. Returns [{date, weight_lbs}]."""
+    days = int(request.args.get("days", 90))
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    from db import get_conn
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT log_date AS date, weight_lbs
+            FROM daily_activity
+            WHERE user_id = ? AND log_date >= ? AND weight_lbs IS NOT NULL
+            ORDER BY log_date
+            """,
+            (uid(), cutoff),
+        ).fetchall()
+    return jsonify([{"date": r["date"], "weight_lbs": r["weight_lbs"]} for r in rows])
+
+
+@app.route("/api/charts/burn")
+@login_required
+def api_chart_burn():
+    """Per-day total calories burned within the last N days, oldest first.
+    Days with no workouts are omitted. Returns [{date, total_burn}]."""
+    days = int(request.args.get("days", 90))
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    from db import get_conn
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT log_date AS date, COALESCE(SUM(calories_burned), 0) AS total_burn
+            FROM workout_logs
+            WHERE user_id = ? AND log_date >= ?
+            GROUP BY log_date
+            ORDER BY log_date
+            """,
+            (uid(), cutoff),
+        ).fetchall()
+    return jsonify([{"date": r["date"], "total_burn": int(r["total_burn"])} for r in rows])
+
+
+@app.route("/api/charts/calories")
+@login_required
+def api_chart_calories():
+    """Per-day total calories consumed within the last N days, oldest first.
+    Days with no meals are omitted. Returns [{date, calories}]."""
+    days = int(request.args.get("days", 90))
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    from db import get_conn
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT log_date AS date, COALESCE(SUM(calories), 0) AS calories
+            FROM meal_logs
+            WHERE user_id = ? AND log_date >= ?
+            GROUP BY log_date
+            ORDER BY log_date
+            """,
+            (uid(), cutoff),
+        ).fetchall()
+    return jsonify([{"date": r["date"], "calories": int(r["calories"])} for r in rows])
+
+
+@app.route("/api/charts/macros")
+@login_required
+def api_chart_macros():
+    """Per-day macro totals within the last N days, oldest first. Used by
+    the Nutrition Progress macro-trend charts. Returns
+    [{date, protein_g, carbs_g, fat_g}]."""
+    days = int(request.args.get("days", 90))
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    from db import get_conn
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT log_date AS date,
+                   COALESCE(SUM(protein_g), 0) AS protein_g,
+                   COALESCE(SUM(carbs_g),   0) AS carbs_g,
+                   COALESCE(SUM(fat_g),     0) AS fat_g
+            FROM meal_logs
+            WHERE user_id = ? AND log_date >= ?
+            GROUP BY log_date
+            ORDER BY log_date
+            """,
+            (uid(), cutoff),
+        ).fetchall()
+    return jsonify([
+        {
+            "date": r["date"],
+            "protein_g": float(r["protein_g"]),
+            "carbs_g":   float(r["carbs_g"]),
+            "fat_g":     float(r["fat_g"]),
+        }
+        for r in rows
+    ])
+
+
+@app.route("/api/activity-calendar")
+@login_required
+def api_activity_calendar():
+    """Workout type per day within the last N days. Strength / cardio / mixed
+    classification is deferred to the client (shares the mobile classifier) —
+    this endpoint just returns the joined descriptions for each day so the
+    mobile UI can decide the dot color. Returns [{date, descriptions}]."""
+    days = int(request.args.get("days", 90))
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    from db import get_conn
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT log_date AS date, GROUP_CONCAT(description, '|') AS descriptions
+            FROM workout_logs
+            WHERE user_id = ? AND log_date >= ?
+            GROUP BY log_date
+            ORDER BY log_date
+            """,
+            (uid(), cutoff),
+        ).fetchall()
+    return jsonify([
+        {"date": r["date"], "descriptions": (r["descriptions"] or "").split("|") if r["descriptions"] else []}
+        for r in rows
+    ])
 
 
 @app.route("/api/momentum/insight", methods=["POST"])

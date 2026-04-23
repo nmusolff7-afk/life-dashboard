@@ -1,147 +1,168 @@
-import { useAuth, useUser } from '@clerk/clerk-expo';
-import { Image } from 'expo-image';
-import { useState } from 'react';
-import { Button, Platform, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
-import { apiFetch } from '../../lib/api';
-import { clearFlaskToken } from '../../lib/flaskToken';
+import {
+  CategoryScoreCard,
+  FAB,
+  StreakBar,
+  TodayBalanceCard,
+} from '../../components/apex';
+import {
+  useLoggedDates,
+  useProfile,
+  useTodayNutrition,
+  useTodayWorkouts,
+} from '../../lib/hooks/useHomeData';
+import { useTokens } from '../../lib/theme';
+import { useResetScrollOnFocus } from '../../lib/useResetScrollOnFocus';
+
+function todayIso(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 export default function HomeScreen() {
-  const { user } = useUser();
-  const { signOut } = useAuth();
-  const email = user?.primaryEmailAddress?.emailAddress ?? '';
-  const [testResult, setTestResult] = useState<string>('');
-  const [testing, setTesting] = useState(false);
+  const t = useTokens();
+  const router = useRouter();
+  const today = todayIso();
 
-  async function handleSignOut() {
-    clearFlaskToken();
-    await signOut();
-  }
+  const { ref: scrollRef } = useResetScrollOnFocus();
 
-  async function handleTestApi() {
-    setTesting(true);
-    setTestResult('');
+  const nutrition = useTodayNutrition();
+  const workouts = useTodayWorkouts();
+  const profile = useProfile();
+  const loggedDatesApi = useLoggedDates(90);
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
     try {
-      const res = await apiFetch('/api/today-nutrition');
-      const body = await res.text();
-      let display = body;
-      try {
-        display = JSON.stringify(JSON.parse(body), null, 2);
-      } catch {
-        // non-JSON body — show raw
-      }
-      setTestResult(`HTTP ${res.status}\n${display}`);
-    } catch (err) {
-      setTestResult(`ERROR: ${err instanceof Error ? err.message : String(err)}`);
+      await Promise.all([
+        nutrition.refetch(),
+        workouts.refetch(),
+        profile.refetch(),
+        loggedDatesApi.refetch(),
+      ]);
     } finally {
-      setTesting(false);
+      setRefreshing(false);
     }
-  }
+  }, [nutrition, workouts, profile, loggedDatesApi]);
+
+  // Derived values ---------------------------------------------------------
+
+  const loggedDates = useMemo(() => new Set(loggedDatesApi.data ?? []), [loggedDatesApi.data]);
+
+  const totals = nutrition.data?.totals;
+  const burn = workouts.data?.burn ?? 0;
+  const consumed = totals?.total_calories ?? 0;
+  const calorieTarget = profile.data?.goal_targets?.calorie_target ?? profile.data?.daily_calorie_goal ?? null;
+
+  const targets = profile.data?.goal_targets;
+  const macroTargets = {
+    proteinG: targets?.protein_g ?? profile.data?.daily_protein_goal_g ?? null,
+    carbsG: targets?.carbs_g ?? null,
+    fatG: targets?.fat_g ?? null,
+    sugarG: null,
+    fiberG: null,
+    sodiumMg: null,
+  };
+  const macroValues = {
+    proteinG: totals?.total_protein ?? 0,
+    carbsG: totals?.total_carbs ?? 0,
+    fatG: totals?.total_fat ?? 0,
+    sugarG: totals?.total_sugar ?? 0,
+    fiberG: totals?.total_fiber ?? 0,
+    sodiumMg: totals?.total_sodium ?? 0,
+  };
+
+  // Backend-error detection: if core calls fail together, surface a single banner.
+  const backendError = nutrition.error && workouts.error && profile.error;
 
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.authBar}>
-        <ThemedText>Signed in as {email}</ThemedText>
-        <Button title="Sign Out" onPress={handleSignOut} />
-        <Button title={testing ? 'Testing…' : 'Test API'} onPress={handleTestApi} disabled={testing} />
-        {testResult ? <ThemedText style={styles.testResult}>{testResult}</ThemedText> : null}
-      </ThemedView>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <View style={{ flex: 1, backgroundColor: t.bg }}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.muted} />}>
+        {backendError ? (
+          <Pressable
+            onPress={onRefresh}
+            style={[styles.errorBanner, { backgroundColor: 'rgba(255,77,77,0.08)' }]}>
+            <Text style={[styles.errorText, { color: t.danger }]}>
+              ⚠ Can't reach the backend. Pull down to refresh.
+            </Text>
+          </Pressable>
+        ) : null}
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+        <View style={styles.pageHeader}>
+          <Text style={[styles.pageTitle, { color: t.text }]}>Today's Overview</Text>
+          <Text style={[styles.pageSubtitle, { color: t.muted }]}>
+            Your daily snapshot at a glance
+          </Text>
+        </View>
+
+        <StreakBar loggedDates={loggedDates} today={today} days={90} />
+
+        <View style={styles.horizPad}>
+          <TodayBalanceCard
+            caloriesConsumed={consumed}
+            calorieTarget={calorieTarget}
+            tdee={profile.data?.rmr_kcal ?? null}
+            macroValues={macroValues}
+            macroTargets={macroTargets}
+            empty={(nutrition.data?.meals.length ?? 0) === 0}
+            meals={nutrition.data?.meals ?? []}
+            workouts={workouts.data?.workouts ?? []}
+            onGoalsPress={() => router.push('/goals')}
+          />
+        </View>
+
+        <View style={styles.catGrid}>
+          <CategoryScoreCard
+            label="Fitness"
+            color={t.fitness}
+            score={null}
+            onPress={() => router.push('/(tabs)/fitness')}
+          />
+          <CategoryScoreCard
+            label="Nutrition"
+            color={t.nutrition}
+            score={null}
+            onPress={() => router.push('/(tabs)/nutrition')}
+          />
+          <CategoryScoreCard
+            label="Finance"
+            color={t.finance}
+            score={null}
+            onPress={() => router.push('/(tabs)/finance')}
+          />
+          <CategoryScoreCard
+            label="Time"
+            color={t.time}
+            score={null}
+            onPress={() => router.push('/(tabs)/time')}
+          />
+        </View>
+      </ScrollView>
+      <FAB />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  authBar: {
-    gap: 8,
-    marginBottom: 12,
-  },
-  testResult: {
-    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
-    fontSize: 11,
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
+  content: { paddingTop: 8, paddingBottom: 96, gap: 14 },
+  horizPad: { paddingHorizontal: 16 },
+
+  pageHeader: { alignItems: 'center', paddingHorizontal: 18, paddingTop: 4, paddingBottom: 2 },
+  pageTitle: { fontSize: 24, fontWeight: '700', letterSpacing: 0.1, lineHeight: 28 },
+  pageSubtitle: { fontSize: 13, marginTop: 4 },
+
+  catGrid: { paddingHorizontal: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+
+  errorBanner: { marginHorizontal: 16, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16 },
+  errorText: { fontSize: 14, fontWeight: '500' },
 });
