@@ -99,9 +99,7 @@ export default function TabLayout() {
   if (onboarding === 'incomplete') return <Redirect href="/(onboarding)/biometric" />;
 
   const firstName = profile.data?.first_name?.trim();
-  const headerTitle = firstName
-    ? `${firstName.toUpperCase()}'S DASHBOARD`
-    : 'YOUR DASHBOARD';
+  const headerTitle = firstName ? `${firstName}'s Dashboard` : 'Your Dashboard';
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
