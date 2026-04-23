@@ -19,3 +19,4 @@ export { BurnTrendCard } from './BurnTrendCard';
 export { WeightTrendCard } from './WeightTrendCard';
 export { ActivityCalendar } from './ActivityCalendar';
 export { StrengthTrackerModal } from './StrengthTrackerModal';
+export { SubsystemsCard } from './SubsystemsCard';

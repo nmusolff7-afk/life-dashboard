@@ -12,6 +12,7 @@ import {
   SavedWorkoutsStrip,
   StatCard,
   StrengthTrackerModal,
+  SubsystemsCard,
   SubTabs,
   TodayWorkoutsList,
   WeightTrendCard,
@@ -28,36 +29,6 @@ import {
 import { useTokens } from '../../lib/theme';
 
 type Tab = 'today' | 'progress' | 'history';
-
-interface SubsystemCardProps {
-  name: string;
-  description: string;
-  onPress?: () => void;
-}
-
-function SubsystemCard({ name, description, onPress }: SubsystemCardProps) {
-  const t = useTokens();
-  const Container: React.ElementType = onPress ? Pressable : View;
-  return (
-    <Container
-      onPress={onPress}
-      style={[styles.subCard, { backgroundColor: t.surface, borderColor: t.border }]}>
-      <Text style={[styles.subTitle, { color: t.text }]}>{name}</Text>
-      <Text style={[styles.subScore, { color: t.subtle }]}>—</Text>
-      <Text style={[styles.subHint, { color: t.muted }]}>{description}</Text>
-    </Container>
-  );
-}
-
-const SUBSYSTEMS: { name: string; description: string }[] = [
-  { name: 'Body', description: 'Weight trend, body composition' },
-  { name: 'Strength', description: 'Strength consistency & progression' },
-  { name: 'Cardio', description: 'Cardio volume & heart rate zones' },
-  { name: 'Movement', description: 'Daily steps, NEAT, active time' },
-  { name: 'Sleep', description: 'Duration & efficiency (HealthKit)' },
-  { name: 'Recovery', description: 'HRV & readiness (HealthKit)' },
-  { name: 'Plan', description: 'Workout plan adherence' },
-];
 
 export default function FitnessScreen() {
   const t = useTokens();
@@ -89,8 +60,6 @@ export default function FitnessScreen() {
     }
   };
 
-  // Any mutation that touches a workout (log / edit / delete) needs to
-  // refresh both today's list and the 90-day history list.
   const refreshAllWorkouts = () => {
     workouts.refetch();
     history.refetch();
@@ -125,6 +94,37 @@ export default function FitnessScreen() {
               </Text>
             </View>
 
+            <Pressable
+              onPress={() => setTrackerOpen(true)}
+              style={({ pressed }) => [
+                styles.startStrengthBtn,
+                { backgroundColor: t.accent, opacity: pressed ? 0.85 : 1 },
+              ]}>
+              <Ionicons name="barbell" size={18} color="#fff" />
+              <Text style={styles.startStrengthLabel}>Start strength session</Text>
+            </Pressable>
+
+            <LogActivityCard
+              onLogged={refreshAllWorkouts}
+              onTemplateSaved={saved.refetch}
+            />
+
+            <SavedWorkoutsStrip
+              saved={saved.data ?? []}
+              onLogged={refreshAllWorkouts}
+              onRemoved={saved.refetch}
+            />
+
+            <TodayWorkoutsList workouts={todayWorkouts} onChanged={refreshAllWorkouts} />
+
+            <SubsystemsCard
+              profile={profile.data}
+              weightLbs={weight}
+              todayStepsState={{ steps: stepsState.steps }}
+              recentWorkouts={history.data ?? []}
+              onStartStrength={() => setTrackerOpen(true)}
+            />
+
             <View style={styles.statRow}>
               <StatCard
                 label="Weight"
@@ -140,41 +140,6 @@ export default function FitnessScreen() {
                 style={styles.statHalf}
               />
             </View>
-
-            <Pressable
-              onPress={() => setTrackerOpen(true)}
-              style={({ pressed }) => [
-                styles.startStrengthBtn,
-                { backgroundColor: t.accent, opacity: pressed ? 0.85 : 1 },
-              ]}>
-              <Ionicons name="barbell" size={18} color="#fff" />
-              <Text style={styles.startStrengthLabel}>Start strength session</Text>
-            </Pressable>
-
-            <SavedWorkoutsStrip
-              saved={saved.data ?? []}
-              onLogged={refreshAllWorkouts}
-              onRemoved={saved.refetch}
-            />
-
-            <LogActivityCard
-              onLogged={refreshAllWorkouts}
-              onTemplateSaved={saved.refetch}
-            />
-
-            <TodayWorkoutsList workouts={todayWorkouts} onChanged={refreshAllWorkouts} />
-
-            <Text style={[styles.subsystemsLabel, { color: t.muted }]}>Subsystems</Text>
-            <View style={styles.subsystems}>
-              {SUBSYSTEMS.map((s) => (
-                <SubsystemCard
-                  key={s.name}
-                  name={s.name}
-                  description={s.description}
-                  onPress={s.name === 'Plan' ? () => setTrackerOpen(true) : undefined}
-                />
-              ))}
-            </View>
           </>
         ) : null}
 
@@ -186,7 +151,7 @@ export default function FitnessScreen() {
             <EmptyState
               icon="🏋️"
               title="Strength progression"
-              description="Per-lift top-set charts ship in Phase 4 — needs per-set data (workout_logs schema change)."
+              description="Per-lift top-set charts need per-set data (workout_logs schema change)."
             />
           </>
         ) : null}
@@ -240,9 +205,6 @@ const styles = StyleSheet.create({
   scoreLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 4 },
   scoreHint: { fontSize: 12, textAlign: 'center', marginTop: 2 },
 
-  statRow: { flexDirection: 'row', gap: 10 },
-  statHalf: { flexBasis: '48%', flexGrow: 1 },
-
   startStrengthBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -253,17 +215,6 @@ const styles = StyleSheet.create({
   },
   startStrengthLabel: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
-  subsystemsLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 1.1,
-    marginTop: 4,
-    paddingHorizontal: 2,
-  },
-  subsystems: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  subCard: { flexBasis: '48%', flexGrow: 1, borderWidth: 1, borderRadius: 20, padding: 16, gap: 4 },
-  subTitle: { fontSize: 14, fontWeight: '700' },
-  subScore: { fontSize: 26, fontWeight: '700' },
-  subHint: { fontSize: 11 },
+  statRow: { flexDirection: 'row', gap: 10 },
+  statHalf: { flexBasis: '48%', flexGrow: 1 },
 });
