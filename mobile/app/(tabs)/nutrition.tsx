@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
+  CalorieBalanceChart,
   CalorieRingCard,
-  EmptyState,
+  CaloriesConsumedChart,
   FAB,
   LogMealCard,
+  MacroTrendsCard,
   MealHistoryList,
   NutritionMacrosCard,
   RecentMealsChips,
@@ -134,11 +136,11 @@ export default function NutritionScreen() {
         ) : null}
 
         {tab === 'progress' ? (
-          <EmptyState
-            icon="📊"
-            title="Calorie & macro trends"
-            description="7 / 30 / 90-day charts land in Nutrition Phase 3 (needs 2 new Flask chart endpoints)."
-          />
+          <>
+            <CalorieBalanceChart />
+            <CaloriesConsumedChart />
+            <MacroTrendsCard />
+          </>
         ) : null}
 
         {tab === 'history' ? (

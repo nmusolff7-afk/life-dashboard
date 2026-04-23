@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import type {
   ActivityCalendarDay,
   BurnChartPoint,
+  CalorieChartPoint,
+  MacroChartPoint,
   Meal,
   ProfileResponse,
   SavedMeal,
@@ -45,6 +47,12 @@ export const useWeightHistory = (days = 90): ApiState<WeightHistoryPoint[]> =>
 
 export const useBurnChart = (days = 90): ApiState<BurnChartPoint[]> =>
   useApi<BurnChartPoint[]>(`/api/charts/burn?days=${days}`);
+
+export const useCalorieChart = (days = 90): ApiState<CalorieChartPoint[]> =>
+  useApi<CalorieChartPoint[]>(`/api/charts/calories?days=${days}`);
+
+export const useMacroChart = (days = 90): ApiState<MacroChartPoint[]> =>
+  useApi<MacroChartPoint[]>(`/api/charts/macros?days=${days}`);
 
 export const useActivityCalendar = (days = 90): ApiState<ActivityCalendarDay[]> =>
   useApi<ActivityCalendarDay[]>(`/api/activity-calendar?days=${days}`);

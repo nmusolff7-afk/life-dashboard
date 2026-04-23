@@ -1548,6 +1548,62 @@ def api_chart_burn():
     return jsonify([{"date": r["date"], "total_burn": int(r["total_burn"])} for r in rows])
 
 
+@app.route("/api/charts/calories")
+@login_required
+def api_chart_calories():
+    """Per-day total calories consumed within the last N days, oldest first.
+    Days with no meals are omitted. Returns [{date, calories}]."""
+    days = int(request.args.get("days", 90))
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    from db import get_conn
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT log_date AS date, COALESCE(SUM(calories), 0) AS calories
+            FROM meal_logs
+            WHERE user_id = ? AND log_date >= ?
+            GROUP BY log_date
+            ORDER BY log_date
+            """,
+            (uid(), cutoff),
+        ).fetchall()
+    return jsonify([{"date": r["date"], "calories": int(r["calories"])} for r in rows])
+
+
+@app.route("/api/charts/macros")
+@login_required
+def api_chart_macros():
+    """Per-day macro totals within the last N days, oldest first. Used by
+    the Nutrition Progress macro-trend charts. Returns
+    [{date, protein_g, carbs_g, fat_g}]."""
+    days = int(request.args.get("days", 90))
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    from db import get_conn
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT log_date AS date,
+                   COALESCE(SUM(protein_g), 0) AS protein_g,
+                   COALESCE(SUM(carbs_g),   0) AS carbs_g,
+                   COALESCE(SUM(fat_g),     0) AS fat_g
+            FROM meal_logs
+            WHERE user_id = ? AND log_date >= ?
+            GROUP BY log_date
+            ORDER BY log_date
+            """,
+            (uid(), cutoff),
+        ).fetchall()
+    return jsonify([
+        {
+            "date": r["date"],
+            "protein_g": float(r["protein_g"]),
+            "carbs_g":   float(r["carbs_g"]),
+            "fat_g":     float(r["fat_g"]),
+        }
+        for r in rows
+    ])
+
+
 @app.route("/api/activity-calendar")
 @login_required
 def api_activity_calendar():

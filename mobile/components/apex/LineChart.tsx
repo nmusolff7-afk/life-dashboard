@@ -20,6 +20,14 @@ interface Props {
   /** Optional fixed y-axis min/max. Defaults to data range with 10% padding. */
   yMin?: number;
   yMax?: number;
+  /** If set, draws a horizontal dashed reference line at this y-value
+   *  (e.g. a calorie / protein target overlay). */
+  targetLine?: number | null;
+  /** Color for the target line (defaults to accent). */
+  targetColor?: string;
+  /** Draws a horizontal solid line at y=0 — used by the Daily Calorie Balance
+   *  chart to anchor positive (surplus) vs negative (deficit) days. */
+  zeroLine?: boolean;
   /** Short labels under the start / end of the x-axis (e.g. "7 days ago" / "today"). */
   startLabel?: string;
   endLabel?: string;
@@ -39,6 +47,9 @@ export function LineChart({
   showTrend = false,
   yMin,
   yMax,
+  targetLine = null,
+  targetColor,
+  zeroLine = false,
   startLabel,
   endLabel,
   inset = DEFAULT_INSET,
@@ -47,12 +58,18 @@ export function LineChart({
   // Measured by onLayout; default to 300 so it renders something on first tick.
   const width = 320;
 
-  const { linePath, trendLine, pts, yScaleMin, yScaleMax } = useMemo(() => {
-    if (data.length === 0) return { linePath: '', trendLine: null, pts: [], yScaleMin: 0, yScaleMax: 1 };
+  const { linePath, trendLine, pts, yScaleMin, yScaleMax, targetY, zeroY } = useMemo(() => {
+    if (data.length === 0) {
+      return { linePath: '', trendLine: null, pts: [], yScaleMin: 0, yScaleMax: 1, targetY: null, zeroY: null };
+    }
 
     const ys = data.map((d) => d.y);
-    const minY = yMin ?? Math.min(...ys);
-    const maxY = yMax ?? Math.max(...ys);
+    // Reference lines must sit inside the y-range so they render visibly.
+    const referenceYs: number[] = [];
+    if (targetLine != null) referenceYs.push(targetLine);
+    if (zeroLine) referenceYs.push(0);
+    const minY = yMin ?? Math.min(...ys, ...referenceYs);
+    const maxY = yMax ?? Math.max(...ys, ...referenceYs);
     const range = maxY - minY || 1;
     const padded = range * 0.1;
     const yLo = yMin ?? minY - padded;
@@ -89,8 +106,21 @@ export function LineChart({
       trend = { x1: inset.left, y1: yStP, x2: inset.left + (n - 1) * xStep, y2: yEnP };
     }
 
-    return { linePath: path, trendLine: trend, pts, yScaleMin: yLo, yScaleMax: yHi };
-  }, [data, height, inset.bottom, inset.left, inset.right, inset.top, showTrend, yMax, yMin]);
+    const plotH2 = height - inset.top - inset.bottom;
+    const toYPx = (v: number) => inset.top + plotH2 - ((v - yLo) / (yHi - yLo)) * plotH2;
+    const targetYpx = targetLine != null ? toYPx(targetLine) : null;
+    const zeroYpx = zeroLine ? toYPx(0) : null;
+
+    return {
+      linePath: path,
+      trendLine: trend,
+      pts,
+      yScaleMin: yLo,
+      yScaleMax: yHi,
+      targetY: targetYpx,
+      zeroY: zeroYpx,
+    };
+  }, [data, height, inset.bottom, inset.left, inset.right, inset.top, showTrend, yMax, yMin, targetLine, zeroLine]);
 
   if (data.length === 0) {
     return (
@@ -122,6 +152,33 @@ export function LineChart({
             />
           );
         })}
+
+        {/* Zero reference line (for balance charts that cross zero). */}
+        {zeroY != null ? (
+          <Line
+            x1={inset.left}
+            y1={zeroY}
+            x2={width - inset.right}
+            y2={zeroY}
+            stroke={t.muted}
+            strokeWidth={1}
+            opacity={0.4}
+          />
+        ) : null}
+
+        {/* Target overlay line (dashed). */}
+        {targetY != null ? (
+          <Line
+            x1={inset.left}
+            y1={targetY}
+            x2={width - inset.right}
+            y2={targetY}
+            stroke={targetColor ?? t.accent}
+            strokeWidth={1.5}
+            strokeDasharray="5 4"
+            opacity={0.8}
+          />
+        ) : null}
 
         {/* Line */}
         <Path d={linePath} stroke={color} strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />

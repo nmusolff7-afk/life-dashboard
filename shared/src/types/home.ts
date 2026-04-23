@@ -117,6 +117,18 @@ export interface BurnChartPoint {
   total_burn: number;
 }
 
+export interface CalorieChartPoint {
+  date: string;
+  calories: number;
+}
+
+export interface MacroChartPoint {
+  date: string;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+}
+
 export interface ActivityCalendarDay {
   date: string;
   /** Raw workout descriptions for that day — classified client-side into

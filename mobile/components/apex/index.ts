@@ -28,3 +28,6 @@ export { LogMealCard } from './LogMealCard';
 export { TodayMealsList } from './TodayMealsList';
 export { MealEditSheet } from './MealEditSheet';
 export { MealHistoryList } from './MealHistoryList';
+export { CalorieBalanceChart } from './CalorieBalanceChart';
+export { CaloriesConsumedChart } from './CaloriesConsumedChart';
+export { MacroTrendsCard } from './MacroTrendsCard';
