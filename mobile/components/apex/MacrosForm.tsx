@@ -7,18 +7,17 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 
 import type { GoalKey, OnboardingDataResponse, ProfileResponse } from '../../../shared/src/types/home';
 import {
   computeTargets,
-  getGoalConfig,
   GOAL_CONFIGS,
 } from '../../../shared/src/logic/targets';
 import { updateGoal } from '../../lib/api/profile';
 import { useTokens } from '../../lib/theme';
+import { SliderRow } from './SliderRow';
 
 interface Props {
   onboarding: OnboardingDataResponse | null;
@@ -44,18 +43,18 @@ export function MacrosForm({ onboarding, profile, onSaved }: Props) {
   const t = useTokens();
   const saved = onboarding?.saved ?? null;
 
-  // Goal + body stats needed to compute suggestions.
   const [goal, setGoal] = useState<GoalKey>('lose_weight');
-  const [calorieTarget, setCalorieTarget] = useState('');
-  const [protein, setProtein] = useState('');
-  const [carbs, setCarbs] = useState('');
-  const [fat, setFat] = useState('');
-  const [sugar, setSugar] = useState('');
-  const [fiber, setFiber] = useState('');
-  const [sodium, setSodium] = useState('');
+  /** Deficit, in kcal/day. Negative = cut, positive = bulk, 0 = maintain.
+   *  Flask computes target = max(burn + deficit, rmr). */
+  const [deficit, setDeficit] = useState(0);
+  const [protein, setProtein] = useState(150);
+  const [carbs, setCarbs] = useState(200);
+  const [fat, setFat] = useState(65);
+  const [sugar, setSugar] = useState(50);
+  const [fiber, setFiber] = useState(30);
+  const [sodium, setSodium] = useState(2300);
   const [saving, setSaving] = useState(false);
 
-  // Resolve body stats from onboarding raw_inputs (preferred) then profile.
   const bodyStats = useMemo(() => {
     const weightLbs = (saved?.current_weight_lbs as number | undefined) ?? profile?.current_weight_lbs ?? null;
     const targetLbs = (saved?.target_weight_lbs as number | undefined) ?? profile?.target_weight_lbs ?? null;
@@ -72,7 +71,6 @@ export function MacrosForm({ onboarding, profile, onSaved }: Props) {
     return { weightLbs, targetLbs: targetLbs ?? undefined, heightFt, heightIn, sex, age, bf };
   }, [saved, profile]);
 
-  // Goal-driven suggestions via shared logic.
   const suggestion = useMemo(() => {
     if (!bodyStats) return null;
     return computeTargets({
@@ -87,7 +85,13 @@ export function MacrosForm({ onboarding, profile, onSaved }: Props) {
     });
   }, [goal, bodyStats]);
 
-  // Seed saved targets (from the server) or fall back to the fresh suggestion.
+  // RMR is the Flask TDEE proxy used by /api/goal/update.
+  const burn = suggestion?.rmr ?? 0;
+  const suggestedDeficit = suggestion ? suggestion.deficitSurplus : 0;
+  // Live calorie-target = max(burn + deficit, rmr), matching Flask.
+  const calorieTarget = Math.max(burn + deficit, burn > 0 ? burn : 0);
+
+  // Seed goal + sliders when data loads.
   useEffect(() => {
     if (profile?.primary_goal && GOAL_ORDER.includes(profile.primary_goal as GoalKey)) {
       setGoal(profile.primary_goal as GoalKey);
@@ -97,81 +101,60 @@ export function MacrosForm({ onboarding, profile, onSaved }: Props) {
   }, [profile?.primary_goal, saved?.primary_goal]);
 
   useEffect(() => {
-    // Prefer server-saved goal_targets (user_goals row); else fall back to suggestion.
     const gt = profile?.goal_targets;
     if (gt) {
-      setCalorieTarget(String(gt.calorie_target));
-      setProtein(String(gt.protein_g));
-      setCarbs(String(gt.carbs_g));
-      setFat(String(gt.fat_g));
-      setSugar('');
-      setFiber('');
-      setSodium('');
+      // Server has saved targets — use them. Deficit is derived from
+      // goal_targets.calorie_target vs rmr.
+      if (gt.calorie_target != null && gt.rmr != null) {
+        setDeficit(gt.calorie_target - gt.rmr);
+      }
+      setProtein(gt.protein_g ?? 150);
+      setCarbs(gt.carbs_g ?? 200);
+      setFat(gt.fat_g ?? 65);
     } else if (suggestion) {
-      setCalorieTarget(String(suggestion.calorieTarget));
-      setProtein(String(suggestion.proteinG));
-      setCarbs(String(suggestion.carbsG));
-      setFat(String(suggestion.fatG));
+      setDeficit(suggestion.deficitSurplus);
+      setProtein(suggestion.proteinG);
+      setCarbs(suggestion.carbsG);
+      setFat(suggestion.fatG);
     }
   }, [profile?.goal_targets, suggestion]);
 
-  // ── Derived: macro-kcal breakdown ───────────────────────────────────────
-
   const breakdown = useMemo(() => {
-    const p = parseFloat(protein) || 0;
-    const c = parseFloat(carbs) || 0;
-    const f = parseFloat(fat) || 0;
-    const kcal = p * 4 + c * 4 + f * 9;
-    const target = parseFloat(calorieTarget) || 0;
-    return { kcal, delta: kcal - target };
+    const kcal = protein * 4 + carbs * 4 + fat * 9;
+    return { kcal, delta: kcal - calorieTarget };
   }, [protein, carbs, fat, calorieTarget]);
-
-  // ── Actions ─────────────────────────────────────────────────────────────
 
   const applySuggestion = () => {
     if (!suggestion) return;
-    setCalorieTarget(String(suggestion.calorieTarget));
-    setProtein(String(suggestion.proteinG));
-    setCarbs(String(suggestion.carbsG));
-    setFat(String(suggestion.fatG));
+    setDeficit(suggestion.deficitSurplus);
+    setProtein(suggestion.proteinG);
+    setCarbs(suggestion.carbsG);
+    setFat(suggestion.fatG);
+    setSugar(50);
+    setFiber(30);
+    setSodium(2300);
   };
 
   const handleSave = async () => {
-    const target = parseFloat(calorieTarget);
-    const p = parseFloat(protein);
-    const c = parseFloat(carbs);
-    const f = parseFloat(fat);
-    if (!Number.isFinite(target) || target < 800) {
-      Alert.alert('Check calorie target', 'Enter a valid daily calorie target (≥ 800).');
-      return;
-    }
-    if (!Number.isFinite(p) || p < 0 || !Number.isFinite(c) || c < 0 || !Number.isFinite(f) || f < 0) {
-      Alert.alert('Check macros', 'Protein / carbs / fat must be non-negative numbers.');
-      return;
-    }
     if (!suggestion) {
-      Alert.alert('Missing body stats', 'Fill out Body Stats first so we know your RMR.');
+      Alert.alert('Missing body stats', 'Fill out Body Stats first so we know your burn.');
       return;
     }
-
     setSaving(true);
     try {
-      // /api/goal/update expects rmr + deficit; Flask computes target = rmr + deficit.
-      // We send the user's chosen calorie target as (rmr, deficit = target - rmr).
-      const deficit = Math.round(target - suggestion.rmr);
       await updateGoal({
         goal,
         rmr: suggestion.rmr,
-        deficit,
-        protein: Math.round(p),
-        carbs: Math.round(c),
-        fat: Math.round(f),
-        sugar: parseFloat(sugar) || undefined,
-        fiber: parseFloat(fiber) || undefined,
-        sodium: parseFloat(sodium) || undefined,
+        deficit: Math.round(deficit),
+        protein: Math.round(protein),
+        carbs: Math.round(carbs),
+        fat: Math.round(fat),
+        sugar: Math.round(sugar),
+        fiber: Math.round(fiber),
+        sodium: Math.round(sodium),
       });
       await onSaved();
-      Alert.alert('Saved', 'Your calorie + macro targets are updated. The Nutrition ring will reflect them.');
+      Alert.alert('Saved', 'Your deficit + macro targets are updated. The Nutrition ring will reflect them.');
     } catch (e) {
       Alert.alert('Save failed', e instanceof Error ? e.message : String(e));
     } finally {
@@ -179,13 +162,13 @@ export function MacrosForm({ onboarding, profile, onSaved }: Props) {
     }
   };
 
-  // ── Render ──────────────────────────────────────────────────────────────
+  const deltaColor =
+    Math.abs(breakdown.delta) <= 50 ? t.green : Math.abs(breakdown.delta) <= 150 ? t.amber : t.danger;
 
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text style={[styles.lead, { color: t.muted }]}>
-        Flask computes suggested targets from your goal + body stats. Override any value — the
-        Nutrition ring picks up the new target immediately.
+        Your daily calorie target = <Text style={{ fontWeight: '700' }}>burn + deficit</Text>, floored at your RMR so you never go below maintenance.
       </Text>
 
       {/* Goal picker */}
@@ -217,97 +200,100 @@ export function MacrosForm({ onboarding, profile, onSaved }: Props) {
         </View>
       </Section>
 
-      {/* Suggestion banner */}
+      {/* Live target card */}
       {suggestion ? (
-        <View style={[styles.suggestion, { backgroundColor: t.surface, borderColor: t.border }]}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.suggestionTitle, { color: t.muted }]}>Suggested</Text>
-            <Text style={[styles.suggestionVal, { color: t.text }]}>
-              {suggestion.calorieTarget.toLocaleString()}{' '}
-              <Text style={[styles.suggestionUnit, { color: t.muted }]}>kcal</Text>
-            </Text>
-            <Text style={[styles.suggestionMacros, { color: t.muted }]}>
-              P {suggestion.proteinG}g · C {suggestion.carbsG}g · F {suggestion.fatG}g
-            </Text>
+        <View style={[styles.targetCard, { backgroundColor: t.surface, shadowColor: '#000' }]}>
+          <View style={styles.targetRow}>
+            <TargetCell label="Burn" value={burn} color={t.fitness} />
+            <Text style={[styles.op, { color: t.muted }]}>{deficit >= 0 ? '+' : '−'}</Text>
+            <TargetCell
+              label={deficit >= 0 ? 'Surplus' : 'Deficit'}
+              value={Math.abs(deficit)}
+              color={deficit > 0 ? t.cal : deficit < 0 ? t.green : t.muted}
+            />
+            <Text style={[styles.op, { color: t.muted }]}>=</Text>
+            <TargetCell label="Target" value={calorieTarget} color={t.text} bold />
           </View>
-          <Pressable
-            onPress={applySuggestion}
-            style={[styles.suggestBtn, { backgroundColor: t.accent }]}>
-            <Ionicons name="sparkles" size={13} color="#fff" />
-            <Text style={styles.suggestBtnLabel}>Apply</Text>
+          <Pressable onPress={applySuggestion} style={[styles.suggestBtn, { backgroundColor: t.surface2 }]}>
+            <Ionicons name="sparkles-outline" size={13} color={t.accent} />
+            <Text style={[styles.suggestBtnLabel, { color: t.accent }]}>
+              Apply suggested ({suggestedDeficit >= 0 ? '+' : ''}{suggestedDeficit} kcal)
+            </Text>
           </Pressable>
         </View>
       ) : (
         <Text style={[styles.needStats, { color: t.danger }]}>
-          Missing body stats — fill them in first so we can compute suggested targets.
+          Missing body stats — fill them in first so we can compute your burn.
         </Text>
       )}
 
-      {/* Calorie target */}
-      <Section title="Calories">
-        <NumberInput
-          label="Daily calorie target"
-          value={calorieTarget}
-          onChange={setCalorieTarget}
-          unit="kcal"
-          suggested={suggestion ? suggestion.calorieTarget : undefined}
+      {/* Deficit slider */}
+      <Section title="Daily deficit / surplus">
+        <SliderRow
+          label="vs burn"
+          value={deficit}
+          onChange={setDeficit}
+          min={-1000}
+          max={500}
+          step={25}
+          color={deficit > 0 ? t.cal : deficit < 0 ? t.green : t.muted}
+          format={(n) => `${n >= 0 ? '+' : ''}${Math.round(n)} kcal`}
+          hint={suggestion ? `Suggested ${suggestedDeficit >= 0 ? '+' : ''}${suggestedDeficit}` : undefined}
         />
       </Section>
 
       {/* Macros */}
       <Section title="Macros">
-        <NumberInput
+        <SliderRow
           label="Protein"
           value={protein}
           onChange={setProtein}
-          unit="g"
-          suggested={suggestion?.proteinG}
+          min={50}
+          max={300}
+          step={5}
           color={t.protein}
+          unit="g"
+          hint={suggestion ? `Suggested ${suggestion.proteinG}g` : undefined}
         />
-        <NumberInput
+        <SliderRow
           label="Carbs"
           value={carbs}
           onChange={setCarbs}
-          unit="g"
-          suggested={suggestion?.carbsG}
+          min={50}
+          max={500}
+          step={5}
           color={t.carbs}
+          unit="g"
+          hint={suggestion ? `Suggested ${suggestion.carbsG}g` : undefined}
         />
-        <NumberInput
+        <SliderRow
           label="Fat"
           value={fat}
           onChange={setFat}
-          unit="g"
-          suggested={suggestion?.fatG}
+          min={20}
+          max={200}
+          step={5}
           color={t.fat}
+          unit="g"
+          hint={suggestion ? `Suggested ${suggestion.fatG}g` : undefined}
         />
         <View style={[styles.breakdown, { backgroundColor: t.surface2, borderColor: t.border }]}>
           <Text style={[styles.breakdownLabel, { color: t.muted }]}>Macro total</Text>
-          <Text
-            style={[
-              styles.breakdownValue,
-              {
-                color:
-                  Math.abs(breakdown.delta) <= 50
-                    ? t.green
-                    : Math.abs(breakdown.delta) <= 150
-                      ? t.amber
-                      : t.danger,
-              },
-            ]}>
+          <Text style={[styles.breakdownValue, { color: deltaColor }]}>
             {breakdown.kcal.toLocaleString()} kcal{'  '}
             <Text style={[styles.breakdownDelta, { color: t.muted }]}>
               ({breakdown.delta >= 0 ? '+' : ''}
-              {breakdown.delta.toFixed(0)} vs target)
+              {Math.round(breakdown.delta)} vs target)
             </Text>
           </Text>
         </View>
       </Section>
 
-      {/* Micros — optional */}
-      <Section title="Micros (optional)">
-        <NumberInput label="Sugar" value={sugar} onChange={setSugar} unit="g" color={t.sugar} placeholder="50" />
-        <NumberInput label="Fiber" value={fiber} onChange={setFiber} unit="g" color={t.fiber} placeholder="30" />
-        <NumberInput label="Sodium" value={sodium} onChange={setSodium} unit="mg" color={t.sodium} placeholder="2300" />
+      {/* Micros */}
+      <Section title="Micros">
+        <SliderRow label="Sugar"  value={sugar}  onChange={setSugar}  min={0} max={150}  step={5}  color={t.sugar}  unit="g" />
+        <SliderRow label="Fiber"  value={fiber}  onChange={setFiber}  min={10} max={80}  step={1}  color={t.fiber}  unit="g" />
+        <SliderRow label="Sodium" value={sodium} onChange={setSodium} min={500} max={5000} step={50} color={t.sodium} unit="mg" />
       </Section>
 
       <Pressable
@@ -327,8 +313,6 @@ export function MacrosForm({ onboarding, profile, onSaved }: Props) {
   );
 }
 
-// ── Subcomponents ────────────────────────────────────────────────────────
-
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   const t = useTokens();
   return (
@@ -339,51 +323,14 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function NumberInput({
-  label,
-  value,
-  onChange,
-  unit,
-  suggested,
-  color,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  unit?: string;
-  suggested?: number;
-  color?: string;
-  placeholder?: string;
-}) {
+function TargetCell({ label, value, color, bold }: { label: string; value: number; color: string; bold?: boolean }) {
   const t = useTokens();
   return (
-    <View style={styles.numberRow}>
-      <View style={styles.numberHeader}>
-        <Text style={[styles.numberLabel, { color: color ?? t.text }]}>{label}</Text>
-        {suggested != null ? (
-          <Pressable onPress={() => onChange(String(suggested))}>
-            <Text style={[styles.numberSuggest, { color: t.accent }]}>
-              suggested {suggested}
-              {unit ? ` ${unit}` : ''}
-            </Text>
-          </Pressable>
-        ) : null}
-      </View>
-      <View style={styles.numberInputWrap}>
-        <TextInput
-          value={value}
-          onChangeText={onChange}
-          keyboardType="decimal-pad"
-          placeholder={placeholder ?? '0'}
-          placeholderTextColor={t.subtle}
-          style={[
-            styles.numberInput,
-            { color: t.text, backgroundColor: t.surface2, borderColor: t.border },
-          ]}
-        />
-        {unit ? <Text style={[styles.numberUnit, { color: t.muted }]}>{unit}</Text> : null}
-      </View>
+    <View style={styles.cell}>
+      <Text style={[styles.cellLabel, { color: t.muted }]}>{label}</Text>
+      <Text style={[styles.cellValue, { color, fontWeight: bold ? '800' : '700' }]}>
+        {Math.round(value).toLocaleString()}
+      </Text>
     </View>
   );
 }
@@ -409,45 +356,32 @@ const styles = StyleSheet.create({
   goalLabel: { fontSize: 13 },
   goalAdjust: { fontSize: 11, fontWeight: '500' },
 
-  suggestion: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderWidth: 1,
-    borderRadius: 14,
+  targetCard: {
+    borderRadius: 16,
     padding: 14,
+    gap: 12,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.45,
+    shadowRadius: 20,
+    elevation: 2,
   },
-  suggestionTitle: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 },
-  suggestionVal: { fontSize: 22, fontWeight: '700', marginTop: 2 },
-  suggestionUnit: { fontSize: 12, fontWeight: '500' },
-  suggestionMacros: { fontSize: 12, fontWeight: '500', marginTop: 2 },
+  targetRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 },
+  cell: { alignItems: 'center', flex: 1 },
+  cellLabel: { fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 },
+  cellValue: { fontSize: 20, marginTop: 2 },
+  op: { fontSize: 18, fontWeight: '600' },
+
   suggestBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
-    paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
   },
-  suggestBtnLabel: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  suggestBtnLabel: { fontSize: 12, fontWeight: '700' },
 
   needStats: { fontSize: 13, paddingHorizontal: 2 },
-
-  numberRow: { gap: 4 },
-  numberHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  numberLabel: { fontSize: 13, fontWeight: '600' },
-  numberSuggest: { fontSize: 11, fontWeight: '600' },
-  numberInputWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  numberInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  numberUnit: { fontSize: 13, fontWeight: '500', minWidth: 36 },
 
   breakdown: {
     flexDirection: 'row',

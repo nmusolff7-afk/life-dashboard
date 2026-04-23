@@ -18,8 +18,7 @@ export default function ProfileIndex() {
         <SettingsRow title="Body stats" hint="Height, weight, birthday, sex, body fat" onPress={() => router.push('/settings/profile/body-stats')} />
         <SettingsRow title="Daily life" hint="Occupation, work style, stress" onPress={() => router.push('/settings/profile/daily-life')} />
         <SettingsRow title="Diet preferences" hint="Flags for next AI profile regeneration" onPress={() => router.push('/settings/profile/diet')} />
-        <SettingsRow title="Macro targets" hint="Protein / carbs / fat / micros" onPress={() => router.push('/settings/profile/macros')} />
-        <SettingsRow title="Advanced overrides" hint="Lock RMR, NEAT, or macro targets" onPress={() => router.push('/settings/profile/advanced')} />
+        <SettingsRow title="Macro targets" hint="Deficit / macros / micros sliders" onPress={() => router.push('/settings/profile/macros')} />
         <SettingsRow title="Regenerate AI profile map" hint="Uses 1 AI call" onPress={() => router.push('/settings/profile/regenerate')} />
       </ScrollView>
     </View>

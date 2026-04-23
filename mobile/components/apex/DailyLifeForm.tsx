@@ -17,14 +17,13 @@ import type {
 import { computeNeat, type Occupation } from '../../../shared/src/logic/neat';
 import { saveOnboardingInputs } from '../../lib/api/profile';
 import { useTokens } from '../../lib/theme';
+import { SliderRow } from './SliderRow';
 
 interface Props {
   onboarding: OnboardingDataResponse | null;
   profile: ProfileResponse | null;
   onSaved: () => void | Promise<void>;
 }
-
-const STRESS_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 const WORK_STYLES: { value: Occupation; label: string; hint: string }[] = [
   { value: 'sedentary', label: 'Sedentary', hint: 'Desk work, driving — base 200 kcal' },
@@ -38,7 +37,7 @@ export function DailyLifeForm({ onboarding, profile, onSaved }: Props) {
 
   const [occupation, setOccupation] = useState('');
   const [workStyle, setWorkStyle] = useState<Occupation>('sedentary');
-  const [stress, setStress] = useState<number | null>(null);
+  const [stress, setStress] = useState<number>(5);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -61,10 +60,6 @@ export function DailyLifeForm({ onboarding, profile, onSaved }: Props) {
   // ── Save ─────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
-    if (stress == null) {
-      Alert.alert('Stress level', 'Pick a number 1–10.');
-      return;
-    }
     if (!occupation.trim()) {
       Alert.alert('Occupation', 'What do you do for work?');
       return;
@@ -141,31 +136,14 @@ export function DailyLifeForm({ onboarding, profile, onSaved }: Props) {
       </Section>
 
       <Section title="Stress level (1 low — 10 high)">
-        <View style={styles.chipRow}>
-          {STRESS_LEVELS.map((n) => {
-            const active = stress === n;
-            return (
-              <Pressable
-                key={n}
-                onPress={() => setStress(n)}
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor: active ? t.accent : t.surface2,
-                    borderColor: active ? t.accent : t.border,
-                  },
-                ]}>
-                <Text
-                  style={[
-                    styles.chipText,
-                    { color: active ? '#fff' : t.text, fontWeight: active ? '700' : '600' },
-                  ]}>
-                  {n}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <SliderRow
+          label="Stress"
+          value={stress}
+          onChange={setStress}
+          min={1}
+          max={10}
+          step={1}
+        />
       </Section>
 
       <View style={[styles.previewCard, { backgroundColor: t.surface, shadowColor: '#000' }]}>
@@ -234,17 +212,6 @@ const styles = StyleSheet.create({
   },
   workLabel: { fontSize: 14 },
   workHint: { fontSize: 11, marginTop: 3 },
-
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipText: { fontSize: 14 },
 
   previewCard: {
     borderRadius: 16,
