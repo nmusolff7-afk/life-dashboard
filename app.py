@@ -1,5 +1,8 @@
 from dotenv import load_dotenv
-load_dotenv()
+# override=True: .env is authoritative for this process, ignoring any pre-existing
+# OS-level env vars. Protects against stale User/Machine-scope values on dev machines
+# shadowing the real secrets.
+load_dotenv(override=True)
 
 import os
 import re
