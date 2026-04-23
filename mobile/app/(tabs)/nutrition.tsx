@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
+  BarcodeScanner,
   CalorieBalanceChart,
   CalorieRingCard,
   CaloriesConsumedChart,
@@ -40,6 +41,7 @@ export default function NutritionScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
   const [savedOpen, setSavedOpen] = useState(false);
+  const [barcodeOpen, setBarcodeOpen] = useState(false);
   const onRefresh = async () => {
     setRefreshing(true);
     try {
@@ -134,6 +136,7 @@ export default function NutritionScreen() {
               onLogged={refreshAllMeals}
               onTemplateSaved={savedMeals.refetch}
               onPhotoScan={() => setPhotoOpen(true)}
+              onBarcodeScan={() => setBarcodeOpen(true)}
               onSavedPick={() => setSavedOpen(true)}
             />
 
@@ -158,6 +161,11 @@ export default function NutritionScreen() {
       <MealPhotoScanner
         visible={photoOpen}
         onClose={() => setPhotoOpen(false)}
+        onLogged={refreshAllMeals}
+      />
+      <BarcodeScanner
+        visible={barcodeOpen}
+        onClose={() => setBarcodeOpen(false)}
         onLogged={refreshAllMeals}
       />
       <SavedMealsPicker
