@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { EmptyState, FAB, ScreenHeader, SubTabs } from '../../components/apex';
+import { EmptyState, FAB, SubTabs } from '../../components/apex';
 import { useTokens } from '../../lib/theme';
 
 type Tab = 'today' | 'progress' | 'history';
@@ -19,7 +19,6 @@ export default function FinanceScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScreenHeader title="Finance" />
       <SubTabs<Tab>
         tabs={[
           { value: 'today', label: 'Today' },

@@ -5,7 +5,6 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 import {
   CategoryScoreCard,
   FAB,
-  ScreenHeader,
   StreakBar,
   TodayBalanceCard,
 } from '../../components/apex';
@@ -58,7 +57,6 @@ export default function HomeScreen() {
   const burn = workouts.data?.burn ?? 0;
   const consumed = totals?.total_calories ?? 0;
   const calorieTarget = profile.data?.goal_targets?.calorie_target ?? profile.data?.daily_calorie_goal ?? null;
-  const firstName = profile.data?.first_name?.trim();
 
   const targets = profile.data?.goal_targets;
   const macroTargets = {
@@ -81,13 +79,8 @@ export default function HomeScreen() {
   // Backend-error detection: if core calls fail together, surface a single banner.
   const backendError = nutrition.error && workouts.error && profile.error;
 
-  const headerTitle = firstName
-    ? `${firstName.toUpperCase()}'S DASHBOARD`
-    : 'YOUR DASHBOARD';
-
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScreenHeader title={headerTitle} />
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.muted} />}>

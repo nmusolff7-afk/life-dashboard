@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { EmptyState, FAB, ScreenHeader, StatCard, SubTabs } from '../../components/apex';
+import { EmptyState, FAB, StatCard, SubTabs } from '../../components/apex';
 import { useTodayNutrition, useTodayWorkouts } from '../../lib/hooks/useHomeData';
 import { useTokens } from '../../lib/theme';
 
@@ -18,7 +18,6 @@ export default function NutritionScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScreenHeader title="Nutrition" />
       <SubTabs<Tab>
         tabs={[
           { value: 'today', label: 'Today' },

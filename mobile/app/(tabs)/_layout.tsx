@@ -5,6 +5,8 @@ import { Redirect, Tabs } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ScreenHeader } from '../../components/apex';
+import { useProfile } from '../../lib/hooks/useHomeData';
 import { useTokens } from '../../lib/theme';
 import { useClerkBridge } from '../../lib/useClerkBridge';
 import { useOnboardingStatus } from '../../lib/useOnboardingStatus';
@@ -80,6 +82,7 @@ export default function TabLayout() {
   const t = useTokens();
   useClerkBridge();
   const onboarding = useOnboardingStatus();
+  const profile = useProfile();
 
   if (!isLoaded) return null;
   if (!isSignedIn) return <Redirect href="/(auth)/sign-in" />;
@@ -95,16 +98,24 @@ export default function TabLayout() {
 
   if (onboarding === 'incomplete') return <Redirect href="/(onboarding)/biometric" />;
 
+  const firstName = profile.data?.first_name?.trim();
+  const headerTitle = firstName
+    ? `${firstName.toUpperCase()}'S DASHBOARD`
+    : 'YOUR DASHBOARD';
+
   return (
-    <Tabs
-      screenOptions={{ headerShown: false }}
-      tabBar={(props) => <FlaskTabBar {...props} />}>
-      <Tabs.Screen name="index" options={{ title: 'Home' }} />
-      <Tabs.Screen name="fitness" options={{ title: 'Fitness' }} />
-      <Tabs.Screen name="nutrition" options={{ title: 'Nutrition' }} />
-      <Tabs.Screen name="finance" options={{ title: 'Finance' }} />
-      <Tabs.Screen name="time" options={{ title: 'Time' }} />
-    </Tabs>
+    <View style={{ flex: 1, backgroundColor: t.bg }}>
+      <ScreenHeader title={headerTitle} />
+      <Tabs
+        screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: t.bg } }}
+        tabBar={(props) => <FlaskTabBar {...props} />}>
+        <Tabs.Screen name="index" options={{ title: 'Home' }} />
+        <Tabs.Screen name="fitness" options={{ title: 'Fitness' }} />
+        <Tabs.Screen name="nutrition" options={{ title: 'Nutrition' }} />
+        <Tabs.Screen name="finance" options={{ title: 'Finance' }} />
+        <Tabs.Screen name="time" options={{ title: 'Time' }} />
+      </Tabs>
+    </View>
   );
 }
 
