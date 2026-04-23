@@ -23,6 +23,8 @@ interface Targets {
 interface Props {
   consumed: Values;
   targets?: Targets;
+  /** When true, render "—" across all cells (meaningful "nothing logged" state). */
+  empty?: boolean;
 }
 
 function fmt(n: number, unit: string): string {
@@ -35,17 +37,26 @@ function fmtPair(consumed: number, target: number | null | undefined, unit: stri
 }
 
 /** 3×2 compact grid — protein/carbs/fat on top row, sugar/fiber/sodium bottom. */
-export function MacroMicroGrid({ consumed, targets }: Props) {
+export function MacroMicroGrid({ consumed, targets, empty }: Props) {
   const t = useTokens();
 
-  const cells = [
-    { label: 'Protein', color: t.protein, value: fmtPair(consumed.proteinG, targets?.proteinG, 'g') },
-    { label: 'Carbs',   color: t.carbs,   value: fmtPair(consumed.carbsG,   targets?.carbsG,   'g') },
-    { label: 'Fat',     color: t.fat,     value: fmtPair(consumed.fatG,     targets?.fatG,     'g') },
-    { label: 'Sugar',   color: t.sugar,   value: fmtPair(consumed.sugarG,   targets?.sugarG,   'g') },
-    { label: 'Fiber',   color: t.fiber,   value: fmtPair(consumed.fiberG,   targets?.fiberG,   'g') },
-    { label: 'Sodium',  color: t.sodium,  value: fmtPair(consumed.sodiumMg, targets?.sodiumMg, 'mg') },
-  ];
+  const cells = empty
+    ? [
+        { label: 'Protein', color: t.protein, value: '—' },
+        { label: 'Carbs',   color: t.carbs,   value: '—' },
+        { label: 'Fat',     color: t.fat,     value: '—' },
+        { label: 'Sugar',   color: t.sugar,   value: '—' },
+        { label: 'Fiber',   color: t.fiber,   value: '—' },
+        { label: 'Sodium',  color: t.sodium,  value: '—' },
+      ]
+    : [
+        { label: 'Protein', color: t.protein, value: fmtPair(consumed.proteinG, targets?.proteinG, 'g') },
+        { label: 'Carbs',   color: t.carbs,   value: fmtPair(consumed.carbsG,   targets?.carbsG,   'g') },
+        { label: 'Fat',     color: t.fat,     value: fmtPair(consumed.fatG,     targets?.fatG,     'g') },
+        { label: 'Sugar',   color: t.sugar,   value: fmtPair(consumed.sugarG,   targets?.sugarG,   'g') },
+        { label: 'Fiber',   color: t.fiber,   value: fmtPair(consumed.fiberG,   targets?.fiberG,   'g') },
+        { label: 'Sodium',  color: t.sodium,  value: fmtPair(consumed.sodiumMg, targets?.sodiumMg, 'mg') },
+      ];
 
   return (
     <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
@@ -54,10 +65,13 @@ export function MacroMicroGrid({ consumed, targets }: Props) {
         {cells.map((c) => (
           <View key={c.label} style={styles.cell}>
             <Text style={[styles.cellLabel, { color: c.color }]}>{c.label}</Text>
-            <Text style={[styles.cellValue, { color: t.text }]}>{c.value}</Text>
+            <Text style={[styles.cellValue, { color: c.value === '—' ? t.subtle : t.text }]}>{c.value}</Text>
           </View>
         ))}
       </View>
+      {empty ? (
+        <Text style={[styles.footer, { color: t.subtle }]}>Log a meal to fill this in.</Text>
+      ) : null}
     </View>
   );
 }
@@ -69,4 +83,5 @@ const styles = StyleSheet.create({
   cell: { width: '33.333%', paddingVertical: 6, gap: 2 },
   cellLabel: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6 },
   cellValue: { fontSize: 14, fontWeight: '700' },
+  footer: { fontSize: 11, marginTop: 2 },
 });

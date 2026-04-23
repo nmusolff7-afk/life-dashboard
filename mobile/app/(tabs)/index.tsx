@@ -104,6 +104,11 @@ export default function HomeScreen() {
   const askBot = (prefill: string) =>
     router.push({ pathname: '/chatbot', params: { from: 'home', prefill } });
 
+  // Backend-error detection: if core calls fail together, surface a single banner
+  // instead of letting every card silently show "—". A single failure (e.g. momentum
+  // 404 on a new account) stays quiet to avoid noise.
+  const backendError = nutrition.error && workouts.error && profile.error;
+
   // Render -----------------------------------------------------------------
 
   const title = firstName ? `Hi, ${firstName}` : 'Life Dashboard';
@@ -114,6 +119,16 @@ export default function HomeScreen() {
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.muted} />}>
+        {backendError ? (
+          <Pressable
+            onPress={onRefresh}
+            style={[styles.errorBanner, { backgroundColor: t.surface, borderColor: t.danger }]}>
+            <Text style={[styles.errorText, { color: t.danger }]}>
+              Can't reach the backend. Pull to refresh or tap to retry.
+            </Text>
+          </Pressable>
+        ) : null}
+
         {/* 1. 90-day streak bar */}
         <StreakBar loggedDates={loggedDates} today={today} days={90} />
 
@@ -178,7 +193,11 @@ export default function HomeScreen() {
 
         {/* 8. Macro/micro grid */}
         <View style={styles.horizPad}>
-          <MacroMicroGrid consumed={macroValues} targets={macroTargets} />
+          <MacroMicroGrid
+            consumed={macroValues}
+            targets={macroTargets}
+            empty={(nutrition.data?.meals.length ?? 0) === 0}
+          />
         </View>
 
         {/* 9–12. Category score cards (2×2) */}
@@ -248,4 +267,6 @@ const styles = StyleSheet.create({
   stub: { marginHorizontal: 16, borderRadius: 20, borderWidth: 1, padding: 16, gap: 6 },
   stubLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6 },
   stubBody: { fontSize: 13 },
+  errorBanner: { marginHorizontal: 16, borderWidth: 1, borderRadius: 14, padding: 12 },
+  errorText: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
 });
