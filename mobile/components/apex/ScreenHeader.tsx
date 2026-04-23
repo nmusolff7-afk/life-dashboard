@@ -11,12 +11,17 @@ interface Props {
   hideProfile?: boolean;
   /** Optional weather pill text; hidden if empty. */
   weather?: string | null;
+  /** Show a calendar icon that navigates to /history. */
+  showHistory?: boolean;
+  /** Override calendar tap. Defaults to routing to /history. */
+  onHistoryPress?: () => void;
 }
 
-export function ScreenHeader({ title, onProfilePress, hideProfile, weather }: Props) {
+export function ScreenHeader({ title, onProfilePress, hideProfile, weather, showHistory, onHistoryPress }: Props) {
   const t = useTokens();
   const router = useRouter();
   const handleProfile = onProfilePress ?? (() => router.push('/settings'));
+  const handleHistory = onHistoryPress ?? (() => router.push('/history'));
 
   return (
     <View style={[styles.header, { backgroundColor: t.bg, borderBottomColor: t.border }]}>
@@ -25,10 +30,17 @@ export function ScreenHeader({ title, onProfilePress, hideProfile, weather }: Pr
         {weather ? (
           <Text style={[styles.weather, { color: t.muted }]}>{weather}</Text>
         ) : null}
+        {showHistory ? (
+          <Pressable onPress={handleHistory} accessibilityRole="button" accessibilityLabel="History">
+            <View style={[styles.iconBtn, { backgroundColor: t.surface, borderColor: t.border }]}>
+              <Text style={[styles.iconText, { color: t.text }]}>📅</Text>
+            </View>
+          </Pressable>
+        ) : null}
         {!hideProfile ? (
           <Pressable onPress={handleProfile} accessibilityRole="button" accessibilityLabel="Settings">
-            <View style={[styles.profileIcon, { backgroundColor: t.surface, borderColor: t.border }]}>
-              <Text style={[styles.profileIconText, { color: t.text }]}>◉</Text>
+            <View style={[styles.iconBtn, { backgroundColor: t.surface, borderColor: t.border }]}>
+              <Text style={[styles.iconText, { color: t.text }]}>◉</Text>
             </View>
           </Pressable>
         ) : null}
@@ -49,6 +61,6 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '700', letterSpacing: 0.2 },
   right: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   weather: { fontSize: 13, fontWeight: '500' },
-  profileIcon: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  profileIconText: { fontSize: 16 },
+  iconBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  iconText: { fontSize: 16 },
 });
