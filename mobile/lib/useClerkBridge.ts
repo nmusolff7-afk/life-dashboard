@@ -64,9 +64,9 @@ export function useClerkBridge(): void {
       try {
         const clerkToken = await getToken();
         if (!clerkToken) {
-          console.error('useClerkBridge: Clerk getToken returned null — signing out');
-          clearFlaskToken();
-          await signOut();
+          // Transient — Clerk SDK hasn't finished establishing the session yet.
+          // Don't sign out; the effect will re-run once Clerk is ready.
+          console.warn('useClerkBridge: getToken returned null (transient); will retry on next mount');
           return;
         }
         const res = await api.clerkVerify(clerkToken);

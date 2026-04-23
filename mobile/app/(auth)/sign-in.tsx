@@ -1,4 +1,4 @@
-import { useSignIn } from '@clerk/clerk-expo';
+import { useAuth, useSignIn } from '@clerk/clerk-expo';
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Button, StyleSheet, TextInput, View } from 'react-native';
@@ -6,6 +6,12 @@ import { Button, StyleSheet, TextInput, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { extractClerkError } from '../../lib/clerkError';
+import { clearFlaskToken } from '../../lib/flaskToken';
+
+function isAlreadySignedIn(msg: string): boolean {
+  const m = msg.toLowerCase();
+  return m.includes('already signed in') || m.includes('session_exists');
+}
 
 type Mode = 'form' | 'second-factor';
 
@@ -18,6 +24,7 @@ interface SecondFactor {
 
 export default function SignInScreen() {
   const { isLoaded, signIn, setActive } = useSignIn();
+  const { signOut } = useAuth();
   const router = useRouter();
   const [mode, setMode] = useState<Mode>('form');
   const [email, setEmail] = useState('');
@@ -80,10 +87,23 @@ export default function SignInScreen() {
 
       setError(`Sign-in returned status "${result.status}" — check Metro log.`);
     } catch (err) {
-      setError(extractClerkError(err));
+      const msg = extractClerkError(err);
+      if (isAlreadySignedIn(msg)) {
+        router.replace('/(tabs)');
+        return;
+      }
+      setError(msg);
     } finally {
       setLoading(false);
     }
+  }
+
+  async function onAbortAndSignOut() {
+    clearFlaskToken();
+    try { await signOut(); } catch {}
+    setMode('form');
+    setCode('');
+    setError(null);
   }
 
   async function onVerifySecondFactor() {
@@ -144,6 +164,9 @@ export default function SignInScreen() {
             Back
           </ThemedText>
         </View>
+        <View style={styles.footer}>
+          <ThemedText onPress={onAbortAndSignOut} type="link">Start over (sign out)</ThemedText>
+        </View>
       </ThemedView>
     );
   }
@@ -179,6 +202,9 @@ export default function SignInScreen() {
         <Link href="/(auth)/sign-up">
           <ThemedText type="link">Sign Up</ThemedText>
         </Link>
+      </View>
+      <View style={styles.footer}>
+        <ThemedText onPress={onAbortAndSignOut} type="link">Sign out (if stuck)</ThemedText>
       </View>
     </ThemedView>
   );
