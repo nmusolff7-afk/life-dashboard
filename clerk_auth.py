@@ -73,6 +73,7 @@ def verify_clerk_token(token: str) -> Optional[dict]:
             algorithms=["RS256"],
             issuer=_issuer,
             options={"verify_aud": False},
+            leeway=60,   # tolerate up to 60s of clock skew on iat/nbf/exp claims
         )
     except jwt.ExpiredSignatureError:
         _log.warning("Clerk verify: token expired")

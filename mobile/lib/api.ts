@@ -28,10 +28,34 @@ export const api = {
   },
 };
 
+const DEFAULT_TIMEOUT_MS = 15000;
+
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   const token = getFlaskToken();
   const headers = new Headers(init?.headers);
   if (token) headers.set('Authorization', `Bearer ${token}`);
   if (!headers.has('Accept')) headers.set('Accept', 'application/json');
-  return fetch(`${baseUrl}${path}`, { ...init, headers });
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  const start = Date.now();
+  try {
+    const res = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      headers,
+      signal: init?.signal ?? controller.signal,
+    });
+    const ms = Date.now() - start;
+    // eslint-disable-next-line no-console
+    console.log(`[api] ${init?.method ?? 'GET'} ${path} → ${res.status} (${ms}ms)`);
+    return res;
+  } catch (err) {
+    const ms = Date.now() - start;
+    const aborted = err instanceof Error && err.name === 'AbortError';
+    // eslint-disable-next-line no-console
+    console.log(`[api] ${init?.method ?? 'GET'} ${path} → ${aborted ? `TIMEOUT after ${ms}ms` : `FAIL ${(err as Error)?.message}`}`);
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
