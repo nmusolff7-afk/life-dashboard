@@ -14,6 +14,7 @@ import Svg, { Circle } from 'react-native-svg';
 
 import type { Meal, Workout } from '../../../shared/src/types/home';
 import { useTokens } from '../../lib/theme';
+import { ProgressRow } from './ProgressRow';
 
 interface MacroValues {
   proteinG: number;
@@ -286,49 +287,6 @@ function MacrosPanel({
   );
 }
 
-function ProgressRow({
-  label,
-  color,
-  consumed,
-  target,
-  unit,
-}: {
-  label: string;
-  color: string;
-  consumed: number;
-  target: number | null | undefined;
-  unit: string;
-}) {
-  const t = useTokens();
-  const hasTarget = target != null && target > 0;
-  const pct = hasTarget ? Math.min(1, consumed / (target as number)) : 0;
-  const hit = hasTarget && consumed >= (target as number) * 0.95 && consumed <= (target as number) * 1.05;
-  const over = hasTarget && consumed > (target as number) * 1.2;
-  const fillColor = over ? t.danger : hit ? t.green : color;
-  const valueColor = over ? t.danger : hit ? t.green : color;
-
-  const valueText = hasTarget
-    ? `${Math.round(consumed)}${unit} / ${Math.round(target as number)}${unit}`
-    : `${Math.round(consumed)}${unit}`;
-
-  return (
-    <View style={rowStyles.row}>
-      <View style={rowStyles.header}>
-        <Text style={[rowStyles.label, { color: t.muted }]}>{label}</Text>
-        <Text style={[rowStyles.value, { color: valueColor }]}>{valueText}</Text>
-      </View>
-      <View style={[rowStyles.track, { backgroundColor: 'rgba(255,255,255,0.06)' }]}>
-        <View
-          style={[
-            rowStyles.fill,
-            { backgroundColor: fillColor, width: `${Math.max(pct * 100, hasTarget ? 2 : 0)}%` },
-          ]}
-        />
-      </View>
-    </View>
-  );
-}
-
 // ─── Timeline panel ─────────────────────────────────────────────────────
 
 interface TimelineItem {
@@ -523,11 +481,3 @@ const styles = StyleSheet.create({
   goalsCtaLabel: { color: '#fff', fontWeight: '700', fontSize: 13 },
 });
 
-const rowStyles = StyleSheet.create({
-  row: { gap: 6 },
-  header: { flexDirection: 'row', justifyContent: 'space-between' },
-  label: { fontSize: 13 },
-  value: { fontSize: 13, fontWeight: '600' },
-  track: { height: 6, borderRadius: 100, overflow: 'hidden' },
-  fill: { height: '100%', borderRadius: 100 },
-});

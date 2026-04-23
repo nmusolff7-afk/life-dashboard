@@ -5,6 +5,7 @@ import type {
   ActivityCalendarDay,
   BurnChartPoint,
   ProfileResponse,
+  SavedMeal,
   SavedWorkout,
   TodayNutritionResponse,
   TodayWorkoutsResponse,
@@ -28,6 +29,9 @@ export const useLoggedDates = (days = 90): ApiState<string[]> =>
 
 export const useSavedWorkouts = (): ApiState<SavedWorkout[]> =>
   useApi<SavedWorkout[]>('/api/saved-workouts');
+
+export const useSavedMeals = (): ApiState<SavedMeal[]> =>
+  useApi<SavedMeal[]>('/api/saved-meals');
 
 export const useWorkoutHistory = (days = 90): ApiState<Workout[]> =>
   useApi<Workout[]>(`/api/workout-history?days=${days}`);

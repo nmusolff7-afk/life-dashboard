@@ -1,8 +1,22 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { EmptyState, FAB, StatCard, SubTabs } from '../../components/apex';
-import { useTodayNutrition, useTodayWorkouts } from '../../lib/hooks/useHomeData';
+import {
+  CalorieRingCard,
+  EmptyState,
+  FAB,
+  LogMealCard,
+  NutritionMacrosCard,
+  RecentMealsChips,
+  SubTabs,
+  TodayMealsList,
+} from '../../components/apex';
+import {
+  useProfile,
+  useSavedMeals,
+  useTodayNutrition,
+  useTodayWorkouts,
+} from '../../lib/hooks/useHomeData';
 import { useTokens } from '../../lib/theme';
 
 type Tab = 'today' | 'progress' | 'history';
@@ -13,8 +27,48 @@ export default function NutritionScreen() {
 
   const nutrition = useTodayNutrition();
   const workouts = useTodayWorkouts();
-  const burn = workouts.data?.burn ?? 0;
-  const consumed = nutrition.data?.totals.total_calories ?? 0;
+  const profile = useProfile();
+  const savedMeals = useSavedMeals();
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        nutrition.refetch(),
+        workouts.refetch(),
+        profile.refetch(),
+        savedMeals.refetch(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const totals = nutrition.data?.totals;
+  const meals = nutrition.data?.meals ?? [];
+  const consumed = totals?.total_calories ?? 0;
+  const burned = workouts.data?.burn ?? 0;
+  const calorieTarget =
+    profile.data?.goal_targets?.calorie_target ?? profile.data?.daily_calorie_goal ?? null;
+
+  const targets = profile.data?.goal_targets;
+  const macroTargets = {
+    proteinG: targets?.protein_g ?? profile.data?.daily_protein_goal_g ?? null,
+    carbsG: targets?.carbs_g ?? null,
+    fatG: targets?.fat_g ?? null,
+    sugarG: null,
+    fiberG: null,
+    sodiumMg: null,
+  };
+  const macroValues = {
+    proteinG: totals?.total_protein ?? 0,
+    carbsG: totals?.total_carbs ?? 0,
+    fatG: totals?.total_fat ?? 0,
+    sugarG: totals?.total_sugar ?? 0,
+    fiberG: totals?.total_fiber ?? 0,
+    sodiumMg: totals?.total_sodium ?? 0,
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
@@ -27,73 +81,62 @@ export default function NutritionScreen() {
         value={tab}
         onChange={setTab}
       />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.muted} />
+        }>
         {tab === 'today' ? (
           <>
-            {/* Calorie ring shell */}
-            <View style={styles.ringWrap}>
-              <View style={[styles.ringCircle, { borderColor: t.nutrition }]}>
-                <Text style={[styles.ringBig, { color: t.text }]}>—</Text>
-                <Text style={[styles.ringLabel, { color: t.muted }]}>kcal remaining</Text>
-              </View>
+            <View style={styles.scoreBlock}>
+              <Text style={[styles.scoreBig, { color: t.subtle }]}>—</Text>
+              <Text style={[styles.scoreLabel, { color: t.nutrition }]}>Nutrition score</Text>
+              <Text style={[styles.scoreHint, { color: t.muted }]}>
+                Score calculated once you have enough data.
+              </Text>
             </View>
 
-            <View style={styles.statRow}>
-              <StatCard
-                label="Proj. Burn"
-                value={burn > 0 ? String(Math.round(burn)) : '—'}
-                valueColor={burn > 0 ? t.cal : undefined}
-                style={styles.statHalf}
-              />
-              <StatCard
-                label="Cals Consumed"
-                value={consumed > 0 ? String(Math.round(consumed)) : '—'}
-                valueColor={consumed > 0 ? t.cal : undefined}
-                style={styles.statHalf}
-              />
-            </View>
+            <CalorieRingCard
+              caloriesConsumed={consumed}
+              caloriesBurned={burned}
+              calorieTarget={calorieTarget}
+            />
 
-            {/* Macro summary card shell */}
-            <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
-              <Text style={[styles.cardTitle, { color: t.muted }]}>Macros today</Text>
-              <View style={styles.macroRow}>
-                <View style={styles.macroCell}>
-                  <Text style={[styles.macroLabel, { color: t.protein }]}>Protein</Text>
-                  <Text style={[styles.macroValue, { color: t.text }]}>— / —</Text>
-                </View>
-                <View style={styles.macroCell}>
-                  <Text style={[styles.macroLabel, { color: t.carbs }]}>Carbs</Text>
-                  <Text style={[styles.macroValue, { color: t.text }]}>— / —</Text>
-                </View>
-                <View style={styles.macroCell}>
-                  <Text style={[styles.macroLabel, { color: t.fat }]}>Fat</Text>
-                  <Text style={[styles.macroValue, { color: t.text }]}>— / —</Text>
-                </View>
-              </View>
-            </View>
+            <NutritionMacrosCard
+              consumed={macroValues}
+              targets={macroTargets}
+              empty={meals.length === 0}
+            />
 
-            {/* Meal logger card shell */}
-            <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
-              <Text style={[styles.cardTitle, { color: t.muted }]}>Log a meal</Text>
-              <View style={[styles.inputBox, { borderColor: t.border }]}>
-                <Text style={[styles.inputPlaceholder, { color: t.subtle }]}>
-                  Describe what you ate — text, voice, photo, or barcode.
-                </Text>
-              </View>
-            </View>
+            <RecentMealsChips
+              saved={savedMeals.data ?? []}
+              onLogged={nutrition.refetch}
+              onRemoved={savedMeals.refetch}
+            />
 
-            {/* Recent meals chip strip */}
-            <View style={styles.recentWrap}>
-              <Text style={[styles.sectionLabel, { color: t.muted }]}>Recent meals</Text>
-              <Text style={[styles.recentEmpty, { color: t.subtle }]}>No recent meals yet.</Text>
-            </View>
+            <LogMealCard
+              onLogged={nutrition.refetch}
+              onTemplateSaved={savedMeals.refetch}
+            />
+
+            <TodayMealsList meals={meals} onChanged={nutrition.refetch} />
           </>
         ) : null}
+
         {tab === 'progress' ? (
-          <EmptyState icon="📊" title="Calorie & macro trends" description="7 / 30 / 90-day charts appear here." />
+          <EmptyState
+            icon="📊"
+            title="Calorie & macro trends"
+            description="7 / 30 / 90-day charts land in Nutrition Phase 3 (needs 2 new Flask chart endpoints)."
+          />
         ) : null}
+
         {tab === 'history' ? (
-          <EmptyState icon="🍽️" title="Meal history" description="Logged meals by date appear here." />
+          <EmptyState
+            icon="🍽️"
+            title="Meal history"
+            description="Date-grouped meal list with filters lands in Nutrition Phase 2 (needs /api/meal-history endpoint)."
+          />
         ) : null}
       </ScrollView>
       <FAB from="nutrition" />
@@ -103,21 +146,9 @@ export default function NutritionScreen() {
 
 const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 96, gap: 16 },
-  ringWrap: { alignItems: 'center', paddingVertical: 8 },
-  ringCircle: { width: 180, height: 180, borderRadius: 90, borderWidth: 10, alignItems: 'center', justifyContent: 'center' },
-  ringBig: { fontSize: 40, fontWeight: '700' },
-  ringLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 4 },
-  statRow: { flexDirection: 'row', gap: 10 },
-  statHalf: { flexBasis: '48%', flexGrow: 1 },
-  card: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 12 },
-  cardTitle: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6 },
-  macroRow: { flexDirection: 'row' },
-  macroCell: { flex: 1, gap: 2 },
-  macroLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6 },
-  macroValue: { fontSize: 16, fontWeight: '700' },
-  inputBox: { borderWidth: 1, borderRadius: 14, padding: 14, minHeight: 64 },
-  inputPlaceholder: { fontSize: 14 },
-  recentWrap: { gap: 8 },
-  sectionLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6 },
-  recentEmpty: { fontSize: 13 },
+
+  scoreBlock: { alignItems: 'center', paddingVertical: 8, gap: 2 },
+  scoreBig: { fontSize: 56, fontWeight: '700', lineHeight: 58, letterSpacing: -1.2 },
+  scoreLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 4 },
+  scoreHint: { fontSize: 12, textAlign: 'center', marginTop: 2 },
 });

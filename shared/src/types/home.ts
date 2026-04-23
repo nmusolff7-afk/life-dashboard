@@ -123,3 +123,42 @@ export interface ActivityCalendarDay {
    *  strength / cardio / mixed so color logic stays in one place. */
   descriptions: string[];
 }
+
+// ── Nutrition ─────────────────────────────────────────────────────────────
+
+export interface NutritionItem {
+  name: string;
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+}
+
+/** Response from /api/estimate (Claude-estimated macros for a meal). */
+export interface NutritionEstimate {
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  sugar_g: number;
+  fiber_g: number;
+  sodium_mg: number;
+  items: NutritionItem[];
+  notes: string;
+}
+
+export interface SavedMeal {
+  id: number;
+  user_id: number;
+  description: string;
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  sugar_g?: number;
+  fiber_g?: number;
+  sodium_mg?: number;
+  /** Flask stores items[] as a JSON-encoded string in `items_json`. */
+  items_json?: string | null;
+  saved_at: string;
+}
