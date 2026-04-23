@@ -111,6 +111,9 @@ export default function HomeScreen() {
             macroValues={macroValues}
             macroTargets={macroTargets}
             empty={(nutrition.data?.meals.length ?? 0) === 0}
+            meals={nutrition.data?.meals ?? []}
+            workouts={workouts.data?.workouts ?? []}
+            onGoalsPress={() => router.push('/goals')}
           />
         </View>
 
@@ -140,58 +143,21 @@ export default function HomeScreen() {
             onPress={() => router.push('/(tabs)/time')}
           />
         </View>
-
-        <Pressable
-          onPress={() => router.push({ pathname: '/day/[date]', params: { date: today } })}
-          style={[styles.stub, { backgroundColor: t.surface, shadowColor: '#000' }]}>
-          <Text style={[styles.stubLabel, { color: t.muted }]}>Today</Text>
-          <Text style={[styles.stubBody, { color: t.subtle }]}>
-            {nutrition.data && workouts.data && (nutrition.data.meals.length > 0 || workouts.data.workouts.length > 0)
-              ? `${nutrition.data.meals.length} meal${nutrition.data.meals.length === 1 ? '' : 's'} · ${workouts.data.workouts.length} workout${workouts.data.workouts.length === 1 ? '' : 's'} — tap for timeline`
-              : 'Your Day Timeline will appear once you log meals or workouts.'}
-          </Text>
-        </Pressable>
-
-        <Pressable
-          onPress={() => router.push('/goals')}
-          style={[styles.stub, { backgroundColor: t.surface, shadowColor: '#000' }]}>
-          <Text style={[styles.stubLabel, { color: t.muted }]}>Active goals</Text>
-          <Text style={[styles.stubBody, { color: t.subtle }]}>
-            No active goals yet. Tap to browse the library.
-          </Text>
-        </Pressable>
       </ScrollView>
       <FAB />
     </View>
   );
 }
 
-const cardShadow = {
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.45,
-  shadowRadius: 20,
-  elevation: 3,
-};
-
 const styles = StyleSheet.create({
   content: { paddingTop: 8, paddingBottom: 96, gap: 14 },
   horizPad: { paddingHorizontal: 16 },
 
   pageHeader: { alignItems: 'center', paddingHorizontal: 18, paddingTop: 4, paddingBottom: 2 },
-  pageTitle: { fontSize: 28, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.1, lineHeight: 30 },
+  pageTitle: { fontSize: 24, fontWeight: '700', letterSpacing: 0.1, lineHeight: 28 },
   pageSubtitle: { fontSize: 13, marginTop: 4 },
 
   catGrid: { paddingHorizontal: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-
-  stub: {
-    marginHorizontal: 16,
-    borderRadius: 20,
-    padding: 16,
-    gap: 6,
-    ...cardShadow,
-  },
-  stubLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8 },
-  stubBody: { fontSize: 13 },
 
   errorBanner: { marginHorizontal: 16, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16 },
   errorText: { fontSize: 14, fontWeight: '500' },
