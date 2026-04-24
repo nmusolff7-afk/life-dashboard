@@ -46,7 +46,8 @@
         {
           "cameraPermission": "Life Dashboard uses the camera to scan meals, barcodes, and pantry contents."
         }
-      ]
+      ],
+      "expo-mail-composer"
     ],
     "experiments": {
       "typedRoutes": true,

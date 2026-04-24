@@ -11,7 +11,6 @@ import {
   NumberPromptModal,
   SavedWorkoutsStrip,
   StatCard,
-  StrengthTrackerModal,
   SubsystemsCard,
   SubTabs,
   TodayWorkoutsList,
@@ -28,11 +27,14 @@ import {
 } from '../../lib/hooks/useHomeData';
 import { useTokens } from '../../lib/theme';
 import { useResetScrollOnFocus } from '../../lib/useResetScrollOnFocus';
+import { useStrengthSession } from '../../lib/useStrengthSession';
+import { useUnits } from '../../lib/useUnits';
 
 type Tab = 'today' | 'progress' | 'history';
 
 export default function FitnessScreen() {
   const t = useTokens();
+  const units = useUnits();
   const [tab, setTab] = useState<Tab>('today');
   const { ref: scrollRef, resetScroll } = useResetScrollOnFocus();
 
@@ -42,10 +44,17 @@ export default function FitnessScreen() {
   const stepsState = useTodaySteps();
   const history = useWorkoutHistory(90);
 
+  const strength = useStrengthSession();
   const [refreshing, setRefreshing] = useState(false);
   const [weightModal, setWeightModal] = useState(false);
   const [stepsModal, setStepsModal] = useState(false);
-  const [trackerOpen, setTrackerOpen] = useState(false);
+
+  /** Tap "Start strength session" — if one's already running, just maximize
+   *  the existing one; otherwise start fresh. */
+  const launchStrength = () => {
+    if (strength.active) strength.maximize();
+    else void strength.start();
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -101,7 +110,7 @@ export default function FitnessScreen() {
             </View>
 
             <Pressable
-              onPress={() => setTrackerOpen(true)}
+              onPress={launchStrength}
               style={({ pressed }) => [
                 styles.startStrengthBtn,
                 { backgroundColor: t.accent, opacity: pressed ? 0.85 : 1 },
@@ -128,13 +137,13 @@ export default function FitnessScreen() {
               weightLbs={weight}
               todayStepsState={{ steps: stepsState.steps }}
               recentWorkouts={history.data ?? []}
-              onStartStrength={() => setTrackerOpen(true)}
+              onStartStrength={launchStrength}
             />
 
             <View style={styles.statRow}>
               <StatCard
-                label="Weight"
-                value={weight == null ? '—' : String(Math.round(weight))}
+                label={`Weight (${units.weightUnit})`}
+                value={units.formatWeight(weight)}
                 valueColor={weight == null ? undefined : t.text}
                 onPress={() => setWeightModal(true)}
                 style={styles.statHalf}
@@ -174,12 +183,13 @@ export default function FitnessScreen() {
       <NumberPromptModal
         visible={weightModal}
         title="Log weight"
-        unit="lbs"
-        initial={weight}
-        placeholder="180"
+        unit={units.weightUnit}
+        initial={weight != null && units.units === 'metric' ? weight * 0.453592 : weight}
+        placeholder={units.units === 'metric' ? '82' : '180'}
         onClose={() => setWeightModal(false)}
-        onSave={async (n) => {
-          await logWeight(n);
+        onSave={async (displayValue) => {
+          // Persist in canonical lbs regardless of display unit.
+          await logWeight(units.toCanonicalWeightLbs(displayValue));
           await profile.refetch();
         }}
       />
@@ -194,11 +204,8 @@ export default function FitnessScreen() {
         }}
       />
 
-      <StrengthTrackerModal
-        visible={trackerOpen}
-        onClose={() => setTrackerOpen(false)}
-        onLogged={refreshAllWorkouts}
-      />
+      {/* StrengthTrackerModal itself is rendered at the tabs-layout level so
+          it can be minimized without losing session state. See (tabs)/_layout.tsx. */}
     </View>
   );
 }

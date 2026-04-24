@@ -18,14 +18,6 @@ import type { ThemePreference } from '../../lib/theme';
 const LANGUAGES: { value: LanguageCode; label: string }[] = [
   { value: 'en', label: 'English' },
   { value: 'es', label: 'Español' },
-  { value: 'fr', label: 'Français' },
-  { value: 'de', label: 'Deutsch' },
-  { value: 'pt', label: 'Português' },
-  { value: 'it', label: 'Italiano' },
-  { value: 'nl', label: 'Nederlands' },
-  { value: 'pl', label: 'Polski' },
-  { value: 'zh', label: '中文' },
-  { value: 'ar', label: 'العربية' },
 ];
 
 export default function PreferencesScreen() {
@@ -133,8 +125,8 @@ export default function PreferencesScreen() {
                 })}
               </View>
               <Text style={[styles.hint, { color: t.subtle }]}>
-                English is fully translated today. Other languages populate as we ship localized
-                copy.
+                English + Spanish per PRD v1.27 §4.8.6. More languages unlock with expanded
+                translations.
               </Text>
             </Section>
           </>

@@ -19,6 +19,7 @@ import { computeRmr } from '../../../shared/src/logic/rmr';
 import { logWeight } from '../../lib/api/fitness';
 import { saveOnboardingInputs } from '../../lib/api/profile';
 import { useTokens } from '../../lib/theme';
+import { useHaptics } from '../../lib/useHaptics';
 
 interface Props {
   onboarding: OnboardingDataResponse | null;
@@ -46,6 +47,7 @@ const BIRTHDAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 export function BodyStatsForm({ onboarding, profile, onSaved }: Props) {
   const t = useTokens();
+  const haptics = useHaptics();
 
   // Pre-fill source of truth: onboarding raw_inputs first, then profile fallback.
   const saved = onboarding?.saved ?? null;
@@ -171,8 +173,10 @@ export function BodyStatsForm({ onboarding, profile, onSaved }: Props) {
         // Non-fatal — onboarding save already captured the value.
       });
       await onSaved();
+      haptics.fire('success');
       Alert.alert('Saved', 'Your body stats are updated. Targets recompute from your macros page.');
     } catch (e) {
+      haptics.fire('error');
       Alert.alert('Save failed', e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);

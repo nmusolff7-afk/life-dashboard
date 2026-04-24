@@ -5,11 +5,13 @@ import { Redirect, Tabs } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ScreenHeader } from '../../components/apex';
-import { useProfile } from '../../lib/hooks/useHomeData';
+import { ScreenHeader, StrengthTrackerModal, WorkoutActiveBanner } from '../../components/apex';
+import { useProfile, useTodayWorkouts } from '../../lib/hooks/useHomeData';
 import { useTokens } from '../../lib/theme';
 import { useClerkBridge } from '../../lib/useClerkBridge';
+import { useHaptics } from '../../lib/useHaptics';
 import { useOnboardingStatus } from '../../lib/useOnboardingStatus';
+import { StrengthSessionProvider } from '../../lib/useStrengthSession';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -26,6 +28,7 @@ const TAB_ICONS: Record<string, IconName> = {
 function FlaskTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const t = useTokens();
   const insets = useSafeAreaInsets();
+  const haptics = useHaptics();
 
   return (
     <View
@@ -49,6 +52,7 @@ function FlaskTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         const color = focused ? t.accent : t.subtle;
 
         const onPress = () => {
+          haptics.fire('tap');
           const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
           if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
         };
@@ -102,19 +106,30 @@ export default function TabLayout() {
   const headerTitle = firstName ? `${firstName}'s Dashboard` : 'Your Dashboard';
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScreenHeader title={headerTitle} />
-      <Tabs
-        screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: t.bg } }}
-        tabBar={(props) => <FlaskTabBar {...props} />}>
-        <Tabs.Screen name="index" options={{ title: 'Home' }} />
-        <Tabs.Screen name="fitness" options={{ title: 'Fitness' }} />
-        <Tabs.Screen name="nutrition" options={{ title: 'Nutrition' }} />
-        <Tabs.Screen name="finance" options={{ title: 'Finance' }} />
-        <Tabs.Screen name="time" options={{ title: 'Time' }} />
-      </Tabs>
-    </View>
+    <StrengthSessionProvider>
+      <View style={{ flex: 1, backgroundColor: t.bg }}>
+        <ScreenHeader title={headerTitle} />
+        <WorkoutActiveBanner />
+        <Tabs
+          screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: t.bg } }}
+          tabBar={(props) => <FlaskTabBar {...props} />}>
+          <Tabs.Screen name="index" options={{ title: 'Home' }} />
+          <Tabs.Screen name="fitness" options={{ title: 'Fitness' }} />
+          <Tabs.Screen name="nutrition" options={{ title: 'Nutrition' }} />
+          <Tabs.Screen name="finance" options={{ title: 'Finance' }} />
+          <Tabs.Screen name="time" options={{ title: 'Time' }} />
+        </Tabs>
+        <TabsStrengthTrackerHost />
+      </View>
+    </StrengthSessionProvider>
   );
+}
+
+/** Renders the full-screen tracker modal and refetches today's workouts on
+ *  successful save. Lives inside the provider so it can read session state. */
+function TabsStrengthTrackerHost() {
+  const todayWorkouts = useTodayWorkouts();
+  return <StrengthTrackerModal onLogged={() => todayWorkouts.refetch()} />;
 }
 
 const styles = StyleSheet.create({

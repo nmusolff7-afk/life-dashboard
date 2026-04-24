@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -14,7 +14,7 @@ import type {
   OnboardingDataResponse,
   ProfileResponse,
 } from '../../../shared/src/types/home';
-import { computeNeat, type Occupation } from '../../../shared/src/logic/neat';
+import type { Occupation } from '../../../shared/src/logic/neat';
 import { saveOnboardingInputs } from '../../lib/api/profile';
 import { useTokens } from '../../lib/theme';
 import { SliderRow } from './SliderRow';
@@ -49,13 +49,6 @@ export function DailyLifeForm({ onboarding, profile, onSaved }: Props) {
       if (s != null && s >= 1 && s <= 10) setStress(s);
     }
   }, [saved]);
-
-  // ── NEAT preview (typical-day estimate using profile's steps_per_day) ────
-
-  const neatPreview = useMemo(() => {
-    const baselineSteps = profile?.steps_per_day_estimated ?? 4000;
-    return computeNeat({ occupation: workStyle, totalSteps: baselineSteps });
-  }, [workStyle, profile?.steps_per_day_estimated]);
 
   // ── Save ─────────────────────────────────────────────────────────────────
 
@@ -146,19 +139,6 @@ export function DailyLifeForm({ onboarding, profile, onSaved }: Props) {
         />
       </Section>
 
-      <View style={[styles.previewCard, { backgroundColor: t.surface, shadowColor: '#000' }]}>
-        <Text style={[styles.previewTitle, { color: t.muted }]}>Live NEAT preview</Text>
-        <Text style={[styles.previewVal, { color: t.text }]}>
-          {neatPreview.neatKcal.toLocaleString()}{' '}
-          <Text style={[styles.previewUnit, { color: t.muted }]}>kcal / day</Text>
-        </Text>
-        <Text style={[styles.previewBreakdown, { color: t.subtle }]}>
-          Occupation base {neatPreview.neatKcal - Math.round(neatPreview.netSteps * 0.04)} kcal +{' '}
-          {neatPreview.netSteps.toLocaleString()} steps ≈{' '}
-          {Math.round(neatPreview.netSteps * 0.04)} kcal
-        </Text>
-      </View>
-
       <Pressable
         onPress={handleSave}
         disabled={saving}
@@ -212,20 +192,6 @@ const styles = StyleSheet.create({
   },
   workLabel: { fontSize: 14 },
   workHint: { fontSize: 11, marginTop: 3 },
-
-  previewCard: {
-    borderRadius: 16,
-    padding: 14,
-    gap: 4,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.45,
-    shadowRadius: 20,
-    elevation: 2,
-  },
-  previewTitle: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 },
-  previewVal: { fontSize: 22, fontWeight: '700' },
-  previewUnit: { fontSize: 12, fontWeight: '500' },
-  previewBreakdown: { fontSize: 12 },
 
   saveBtn: {
     borderRadius: 14,

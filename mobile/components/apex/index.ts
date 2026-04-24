@@ -42,3 +42,4 @@ export { DailyLifeForm } from './DailyLifeForm';
 export { DietForm } from './DietForm';
 export { RegenerateAiProfileCard } from './RegenerateAiProfileCard';
 export { SliderRow } from './SliderRow';
+export { WorkoutActiveBanner } from './WorkoutActiveBanner';
