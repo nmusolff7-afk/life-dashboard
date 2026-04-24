@@ -226,7 +226,7 @@ function MovementPanel({ todaySteps, profile }: { todaySteps: number | null; pro
         label="Baseline (onboarding)"
         value={profile?.steps_per_day_estimated != null ? `${profile.steps_per_day_estimated.toLocaleString()} / day` : '—'}
       />
-      <KeyValueRow label="NEAT baseline" value={profile?.work_style ?? '—'} />
+      <KeyValueRow label="Work style" value={profile?.work_style ?? '—'} />
       <Text style={[panel.hint, { color: t.subtle }]}>
         Auto-pulled step count arrives with HealthKit. Log manually for now from the card below.
       </Text>

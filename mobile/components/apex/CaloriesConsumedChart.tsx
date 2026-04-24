@@ -1,21 +1,23 @@
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { useCalorieChart, useProfile } from '../../lib/hooks/useHomeData';
+import { useCalorieChart } from '../../lib/hooks/useHomeData';
+import { useLiveCalorieBalance } from '../../lib/hooks/useLiveCalorieBalance';
 import { useTokens } from '../../lib/theme';
 import { LineChart, type ChartPoint } from './LineChart';
 import { RangePills, type Range } from './RangePills';
 
-/** Daily calories consumed, with the user's calorie target drawn as a
- *  dashed overlay line for quick visual adherence. */
+/** Daily calories consumed, with the user's live goal intake drawn as a
+ *  dashed overlay line. Goal intake = totalBurn + deficit; for historical
+ *  comparison we draw today's live value as a reference, which is more
+ *  honest than the stale stored user_goals.calorie_target. */
 export function CaloriesConsumedChart() {
   const t = useTokens();
   const [range, setRange] = useState<Range>(30);
   const chart = useCalorieChart(range);
-  const profile = useProfile();
+  const balance = useLiveCalorieBalance();
 
-  const target =
-    profile.data?.goal_targets?.calorie_target ?? profile.data?.daily_calorie_goal ?? null;
+  const target = balance.goalIntake;
 
   const points: ChartPoint[] = useMemo(
     () => (chart.data ?? []).map((row, i) => ({ x: i, y: row.calories })),
@@ -35,7 +37,7 @@ export function CaloriesConsumedChart() {
           </Text>
           {target ? (
             <Text style={[styles.targetLine, { color: t.accent }]}>
-              Target {Math.round(target).toLocaleString()} kcal
+              Goal {Math.round(target).toLocaleString()} kcal
             </Text>
           ) : null}
         </View>

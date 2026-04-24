@@ -25,6 +25,7 @@ import {
   useTodayNutrition,
   useTodayWorkouts,
 } from '../../lib/hooks/useHomeData';
+import { useLiveCalorieBalance } from '../../lib/hooks/useLiveCalorieBalance';
 import { useTokens } from '../../lib/theme';
 import { useResetScrollOnFocus } from '../../lib/useResetScrollOnFocus';
 
@@ -40,6 +41,7 @@ export default function NutritionScreen() {
   const profile = useProfile();
   const savedMeals = useSavedMeals();
   const history = useMealHistory(90);
+  const balance = useLiveCalorieBalance();
 
   const [refreshing, setRefreshing] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
@@ -69,19 +71,21 @@ export default function NutritionScreen() {
 
   const totals = nutrition.data?.totals;
   const meals = nutrition.data?.meals ?? [];
-  const consumed = totals?.total_calories ?? 0;
-  const burned = workouts.data?.burn ?? 0;
-  const calorieTarget =
-    profile.data?.goal_targets?.calorie_target ?? profile.data?.daily_calorie_goal ?? null;
+
+  // Calorie math comes from the live-balance hook. Do NOT derive goals from
+  // profile.goal_targets.calorie_target (that's a stored static value and
+  // drifts from today's actual burn). See useLiveCalorieBalance.ts spec.
+  const { totalBurn, totalIntake, goalIntake } = balance;
 
   const targets = profile.data?.goal_targets;
   const macroTargets = {
     proteinG: targets?.protein_g ?? profile.data?.daily_protein_goal_g ?? null,
     carbsG: targets?.carbs_g ?? null,
     fatG: targets?.fat_g ?? null,
-    sugarG: null,
-    fiberG: null,
-    sodiumMg: null,
+    // FDA defaults for micros per PRD §4.4.9 (match templates/index.html L5939)
+    sugarG: 50,
+    fiberG: 30,
+    sodiumMg: 2300,
   };
   const macroValues = {
     proteinG: totals?.total_protein ?? 0,
@@ -123,9 +127,9 @@ export default function NutritionScreen() {
             </View>
 
             <CalorieRingCard
-              caloriesConsumed={consumed}
-              caloriesBurned={burned}
-              calorieTarget={calorieTarget}
+              totalIntake={totalIntake}
+              totalBurn={totalBurn}
+              goalIntake={goalIntake}
             />
 
             <NutritionMacrosCard
@@ -181,7 +185,7 @@ export default function NutritionScreen() {
         visible={pantryOpen}
         onClose={() => setPantryOpen(false)}
         onLogged={refreshAllMeals}
-        caloriesConsumedToday={consumed}
+        caloriesConsumedToday={totalIntake}
       />
       <SavedMealsPicker
         visible={savedOpen}

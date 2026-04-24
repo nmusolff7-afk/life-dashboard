@@ -1,35 +1,52 @@
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { useBurnChart, useCalorieChart } from '../../lib/hooks/useHomeData';
+import { OCC_BASE, type Occupation } from '../../../shared/src/logic/neat';
+import { computeTefFlat } from '../../../shared/src/logic/tef';
+import { useBurnChart, useCalorieChart, useProfile } from '../../lib/hooks/useHomeData';
 import { useTokens } from '../../lib/theme';
 import { LineChart, type ChartPoint } from './LineChart';
 import { RangePills, type Range } from './RangePills';
 
-/** Net-calories-per-day chart (consumed − burn). Zero-centered so surplus
- *  days sit above the reference line and deficit days sit below. */
+/** Net calories per day (intake − totalBurn). Zero-centered so actual-
+ *  surplus days sit above the reference line and actual-deficit days sit
+ *  below. TotalBurn is RMR + NEAT + EAT + TEF (historical approximation —
+ *  see BurnTrendCard for the same reconstruction). Never just workout
+ *  burn alone, which would make every day look like a massive surplus. */
 export function CalorieBalanceChart() {
   const t = useTokens();
   const [range, setRange] = useState<Range>(30);
   const consumed = useCalorieChart(range);
   const burned = useBurnChart(range);
+  const profile = useProfile();
 
   const { points, avgNet, dates } = useMemo(() => {
-    const byDate = new Map<string, { consumed: number; burned: number }>();
+    const rmr = profile.data?.rmr_kcal ?? 0;
+    const occ: Occupation = ((): Occupation => {
+      const ws = profile.data?.work_style;
+      return ws === 'standing' || ws === 'physical' ? ws : 'sedentary';
+    })();
+    const neatBase = OCC_BASE[occ];
+    const byDate = new Map<string, { consumed: number; workout: number }>();
     (consumed.data ?? []).forEach((r) => {
-      byDate.set(r.date, { consumed: r.calories, burned: 0 });
+      byDate.set(r.date, { consumed: r.calories, workout: 0 });
     });
     (burned.data ?? []).forEach((r) => {
       const existing = byDate.get(r.date);
-      if (existing) existing.burned = r.total_burn;
-      else byDate.set(r.date, { consumed: 0, burned: r.total_burn });
+      if (existing) existing.workout = r.total_burn;
+      else byDate.set(r.date, { consumed: 0, workout: r.total_burn });
     });
     const sorted = [...byDate.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1));
-    const pts: ChartPoint[] = sorted.map(([, v], i) => ({ x: i, y: v.consumed - v.burned }));
+    const pts: ChartPoint[] = sorted.map(([, v], i) => {
+      const tef = computeTefFlat(v.consumed);
+      const totalBurn = rmr + neatBase + v.workout + tef;
+      // Founder spec: net = intake − totalBurn (negative = actual deficit)
+      return { x: i, y: v.consumed - totalBurn };
+    });
     const sum = pts.reduce((s, p) => s + p.y, 0);
     const avg = pts.length > 0 ? sum / pts.length : 0;
     return { points: pts, avgNet: avg, dates: sorted.map(([d]) => d) };
-  }, [consumed.data, burned.data]);
+  }, [consumed.data, burned.data, profile.data]);
 
   const avgColor = avgNet <= 0 ? t.green : t.danger;
 
