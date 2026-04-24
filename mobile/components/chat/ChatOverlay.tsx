@@ -44,10 +44,13 @@ import { universalShortcuts } from './surfaceShortcuts';
  */
 const SHORTCUT_COL_WIDTH = 80;
 const CLEARANCE_ABOVE_FAB = 2;
-/** Systemic offset to shift collapsed rail + input DOWN to read inline
- *  with the FAB on-device. Keep in one place so rail + input always
- *  move together. */
-const COLLAPSED_DOWN_SHIFT = 13;
+/** Offset to shift the shortcut rail DOWN so the lowest pill reads as
+ *  inline with the FAB's top edge on-device. */
+const RAIL_DOWN_SHIFT = 13;
+/** Offset to shift the chat input pill DOWN so it reads as inline with
+ *  the FAB's vertical band. Tuned independently of the rail per
+ *  founder feedback. */
+const INPUT_DOWN_SHIFT = 10;
 /** Extra breathing room above the system keyboard. */
 const INPUT_CLEAR_ABOVE_KB = 20;
 
@@ -131,16 +134,16 @@ export function ChatOverlay() {
   const restingFabX = screen.width - FAB_RIGHT - fabSize;
   const fabCenterX = restingFabX + fabSize / 2;
 
-  // COLLAPSED positions. COLLAPSED_DOWN_SHIFT nudges both the rail and
-  // the input pill down together so they read as visually inline with
-  // the FAB's resting spot.
+  // COLLAPSED positions. Rail and input have independent down-shift
+  // constants so the founder can tune each one's alignment to the FAB
+  // without disturbing the other.
   const railBottomFromScreenBottom =
-    screen.height - restingFabY + CLEARANCE_ABOVE_FAB - COLLAPSED_DOWN_SHIFT;
+    screen.height - restingFabY + CLEARANCE_ABOVE_FAB - RAIL_DOWN_SHIFT;
   const railLeft = fabCenterX - SHORTCUT_COL_WIDTH / 2;
   const inputRight = screen.width - restingFabX + 10;
   const INPUT_PILL_HEIGHT = 50;
   const inputBottomCollapsed =
-    restingFabBottomFromScreenBottom - COLLAPSED_DOWN_SHIFT;
+    restingFabBottomFromScreenBottom - INPUT_DOWN_SHIFT;
   const conversationBottomCollapsed = railBottomFromScreenBottom;
 
   // EXPANDED positions
