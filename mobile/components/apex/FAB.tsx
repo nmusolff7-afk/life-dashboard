@@ -14,8 +14,11 @@ interface Props {
 
 const FAB_SIZE = 52;
 const FAB_RIGHT = 18;
-/** Gap between the top of the tab bar and the bottom of the FAB. */
-const FAB_GAP_ABOVE_TAB_BAR = 12;
+/** Gap between the top of the tab bar and the bottom of the FAB.
+ *  Founder-tuned: 7pt puts the button a hair closer to the tab bar
+ *  than the rail/input anchor so the FAB sits visually nestled into
+ *  the tab-bar strip. */
+const FAB_GAP_ABOVE_TAB_BAR = 7;
 const TAB_BAR_HEIGHT = 64;
 
 /** FAB + chat toggle. Always bottom-right above the tab bar. Tap
