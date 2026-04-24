@@ -180,15 +180,25 @@ def _wants_json() -> bool:
 def client_today():
     """Return today's date string in the client's local timezone.
 
-    The client sets a ``client_date`` cookie (YYYY-MM-DD) on every page load
-    and refreshes it each minute.  When the cookie is present and valid we use
-    it so that inserts and queries are always anchored to the user's local
-    calendar day, not the server's UTC date.
+    Precedence:
+      1. ``X-Client-Date`` header (mobile — set by apiFetch on every call)
+      2. ``client_date`` cookie (Flask PWA — refreshed each minute)
+      3. server UTC date (final fallback)
+
+    Both mobile and the PWA send local YYYY-MM-DD so today-queries and
+    inserts always anchor to the user's calendar day, not server UTC.
     """
+    h = (request.headers.get("X-Client-Date") or "").strip()
+    if h:
+        try:
+            date.fromisoformat(h)
+            return h
+        except ValueError:
+            pass
     d = request.cookies.get("client_date", "").strip()
     if d:
         try:
-            date.fromisoformat(d)   # validate format
+            date.fromisoformat(d)
             return d
         except ValueError:
             pass

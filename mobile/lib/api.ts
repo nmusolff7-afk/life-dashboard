@@ -1,4 +1,5 @@
 import { getFlaskToken } from './flaskToken';
+import { localToday } from './localTime';
 
 export const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
@@ -35,6 +36,13 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
   const headers = new Headers(init?.headers);
   if (token) headers.set('Authorization', `Bearer ${token}`);
   if (!headers.has('Accept')) headers.set('Accept', 'application/json');
+  // Always send the user's local date so Flask's client_today() aligns
+  // today-queries to the user's calendar day, not server UTC. Without
+  // this, "today's" data rolls over at UTC midnight (5pm PT) instead of
+  // at the user's actual local midnight.
+  if (!headers.has('X-Client-Date')) {
+    headers.set('X-Client-Date', localToday());
+  }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);

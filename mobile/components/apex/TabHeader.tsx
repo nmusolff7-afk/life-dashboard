@@ -21,12 +21,14 @@ export function TabHeader({ title }: Props) {
 const styles = StyleSheet.create({
   wrap: {
     paddingHorizontal: 18,
-    paddingVertical: 10,
+    paddingTop: 14,
+    paddingBottom: 12,
     borderBottomWidth: 1,
   },
   title: {
-    fontSize: 18,
+    fontSize: 28,
     fontWeight: '700',
-    letterSpacing: 0.1,
+    letterSpacing: -0.3,
+    lineHeight: 32,
   },
 });

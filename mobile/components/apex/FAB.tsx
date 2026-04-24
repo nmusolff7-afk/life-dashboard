@@ -11,60 +11,52 @@ interface Props {
   from?: Surface;
 }
 
-/** FAB → ChatOverlay launcher. Per PRD §4.7.4, tapping the + spawns the
- *  chat overlay with per-surface shortcut buttons rendered inside. When
- *  the overlay is visible, this FAB fades out (the overlay's own close
- *  button becomes the X) so there's one "active" button, not two. */
+/** FAB stays in place; tap rotates the `+` 45° into an `×` over 180ms.
+ *  Per PRD §4.7.4 the button itself is the toggle — when the overlay is
+ *  open, tapping the rotated FAB closes. The ChatOverlay renders its
+ *  shortcut rail + chat input AROUND this button without its own close
+ *  control.
+ */
 export function FAB({ from = 'home' }: Props) {
   const t = useTokens();
   const chat = useChatSession();
   const haptics = useHaptics();
-  const anim = useRef(new Animated.Value(1)).current;
+  const anim = useRef(new Animated.Value(0)).current;
 
-  // Fade the FAB when the overlay is open — the overlay's X is the new
-  // "close" button and having both visible is confusing.
   useEffect(() => {
     Animated.timing(anim, {
-      toValue: chat.visible ? 0 : 1,
-      duration: 160,
+      toValue: chat.visible ? 1 : 0,
+      duration: 180,
       easing: Easing.out(Easing.quad),
       useNativeDriver: true,
     }).start();
   }, [chat.visible, anim]);
 
+  const rotate = anim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] });
   const BOTTOM = 14;
 
-  if (chat.visible) {
-    // Short-circuit render so the FAB isn't covering the close button
-    // even invisibly (touchable area).
-    return null;
-  }
-
   return (
-    <Animated.View
-      style={[
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={chat.visible ? 'Close chat' : 'Open chat'}
+      onPress={() => {
+        haptics.fire('tap');
+        if (chat.visible) chat.close();
+        else chat.open(from);
+      }}
+      style={({ pressed }) => [
         styles.fab,
         {
           backgroundColor: t.accent,
           bottom: BOTTOM,
-          opacity: anim,
+          transform: [{ scale: pressed ? 0.92 : 1 }],
           shadowColor: '#000',
         },
       ]}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Open chatbot"
-        onPress={() => {
-          haptics.fire('tap');
-          chat.open(from);
-        }}
-        style={({ pressed }) => [
-          styles.fabInner,
-          { transform: [{ scale: pressed ? 0.92 : 1 }] },
-        ]}>
+      <Animated.View style={{ transform: [{ rotate }] }}>
         <Ionicons name="add" size={30} color="#fff" />
-      </Pressable>
-    </Animated.View>
+      </Animated.View>
+    </Pressable>
   );
 }
 
@@ -75,16 +67,12 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    zIndex: 110,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 200,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 16,
     elevation: 6,
-  },
-  fabInner: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });
