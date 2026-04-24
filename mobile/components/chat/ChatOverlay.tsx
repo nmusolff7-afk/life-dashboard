@@ -44,6 +44,11 @@ import { universalShortcuts } from './surfaceShortcuts';
  */
 const SHORTCUT_COL_WIDTH = 80;
 const CLEARANCE_ABOVE_FAB = 2;
+/** Founder-flagged systemic 10pt offset in the measured FAB position
+ *  vs. what reads as "inline" visually on-device. The rail + input
+ *  both looked 10pt too high at first paint, so we shift them down
+ *  by this constant. Keep in one place so they always stay in sync. */
+const COLLAPSED_DOWN_SHIFT = 10;
 /** Extra breathing room above the system keyboard (iOS on some devices
  *  reports a height that's missing the home-indicator band — 20pt is
  *  safe everywhere). */
@@ -116,16 +121,18 @@ export function ChatOverlay() {
   const fabY = fab ? fab.y : screen.height - insets.bottom - 14 - FAB_SIZE_FALLBACK;
   const fabCenterX = fabX + fabSize / 2;
 
-  // COLLAPSED positions
-  const railBottomFromScreenBottom = screen.height - fabY + CLEARANCE_ABOVE_FAB;
+  // COLLAPSED positions. Everything offset DOWN by COLLAPSED_DOWN_SHIFT
+  // because the measured FAB baseline and what reads as "visually inline"
+  // with the FAB differ by ~10pt on the founder's device.
+  const railBottomFromScreenBottom =
+    screen.height - fabY + CLEARANCE_ABOVE_FAB - COLLAPSED_DOWN_SHIFT;
   const railLeft = fabCenterX - SHORTCUT_COL_WIDTH / 2;
   const inputRight = screen.width - fabX + 10;
   const fabBottomFromScreenBottom = screen.height - (fabY + fabSize);
   const INPUT_PILL_HEIGHT = 50;
-  // Bottom-align the input pill with the FAB's bottom edge — founder
-  // flagged the previous centered alignment read as "higher than it
-  // should be". Pill's bottom now sits at FAB's bottom.
-  const inputBottomCollapsed = fabBottomFromScreenBottom;
+  // Pill sits 10pt below the FAB's bottom edge so it visually reads as
+  // inline with the FAB on-device.
+  const inputBottomCollapsed = fabBottomFromScreenBottom - COLLAPSED_DOWN_SHIFT;
   const conversationBottomCollapsed = railBottomFromScreenBottom;
 
   // EXPANDED positions
