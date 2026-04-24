@@ -13,6 +13,19 @@ const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // PRD §4.7.7 — end after 30-min b
 
 export type Surface = 'home' | 'fitness' | 'nutrition' | 'finance' | 'time' | 'settings';
 
+/** One of the FAB shortcut floating entry boxes. The QuickLogHost listens
+ *  for this and renders the matching modal on top of any tab. */
+export type QuickLog =
+  | 'meal-manual'
+  | 'meal-scan'
+  | 'meal-barcode'
+  | 'meal-saved'
+  | 'workout-manual'
+  | 'workout-strength'
+  | 'workout-cardio'
+  | 'workout-saved'
+  | 'weight';
+
 export interface ChatTurn {
   id: string;
   role: 'user' | 'assistant';
@@ -26,10 +39,18 @@ interface SessionValue {
   surface: Surface;
   turns: ChatTurn[];
   sending: boolean;
+  quickLog: QuickLog | null;
+  /** Increments every time any quick-log entry successfully saves. Tabs
+   *  watch this to refetch their own data slices — the QuickLogHost is
+   *  mounted above the tabs so its hooks are separate from theirs. */
+  dataVersion: number;
   open: (surface?: Surface) => void;
   close: () => void;
   send: (text: string) => Promise<void>;
   reset: () => void;
+  openQuickLog: (kind: QuickLog) => void;
+  closeQuickLog: () => void;
+  bumpDataVersion: () => void;
   sessionId: string;
 }
 
@@ -46,6 +67,8 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [sending, setSending] = useState(false);
   const [sessionId, setSessionId] = useState<string>(newId());
+  const [quickLog, setQuickLog] = useState<QuickLog | null>(null);
+  const [dataVersion, setDataVersion] = useState(0);
 
   // End the session after 30min of background per §4.7.7.
   const backgroundedAt = useRef<number | null>(null);
@@ -73,6 +96,21 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
 
   const close = useCallback(() => {
     setVisible(false);
+  }, []);
+
+  // openQuickLog always closes the overlay first so the shortcut rail
+  // animates away before the entry modal appears.
+  const openQuickLog = useCallback((kind: QuickLog) => {
+    setVisible(false);
+    setQuickLog(kind);
+  }, []);
+
+  const closeQuickLog = useCallback(() => {
+    setQuickLog(null);
+  }, []);
+
+  const bumpDataVersion = useCallback(() => {
+    setDataVersion((v) => v + 1);
   }, []);
 
   const reset = useCallback(() => {
@@ -162,8 +200,38 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<SessionValue>(
-    () => ({ visible, surface, turns, sending, open, close, send, reset, sessionId }),
-    [visible, surface, turns, sending, open, close, send, reset, sessionId],
+    () => ({
+      visible,
+      surface,
+      turns,
+      sending,
+      quickLog,
+      dataVersion,
+      open,
+      close,
+      send,
+      reset,
+      openQuickLog,
+      closeQuickLog,
+      bumpDataVersion,
+      sessionId,
+    }),
+    [
+      visible,
+      surface,
+      turns,
+      sending,
+      quickLog,
+      dataVersion,
+      open,
+      close,
+      send,
+      reset,
+      openQuickLog,
+      closeQuickLog,
+      bumpDataVersion,
+      sessionId,
+    ],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

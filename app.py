@@ -1139,7 +1139,10 @@ def api_log_workout():
         return jsonify({"error": "No description"}), 400
     cd = data.get("client_date") or client_today()
     ct = data.get("client_time") or None
-    insert_workout(uid(), description, calories_burned, log_date=cd, logged_at=ct)
+    st = (data.get("session_type") or "").strip().lower() or None
+    if st not in (None, "strength", "cardio", "mixed"):
+        st = None  # ignore unexpected values instead of rejecting the log
+    insert_workout(uid(), description, calories_burned, log_date=cd, logged_at=ct, session_type=st)
     return jsonify({"ok": True})
 
 

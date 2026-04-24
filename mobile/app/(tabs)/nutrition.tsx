@@ -31,6 +31,7 @@ import {
   useTodayWorkouts,
 } from '../../lib/hooks/useHomeData';
 import { useLiveCalorieBalance } from '../../lib/hooks/useLiveCalorieBalance';
+import { useChatSession } from '../../lib/useChatSession';
 import { useTokens } from '../../lib/theme';
 import { useDailyReset } from '../../lib/useDailyReset';
 import { useResetScrollOnFocus } from '../../lib/useResetScrollOnFocus';
@@ -110,13 +111,23 @@ export default function NutritionScreen() {
     void onRefresh();
   });
 
+  // Refetch when a FAB quick-log modal saves from over any tab.
+  const { dataVersion } = useChatSession();
+  useEffect(() => {
+    if (dataVersion > 0) void onRefresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataVersion]);
+
   const totals = nutrition.data?.totals;
   const meals = nutrition.data?.meals ?? [];
 
   // Calorie math comes from the live-balance hook. Do NOT derive goals from
   // profile.goal_targets.calorie_target (that's a stored static value and
   // drifts from today's actual burn). See useLiveCalorieBalance.ts spec.
-  const { totalBurn, totalIntake, goalIntake } = balance;
+  const { totalBurn, totalIntake, distanceToGoal } = balance;
+  // Current deficit = burn - intake. Negative → surplus. null when we
+  // haven't computed a burn yet (early-morning, no profile data).
+  const currentDeficit = totalBurn != null ? totalBurn - totalIntake : null;
 
   const targets = profile.data?.goal_targets;
   const macroTargets = {
@@ -185,7 +196,10 @@ export default function NutritionScreen() {
               loading={nutritionScore.loading}
             />
 
-            {/* Summary row — same shape as Fitness tab's (Burn·Steps·Weight). */}
+            {/* Summary row — Intake · current Deficit · Δ vs goal intake.
+                Burn is intentionally omitted here; the Fitness tab is the
+                source of truth for burn, and founder flagged that showing
+                it on both tabs creates inconsistency. */}
             <View style={styles.summaryRow}>
               <SummaryCell
                 t={t}
@@ -196,19 +210,24 @@ export default function NutritionScreen() {
               <View style={[styles.summaryDivider, { backgroundColor: t.border }]} />
               <SummaryCell
                 t={t}
-                label="Burn"
-                value={totalBurn != null ? `${totalBurn}` : '—'}
+                label={currentDeficit != null && currentDeficit < 0 ? 'Surplus' : 'Deficit'}
+                value={currentDeficit != null ? `${Math.abs(currentDeficit)}` : '—'}
                 unit="kcal"
+                valueColor={
+                  currentDeficit == null
+                    ? undefined
+                    : currentDeficit >= 0
+                      ? t.green
+                      : t.danger
+                }
               />
               <View style={[styles.summaryDivider, { backgroundColor: t.border }]} />
               <SummaryCell
                 t={t}
-                label={
-                  totalBurn != null && totalBurn >= totalIntake ? 'Remaining' : 'Over'
-                }
+                label={distanceToGoal != null && distanceToGoal < 0 ? 'Over goal' : 'Δ vs goal'}
                 value={
-                  goalIntake != null
-                    ? `${Math.abs(goalIntake - totalIntake)}`
+                  distanceToGoal != null
+                    ? `${distanceToGoal >= 0 ? '' : '+'}${Math.abs(distanceToGoal)}`
                     : '—'
                 }
                 unit="kcal"
@@ -293,16 +312,19 @@ function SummaryCell({
   value,
   unit,
   emphasize,
+  valueColor,
 }: {
   t: ReturnType<typeof useTokens>;
   label: string;
   value: string;
   unit?: string;
   emphasize?: boolean;
+  valueColor?: string;
 }) {
+  const color = valueColor ?? (emphasize ? t.nutrition : t.text);
   return (
     <View style={styles.summaryCell}>
-      <Text style={[styles.summaryValue, { color: emphasize ? t.nutrition : t.text }]}>
+      <Text style={[styles.summaryValue, { color }]}>
         {value}
         {unit ? <Text style={[styles.summaryUnit, { color: t.muted }]}> {unit}</Text> : null}
       </Text>

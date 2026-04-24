@@ -422,16 +422,22 @@ def suggest_meal(
 
 # ── Workout burn estimation ────────────────────────────
 
-BURN_PROMPT = """You are a fitness expert. Given a workout description in plain English,
-estimate the NET calories burned — that is, only the EXTRA calories burned above what the person
-would have burned at rest (resting metabolic rate) during that same time period. Do NOT include
-the baseline calories the body burns just to stay alive; only count the additional expenditure
-caused by the physical activity itself.
+BURN_PROMPT = """You are a fitness expert. Given a workout description in plain English, do two things:
 
-Use your best judgment for intensity and duration when not specified.
+1. Classify the workout's primary session_type as one of:
+   - "strength"  — resistance training (weights, bodyweight sets/reps like push-ups, pull-ups, dips, lunges, etc.)
+   - "cardio"    — sustained aerobic effort (running, walking, hiking, cycling, swimming, rowing, elliptical, HIIT-style cardio, zone 2)
+   - "mixed"     — a session that is clearly both (e.g. "lifted for 45 min then ran 2 miles", CrossFit-style WODs mixing lifts and conditioning)
+
+2. Estimate the NET calories burned — ONLY the EXTRA calories burned above what the person
+   would have burned at rest (resting metabolic rate) during that same time period. Do NOT include
+   the baseline calories the body burns just to stay alive; only count the additional expenditure
+   caused by the physical activity itself. Use your best judgment for intensity and duration when
+   not specified.
 
 Respond ONLY with this exact JSON structure (no markdown, no explanation):
 {
+  "session_type": "strength" | "cardio" | "mixed",
   "calories_burned": <integer>,
   "notes": "<brief note about assumptions made, if any>"
 }"""
@@ -473,9 +479,13 @@ def estimate_burn(workout_description: str, profile_map: dict | None = None) -> 
     )
     text = next((b.text for b in response.content if b.type == "text"), "")
     data = _parse_json(text)
+    session_type = (data.get("session_type") or "").strip().lower()
+    if session_type not in ("strength", "cardio", "mixed"):
+        session_type = "mixed"
     return {
         "calories_burned": int(data["calories_burned"]),
         "notes":           data.get("notes", ""),
+        "session_type":    session_type,
     }
 
 

@@ -19,6 +19,8 @@ export interface Meal {
   sodium_mg?: number;
 }
 
+export type WorkoutSessionType = 'strength' | 'cardio' | 'mixed';
+
 export interface Workout {
   id: number;
   user_id: number;
@@ -26,6 +28,9 @@ export interface Workout {
   log_date: string;
   description: string;
   calories_burned: number;
+  /** AI-classified workout shape, persisted by /api/log-workout. Null on
+   *  legacy rows logged before the classifier was introduced. */
+  session_type?: WorkoutSessionType | null;
 }
 
 export interface NutritionTotals {
@@ -113,6 +118,9 @@ export interface SavedWorkout {
 export interface BurnEstimate {
   calories_burned: number;
   notes: string;
+  /** AI classification of the workout shape — drives strength vs cardio
+   *  view in the detail modal. Defaults to 'mixed' when the AI is unsure. */
+  session_type: WorkoutSessionType;
 }
 
 export interface WeightHistoryPoint {

@@ -1,4 +1,4 @@
-import type { BurnEstimate, SavedWorkout, Workout } from '../../../shared/src/types/home';
+import type { BurnEstimate, SavedWorkout, Workout, WorkoutSessionType } from '../../../shared/src/types/home';
 import { apiFetch } from '../api';
 import { clientTimeFields } from '../localTime';
 
@@ -25,13 +25,18 @@ export async function estimateBurn(description: string): Promise<BurnEstimate> {
   return jsonOrThrow<BurnEstimate>(res, 'burn-estimate');
 }
 
-export async function logWorkout(description: string, caloriesBurned: number): Promise<void> {
+export async function logWorkout(
+  description: string,
+  caloriesBurned: number,
+  sessionType?: WorkoutSessionType | null,
+): Promise<void> {
   const res = await apiFetch('/api/log-workout', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       description,
       calories_burned: caloriesBurned,
+      session_type: sessionType ?? undefined,
       ...clientTimeFields(),
     }),
   });

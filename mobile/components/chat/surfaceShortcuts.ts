@@ -1,25 +1,21 @@
-import type { Href, Router } from 'expo-router';
-
+import type { QuickLog } from '../../lib/useChatSession';
 import type { Shortcut } from './ChatShortcutRail';
 
 interface Deps {
-  router: Router;
-  closeOverlay: () => void;
   expandedKey: string | null;
   setExpandedKey: (key: string | null) => void;
+  openQuickLog: (kind: QuickLog) => void;
 }
 
-/** Same shortcut list on every screen per founder. Tapping "Log Meal"
- *  expands to the four ways to log a meal (Manual, Scan, Barcode,
- *  Saved), matching the Flask PWA pattern. Any other shortcut navigates
- *  directly. */
+/** Universal FAB shortcut rail. Tapping Meal or Workout expands into
+ *  sub-options (Manual / … / Back); every leaf fires openQuickLog, which
+ *  closes the overlay and pops the matching floating entry modal
+ *  (see QuickLogHost). No tab navigation — entry lives over the current
+ *  screen so the user never loses context. */
 export function universalShortcuts(deps: Deps): Shortcut[] {
-  const { router, closeOverlay, expandedKey, setExpandedKey } = deps;
+  const { expandedKey, setExpandedKey, openQuickLog } = deps;
 
-  const goto = (href: Href) => {
-    closeOverlay();
-    router.push(href);
-  };
+  const fire = (kind: QuickLog) => () => openQuickLog(kind);
 
   const hourNow = new Date().getHours();
   const mealHours =
@@ -27,40 +23,23 @@ export function universalShortcuts(deps: Deps): Shortcut[] {
     (hourNow >= 11 && hourNow < 14) ||
     (hourNow >= 17 && hourNow < 21);
 
-  // Meal-log sub-options, revealed when Log Meal is tapped. Short labels
-  // so pills fit in the ~80pt narrow column over the FAB.
   if (expandedKey === 'log-meal') {
     return [
-      {
-        key: 'meal-manual',
-        label: 'Manual',
-        icon: 'create-outline',
-        onPress: () => goto('/(tabs)/nutrition?open=manual'),
-      },
-      {
-        key: 'meal-scan',
-        label: 'Scan',
-        icon: 'camera-outline',
-        onPress: () => goto('/(tabs)/nutrition?open=scan'),
-      },
-      {
-        key: 'meal-barcode',
-        label: 'Barcode',
-        icon: 'barcode-outline',
-        onPress: () => goto('/(tabs)/nutrition?open=barcode'),
-      },
-      {
-        key: 'meal-saved',
-        label: 'Saved',
-        icon: 'bookmark-outline',
-        onPress: () => goto('/(tabs)/nutrition?open=saved'),
-      },
-      {
-        key: 'meal-back',
-        label: 'Back',
-        icon: 'chevron-back-outline',
-        onPress: () => setExpandedKey(null),
-      },
+      { key: 'meal-manual',  label: 'Manual',  icon: 'create-outline',        onPress: fire('meal-manual') },
+      { key: 'meal-scan',    label: 'Scan',    icon: 'camera-outline',        onPress: fire('meal-scan') },
+      { key: 'meal-barcode', label: 'Barcode', icon: 'barcode-outline',       onPress: fire('meal-barcode') },
+      { key: 'meal-saved',   label: 'Saved',   icon: 'bookmark-outline',      onPress: fire('meal-saved') },
+      { key: 'meal-back',    label: 'Back',    icon: 'chevron-back-outline',  onPress: () => setExpandedKey(null) },
+    ];
+  }
+
+  if (expandedKey === 'log-workout') {
+    return [
+      { key: 'workout-manual',   label: 'Manual',   icon: 'create-outline',       onPress: fire('workout-manual') },
+      { key: 'workout-strength', label: 'Strength', icon: 'barbell-outline',      onPress: fire('workout-strength') },
+      { key: 'workout-cardio',   label: 'Cardio',   icon: 'walk-outline',         onPress: fire('workout-cardio') },
+      { key: 'workout-saved',    label: 'Saved',    icon: 'bookmark-outline',     onPress: fire('workout-saved') },
+      { key: 'workout-back',     label: 'Back',     icon: 'chevron-back-outline', onPress: () => setExpandedKey(null) },
     ];
   }
 
@@ -76,13 +55,13 @@ export function universalShortcuts(deps: Deps): Shortcut[] {
       key: 'log-workout',
       label: 'Workout',
       icon: 'barbell-outline',
-      onPress: () => goto('/(tabs)/fitness'),
+      onPress: () => setExpandedKey('log-workout'),
     },
     {
       key: 'log-weight',
       label: 'Weight',
       icon: 'scale-outline',
-      onPress: () => goto('/fitness/subsystem/body'),
+      onPress: fire('weight'),
     },
   ];
 }

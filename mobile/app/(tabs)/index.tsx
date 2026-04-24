@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
@@ -20,6 +20,7 @@ import {
 import { useLiveCalorieBalance } from '../../lib/hooks/useLiveCalorieBalance';
 import { useScores } from '../../lib/hooks/useScores';
 import { useTokens } from '../../lib/theme';
+import { useChatSession } from '../../lib/useChatSession';
 import { useDailyReset } from '../../lib/useDailyReset';
 import { useResetScrollOnFocus } from '../../lib/useResetScrollOnFocus';
 import { localToday } from '../../lib/localTime';
@@ -71,6 +72,14 @@ export default function HomeScreen() {
     void onRefresh();
     void stepsState.refetch();
   });
+
+  // Also refetch when a FAB quick-log modal saves — QuickLogHost lives
+  // above this tab so its own refetches don't propagate down here.
+  const { dataVersion } = useChatSession();
+  useEffect(() => {
+    if (dataVersion > 0) void onRefresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataVersion]);
 
   // Derived values ---------------------------------------------------------
 
@@ -133,7 +142,7 @@ export default function HomeScreen() {
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <TabHeader
         title="Home"
-        right={<StreakBar loggedDates={loggedDates} today={today} days={90} compact />}
+        right={<StreakBar loggedDates={loggedDates} today={today} days={90} size="sm" />}
       />
       <ScrollView
         ref={scrollRef}
@@ -149,13 +158,10 @@ export default function HomeScreen() {
           </Pressable>
         ) : null}
 
-        {/* Overall Score — BLUF for the tab. */}
+        {/* Overall Score — BLUF for the tab. The 90-day streak bar lives
+            inline in the TabHeader (right slot) so it doesn't chew screen
+            real-estate twice. */}
         <OverallScoreHero data={scores.overall.data} loading={scores.overall.loading} />
-
-        {/* 90-day scrolling streak bar — today at the right edge, oldest
-            left. The compact flame+count in the header is a glance;
-            this is the full drillable history. */}
-        <StreakBar loggedDates={loggedDates} today={today} days={90} />
 
         {/* Active goals strip. Single card until §4.10 goal library lands. */}
         {activeGoal ? (

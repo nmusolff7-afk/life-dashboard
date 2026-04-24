@@ -80,7 +80,15 @@ export function WorkoutDetailModal({ workout, onClose, onChanged }: Props) {
   const [editing, setEditing] = useState(false);
 
   const description = workout?.description ?? '';
-  const isCardio = useMemo(() => classifyAsCardio(description), [description]);
+  // Prefer the AI-classified session_type persisted with the workout row;
+  // fall back to keyword classification for legacy rows logged before the
+  // classifier landed.
+  const isCardio = useMemo(() => {
+    const st = workout?.session_type;
+    if (st === 'cardio') return true;
+    if (st === 'strength' || st === 'mixed') return false;
+    return classifyAsCardio(description);
+  }, [workout?.session_type, description]);
   const sets = useMemo(() => (isCardio ? [] : parseAllSets(description)), [description, isCardio]);
   const strengthSummary = useMemo(() => parseStrengthDescription(description), [description]);
 

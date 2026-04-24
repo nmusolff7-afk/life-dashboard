@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ScreenHeader, StrengthTrackerModal, WorkoutActiveBanner } from '../../components/apex';
 import { ChatOverlay } from '../../components/chat/ChatOverlay';
+import { QuickLogHost } from '../../components/chat/QuickLogHost';
 import { useProfile, useTodayWorkouts } from '../../lib/hooks/useHomeData';
 import { useTokens } from '../../lib/theme';
 import { ChatSessionProvider } from '../../lib/useChatSession';
@@ -124,6 +125,7 @@ export default function TabLayout() {
           </Tabs>
           <TabsStrengthTrackerHost />
           <ChatOverlay />
+          <QuickLogHost />
         </View>
       </ChatSessionProvider>
     </StrengthSessionProvider>

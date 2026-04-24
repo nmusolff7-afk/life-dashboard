@@ -1,4 +1,3 @@
-import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -10,7 +9,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -39,8 +37,6 @@ const SHORTCUT_COL_WIDTH = 80;
 
 export function ChatOverlay() {
   const t = useTokens();
-  const scheme = useColorScheme();
-  const router = useRouter();
   const chat = useChatSession();
   const insets = useSafeAreaInsets();
   const anim = useRef(new Animated.Value(0)).current;
@@ -72,42 +68,36 @@ export function ChatOverlay() {
 
   if (dismissed) return null;
 
-  const backdropOpacity = anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, scheme === 'light' ? 0.3 : 0.5],
-  });
   const hasTurns = chat.turns.length > 0;
 
   // Universal shortcuts — identical across every surface per founder.
+  // All leaves fire openQuickLog, which dismisses the overlay and pops
+  // the matching entry modal (see QuickLogHost).
   const shortcuts: Shortcut[] = universalShortcuts({
-    router,
-    closeOverlay: chat.close,
     expandedKey,
     setExpandedKey,
+    openQuickLog: chat.openQuickLog,
   });
 
-  // The FAB's top edge, measured from the bottom of the screen (accounting
-  // for safe area inset). The shortcut rail sits above this line + 20pt
-  // clearance. The chat input sits to the LEFT of the FAB with its bottom
-  // aligned a bit above the FAB's bottom so its pill frame doesn't clip
-  // over the rotating + visually.
-  const CLEARANCE_ABOVE_FAB = 20;
-  const fabTopOffset = FAB_BOTTOM + FAB_SIZE + insets.bottom + CLEARANCE_ABOVE_FAB;
-  // Input bottom sits slightly above the FAB center so the pill doesn't
-  // visually bleed over the button on devices with rounded corners.
-  const inputBottomOffset = FAB_BOTTOM + insets.bottom + CLEARANCE_ABOVE_FAB;
+  // Content sits well above the FAB so the rotating + stays visible and
+  // the shortcut pills / input pill never visually graze the button.
+  // CONTENT_LIFT: raises the shortcut rail / input higher than the
+  // previous 20pt clearance — the founder flagged content still sat too
+  // low obscuring the FAB shadow.
+  const CONTENT_LIFT = 72;
+  const fabTopOffset = FAB_BOTTOM + FAB_SIZE + insets.bottom + CONTENT_LIFT;
+  const inputBottomOffset = FAB_BOTTOM + insets.bottom + CONTENT_LIFT;
 
   return (
     <View pointerEvents={chat.visible ? 'auto' : 'none'} style={StyleSheet.absoluteFill}>
-      {/* Dim backdrop */}
-      <Animated.View
+      {/* Transparent tap-to-close catcher. No dim — the founder wants the
+          underlying screen (and the FAB itself) to stay visible when the
+          overlay is open. */}
+      <Pressable
         pointerEvents={chat.visible ? 'auto' : 'none'}
-        style={[
-          StyleSheet.absoluteFill,
-          { backgroundColor: '#000', opacity: backdropOpacity },
-        ]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={chat.close} />
-      </Animated.View>
+        style={StyleSheet.absoluteFill}
+        onPress={chat.close}
+      />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

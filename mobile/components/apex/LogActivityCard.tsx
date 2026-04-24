@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import type { WorkoutSessionType } from '../../../shared/src/types/home';
 import { estimateBurn, logWorkout, saveWorkoutTemplate } from '../../lib/api/fitness';
 import { useTokens } from '../../lib/theme';
 
@@ -29,6 +30,7 @@ export function LogActivityCard({
     initialCalories != null ? String(initialCalories) : '',
   );
   const [notes, setNotes] = useState<string>('');
+  const [sessionType, setSessionType] = useState<WorkoutSessionType | null>(null);
   const [estimating, setEstimating] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -36,6 +38,7 @@ export function LogActivityCard({
     setDescription('');
     setCalories('');
     setNotes('');
+    setSessionType(null);
   };
 
   const handleEstimate = async () => {
@@ -49,6 +52,7 @@ export function LogActivityCard({
       const est = await estimateBurn(desc);
       setCalories(String(est.calories_burned));
       setNotes(est.notes ?? '');
+      setSessionType(est.session_type ?? null);
     } catch (e) {
       Alert.alert('Burn estimate failed', e instanceof Error ? e.message : String(e));
     } finally {
@@ -69,7 +73,7 @@ export function LogActivityCard({
     }
     setSaving(true);
     try {
-      await logWorkout(desc, kcal);
+      await logWorkout(desc, kcal, sessionType);
       reset();
       onLogged();
     } catch (e) {
@@ -138,6 +142,22 @@ export function LogActivityCard({
           )}
         </Pressable>
       </View>
+
+      {sessionType ? (
+        <View style={styles.typeRow}>
+          <View style={[styles.typeChip, { backgroundColor: t.surface2, borderColor: t.border }]}>
+            <Ionicons
+              name={sessionType === 'cardio' ? 'walk-outline' : sessionType === 'strength' ? 'barbell-outline' : 'flash-outline'}
+              size={12}
+              color={t.accent}
+            />
+            <Text style={[styles.typeLabel, { color: t.text }]}>
+              {sessionType === 'cardio' ? 'Cardio' : sessionType === 'strength' ? 'Strength' : 'Mixed'}
+            </Text>
+          </View>
+          <Text style={[styles.typeHint, { color: t.subtle }]}>AI-detected</Text>
+        </View>
+      ) : null}
 
       {notes ? (
         <Text style={[styles.notes, { color: t.muted }]}>
@@ -211,6 +231,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   estLabel: { fontSize: 13, fontWeight: '600' },
+  typeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -4 },
+  typeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  typeLabel: { fontSize: 11, fontWeight: '700' },
+  typeHint: { fontSize: 10, fontStyle: 'italic' },
   notes: { fontSize: 12, marginTop: -4 },
   actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   templateBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8 },

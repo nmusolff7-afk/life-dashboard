@@ -418,6 +418,16 @@ def init_db():
         except sqlite3.OperationalError:
             pass
 
+        # Migrate: session_type ('strength' | 'cardio' | 'mixed') returned by
+        # the AI burn-estimate prompt and persisted alongside the workout row
+        # so the detail view can render the correct (strength vs cardio) card
+        # without re-running keyword classification on the client.
+        try:
+            conn.execute("ALTER TABLE workout_logs ADD COLUMN session_type TEXT")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
         # Migrate: add clerk_user_id to users for Clerk auth bridge
         try:
             conn.execute("ALTER TABLE users ADD COLUMN clerk_user_id TEXT")
@@ -656,17 +666,20 @@ def delete_meal(meal_id, user_id):
 
 # ── Workouts ─────────────────────────────────────────────
 
-def insert_workout(user_id, description, calories_burned=0, log_date=None, logged_at=None) -> int:
+def insert_workout(user_id, description, calories_burned=0, log_date=None, logged_at=None, session_type=None) -> int:
     """Insert a workout log row and parse its description into strength_sets.
-    Returns the new workout_logs.id."""
+    `session_type` is the AI-classified label ('strength' | 'cardio' | 'mixed')
+    from /api/burn-estimate. None is allowed for rows written before the
+    classifier was introduced or for structured entries (strength tracker)
+    that don't need the AI round-trip. Returns the new workout_logs.id."""
     from strength_parser import parse_strength_description
 
     ld = log_date or date.today().isoformat()
     ts = logged_at or datetime.now().isoformat()
     with get_conn() as conn:
         cur = conn.execute(
-            "INSERT INTO workout_logs (user_id, logged_at, log_date, description, calories_burned, parse_status) VALUES (?, ?, ?, ?, ?, ?)",
-            (user_id, ts, ld, description, calories_burned, None),
+            "INSERT INTO workout_logs (user_id, logged_at, log_date, description, calories_burned, parse_status, session_type) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (user_id, ts, ld, description, calories_burned, None, session_type),
         )
         workout_id = cur.lastrowid
         conn.commit()

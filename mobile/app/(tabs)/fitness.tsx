@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
@@ -27,6 +27,7 @@ import {
 } from '../../lib/hooks/useHomeData';
 import { useLiveCalorieBalance } from '../../lib/hooks/useLiveCalorieBalance';
 import { useFitnessScore } from '../../lib/hooks/useScores';
+import { useChatSession } from '../../lib/useChatSession';
 import { useTokens } from '../../lib/theme';
 import { useDailyReset } from '../../lib/useDailyReset';
 import { useResetScrollOnFocus } from '../../lib/useResetScrollOnFocus';
@@ -88,6 +89,13 @@ export default function FitnessScreen() {
   useDailyReset(() => {
     void onRefresh();
   });
+
+  // Refetch when a FAB quick-log modal saves from over any tab.
+  const { dataVersion } = useChatSession();
+  useEffect(() => {
+    if (dataVersion > 0) void onRefresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataVersion]);
 
   const weight = profile.data?.current_weight_lbs ?? null;
   const todayWorkouts = workouts.data?.workouts ?? [];
