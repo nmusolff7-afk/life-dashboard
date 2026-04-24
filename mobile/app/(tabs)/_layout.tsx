@@ -6,8 +6,10 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ScreenHeader, StrengthTrackerModal, WorkoutActiveBanner } from '../../components/apex';
+import { ChatOverlay } from '../../components/chat/ChatOverlay';
 import { useProfile, useTodayWorkouts } from '../../lib/hooks/useHomeData';
 import { useTokens } from '../../lib/theme';
+import { ChatSessionProvider } from '../../lib/useChatSession';
 import { useClerkBridge } from '../../lib/useClerkBridge';
 import { useHaptics } from '../../lib/useHaptics';
 import { useOnboardingStatus } from '../../lib/useOnboardingStatus';
@@ -107,20 +109,23 @@ export default function TabLayout() {
 
   return (
     <StrengthSessionProvider>
-      <View style={{ flex: 1, backgroundColor: t.bg }}>
-        <ScreenHeader title={headerTitle} />
-        <WorkoutActiveBanner />
-        <Tabs
-          screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: t.bg } }}
-          tabBar={(props) => <FlaskTabBar {...props} />}>
-          <Tabs.Screen name="index" options={{ title: 'Home' }} />
-          <Tabs.Screen name="fitness" options={{ title: 'Fitness' }} />
-          <Tabs.Screen name="nutrition" options={{ title: 'Nutrition' }} />
-          <Tabs.Screen name="finance" options={{ title: 'Finance' }} />
-          <Tabs.Screen name="time" options={{ title: 'Time' }} />
-        </Tabs>
-        <TabsStrengthTrackerHost />
-      </View>
+      <ChatSessionProvider>
+        <View style={{ flex: 1, backgroundColor: t.bg }}>
+          <ScreenHeader title={headerTitle} />
+          <WorkoutActiveBanner />
+          <Tabs
+            screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: t.bg } }}
+            tabBar={(props) => <FlaskTabBar {...props} />}>
+            <Tabs.Screen name="index" options={{ title: 'Home' }} />
+            <Tabs.Screen name="fitness" options={{ title: 'Fitness' }} />
+            <Tabs.Screen name="nutrition" options={{ title: 'Nutrition' }} />
+            <Tabs.Screen name="finance" options={{ title: 'Finance' }} />
+            <Tabs.Screen name="time" options={{ title: 'Time' }} />
+          </Tabs>
+          <TabsStrengthTrackerHost />
+          <ChatOverlay />
+        </View>
+      </ChatSessionProvider>
     </StrengthSessionProvider>
   );
 }

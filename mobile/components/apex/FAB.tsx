@@ -1,140 +1,70 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import {
-  Animated,
-  Easing,
-  Pressable,
-  StyleSheet,
-  Text,
-} from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, Pressable, StyleSheet } from 'react-native';
 
+import { useChatSession, type Surface } from '../../lib/useChatSession';
+import { useHaptics } from '../../lib/useHaptics';
 import { useTokens } from '../../lib/theme';
 
 interface Props {
-  /** Where the menu should open from. Currently only affects analytics hints. */
-  from?: 'home' | 'fitness' | 'nutrition' | 'finance' | 'time';
+  /** Which surface the FAB was invoked from — drives the shortcut rail. */
+  from?: Surface;
 }
 
-/** Mirrors Flask #fab + #fab-menu: 52px accent circle above the bottom nav;
- *  tap rotates the "+" 45° (→ "×") and reveals Log a Meal / Log Activity
- *  pill buttons with a dimmed backdrop. */
+/** FAB → ChatOverlay launcher. Per PRD §4.7.4, tapping the + spawns the
+ *  chat overlay with per-surface shortcut buttons rendered inside. When
+ *  the overlay is visible, this FAB fades out (the overlay's own close
+ *  button becomes the X) so there's one "active" button, not two. */
 export function FAB({ from = 'home' }: Props) {
   const t = useTokens();
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const anim = useRef(new Animated.Value(0)).current;
+  const chat = useChatSession();
+  const haptics = useHaptics();
+  const anim = useRef(new Animated.Value(1)).current;
 
+  // Fade the FAB when the overlay is open — the overlay's X is the new
+  // "close" button and having both visible is confusing.
   useEffect(() => {
     Animated.timing(anim, {
-      toValue: open ? 1 : 0,
-      duration: 180,
+      toValue: chat.visible ? 0 : 1,
+      duration: 160,
       easing: Easing.out(Easing.quad),
       useNativeDriver: true,
     }).start();
-  }, [open, anim]);
+  }, [chat.visible, anim]);
 
-  const rotate = anim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] });
-  const optionTranslate = anim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] });
-
-  const toggle = () => setOpen((v) => !v);
-  const openMeal = () => {
-    setOpen(false);
-    router.push({ pathname: '/chatbot', params: { from, prefill: 'I just ate: ' } });
-  };
-  const openActivity = () => {
-    setOpen(false);
-    router.push({ pathname: '/chatbot', params: { from, prefill: 'I just did: ' } });
-  };
-
-  // In Expo Router tab screens, the parent View already sits above the tab
-  // bar — so `bottom: 14` puts the FAB 14px above the top of the nav, which
-  // matches Flask's `bottom: nav-h + safe-area + 14px` from viewport root.
   const BOTTOM = 14;
-  const MENU_BOTTOM = BOTTOM + 52 + 10; // FAB height + small gap
+
+  if (chat.visible) {
+    // Short-circuit render so the FAB isn't covering the close button
+    // even invisibly (touchable area).
+    return null;
+  }
 
   return (
-    <>
-      {open ? (
-        <Pressable
-          onPress={toggle}
-          accessibilityLabel="Close menu"
-          style={[StyleSheet.absoluteFill, styles.backdrop]}
-        />
-      ) : null}
-
-      {open ? (
-        <Animated.View
-          pointerEvents={open ? 'auto' : 'none'}
-          style={[
-            styles.menu,
-            { bottom: MENU_BOTTOM, opacity: anim, transform: [{ translateY: optionTranslate }] },
-          ]}>
-          <FabOption
-            label="Log a Meal"
-            icon="restaurant-outline"
-            bg={t.surface}
-            text={t.text}
-            onPress={openMeal}
-          />
-          <FabOption
-            label="Log Activity"
-            icon="barbell-outline"
-            bg={t.surface}
-            text={t.text}
-            onPress={openActivity}
-          />
-        </Animated.View>
-      ) : null}
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={open ? 'Close quick actions' : 'Open quick actions'}
-        onPress={toggle}
-        style={({ pressed }) => [
-          styles.fab,
-          {
-            backgroundColor: t.accent,
-            bottom: BOTTOM,
-            transform: [{ scale: pressed ? 0.92 : 1 }],
-            shadowColor: '#000',
-          },
-        ]}>
-        <Animated.View style={{ transform: [{ rotate }] }}>
-          <Ionicons name="add" size={30} color="#fff" />
-        </Animated.View>
-      </Pressable>
-    </>
-  );
-}
-
-function FabOption({
-  label,
-  icon,
-  bg,
-  text,
-  onPress,
-}: {
-  label: string;
-  icon: React.ComponentProps<typeof Ionicons>['name'];
-  bg: string;
-  text: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.option,
+    <Animated.View
+      style={[
+        styles.fab,
         {
-          backgroundColor: bg,
-          transform: [{ scale: pressed ? 0.95 : 1 }],
+          backgroundColor: t.accent,
+          bottom: BOTTOM,
+          opacity: anim,
           shadowColor: '#000',
         },
       ]}>
-      <Ionicons name={icon} size={20} color={text} />
-      <Text style={[styles.optionLabel, { color: text }]}>{label}</Text>
-    </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Open chatbot"
+        onPress={() => {
+          haptics.fire('tap');
+          chat.open(from);
+        }}
+        style={({ pressed }) => [
+          styles.fabInner,
+          { transform: [{ scale: pressed ? 0.92 : 1 }] },
+        ]}>
+        <Ionicons name="add" size={30} color="#fff" />
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -145,33 +75,16 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
     zIndex: 110,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 16,
     elevation: 6,
   },
-  backdrop: { backgroundColor: 'rgba(0,0,0,0.3)', zIndex: 108 },
-  menu: {
-    position: 'absolute',
-    right: 18,
-    zIndex: 109,
-    alignItems: 'flex-end',
-    gap: 8,
-  },
-  option: {
-    flexDirection: 'row',
+  fabInner: {
+    width: '100%',
+    height: '100%',
     alignItems: 'center',
-    gap: 10,
-    borderRadius: 100,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 4,
+    justifyContent: 'center',
   },
-  optionLabel: { fontSize: 14, fontWeight: '600' },
 });
