@@ -10,17 +10,21 @@ interface Props {
   sending: boolean;
   onSend: (text: string) => void;
   /** Optional back button on the far left — restores pre-expansion
-   *  state without sending. Shown in the expanded overlay. */
+   *  state. Parent controls whether it's visible (only shown when the
+   *  input is expanded). */
   onBack?: () => void;
-  /** Autofocus the input when first rendered. Lets the overlay open
-   *  with the keyboard already up after the dock hands off. */
+  /** Autofocus the input when first rendered. */
   autoFocus?: boolean;
+  /** Fired when the TextInput gains keyboard focus — parent uses this
+   *  to expand the overlay (fullscreen bubbles, widen input, hide
+   *  shortcuts). */
+  onFocus?: () => void;
 }
 
 /** Chat input pill. Syncs its text state with chat.draftText so messages
  *  typed into the ChatDock carry over into the expanded overlay and vice
  *  versa. */
-export function ChatInput({ sending, onSend, onBack, autoFocus }: Props) {
+export function ChatInput({ sending, onSend, onBack, autoFocus, onFocus }: Props) {
   const t = useTokens();
   const haptics = useHaptics();
   const chat = useChatSession();
@@ -76,6 +80,7 @@ export function ChatInput({ sending, onSend, onBack, autoFocus }: Props) {
         ref={inputRef}
         value={text}
         onChangeText={handleChange}
+        onFocus={onFocus}
         placeholder="Ask anything"
         placeholderTextColor={t.subtle}
         editable={!sending}

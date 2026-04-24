@@ -17,7 +17,6 @@ import {
   WeightTrendCard,
   WorkoutHistoryList,
 } from '../../components/apex';
-import { AskAnythingCard } from '../../components/chat/AskAnythingCard';
 import { logWeight } from '../../lib/api/fitness';
 import { classifyAsStrength } from '../../lib/strengthHelpers';
 import {
@@ -268,8 +267,6 @@ export default function FitnessScreen() {
             />
           </>
         ) : null}
-
-        <AskAnythingCard surface="fitness" />
       </ScrollView>
 
       <NumberPromptModal
@@ -399,7 +396,7 @@ function FilterChip({ label, active, onPress }: { label: string; active: boolean
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 16, paddingBottom: 96, gap: 14 },
+  content: { padding: 16, paddingBottom: 24, gap: 14 },
 
   summaryRow: {
     flexDirection: 'row',

@@ -3,7 +3,6 @@ import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { EmptyState, SubTabs, TabHeader } from '../../components/apex';
-import { AskAnythingCard } from '../../components/chat/AskAnythingCard';
 import { useTokens } from '../../lib/theme';
 import { useResetScrollOnFocus } from '../../lib/useResetScrollOnFocus';
 
@@ -92,15 +91,13 @@ export default function TimeScreen() {
         {tab === 'timeline' ? (
           <EmptyState icon="⏱️" title="Day Timeline" description="Your day minute-by-minute, inferred from calendar + Screen Time + location." />
         ) : null}
-
-        <AskAnythingCard surface="time" />
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 16, paddingBottom: 96, gap: 10 },
+  content: { padding: 16, paddingBottom: 24, gap: 10 },
   focusCard: { borderWidth: 1, borderRadius: 20, padding: 20, gap: 6 },
   focusLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6 },
   focusBig: { fontSize: 32, fontWeight: '700' },

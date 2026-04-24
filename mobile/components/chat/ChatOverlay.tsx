@@ -1,3 +1,4 @@
+import { Keyboard } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -20,20 +21,28 @@ import { ChatInput } from './ChatInput';
 import { ChatShortcutRail, type Shortcut } from './ChatShortcutRail';
 import { universalShortcuts } from './surfaceShortcuts';
 
-/** Overlay anchored around the measured FAB position. The FAB reports
- *  its onscreen origin via chat.setFabAnchor; we read that here and
- *  position every child (shortcut rail, conversation, chat input) in
- *  coordinates relative to it. This way the layout is identical on SE
- *  through Pro Max without hardcoded per-device tweaks.
+/** Overlay anchored around the measured FAB position.
  *
- *  A dim backdrop sits below the shortcut rail / input / FAB in z-order
- *  so those three remain visually "lit" while the rest of the screen
- *  fades — matches the founder spec (everything dims except the FAB,
- *  text input box, and action buttons). */
+ *  Two visual states:
+ *
+ *   COLLAPSED (default after FAB tap)
+ *    - Shortcut rail stacks above the FAB
+ *    - Chat input pill sits inline to the LEFT of the FAB at the FAB's
+ *      vertical band
+ *    - If there are prior turns, the conversation panel rises above the
+ *      rail with scrollback
+ *
+ *   EXPANDED (after user taps the input — focuses the TextInput)
+ *    - Shortcut rail HIDDEN
+ *    - Conversation bubbles fill most of the screen (wider — occupy
+ *      from 12pt on the left to 12pt on the right)
+ *    - Input WIDENS to the same horizontal span and sits above the
+ *      keyboard (KeyboardAvoidingView lifts it)
+ *    - FAB stays bottom-right, still rotated to ×
+ *    - Back button in the input pill collapses back to COLLAPSED without
+ *      closing the overlay (restores shortcuts + tucks input back)
+ */
 const SHORTCUT_COL_WIDTH = 80;
-// Rail bottom sits just above the FAB's top edge. Founder confirmed the
-// earlier 16pt clearance read as ~15pt too high; 2pt keeps visual
-// separation without the "floating away" gap.
 const CLEARANCE_ABOVE_FAB = 2;
 
 export function ChatOverlay() {
@@ -43,7 +52,8 @@ export function ChatOverlay() {
   const anim = useRef(new Animated.Value(0)).current;
   const scrollRef = useRef<ScrollView>(null);
   const [dismissed, setDismissed] = useState(true);
-  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [shortcutExpandedKey, setShortcutExpandedKey] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     if (chat.visible && dismissed) setDismissed(false);
@@ -58,7 +68,10 @@ export function ChatOverlay() {
   }, [chat.visible, anim, dismissed]);
 
   useEffect(() => {
-    if (!chat.visible) setExpandedKey(null);
+    if (!chat.visible) {
+      setShortcutExpandedKey(null);
+      setExpanded(false);
+    }
   }, [chat.visible]);
 
   useEffect(() => {
@@ -72,49 +85,50 @@ export function ChatOverlay() {
   const hasTurns = chat.turns.length > 0;
 
   const shortcuts: Shortcut[] = universalShortcuts({
-    expandedKey,
-    setExpandedKey,
+    expandedKey: shortcutExpandedKey,
+    setExpandedKey: setShortcutExpandedKey,
     openQuickLog: chat.openQuickLog,
   });
 
-  // Anchor math. If the FAB has reported its measured position, position
-  // relative to that. Fall back to the spec'd defaults if we don't have
-  // a measurement yet (first frame before onLayout fires).
+  // Anchor math keyed off the measured FAB position.
   const screen = Dimensions.get('window');
   const fab = chat.fabAnchor;
   const FAB_SIZE_FALLBACK = 52;
   const fabSize = fab?.size ?? FAB_SIZE_FALLBACK;
-  // In root-coords: FAB top-left (fabX, fabY).
   const fabX = fab ? fab.x : screen.width - 18 - FAB_SIZE_FALLBACK;
   const fabY = fab ? fab.y : screen.height - insets.bottom - 14 - FAB_SIZE_FALLBACK;
   const fabCenterX = fabX + fabSize / 2;
 
-  // Shortcut rail bottom sits CLEARANCE_ABOVE_FAB above the FAB's top
-  // edge. Column centered horizontally on the FAB's center.
+  // COLLAPSED positions
   const railBottomFromScreenBottom = screen.height - fabY + CLEARANCE_ABOVE_FAB;
   const railLeft = fabCenterX - SHORTCUT_COL_WIDTH / 2;
-
-  // Chat input sits INLINE to the LEFT of the FAB at the FAB's own
-  // vertical band — not above the rail. Founder wants the input to
-  // visually pair with the FAB (same baseline), while the shortcut rail
-  // stacks on top of the FAB. We align the input's vertical centre with
-  // the FAB's vertical centre so the pill tracks the button regardless
-  // of pill height. Right edge reserves the FAB column + a small gap.
   const inputRight = screen.width - fabX + 10;
   const fabBottomFromScreenBottom = screen.height - (fabY + fabSize);
-  const INPUT_PILL_HEIGHT = 50; // matches ChatInput rounded pill (48–52 range)
-  const inputBottomFromScreenBottom =
+  const INPUT_PILL_HEIGHT = 50;
+  const inputBottomCollapsed =
     fabBottomFromScreenBottom + (fabSize - INPUT_PILL_HEIGHT) / 2;
+  const conversationBottomCollapsed = railBottomFromScreenBottom;
 
-  // The conversation panel still rises above the FAB so it has room for
-  // scrollback + header.
-  const conversationBottom = railBottomFromScreenBottom;
+  // EXPANDED positions — input widens full-width (minus 12pt gutters)
+  // and sits above the keyboard. Conversation fills the space above the
+  // input, starting below the status bar / ScreenHeader area.
+  // KeyboardAvoidingView handles the keyboard lift.
+  const expandedInputBottom = insets.bottom + 8;
+  const expandedConversationTop = insets.top + 12;
+
+  const collapse = () => {
+    setExpanded(false);
+    Keyboard.dismiss();
+  };
+
+  const handleInputFocus = () => {
+    if (!expanded) setExpanded(true);
+  };
 
   return (
     <View pointerEvents={chat.visible ? 'auto' : 'none'} style={StyleSheet.absoluteFill}>
-      {/* Dim backdrop. Sits BELOW the shortcut rail / input / FAB in the
-          z-stack so they stay visually lit while the rest of the screen
-          fades. Tapping it dismisses. */}
+      {/* Dim backdrop. Sits BELOW the shortcut rail / input / FAB so
+          they stay lit. Tapping it dismisses the overlay. */}
       <Animated.View
         pointerEvents={chat.visible ? 'auto' : 'none'}
         style={[
@@ -124,7 +138,10 @@ export function ChatOverlay() {
             opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.5] }),
           },
         ]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={chat.close} />
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={expanded ? collapse : chat.close}
+        />
       </Animated.View>
 
       <KeyboardAvoidingView
@@ -132,7 +149,9 @@ export function ChatOverlay() {
         style={StyleSheet.absoluteFill}
         pointerEvents="box-none">
         <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { opacity: anim }]}>
-          {!hasTurns ? (
+          {/* Shortcut rail — hidden while expanded or when there are
+              prior turns (conversation takes its place). */}
+          {!hasTurns && !expanded ? (
             <View
               pointerEvents="box-none"
               style={[
@@ -147,17 +166,23 @@ export function ChatOverlay() {
             </View>
           ) : null}
 
-          {hasTurns ? (
+          {/* Conversation panel. Collapsed state: rises above the rail on
+              the LEFT of the FAB. Expanded state: fullscreen width, tall,
+              anchored above the input. */}
+          {(hasTurns || expanded) ? (
             <View
               pointerEvents="box-none"
-              style={[
-                styles.conversationAnchor,
-                {
-                  left: 12,
-                  right: inputRight,
-                  bottom: conversationBottom,
-                },
-              ]}>
+              style={
+                expanded
+                  ? [
+                      styles.conversationAnchorExpanded,
+                      { top: expandedConversationTop, bottom: expandedInputBottom + INPUT_PILL_HEIGHT + 8 },
+                    ]
+                  : [
+                      styles.conversationAnchor,
+                      { left: 12, right: inputRight, bottom: conversationBottomCollapsed },
+                    ]
+              }>
               <View
                 style={[
                   styles.conversation,
@@ -165,7 +190,10 @@ export function ChatOverlay() {
                 ]}>
                 <View style={styles.conversationHeader}>
                   <Text style={[styles.conversationTitle, { color: t.muted }]}>Chat</Text>
-                  <Pressable onPress={chat.reset} accessibilityRole="button">
+                  <Pressable
+                    onPress={chat.reset}
+                    accessibilityRole="button"
+                    accessibilityLabel="Clear conversation">
                     <Text style={[styles.resetLink, { color: t.accent }]}>Clear</Text>
                   </Pressable>
                 </View>
@@ -174,6 +202,12 @@ export function ChatOverlay() {
                   style={styles.bubbles}
                   contentContainerStyle={styles.bubblesContent}
                   keyboardShouldPersistTaps="handled">
+                  {chat.turns.length === 0 && expanded ? (
+                    <Text style={[styles.emptyHint, { color: t.subtle }]}>
+                      Ask anything about your data. I only see what's on your
+                      dashboard — no advice, just answers.
+                    </Text>
+                  ) : null}
                   {chat.turns.map((turn) => (
                     <ChatBubble key={turn.id} turn={turn} />
                   ))}
@@ -183,23 +217,20 @@ export function ChatOverlay() {
             </View>
           ) : null}
 
+          {/* Chat input. Collapsed: left-of-FAB narrow. Expanded: full-
+              width above the keyboard, back-chevron collapses. */}
           <View
             pointerEvents="box-none"
-            style={[
-              styles.inputAnchor,
-              {
-                left: 12,
-                right: inputRight,
-                bottom: inputBottomFromScreenBottom,
-              },
-            ]}>
-            {/* No autoFocus — founder wants the keyboard to open only
-                when the user taps the input, not when the FAB opens
-                the overlay. */}
+            style={
+              expanded
+                ? [styles.inputAnchor, { left: 12, right: 12, bottom: expandedInputBottom }]
+                : [styles.inputAnchor, { left: 12, right: inputRight, bottom: inputBottomCollapsed }]
+            }>
             <ChatInput
               sending={chat.sending}
               onSend={chat.send}
-              onBack={chat.close}
+              onFocus={handleInputFocus}
+              onBack={expanded ? collapse : undefined}
             />
           </View>
         </Animated.View>
@@ -212,7 +243,13 @@ const styles = StyleSheet.create({
   railAnchor: { position: 'absolute', alignItems: 'stretch' },
   inputAnchor: { position: 'absolute' },
   conversationAnchor: { position: 'absolute', maxHeight: 420 },
+  conversationAnchorExpanded: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+  },
   conversation: {
+    flex: 1,
     borderRadius: 16,
     borderWidth: 1,
     overflow: 'hidden',
@@ -232,6 +269,13 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   resetLink: { fontSize: 12, fontWeight: '600' },
-  bubbles: { paddingHorizontal: 10, paddingBottom: 10 },
+  bubbles: { flex: 1, paddingHorizontal: 10, paddingBottom: 10 },
   bubblesContent: { paddingBottom: 4 },
+  emptyHint: {
+    fontSize: 13,
+    fontStyle: 'italic',
+    paddingVertical: 14,
+    paddingHorizontal: 6,
+    lineHeight: 18,
+  },
 });

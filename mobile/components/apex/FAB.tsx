@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useChatSession, type Surface } from '../../lib/useChatSession';
 import { useHaptics } from '../../lib/useHaptics';
@@ -12,8 +13,13 @@ interface Props {
 }
 
 const FAB_SIZE = 52;
-const FAB_BOTTOM = 14;
 const FAB_RIGHT = 18;
+/** Gap between the top of the tab bar and the bottom of the FAB. The
+ *  FAB now lives at root (sibling of ChatOverlay) so bottom: 14 would
+ *  place it behind the tab bar (which is 64pt + insets.bottom tall).
+ *  Offset with insets.bottom + tab-bar height so it sits above the bar. */
+const FAB_GAP_ABOVE_TAB_BAR = 12;
+const TAB_BAR_HEIGHT = 64;
 
 /** FAB stays in place; tap rotates the `+` 45° into an `×` over 180ms.
  *  Per PRD §4.7.4 the button itself is the toggle — when the overlay is
@@ -31,8 +37,10 @@ export function FAB({ from = 'home' }: Props) {
   const t = useTokens();
   const chat = useChatSession();
   const haptics = useHaptics();
+  const insets = useSafeAreaInsets();
   const anim = useRef(new Animated.Value(0)).current;
   const containerRef = useRef<View>(null);
+  const fabBottom = TAB_BAR_HEIGHT + insets.bottom + FAB_GAP_ABOVE_TAB_BAR;
 
   useEffect(() => {
     Animated.timing(anim, {
@@ -70,7 +78,7 @@ export function FAB({ from = 'home' }: Props) {
       ref={containerRef}
       onLayout={measure}
       collapsable={false}
-      style={[styles.fab, { bottom: FAB_BOTTOM }]}
+      style={[styles.fab, { bottom: fabBottom }]}
       pointerEvents="box-none">
       <Pressable
         accessibilityRole="button"

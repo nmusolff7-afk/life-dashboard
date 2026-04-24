@@ -9,7 +9,6 @@ import {
   StreakBar,
   TabHeader,
 } from '../../components/apex';
-import { AskAnythingCard } from '../../components/chat/AskAnythingCard';
 import {
   useLoggedDates,
   useProfile,
@@ -308,8 +307,6 @@ export default function HomeScreen() {
             </Pressable>
           </View>
         ) : null}
-
-        <AskAnythingCard surface="home" />
       </ScrollView>
     </View>
   );
@@ -331,7 +328,7 @@ function MiniStat({ label, value, unit }: { label: string; value: string; unit?:
 }
 
 const styles = StyleSheet.create({
-  content: { paddingTop: 8, paddingBottom: 96, gap: 14 },
+  content: { paddingTop: 8, paddingBottom: 24, gap: 14 },
   horizPad: { paddingHorizontal: 16 },
 
   categoryStack: { paddingHorizontal: 16, gap: 10 },
