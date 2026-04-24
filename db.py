@@ -392,6 +392,20 @@ def init_db():
         except sqlite3.OperationalError:
             pass
 
+        # Migrate: profile_map_out_of_sync flag + reason on user_onboarding
+        # per PRD §4.8.4 — set when Diet Preferences edits happen so the user
+        # is nudged to re-run the AI profile regeneration.
+        try:
+            conn.execute("ALTER TABLE user_onboarding ADD COLUMN profile_map_out_of_sync INTEGER DEFAULT 0")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+        try:
+            conn.execute("ALTER TABLE user_onboarding ADD COLUMN profile_map_out_of_sync_reason TEXT")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
         # Migrate: add parse_status to workout_logs for strength-set parsing.
         # 'parsed' = strength_sets rows were successfully extracted.
         # 'unparsed' = parser couldn't extract structured sets (cardio, freestyle
@@ -878,16 +892,21 @@ def upsert_onboarding_inputs(user_id, raw_inputs_json):
 
 
 def complete_onboarding(user_id, profile_map_json):
-    """Mark onboarding complete and store the generated profile map."""
+    """Mark onboarding complete and store the generated profile map.
+    Clears the profile_map_out_of_sync flag — a successful regeneration
+    is what the flag was nudging the user to do."""
     now = datetime.now().isoformat()
     with get_conn() as conn:
         conn.execute("""
-            INSERT INTO user_onboarding (user_id, completed, raw_inputs, profile_map, created_at, updated_at)
-            VALUES (?, 1, '{}', ?, ?, ?)
+            INSERT INTO user_onboarding (user_id, completed, raw_inputs, profile_map, created_at, updated_at,
+                                         profile_map_out_of_sync, profile_map_out_of_sync_reason)
+            VALUES (?, 1, '{}', ?, ?, ?, 0, NULL)
             ON CONFLICT(user_id) DO UPDATE SET
                 completed   = 1,
                 profile_map = excluded.profile_map,
-                updated_at  = excluded.updated_at
+                updated_at  = excluded.updated_at,
+                profile_map_out_of_sync = 0,
+                profile_map_out_of_sync_reason = NULL
         """, (user_id, profile_map_json, now, now))
         conn.commit()
 
