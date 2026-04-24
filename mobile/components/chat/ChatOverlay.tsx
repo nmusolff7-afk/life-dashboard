@@ -44,15 +44,20 @@ import { universalShortcuts } from './surfaceShortcuts';
  */
 const SHORTCUT_COL_WIDTH = 80;
 const CLEARANCE_ABOVE_FAB = 2;
-/** Founder-flagged systemic 10pt offset in the measured FAB position
- *  vs. what reads as "inline" visually on-device. The rail + input
- *  both looked 10pt too high at first paint, so we shift them down
- *  by this constant. Keep in one place so they always stay in sync. */
-const COLLAPSED_DOWN_SHIFT = 10;
-/** Extra breathing room above the system keyboard (iOS on some devices
- *  reports a height that's missing the home-indicator band — 20pt is
- *  safe everywhere). */
+/** Systemic offset to shift collapsed rail + input DOWN to read inline
+ *  with the FAB on-device. Keep in one place so rail + input always
+ *  move together. */
+const COLLAPSED_DOWN_SHIFT = 15;
+/** Extra breathing room above the system keyboard. */
 const INPUT_CLEAR_ABOVE_KB = 20;
+
+/** FAB "resting" math constants — mirror FAB.tsx so the rail + input
+ *  can anchor to where the FAB WOULD be (bottom-right above the tab
+ *  bar) even after it migrates to the top-right while chat is open. */
+const FAB_SIZE_DEFAULT = 52;
+const FAB_RIGHT = 18;
+const FAB_GAP_ABOVE_TAB_BAR = 12;
+const TAB_BAR_HEIGHT = 64;
 
 export function ChatOverlay() {
   const t = useTokens();
@@ -112,27 +117,30 @@ export function ChatOverlay() {
     openQuickLog: chat.openQuickLog,
   });
 
-  // Anchor math keyed off the measured FAB position.
+  // Anchor math — use the FAB's RESTING position (bottom-right above
+  // the tab bar), NOT chat.fabAnchor. While the overlay is open the FAB
+  // migrates to top-right, so its measured position is no longer the
+  // natural anchor point for the rail/input. Computing the resting spot
+  // directly keeps the rail/input in the same place whether the FAB is
+  // currently up top or at rest.
   const screen = Dimensions.get('window');
-  const fab = chat.fabAnchor;
-  const FAB_SIZE_FALLBACK = 52;
-  const fabSize = fab?.size ?? FAB_SIZE_FALLBACK;
-  const fabX = fab ? fab.x : screen.width - 18 - FAB_SIZE_FALLBACK;
-  const fabY = fab ? fab.y : screen.height - insets.bottom - 14 - FAB_SIZE_FALLBACK;
-  const fabCenterX = fabX + fabSize / 2;
+  const fabSize = FAB_SIZE_DEFAULT;
+  const restingFabBottomFromScreenBottom =
+    TAB_BAR_HEIGHT + insets.bottom + FAB_GAP_ABOVE_TAB_BAR;
+  const restingFabY = screen.height - restingFabBottomFromScreenBottom - fabSize;
+  const restingFabX = screen.width - FAB_RIGHT - fabSize;
+  const fabCenterX = restingFabX + fabSize / 2;
 
-  // COLLAPSED positions. Everything offset DOWN by COLLAPSED_DOWN_SHIFT
-  // because the measured FAB baseline and what reads as "visually inline"
-  // with the FAB differ by ~10pt on the founder's device.
+  // COLLAPSED positions. COLLAPSED_DOWN_SHIFT nudges both the rail and
+  // the input pill down together so they read as visually inline with
+  // the FAB's resting spot.
   const railBottomFromScreenBottom =
-    screen.height - fabY + CLEARANCE_ABOVE_FAB - COLLAPSED_DOWN_SHIFT;
+    screen.height - restingFabY + CLEARANCE_ABOVE_FAB - COLLAPSED_DOWN_SHIFT;
   const railLeft = fabCenterX - SHORTCUT_COL_WIDTH / 2;
-  const inputRight = screen.width - fabX + 10;
-  const fabBottomFromScreenBottom = screen.height - (fabY + fabSize);
+  const inputRight = screen.width - restingFabX + 10;
   const INPUT_PILL_HEIGHT = 50;
-  // Pill sits 10pt below the FAB's bottom edge so it visually reads as
-  // inline with the FAB on-device.
-  const inputBottomCollapsed = fabBottomFromScreenBottom - COLLAPSED_DOWN_SHIFT;
+  const inputBottomCollapsed =
+    restingFabBottomFromScreenBottom - COLLAPSED_DOWN_SHIFT;
   const conversationBottomCollapsed = railBottomFromScreenBottom;
 
   // EXPANDED positions
@@ -221,12 +229,11 @@ export function ChatOverlay() {
                   </Pressable>
                 ) : null}
                 <Text style={[styles.conversationTitle, { color: t.muted }]}>Chat</Text>
-                <Pressable
-                  onPress={chat.reset}
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear conversation">
-                  <Text style={[styles.resetLink, { color: t.accent }]}>Clear</Text>
-                </Pressable>
+                {/* Top-right slot is reserved for the × FAB, which migrates
+                    into this header when the chat is open. The FAB button
+                    itself lives in app/_layout → FABHost; we just leave
+                    empty space its size so the title stays centered. */}
+                <View style={styles.headerFabSpacer} />
               </View>
               <ScrollView
                 ref={scrollRef}
@@ -305,7 +312,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
-  resetLink: { fontSize: 12, fontWeight: '600' },
+  headerFabSpacer: { width: 44, height: 44 },
   bubbles: { flex: 1, paddingHorizontal: 10, paddingBottom: 10 },
   bubblesContent: { paddingBottom: 4 },
   emptyHint: {

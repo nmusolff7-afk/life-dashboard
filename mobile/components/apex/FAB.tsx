@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useChatSession, type Surface } from '../../lib/useChatSession';
@@ -14,30 +14,23 @@ interface Props {
 
 const FAB_SIZE = 52;
 const FAB_RIGHT = 18;
-/** Gap between the top of the tab bar and the bottom of the FAB (when
- *  chat is closed / not expanded). */
+/** Gap between the top of the tab bar and the bottom of the FAB when
+ *  the chat is closed (resting position). */
 const FAB_GAP_ABOVE_TAB_BAR = 12;
 const TAB_BAR_HEIGHT = 64;
-/** When chat is expanded, FAB rises and floats above the input pill on
- *  the right-hand side. Gap between the input's top edge and the FAB's
- *  bottom edge. */
-const FAB_GAP_ABOVE_INPUT = 8;
-/** Matches ChatOverlay's INPUT_PILL_HEIGHT + clearance so the FAB's
- *  rising math stays in lock-step with the input. */
-const INPUT_PILL_HEIGHT = 50;
-const INPUT_CLEAR_ABOVE_KB = 20;
+/** When chat is OPEN, FAB migrates to the top-right of the screen /
+ *  top of the conversation card. Offset from the status-bar safe-area. */
+const FAB_TOP_GAP = 8;
 
-/** FAB stays in place; tap rotates the `+` 45° into an `×` over 180ms.
- *  Per PRD §4.7.4 the button itself is the toggle — when the overlay is
- *  open, tapping the rotated FAB closes. The ChatOverlay renders its
- *  shortcut rail + chat input AROUND this button without its own close
- *  control.
+/** FAB + chat toggle.
  *
- *  The FAB also reports its measured on-screen position to the chat
- *  context via setFabAnchor, so ChatOverlay can tether the shortcut
- *  rail / chat input precisely to it across screen sizes and safe-area
- *  insets. We measureInWindow after layout rather than trusting the
- *  hardcoded bottom/right math.
+ *   Chat closed (resting): bottom-right, above the tab bar. + icon.
+ *   Chat open: top-right, aligned with the top of the conversation
+ *              card / status-bar safe area. × icon (rotated 45°).
+ *
+ *  The migration is a layout jump (no animation yet) — the dim
+ *  backdrop appearing simultaneously masks the jump visually. If we
+ *  want a smoother translation later, wrap the position in Animated.
  */
 export function FAB({ from = 'home' }: Props) {
   const t = useTokens();
@@ -46,31 +39,6 @@ export function FAB({ from = 'home' }: Props) {
   const insets = useSafeAreaInsets();
   const anim = useRef(new Animated.Value(0)).current;
   const containerRef = useRef<View>(null);
-  const [kbHeight, setKbHeight] = useState(0);
-
-  // Track the keyboard so the FAB can rise with the chat input when
-  // expanded. ChatOverlay has its own listener for positioning its
-  // pieces; having the FAB own a copy keeps the two in lock-step
-  // without a shared ref.
-  useEffect(() => {
-    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const s1 = Keyboard.addListener(showEvt, (e) => setKbHeight(e.endCoordinates?.height ?? 0));
-    const s2 = Keyboard.addListener(hideEvt, () => setKbHeight(0));
-    return () => { s1.remove(); s2.remove(); };
-  }, []);
-
-  // Two positioning modes:
-  //   1. Expanded chat: FAB floats just above the input pill on the
-  //      right side. Input's bottom = kbHeight + clearance OR
-  //      insets.bottom + 16 (keyboard closed). FAB bottom =
-  //      input-top + gap = inputBottom + pillHeight + gap.
-  //   2. Otherwise: resting position above the tab bar.
-  const fabBottom = chat.inputExpanded
-    ? (kbHeight > 0
-        ? kbHeight + INPUT_CLEAR_ABOVE_KB + INPUT_PILL_HEIGHT + FAB_GAP_ABOVE_INPUT
-        : insets.bottom + 16 + INPUT_PILL_HEIGHT + FAB_GAP_ABOVE_INPUT)
-    : TAB_BAR_HEIGHT + insets.bottom + FAB_GAP_ABOVE_TAB_BAR;
 
   useEffect(() => {
     Animated.timing(anim, {
@@ -81,10 +49,8 @@ export function FAB({ from = 'home' }: Props) {
     }).start();
   }, [chat.visible, anim]);
 
-  // Report the FAB's measured window position so the chat overlay can
-  // anchor its pieces relative to the real button, not assumed insets.
-  // Re-measure on every layout pass — covers rotation, keyboard effect,
-  // or tab-bar height changes.
+  // Report the FAB's measured window position. Legacy — some pieces of
+  // ChatOverlay anchoring still read it as a fallback.
   const measure = () => {
     const node = containerRef.current;
     if (!node) return;
@@ -94,30 +60,35 @@ export function FAB({ from = 'home' }: Props) {
     });
   };
 
-  // Re-measure whenever the FAB's bottom offset changes (expand/keyboard).
-  // onLayout doesn't always fire for pure `bottom` changes on absolute
-  // children, so we force a measurement pass.
-  useEffect(() => {
-    const id = setTimeout(measure, 50);
-    return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fabBottom]);
-
   // Clear anchor when this FAB unmounts (tab change) so a stale position
-  // doesn't leak. The next tab's FAB remounts and re-reports.
+  // doesn't leak.
   useEffect(() => {
     return () => chat.setFabAnchor(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Re-measure whenever chat.visible flips (FAB moves top-right vs
+  // bottom-right). onLayout doesn't always fire for pure position
+  // changes on absolute-positioned children.
+  useEffect(() => {
+    const id = setTimeout(measure, 60);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chat.visible]);
+
   const rotate = anim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] });
+
+  // Position switches based on chat.visible.
+  const positionStyle = chat.visible
+    ? { top: insets.top + FAB_TOP_GAP, right: FAB_RIGHT }
+    : { bottom: TAB_BAR_HEIGHT + insets.bottom + FAB_GAP_ABOVE_TAB_BAR, right: FAB_RIGHT };
 
   return (
     <View
       ref={containerRef}
       onLayout={measure}
       collapsable={false}
-      style={[styles.fab, { bottom: fabBottom }]}
+      style={[styles.fab, positionStyle]}
       pointerEvents="box-none">
       <Pressable
         accessibilityRole="button"
@@ -146,11 +117,8 @@ export function FAB({ from = 'home' }: Props) {
 const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
-    right: FAB_RIGHT,
     width: FAB_SIZE,
     height: FAB_SIZE,
-    // zIndex: 200 keeps the button above the dim backdrop the ChatOverlay
-    // paints when it opens, so the FAB + its rotation stay fully visible.
     zIndex: 200,
   },
   button: {
