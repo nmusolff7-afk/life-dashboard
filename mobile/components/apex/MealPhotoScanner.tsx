@@ -37,6 +37,7 @@ export function MealPhotoScanner({ visible, onClose, onLogged }: Props) {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<MealScanResponse | null>(null);
   const [saving, setSaving] = useState(false);
+  const [premium, setPremium] = useState(false);
   const cameraRef = useRef<CameraView>(null);
 
   const resetAndClose = () => {
@@ -58,11 +59,27 @@ export function MealPhotoScanner({ visible, onClose, onLogged }: Props) {
       setImageUri(photo.uri ?? null);
       setStage('scanning');
       try {
-        const result = await scanMealImage(photo.base64);
+        const result = await scanMealImage(photo.base64, 'image/jpeg', '', premium);
         setScanResult(result);
         setStage('review');
       } catch (e) {
-        Alert.alert('Scan failed', e instanceof Error ? e.message : String(e));
+        const msg = e instanceof Error ? e.message : String(e);
+        // 402 from the server means the Premium Scan daily cap was hit —
+        // give the user a clear message instead of a generic failure.
+        if (msg.includes('402') || msg.toLowerCase().includes('limit')) {
+          Alert.alert(
+            'Premium Scan cap reached',
+            'You\'ve used all 20 Premium Scans for today. Switching to Standard Scan or try again tomorrow.',
+            [
+              { text: 'Use Standard', onPress: () => {
+                setPremium(false);
+              }},
+              { text: 'Cancel', style: 'cancel' },
+            ],
+          );
+        } else {
+          Alert.alert('Scan failed', msg);
+        }
         setStage('capture');
       }
     } catch (e) {
@@ -118,10 +135,31 @@ export function MealPhotoScanner({ visible, onClose, onLogged }: Props) {
             <View style={styles.cameraWrap}>
               <CameraView ref={cameraRef} style={styles.camera} facing="back" />
               <View style={[styles.captureRow, { paddingBottom: insets.bottom + 30 }]}>
+                {/* Premium Scan toggle (Pro, 20/day). All users are Pro
+                    during build cycle per locked C2. */}
+                <Pressable
+                  onPress={() => setPremium((v) => !v)}
+                  style={[
+                    styles.premiumToggle,
+                    {
+                      backgroundColor: premium ? '#FFD060' : 'rgba(255,255,255,0.12)',
+                    },
+                  ]}>
+                  <Ionicons
+                    name={premium ? 'sparkles' : 'sparkles-outline'}
+                    size={14}
+                    color={premium ? '#1a1a1a' : '#fff'}
+                  />
+                  <Text style={[styles.premiumLabel, { color: premium ? '#1a1a1a' : '#fff' }]}>
+                    {premium ? 'Premium Scan ON' : 'Premium Scan'}
+                  </Text>
+                </Pressable>
                 <Pressable onPress={handleCapture} style={styles.captureBtn}>
                   <View style={styles.captureInner} />
                 </Pressable>
-                <Text style={styles.captureHint}>Tap to capture meal</Text>
+                <Text style={styles.captureHint}>
+                  {premium ? 'Opus 4.6 · sharper portion detection' : 'Tap to capture meal'}
+                </Text>
               </View>
             </View>
           ) : (
@@ -275,6 +313,16 @@ const styles = StyleSheet.create({
   },
   captureInner: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#fff' },
   captureHint: { color: '#fff', fontSize: 12, fontWeight: '500' },
+  premiumToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 100,
+    marginBottom: 16,
+  },
+  premiumLabel: { fontSize: 12, fontWeight: '700' },
 
   permWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, gap: 14 },
   permTitle: { color: '#fff', fontSize: 17, fontWeight: '700' },

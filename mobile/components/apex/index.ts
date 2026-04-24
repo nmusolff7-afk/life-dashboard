@@ -17,6 +17,7 @@ export { TodayWorkoutsList } from './TodayWorkoutsList';
 export { SavedWorkoutsStrip } from './SavedWorkoutsStrip';
 export { NumberPromptModal } from './NumberPromptModal';
 export { WorkoutHistoryList } from './WorkoutHistoryList';
+export { WorkoutDetailModal } from './WorkoutDetailModal';
 export { WorkoutEditSheet } from './WorkoutEditSheet';
 export { LineChart } from './LineChart';
 export { RangePills } from './RangePills';

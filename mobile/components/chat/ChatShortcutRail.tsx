@@ -10,7 +10,7 @@ export interface Shortcut {
   icon: React.ComponentProps<typeof Ionicons>['name'];
   onPress: () => void;
   /** Visual hint — the most-contextually-relevant one gets a thicker
-   *  accent border per §4.7.5 time-of-day emphasis. Deterministic. */
+   *  accent border per §4.7.5 time-of-day emphasis. */
   emphasized?: boolean;
 }
 
@@ -18,9 +18,10 @@ interface Props {
   shortcuts: Shortcut[];
 }
 
-/** Vertical rail of 2–5 shortcut pills. Rendered above the X (close) button
- *  in the chat overlay per PRD §4.7.4. Hidden once a conversation has
- *  content (the ChatOverlay parent manages that). */
+/** Narrow vertical pill stack sized to sit directly above the FAB.
+ *  Pills are compact (icon on top, small label below) so the whole
+ *  column stays roughly the FAB's width and reads as "a little menu
+ *  growing out of the +". Parent anchors the column above the FAB. */
 export function ChatShortcutRail({ shortcuts }: Props) {
   const t = useTokens();
   const haptics = useHaptics();
@@ -39,12 +40,14 @@ export function ChatShortcutRail({ shortcuts }: Props) {
               backgroundColor: t.surface,
               borderColor: s.emphasized ? t.accent : t.border,
               borderWidth: s.emphasized ? 2 : 1,
-              transform: [{ scale: pressed ? 0.97 : 1 }],
+              transform: [{ scale: pressed ? 0.95 : 1 }],
               opacity: pressed ? 0.88 : 1,
             },
           ]}>
-          <Ionicons name={s.icon} size={16} color={t.text} />
-          <Text style={[styles.label, { color: t.text }]}>{s.label}</Text>
+          <Ionicons name={s.icon} size={18} color={t.text} />
+          <Text style={[styles.label, { color: t.text }]} numberOfLines={1}>
+            {s.label}
+          </Text>
         </Pressable>
       ))}
     </View>
@@ -57,18 +60,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   pill: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 100,
-    // Parent ChatOverlay gives this column a fixed width so every pill
-    // in the stack is the same size — matches the founder's spec.
-    alignSelf: 'stretch',
+    justifyContent: 'center',
+    gap: 2,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderRadius: 14,
+    minHeight: 52,
   },
   label: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '600',
+    textAlign: 'center',
   },
 });

@@ -326,6 +326,20 @@ def init_db():
             )
         """)
 
+        # Daily AI-call cap counter — supports per-user-per-day quotas on
+        # Premium Scan (20/day Pro per PRD §10.3.3) and Pantry Scanner
+        # (10/day Pro per §10.3.12). Single row per (user, day, feature)
+        # with UPSERT increment on each successful call.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ai_daily_counts (
+                user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                usage_date  DATE NOT NULL,
+                feature     TEXT NOT NULL,
+                count       INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (user_id, usage_date, feature)
+            )
+        """)
+
         # Chatbot audit — names-only transparency log per locked C1.
         # Persists timestamp, user, shortcut context, response summary (first
         # 200 chars), model, tokens, cost. We do NOT store the full redacted
@@ -1002,6 +1016,32 @@ def save_daily_weight(user_id: int, date_str: str, weight_lbs: float):
             ON CONFLICT(user_id, log_date) DO UPDATE SET weight_lbs = excluded.weight_lbs
         """, (user_id, date_str, weight_lbs))
         conn.commit()
+
+
+def get_ai_daily_count(user_id: int, date_str: str, feature: str) -> int:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT count FROM ai_daily_counts WHERE user_id = ? AND usage_date = ? AND feature = ?",
+            (user_id, date_str, feature),
+        ).fetchone()
+    return int(row["count"] or 0) if row else 0
+
+
+def incr_ai_daily_count(user_id: int, date_str: str, feature: str) -> int:
+    """Upsert-increment the (user, day, feature) counter. Returns the
+    new count."""
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO ai_daily_counts (user_id, usage_date, feature, count)
+            VALUES (?, ?, ?, 1)
+            ON CONFLICT(user_id, usage_date, feature) DO UPDATE SET
+              count = count + 1
+            """,
+            (user_id, date_str, feature),
+        )
+        conn.commit()
+    return get_ai_daily_count(user_id, date_str, feature)
 
 
 def add_hydration_oz(user_id: int, date_str: str, oz: float):

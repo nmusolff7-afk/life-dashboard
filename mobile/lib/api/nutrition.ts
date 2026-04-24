@@ -99,19 +99,47 @@ export async function aiEditMeal(original: string, edits: string): Promise<Nutri
  *  returns the identified description + full macro breakdown. */
 export interface MealScanResponse extends NutritionEstimate {
   description: string;
+  model?: string;
+  premium?: boolean;
 }
 
 export async function scanMealImage(
   imageBase64: string,
   mediaType: string = 'image/jpeg',
   context: string = '',
+  premium: boolean = false,
 ): Promise<MealScanResponse> {
   const res = await apiFetch('/api/scan-meal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image_b64: imageBase64, media_type: mediaType, context }),
+    body: JSON.stringify({ image_b64: imageBase64, media_type: mediaType, context, premium }),
   });
   return jsonOrThrow<MealScanResponse>(res, 'scan-meal');
+}
+
+/** Barcode AI fallback — called client-side when Open Food Facts returns
+ *  no product for a scanned barcode. Haiku estimates from the raw number
+ *  plus optional hint text. */
+export interface BarcodeAiLookup {
+  description: string;
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  sugar_g: number;
+  fiber_g: number;
+  sodium_mg: number;
+  notes: string;
+  source: 'ai';
+}
+
+export async function lookupBarcodeAi(barcode: string, hint: string = ''): Promise<BarcodeAiLookup> {
+  const res = await apiFetch('/api/barcode/lookup-ai', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ barcode, hint }),
+  });
+  return jsonOrThrow<BarcodeAiLookup>(res, 'barcode/lookup-ai');
 }
 
 /** Pantry: list of ingredients detected from one or more photos. */

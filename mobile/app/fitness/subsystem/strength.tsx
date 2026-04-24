@@ -1,11 +1,14 @@
 import { Stack } from 'expo-router';
-import { useMemo } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { WorkoutDetailModal } from '../../../components/apex';
 import { useWorkoutHistory } from '../../../lib/hooks/useHomeData';
 import { useTokens } from '../../../lib/theme';
 
 import { classifyAsStrength, parseDescription, strength_weekly_volume_label } from '../../../lib/strengthHelpers';
+
+import type { Workout } from '../../../../shared/src/types/home';
 
 /** Strength subsystem detail — weekly volume trend + recent strength
  *  sessions. Per-lift PR charts require per-set data that lives server-
@@ -15,6 +18,7 @@ import { classifyAsStrength, parseDescription, strength_weekly_volume_label } fr
 export default function StrengthDetail() {
   const t = useTokens();
   const history = useWorkoutHistory(90);
+  const [detailWorkout, setDetailWorkout] = useState<Workout | null>(null);
 
   const strengthSessions = useMemo(
     () => (history.data ?? []).filter((w) => classifyAsStrength(w.description ?? '')),
@@ -83,7 +87,13 @@ export default function StrengthDetail() {
             strengthSessions.slice(0, 10).map((w, i) => {
               const parsed = parseDescription(w.description ?? '');
               return (
-                <View key={`${w.log_date}-${i}`} style={[styles.session, { borderBottomColor: t.border }]}>
+                <Pressable
+                  key={`${w.log_date}-${i}`}
+                  onPress={() => setDetailWorkout(w)}
+                  style={({ pressed }) => [
+                    styles.session,
+                    { borderBottomColor: t.border, opacity: pressed ? 0.6 : 1 },
+                  ]}>
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text style={[styles.sessionDesc, { color: t.text }]} numberOfLines={2}>
                       {w.description}
@@ -97,12 +107,18 @@ export default function StrengthDetail() {
                   <Text style={[styles.sessionKcal, { color: t.fitness }]}>
                     {w.calories_burned ?? 0} kcal
                   </Text>
-                </View>
+                </Pressable>
               );
             })
           )}
         </View>
       </ScrollView>
+
+      <WorkoutDetailModal
+        workout={detailWorkout}
+        onClose={() => setDetailWorkout(null)}
+        onChanged={() => history.refetch()}
+      />
     </View>
   );
 }

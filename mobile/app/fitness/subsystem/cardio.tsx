@@ -1,17 +1,21 @@
 import { Stack } from 'expo-router';
-import { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { WorkoutDetailModal } from '../../../components/apex';
 import { useWorkoutHistory } from '../../../lib/hooks/useHomeData';
 import { useTokens } from '../../../lib/theme';
 
 import { classifyAsCardio, estimateCardioDuration } from '../../../lib/cardioHelpers';
+
+import type { Workout } from '../../../../shared/src/types/home';
 
 /** Cardio subsystem — weekly cardio-minutes trend + recent activity list.
  *  HR-zone breakdown deferred until HealthKit wiring (Phase 6). */
 export default function CardioDetail() {
   const t = useTokens();
   const history = useWorkoutHistory(90);
+  const [detailWorkout, setDetailWorkout] = useState<Workout | null>(null);
 
   const cardioSessions = useMemo(
     () => (history.data ?? []).filter((w) => classifyAsCardio(w.description ?? '')),
@@ -77,7 +81,13 @@ export default function CardioDetail() {
             cardioSessions.slice(0, 10).map((w, i) => {
               const mins = estimateCardioDuration(w.description ?? '');
               return (
-                <View key={`${w.log_date}-${i}`} style={[styles.session, { borderBottomColor: t.border }]}>
+                <Pressable
+                  key={`${w.log_date}-${i}`}
+                  onPress={() => setDetailWorkout(w)}
+                  style={({ pressed }) => [
+                    styles.session,
+                    { borderBottomColor: t.border, opacity: pressed ? 0.6 : 1 },
+                  ]}>
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text style={[styles.sessionDesc, { color: t.text }]} numberOfLines={2}>
                       {w.description}
@@ -90,12 +100,18 @@ export default function CardioDetail() {
                   <Text style={[styles.sessionKcal, { color: t.fitness }]}>
                     {w.calories_burned ?? 0} kcal
                   </Text>
-                </View>
+                </Pressable>
               );
             })
           )}
         </View>
       </ScrollView>
+
+      <WorkoutDetailModal
+        workout={detailWorkout}
+        onClose={() => setDetailWorkout(null)}
+        onChanged={() => history.refetch()}
+      />
     </View>
   );
 }

@@ -149,9 +149,13 @@ export default function HomeScreen() {
           </Pressable>
         ) : null}
 
-        {/* Overall Score — BLUF for the tab. (Streak bar is nested in
-            the header above per founder's save-vertical-space spec.) */}
+        {/* Overall Score — BLUF for the tab. */}
         <OverallScoreHero data={scores.overall.data} loading={scores.overall.loading} />
+
+        {/* 90-day scrolling streak bar — today at the right edge, oldest
+            left. The compact flame+count in the header is a glance;
+            this is the full drillable history. */}
+        <StreakBar loggedDates={loggedDates} today={today} days={90} />
 
         {/* Active goals strip. Single card until §4.10 goal library lands. */}
         {activeGoal ? (

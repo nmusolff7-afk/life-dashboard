@@ -26,6 +26,7 @@ from db import (
     insert_mind_task, get_mind_tasks, toggle_mind_task, delete_mind_task,
     save_daily_weight, get_daily_weight,
     add_hydration_oz, get_hydration_oz, reset_hydration,
+    get_ai_daily_count, incr_ai_daily_count,
     compute_momentum, get_momentum_history,
     save_gmail_tokens, get_gmail_tokens, delete_gmail_tokens, update_gmail_access_token,
     upsert_gmail_cache, get_gmail_cache, clear_gmail_cache,
@@ -37,7 +38,7 @@ from db import (
     save_workout, get_saved_workouts, delete_saved_workout,
     get_user_by_clerk_id, create_user_from_clerk,
 )
-from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, generate_workout_plan, generate_comprehensive_plan, generate_plan_understanding, revise_plan, shorten_label, scan_meal_image, generate_momentum_insight, generate_scale_summary, suggest_meal, identify_ingredients
+from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, generate_workout_plan, generate_comprehensive_plan, generate_plan_understanding, revise_plan, shorten_label, scan_meal_image, generate_momentum_insight, generate_scale_summary, suggest_meal, identify_ingredients, estimate_from_barcode
 from claude_profile import generate_profile_map
 import gmail_sync
 from goal_config import compute_targets, get_goal_config
@@ -923,30 +924,86 @@ def api_today_workouts():
 @app.route("/api/scan-meal", methods=["POST"])
 @login_required
 def api_scan_meal():
+    """Meal photo scan. Two tiers per PRD §4.4.5:
+      Standard (all tiers) — Sonnet 4.6, fast + cheap, always available.
+      Premium (Pro only)   — Opus 4.6, richer portion anchoring, 20/day cap.
+    Request body:
+      image_b64, media_type, context, premium (bool)
+    Premium=true is gated by tier (locked C2: all users are Pro during
+    build cycle, so the tier check passes universally for now) and by
+    the 20/day daily cap tracked in ai_daily_counts."""
     data = request.get_json() or {}
     image_b64  = data.get("image_b64", "")
     media_type = data.get("media_type", "image/jpeg")
     context    = data.get("context", "").strip()
+    premium    = bool(data.get("premium", False))
     if not image_b64:
         return jsonify({"error": "No image provided"}), 400
+
+    PREMIUM_CAP = 20  # PRD §10.3.3
+    if premium:
+        today = client_today()
+        used = get_ai_daily_count(uid(), today, "premium_scan")
+        if used >= PREMIUM_CAP:
+            return jsonify({
+                "error": "Premium Scan daily limit reached",
+                "cap": PREMIUM_CAP,
+                "reset_at": f"{today} local midnight",
+            }), 402
+
     try:
-        return jsonify(scan_meal_image(image_b64, media_type, context=context))
-    except Exception as e:
-        _log.exception("scan-meal failed")
+        result = scan_meal_image(image_b64, media_type, context=context, premium=premium)
+        if premium:
+            incr_ai_daily_count(uid(), client_today(), "premium_scan")
+        return jsonify(result)
+    except Exception:
+        _log.exception("scan-meal failed (premium=%s)", premium)
+        return jsonify({"error": _AI_ERR}), 500
+
+
+@app.route("/api/barcode/lookup-ai", methods=["POST"])
+@login_required
+def api_barcode_lookup_ai():
+    """Haiku fallback when Open Food Facts returns no product for a
+    scanned barcode. Cheap — ~$0.001/call. No daily cap at v1."""
+    data = request.get_json() or {}
+    barcode = (data.get("barcode") or "").strip()
+    hint    = (data.get("hint") or "").strip()
+    if not barcode:
+        return jsonify({"error": "No barcode provided"}), 400
+    try:
+        return jsonify(estimate_from_barcode(barcode, hint=hint))
+    except Exception:
+        _log.exception("barcode/lookup-ai failed")
         return jsonify({"error": _AI_ERR}), 500
 
 
 @app.route("/api/meals/scan", methods=["POST"])
 @login_required
 def api_meals_scan():
+    """Pantry photo → ingredient list. Pro-gated per PRD §4.4.8.
+    10/day cap per §10.3.12 — locked C2 says all users are Pro during
+    this build cycle, so the cap is what does the gating."""
     data   = request.get_json() or {}
     images = data.get("images", [])
     if not images:
         return jsonify({"error": "No images provided"}), 400
+
+    PANTRY_CAP = 10  # PRD §10.3.12
+    today = client_today()
+    used = get_ai_daily_count(uid(), today, "pantry_scan")
+    if used >= PANTRY_CAP:
+        return jsonify({
+            "error": "Pantry Scanner daily limit reached",
+            "cap": PANTRY_CAP,
+            "reset_at": f"{today} local midnight",
+        }), 402
+
     try:
         ingredients = identify_ingredients(images)
+        incr_ai_daily_count(uid(), today, "pantry_scan")
         return jsonify({"ingredients": ingredients})
-    except Exception as e:
+    except Exception:
         _log.exception("meals/scan failed")
         return jsonify({"error": _AI_ERR}), 500
 
