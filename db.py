@@ -380,6 +380,7 @@ def init_db():
                 plan_json      TEXT NOT NULL,
                 quiz_payload   TEXT,
                 understanding  TEXT,
+                sources_json   TEXT,
                 is_active      INTEGER NOT NULL DEFAULT 0,
                 created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 archived_at    TIMESTAMP
@@ -389,6 +390,15 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_workout_plans_user_active "
             "ON workout_plans(user_id, is_active)"
         )
+        # Migrate: sources_json added after initial deploy. Holds an array
+        # of relevant WORKOUT_PLAN_SOURCES shortNames (or full objects) so
+        # the UI can render the "How we built your plan" panel without
+        # re-asking the AI.
+        try:
+            conn.execute("ALTER TABLE workout_plans ADD COLUMN sources_json TEXT")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
 
         # Deterministic score snapshots — overall + per-category. Written by the
         # nightly job at 03:30 UTC and on-demand by /api/score/*. Immutable after
@@ -1110,12 +1120,10 @@ def get_ai_daily_count(user_id: int, date_str: str, feature: str) -> int:
 # ── Workout plans (PRD §4.3.10) ─────────────────────────
 
 def get_active_workout_plan(user_id: int) -> dict | None:
-    """Returns the user's currently active plan, or None. Shape:
-      { id, plan_json (already-parsed dict), quiz_payload (dict|None),
-        understanding (str|None), created_at, is_active: True }"""
+    """Returns the user's currently active plan, or None."""
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, plan_json, quiz_payload, understanding, created_at "
+            "SELECT id, plan_json, quiz_payload, understanding, sources_json, created_at "
             "FROM workout_plans WHERE user_id = ? AND is_active = 1 "
             "ORDER BY id DESC LIMIT 1",
             (user_id,),
@@ -1128,6 +1136,7 @@ def get_active_workout_plan(user_id: int) -> dict | None:
         "plan": _json.loads(row["plan_json"] or "{}"),
         "quiz_payload": _json.loads(row["quiz_payload"]) if row["quiz_payload"] else None,
         "understanding": row["understanding"],
+        "sources": _json.loads(row["sources_json"]) if row["sources_json"] else [],
         "created_at": row["created_at"],
         "is_active": True,
     }
@@ -1138,6 +1147,7 @@ def save_active_workout_plan(
     plan: dict,
     quiz_payload: dict | None = None,
     understanding: str | None = None,
+    sources: list | None = None,
 ) -> int:
     """Deactivate any previous plans for this user and insert the new
     one as active. Prior plans keep is_active=0 (archived) so the user
@@ -1152,12 +1162,13 @@ def save_active_workout_plan(
         )
         cur = conn.execute(
             "INSERT INTO workout_plans (user_id, plan_json, quiz_payload, "
-            "understanding, is_active) VALUES (?, ?, ?, ?, 1)",
+            "understanding, sources_json, is_active) VALUES (?, ?, ?, ?, ?, 1)",
             (
                 user_id,
                 _json.dumps(plan),
                 _json.dumps(quiz_payload) if quiz_payload else None,
                 understanding,
+                _json.dumps(sources) if sources else None,
             ),
         )
         new_id = cur.lastrowid

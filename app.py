@@ -1386,10 +1386,8 @@ def api_workout_plan_get():
 @app.route("/api/workout-plan/save", methods=["POST"])
 @login_required
 def api_workout_plan_save():
-    """Save a directly-provided plan as active. Used by the AI Import and
-    Manual Builder modes where the plan is already constructed client-
-    side and we just need to persist it. Body:
-      { plan: <weeklyPlan dict>, quiz_payload?: dict, understanding?: str }"""
+    """Save a directly-provided plan as active. Body:
+      { plan, quiz_payload?, understanding?, sources? }"""
     from db import get_active_workout_plan, save_active_workout_plan
     data = request.get_json() or {}
     plan = data.get("plan")
@@ -1400,6 +1398,7 @@ def api_workout_plan_save():
         plan,
         quiz_payload=data.get("quiz_payload"),
         understanding=data.get("understanding"),
+        sources=data.get("sources"),
     )
     return jsonify(get_active_workout_plan(uid()) or {}), 201
 
@@ -1409,22 +1408,40 @@ def api_workout_plan_save():
 def api_workout_plan_generate():
     """Generate a fresh plan from the builder quiz payload and save it
     as the user's active plan. Archives any previous active plan.
-    Returns the newly saved plan row."""
+    Payload also carries a `scientificSources` array the client
+    pre-computed from the quiz answers — persisted verbatim so the
+    "How we built your plan" panel can render the same citations the
+    AI was told to honor.
+
+    Returns the newly saved plan row. On AI failure we return the real
+    error message rather than a generic _AI_ERR so the client can show
+    something diagnostic."""
     from db import get_active_workout_plan, save_active_workout_plan
     payload = request.get_json() or {}
+    sources = payload.get("scientificSources") or []
     try:
         plan = generate_comprehensive_plan(payload)
-    except Exception:
+    except Exception as e:
         _log.exception("workout-plan/generate AI call failed")
-        return jsonify({"error": _AI_ERR}), 500
+        return jsonify({
+            "error": str(e) or _AI_ERR,
+            "hint": "Plan generation failed. Check server logs for JSON parse errors.",
+        }), 500
     try:
         understanding = generate_plan_understanding(payload)
     except Exception:
+        _log.warning("understanding generation failed; saving plan without it")
         understanding = ""
-    save_active_workout_plan(uid(), {"weeklyPlan": plan.get("weeklyPlan") or plan,
-                                     "planNotes": plan.get("planNotes")},
-                             quiz_payload=payload,
-                             understanding=understanding)
+    save_active_workout_plan(
+        uid(),
+        {
+            "weeklyPlan": plan.get("weeklyPlan") or plan,
+            "planNotes": plan.get("planNotes"),
+        },
+        quiz_payload=payload,
+        understanding=understanding,
+        sources=sources if isinstance(sources, list) else [],
+    )
     out = get_active_workout_plan(uid())
     return jsonify(out or {}), 201
 

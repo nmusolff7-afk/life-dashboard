@@ -63,6 +63,10 @@ export interface WorkoutPlanResponse {
   plan: WeeklyPlan;
   quiz_payload?: WorkoutPlanQuiz | null;
   understanding?: string | null;
+  /** Array of shortName strings referencing entries in
+   *  shared/src/data/workoutPlanSources.ts. Drives the
+   *  "How we built your plan" transparency panel. */
+  sources?: string[];
   created_at: string;
   is_active: boolean;
 }

@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +14,10 @@ import {
 } from 'react-native';
 
 import type { DayName, PlanDay, WeeklyPlan } from '../../../../shared/src/types/plan';
+import {
+  WORKOUT_PLAN_SOURCES,
+  type WorkoutPlanSource,
+} from '../../../../shared/src/data/workoutPlanSources';
 import { deactivateWorkoutPlan, patchWorkoutPlan, reviseWorkoutPlan } from '../../../lib/api/plan';
 import { useWorkoutPlan } from '../../../lib/hooks/useWorkoutPlan';
 import { useStrengthSession } from '../../../lib/useStrengthSession';
@@ -38,6 +43,14 @@ export default function PlanIndex() {
   const [reviseOpen, setReviseOpen] = useState(false);
   const [reviseText, setReviseText] = useState('');
   const [revising, setRevising] = useState(false);
+  const [sourcesOpen, setSourcesOpen] = useState(false);
+
+  // Resolve source shortNames back to full citations.
+  const sourceObjects = useMemo<WorkoutPlanSource[]>(() => {
+    const names = plan?.sources ?? [];
+    if (!names.length) return [];
+    return WORKOUT_PLAN_SOURCES.filter((s) => names.includes(s.shortName));
+  }, [plan?.sources]);
 
   if (loading) {
     return (
@@ -172,6 +185,43 @@ export default function PlanIndex() {
               {plan.understanding}
             </Text>
           </View>
+        ) : null}
+
+        {sourceObjects.length > 0 ? (
+          <>
+            <Pressable
+              onPress={() => { haptics.fire('tap'); setSourcesOpen((v) => !v); }}
+              style={[styles.sourcesToggle, { borderColor: t.border }]}>
+              <Ionicons name="library-outline" size={14} color={t.accent} />
+              <Text style={[styles.sourcesToggleLabel, { color: t.accent }]}>
+                How we built your plan ({sourceObjects.length} source{sourceObjects.length === 1 ? '' : 's'})
+              </Text>
+              <Ionicons
+                name={sourcesOpen ? 'chevron-up' : 'chevron-down'}
+                size={16}
+                color={t.accent}
+              />
+            </Pressable>
+            {sourcesOpen ? (
+              <View style={[styles.sourcesPanel, { backgroundColor: t.surface, borderColor: t.border }]}>
+                {sourceObjects.map((s) => (
+                  <Pressable
+                    key={s.shortName}
+                    onPress={() => { void Linking.openURL(s.url); }}
+                    accessibilityRole="link"
+                    style={({ pressed }) => [
+                      styles.sourceRow,
+                      { borderBottomColor: t.border, opacity: pressed ? 0.6 : 1 },
+                    ]}>
+                    <Text style={[styles.sourceName, { color: t.text }]}>{s.shortName}</Text>
+                    <Text style={[styles.sourceCitation, { color: t.muted }]}>
+                      {s.fullCitation}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+          </>
         ) : null}
 
         {DAYS.map((dayName) => {
@@ -401,4 +451,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryLabel: { color: '#fff', fontSize: 14, fontWeight: '700' },
+
+  sourcesToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  sourcesToggleLabel: { flex: 1, fontSize: 13, fontWeight: '700' },
+  sourcesPanel: { borderWidth: 1, borderRadius: 12, padding: 10 },
+  sourceRow: { paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, gap: 4 },
+  sourceName: { fontSize: 12, fontWeight: '700' },
+  sourceCitation: { fontSize: 11, lineHeight: 15 },
 });

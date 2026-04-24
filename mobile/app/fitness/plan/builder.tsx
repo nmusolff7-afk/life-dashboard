@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,7 +14,12 @@ import {
 } from 'react-native';
 
 import type { DayName, WorkoutPlanQuiz } from '../../../../shared/src/types/plan';
+import {
+  relevantSourcesFor,
+  type WorkoutPlanSource,
+} from '../../../../shared/src/data/workoutPlanSources';
 import { generateWorkoutPlan } from '../../../lib/api/plan';
+import { useProfile } from '../../../lib/hooks/useHomeData';
 import { useHaptics } from '../../../lib/useHaptics';
 import { useTokens } from '../../../lib/theme';
 
@@ -64,6 +70,7 @@ export default function WorkoutBuilder() {
   const t = useTokens();
   const router = useRouter();
   const haptics = useHaptics();
+  const profile = useProfile();
 
   const [step, setStep] = useState<Step>('days');
   const [trainingDays, setTrainingDays] = useState<DayName[]>(['Monday', 'Wednesday', 'Friday']);
@@ -73,7 +80,26 @@ export default function WorkoutBuilder() {
   const [equipment, setEquipment] = useState<string[]>(['Full gym']);
   const [focus, setFocus] = useState('');
   const [injuries, setInjuries] = useState('');
+  const [sourcesOpen, setSourcesOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
+
+  // Build the full payload + active-source set from the current answers.
+  // Matches the shape generate_comprehensive_plan expects, including
+  // aiFlags + scientificSources — without these the AI prompt produces
+  // malformed JSON (root cause of the "AI build fails" report).
+  const { payload, activeSources } = useMemo(
+    () => buildPayload({
+      trainingDays,
+      goal,
+      experience,
+      sessionLength,
+      equipment,
+      focus,
+      injuries,
+      profile: profile.data ?? null,
+    }),
+    [trainingDays, goal, experience, sessionLength, equipment, focus, injuries, profile.data],
+  );
 
   const toggleDay = (d: DayName) => {
     haptics.fire('tap');
@@ -102,18 +128,9 @@ export default function WorkoutBuilder() {
 
   const handleGenerate = async () => {
     haptics.fire('tap');
-    const quiz: WorkoutPlanQuiz = {
-      goal,
-      experience,
-      schedule: { daysPerWeek: trainingDays.length, trainingDays },
-      sessionLength,
-      equipment,
-      preferredFocus: focus.trim() ? focus.split(',').map((s) => s.trim()).filter(Boolean) : [],
-      physicalConstraints: injuries.trim() || null,
-    };
     setGenerating(true);
     try {
-      await generateWorkoutPlan(quiz);
+      await generateWorkoutPlan(payload);
       haptics.fire('success');
       router.replace('/fitness/plan' as never);
     } catch (e) {
@@ -280,6 +297,39 @@ export default function WorkoutBuilder() {
             <Text style={[styles.sub, { color: t.subtle, marginTop: 12 }]}>
               Generating takes about 10 seconds. Uses 1 AI call.
             </Text>
+
+            {/* "How we built your plan" transparency panel — matches the
+                PWA's onboarding Summary step. Shows the peer-reviewed
+                citations that drove the decisions for this user's
+                specific quiz answers. */}
+            <Pressable
+              onPress={() => { haptics.fire('tap'); setSourcesOpen((v) => !v); }}
+              style={[styles.sourcesToggle, { borderColor: t.border }]}>
+              <Ionicons name="library-outline" size={14} color={t.accent} />
+              <Text style={[styles.sourcesToggleLabel, { color: t.accent }]}>
+                How we built your plan ({activeSources.length} source{activeSources.length === 1 ? '' : 's'})
+              </Text>
+              <Ionicons
+                name={sourcesOpen ? 'chevron-up' : 'chevron-down'}
+                size={16}
+                color={t.accent}
+              />
+            </Pressable>
+
+            {sourcesOpen ? (
+              <View style={[styles.sourcesPanel, { backgroundColor: t.surface2, borderColor: t.border }]}>
+                <Text style={[styles.sourcesHeader, { color: t.text }]}>
+                  Peer-reviewed references
+                </Text>
+                <Text style={[styles.sourcesBody, { color: t.muted }]}>
+                  Your plan is built on these citations, selected based on your answers. Tap any
+                  name to read the research.
+                </Text>
+                {activeSources.map((s) => (
+                  <SourceRow key={s.shortName} source={s} />
+                ))}
+              </View>
+            ) : null}
           </>
         ) : null}
       </ScrollView>
@@ -366,6 +416,147 @@ function ReviewRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function SourceRow({ source }: { source: WorkoutPlanSource }) {
+  const t = useTokens();
+  return (
+    <Pressable
+      onPress={() => { void Linking.openURL(source.url); }}
+      accessibilityRole="link"
+      accessibilityLabel={`Read ${source.shortName}`}
+      style={({ pressed }) => [
+        styles.sourceRow,
+        { borderBottomColor: t.border, opacity: pressed ? 0.6 : 1 },
+      ]}>
+      <Text style={[styles.sourceName, { color: t.text }]}>{source.shortName}</Text>
+      <Text style={[styles.sourceCitation, { color: t.muted }]}>{source.fullCitation}</Text>
+      <View style={styles.sourceTags}>
+        {source.relevantTo.slice(0, 3).map((tag) => (
+          <Text key={tag} style={[styles.sourceTag, { backgroundColor: t.surface, color: t.subtle }]}>
+            {tag.replace(/_/g, ' ')}
+          </Text>
+        ))}
+      </View>
+    </Pressable>
+  );
+}
+
+// ── Payload builder ──────────────────────────────────────────────────────
+// Build the PWA-shape payload that generate_comprehensive_plan expects.
+// Without aiFlags / userProfile / recovery / scientificSources the AI
+// prompt produces malformed JSON (Phase-12 review "AI build fails"
+// report). We synthesise sensible defaults from the user's profile
+// where the mobile builder doesn't collect a field directly.
+
+interface PayloadArgs {
+  trainingDays: DayName[];
+  goal: Goal;
+  experience: Experience;
+  sessionLength: SessionLength;
+  equipment: string[];
+  focus: string;
+  injuries: string;
+  profile: {
+    age?: number | null;
+    gender?: string | null;
+    current_weight_lbs?: number | null;
+    height_ft?: number | null;
+    height_in?: number | null;
+    work_style?: string | null;
+    stress_level_1_10?: number | null;
+  } | null;
+}
+
+const GOAL_TAG_MAP: Record<Goal, string> = {
+  build_muscle: 'hypertrophy',
+  lose_weight: 'fat_loss',
+  recomp: 'recomposition',
+  maintain: 'maintenance',
+};
+
+function buildPayload(args: PayloadArgs): {
+  payload: WorkoutPlanQuiz;
+  activeSources: WorkoutPlanSource[];
+} {
+  const {
+    trainingDays, goal, experience, sessionLength, equipment, focus, injuries, profile,
+  } = args;
+
+  const stressRaw = profile?.stress_level_1_10 ?? 5;
+  const stressLevel =
+    stressRaw <= 3 ? 'low' :
+    stressRaw <= 6 ? 'moderate' :
+    stressRaw <= 8 ? 'high' : 'very_high';
+
+  // Mobile builder doesn't ask about sleep directly — default to the
+  // median bucket. The AI can still produce a valid plan from this.
+  const sleepHours = '7_to_8';
+
+  const heightIn =
+    (profile?.height_ft ?? 0) * 12 + (profile?.height_in ?? 0);
+
+  const aiFlags = {
+    recoveryOnly: trainingDays.length === 0,
+    noRestDays: trainingDays.length === 7,
+    forcedFullBody: trainingDays.length > 0 && trainingDays.length <= 2,
+    beginnerOnHighFrequency: experience !== 'advanced' && trainingDays.length >= 6,
+    equipmentLimitation: equipment.includes('Bodyweight only') || equipment.includes('Bands'),
+    volumeReductionFromStress: stressLevel === 'high' || stressLevel === 'very_high',
+    hasPhysicalConstraints: injuries.trim().length > 0,
+  };
+
+  // Tags used to pick relevant sources.
+  const activeTags = new Set<string>([
+    'training_frequency',
+    'training_volume',
+    'exercise_selection',
+    GOAL_TAG_MAP[goal],
+  ]);
+  if (aiFlags.volumeReductionFromStress) activeTags.add('stress');
+  if (aiFlags.hasPhysicalConstraints) activeTags.add('injury_modification');
+  if (trainingDays.length >= 5) activeTags.add('split_selection');
+
+  const activeSources = relevantSourcesFor(activeTags);
+
+  const payload: WorkoutPlanQuiz = {
+    userProfile: {
+      age: profile?.age ?? null,
+      sex: profile?.gender ?? null,
+      weightLbs: profile?.current_weight_lbs ?? null,
+      heightIn: heightIn > 0 ? heightIn : null,
+    } as never,
+    primaryGoal: GOAL_TAG_MAP[goal],
+    goal: GOAL_TAG_MAP[goal],
+    experience,
+    schedule: {
+      daysPerWeek: trainingDays.length,
+      trainingDays,
+    },
+    sessionLength,
+    equipment,
+    recovery: {
+      sleepHours,
+      stressLevel,
+      outsideActivity: profile?.work_style ?? 'lightly_active',
+    } as never,
+    trainingStyle: [],
+    cardio: {
+      mode: 'build',
+      preference: 'cardio_balanced',
+      committedCardioType: null,
+      buildGoal: goal === 'lose_weight' ? 'fat_burn' : 'heart_health',
+      buildIntensity: 'moderate',
+      buildDaysPerWeek: 2,
+    } as never,
+    selectedExercises: focus.trim() ? focus.split(',').map((s) => s.trim()).filter(Boolean) : [],
+    preferredFocus: focus.trim() ? focus.split(',').map((s) => s.trim()).filter(Boolean) : [],
+    physicalConstraints: injuries.trim() || null,
+    aiFlags: aiFlags as never,
+    scientificSources: activeSources.map((s) => s.shortName) as never,
+  };
+
+  return { payload, activeSources };
+}
+
 const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 120, gap: 12 },
   progressBar: { height: 3, width: '100%' },
@@ -433,4 +624,42 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryLabel: { color: '#fff', fontSize: 14, fontWeight: '700' },
+
+  sourcesToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginTop: 8,
+  },
+  sourcesToggleLabel: { flex: 1, fontSize: 13, fontWeight: '700' },
+
+  sourcesPanel: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    gap: 10,
+    marginTop: 4,
+  },
+  sourcesHeader: { fontSize: 14, fontWeight: '700' },
+  sourcesBody: { fontSize: 12, lineHeight: 17 },
+  sourceRow: {
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 4,
+  },
+  sourceName: { fontSize: 12, fontWeight: '700' },
+  sourceCitation: { fontSize: 11, lineHeight: 15 },
+  sourceTags: { flexDirection: 'row', gap: 4, flexWrap: 'wrap', marginTop: 4 },
+  sourceTag: {
+    fontSize: 9,
+    fontWeight: '600',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 100,
+    overflow: 'hidden',
+  },
 });
