@@ -1,11 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useEffect, useState } from 'react';
+import { Keyboard, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useChatSession, type Surface } from '../../lib/useChatSession';
-// Dock import ordering — intentionally a single component since each tab
-// mounts its own instance with its `surface` so the chat system prompt
-// can surface the right context container names.
 import { useHaptics } from '../../lib/useHaptics';
 import { useTokens } from '../../lib/theme';
 
@@ -15,18 +12,31 @@ interface Props {
   surface: Surface;
 }
 
-/** Persistent chat dock on the bottom-left of each main tab (per 11.5.12).
- *  Single-line pill. Tapping or focusing the input opens the full
- *  ChatOverlay with draftText prefilled so the user never loses a
- *  mid-sentence thought. The FAB remains bottom-right; the dock + FAB
- *  coexist in the same safe-area band above the tab bar. */
+/** Inline "Ask anything" dock. Rendered as a sibling row above the bottom
+ *  tab bar inside (tabs)/_layout, so it lives in the normal layout flow
+ *  (no absolute positioning, no floating pill). Uses a keyboardWill/Did
+ *  listener to track keyboard visibility — when the on-screen keyboard
+ *  opens, the (tabs) layout wrapper translates upward with it via the
+ *  KeyboardAvoidingView in _layout, so this row rises above the keyboard
+ *  automatically. When an input ELSEWHERE on the page opens a keyboard
+ *  the dock is still lifted because it's below Tabs in the same layout
+ *  container that KeyboardAvoidingView adjusts. */
 export function ChatDock({ surface }: Props) {
   const t = useTokens();
-  const insets = useSafeAreaInsets();
   const chat = useChatSession();
   const haptics = useHaptics();
 
-  // Hidden while the overlay is open — avoids a double input stack.
+  // Tracked only for accessibility announcements; layout lift comes
+  // from the KeyboardAvoidingView wrapper, not this component.
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const sub1 = Keyboard.addListener(showEvt, () => setKeyboardOpen(true));
+    const sub2 = Keyboard.addListener(hideEvt, () => setKeyboardOpen(false));
+    return () => { sub1.remove(); sub2.remove(); };
+  }, []);
+
   if (chat.visible) return null;
 
   const openChat = () => {
@@ -36,31 +46,25 @@ export function ChatDock({ surface }: Props) {
 
   return (
     <View
-      // Sits above the tab bar (the FlaskTabBar has height 64 + insets.bottom).
-      // We live 10pt above that. Right edge reserves the FAB column
-      // (right:18 + size 52 + gap 12).
-      pointerEvents="box-none"
       style={[
         styles.wrap,
         {
-          bottom: 64 + insets.bottom + 10,
-          right: 18 + 52 + 12,
-          backgroundColor: t.surface,
-          borderColor: t.border,
+          backgroundColor: t.bg,
+          borderTopColor: t.border,
         },
       ]}>
       <Pressable
         onPress={openChat}
         accessibilityRole="button"
-        accessibilityLabel="Open chat"
+        accessibilityLabel={keyboardOpen ? 'Open chat (keyboard is open)' : 'Open chat'}
+        accessibilityHint="Opens the assistant"
         style={styles.iconBtn}>
         <Ionicons name="chatbubble-ellipses-outline" size={16} color={t.muted} />
       </Pressable>
-      {/* The TextInput here is deliberately read-only-at-rest: focusing
-          it launches the full overlay instead of starting a multi-line
-          edit in-place. This matches 11.5.11 — dock is a single-line
-          affordance, expansion happens on tap. */}
-      <Pressable style={styles.fakeInput} onPress={openChat} accessibilityLabel="Open chat to type">
+      <Pressable
+        style={styles.fakeInput}
+        onPress={openChat}
+        accessibilityLabel="Open chat to type">
         {chat.draftText ? (
           <Text style={[styles.draftText, { color: t.text }]} numberOfLines={1}>
             {chat.draftText}
@@ -71,37 +75,20 @@ export function ChatDock({ surface }: Props) {
           </Text>
         )}
       </Pressable>
-      {/* Screen-reader-only real input: kept out of layout flow so the
-          Pressables above control the opening gesture. */}
-      <TextInput
-        value=""
-        editable={false}
-        style={{ width: 0, height: 0 }}
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: {
-    position: 'absolute',
-    left: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    borderWidth: 1,
-    borderRadius: 22,
+    // Hairline top so it reads as a continuous strip with the tab bar
+    // below, not a floating pill.
+    borderTopWidth: StyleSheet.hairlineWidth,
     paddingVertical: 8,
-    paddingLeft: 10,
-    paddingRight: 14,
-    // Subtle shadow so the dock reads as floating above tab content.
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 4,
+    paddingHorizontal: 14,
   },
   iconBtn: {
     width: 24,

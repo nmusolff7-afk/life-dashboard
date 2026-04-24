@@ -32,10 +32,6 @@ import { universalShortcuts } from './surfaceShortcuts';
  *  text input box, and action buttons). */
 const SHORTCUT_COL_WIDTH = 80;
 const CLEARANCE_ABOVE_FAB = 16;
-/** Extra lift for the chat input so it sits above the FAB by ~10pt more
- *  than the shortcut rail alignment would imply. Founder noted the input
- *  previously sat too low. */
-const INPUT_EXTRA_LIFT = 10;
 
 export function ChatOverlay() {
   const t = useTokens();
@@ -95,11 +91,21 @@ export function ChatOverlay() {
   const railBottomFromScreenBottom = screen.height - fabY + CLEARANCE_ABOVE_FAB;
   const railLeft = fabCenterX - SHORTCUT_COL_WIDTH / 2;
 
-  // Chat input sits to the LEFT of the FAB, with its bottom edge at the
-  // FAB's top edge minus an extra lift so the pill never grazes the
-  // rotating +. Right edge reserves the FAB column + a small gap.
+  // Chat input sits INLINE to the LEFT of the FAB at the FAB's own
+  // vertical band — not above the rail. Founder wants the input to
+  // visually pair with the FAB (same baseline), while the shortcut rail
+  // stacks on top of the FAB. We align the input's vertical centre with
+  // the FAB's vertical centre so the pill tracks the button regardless
+  // of pill height. Right edge reserves the FAB column + a small gap.
   const inputRight = screen.width - fabX + 10;
-  const inputBottomFromScreenBottom = railBottomFromScreenBottom + INPUT_EXTRA_LIFT;
+  const fabBottomFromScreenBottom = screen.height - (fabY + fabSize);
+  const INPUT_PILL_HEIGHT = 50; // matches ChatInput rounded pill (48–52 range)
+  const inputBottomFromScreenBottom =
+    fabBottomFromScreenBottom + (fabSize - INPUT_PILL_HEIGHT) / 2;
+
+  // The conversation panel still rises above the FAB so it has room for
+  // scrollback + header.
+  const conversationBottom = railBottomFromScreenBottom;
 
   return (
     <View pointerEvents={chat.visible ? 'auto' : 'none'} style={StyleSheet.absoluteFill}>
@@ -146,7 +152,7 @@ export function ChatOverlay() {
                 {
                   left: 12,
                   right: inputRight,
-                  bottom: railBottomFromScreenBottom,
+                  bottom: conversationBottom,
                 },
               ]}>
               <View
