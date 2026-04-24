@@ -44,17 +44,18 @@ import { universalShortcuts } from './surfaceShortcuts';
  */
 const SHORTCUT_COL_WIDTH = 80;
 const CLEARANCE_ABOVE_FAB = 2;
-/** Offset to shift the shortcut rail DOWN so the lowest pill reads as
- *  inline with the FAB's top edge on-device. */
-const RAIL_DOWN_SHIFT = 13;
+/** Offset to shift the shortcut rail relative to its default anchor
+ *  above the FAB. Positive = down, negative = up. Founder tuned the
+ *  pills 15pt higher than the earlier 13pt-down position, net −2pt. */
+const RAIL_DOWN_SHIFT = -2;
 /** Offset to shift the chat input pill DOWN so it reads as inline with
  *  the FAB's vertical band. Tuned independently of the rail per
  *  founder feedback. */
 const INPUT_DOWN_SHIFT = 5;
 /** Clearance above the system keyboard when the input is expanded.
- *  Founder-tuned 20 → 35 so the pill sits 15pt higher than before,
- *  well clear of the keyboard's top edge + home-indicator band. */
-const INPUT_CLEAR_ABOVE_KB = 35;
+ *  Founder-tuned up to 50pt so the pill sits well clear of the
+ *  keyboard's top edge + home-indicator band. */
+const INPUT_CLEAR_ABOVE_KB = 50;
 
 /** FAB "resting" math constants — mirror FAB.tsx so the rail + input
  *  can anchor to where the FAB WOULD be (bottom-right above the tab
