@@ -96,7 +96,11 @@ export function SavedMealsPicker({ visible, meals, onClose, onLogged, onRemoved 
 
           <View style={styles.header}>
             <Text style={[styles.title, { color: t.text }]}>Saved meals</Text>
-            <Pressable onPress={onClose} hitSlop={10}>
+            <Pressable
+              onPress={onClose}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Close saved meals">
               <Ionicons name="close" size={22} color={t.muted} />
             </Pressable>
           </View>
@@ -158,6 +162,8 @@ export function SavedMealsPicker({ visible, meals, onClose, onLogged, onRemoved 
                       <Pressable
                         onPress={() => handleRemove(m)}
                         hitSlop={10}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove ${m.description}`}
                         style={styles.rowRemove}>
                         <Ionicons name="close" size={16} color={t.subtle} />
                       </Pressable>

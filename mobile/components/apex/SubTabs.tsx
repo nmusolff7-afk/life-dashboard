@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useHaptics } from '../../lib/useHaptics';
 import { useTokens } from '../../lib/theme';
 
 interface Props<T extends string> {
@@ -16,6 +17,7 @@ interface Props<T extends string> {
  *  to shrink for nesting inside TabHeader. */
 export function SubTabs<T extends string>({ tabs, value, onChange, compact }: Props<T>) {
   const t = useTokens();
+  const haptics = useHaptics();
   return (
     <View
       style={[
@@ -27,8 +29,17 @@ export function SubTabs<T extends string>({ tabs, value, onChange, compact }: Pr
         return (
           <Pressable
             key={tab.value}
-            onPress={() => onChange(tab.value)}
-            style={compact ? styles.tabCompact : styles.tab}>
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+            accessibilityLabel={tab.label}
+            onPress={() => {
+              if (!active) haptics.fire('tap');
+              onChange(tab.value);
+            }}
+            style={({ pressed }) => [
+              compact ? styles.tabCompact : styles.tab,
+              { transform: [{ scale: pressed ? 0.96 : 1 }] },
+            ]}>
             <Text
               style={[
                 compact ? styles.labelCompact : styles.label,
