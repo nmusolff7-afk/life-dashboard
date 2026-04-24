@@ -17,7 +17,7 @@ import {
   WeightTrendCard,
   WorkoutHistoryList,
 } from '../../components/apex';
-import { logWeight } from '../../lib/api/fitness';
+import { logWeight, logWorkout } from '../../lib/api/fitness';
 import { classifyAsStrength } from '../../lib/strengthHelpers';
 import {
   useProfile,
@@ -212,15 +212,24 @@ export default function FitnessScreen() {
               onWeightPress={() => chat.openQuickLog('weight')}
             />
 
-            {/* Today's Scheduled Workout card — pulls from the live
-                plan (Phase 12). The plan hook returns null when the
-                user has no active plan, which the card renders as the
-                Build-a-Plan state. */}
+            {/* Today's Scheduled Workout card — separates strength +
+                cardio into their own action rows. */}
             <TodayScheduledWorkoutCard
               plan={deriveTodayFromPlan(workoutPlan.plan)}
               loading={workoutPlan.loading}
-              onStartPlanned={() => startTodaysPlannedSession(workoutPlan.plan, strength)}
+              onStartPlannedStrength={() => startTodaysPlannedSession(workoutPlan.plan, strength)}
               onStartAdhoc={launchStrength}
+              onLogCardio={async () => {
+                const cardioLabel = deriveTodayCardio(workoutPlan.plan);
+                if (!cardioLabel) return;
+                try {
+                  await logWorkout(cardioLabel, estimateCardioBurn(cardioLabel), 'cardio');
+                  await refreshAllWorkouts();
+                } catch {
+                  // best-effort; errors surface via Alert in the modal path
+                }
+              }}
+              onLogCardioManual={() => chat.openQuickLog('workout-cardio')}
             />
 
             <TodayWorkoutsList workouts={todayWorkouts} onChanged={refreshAllWorkouts} />
@@ -325,8 +334,37 @@ function deriveTodayFromPlan(plan: WorkoutPlanResponse | null): TodayScheduledWo
   return {
     dayName: dayBlock.label || todayName,
     exercises,
+    cardio: cardioLabel ? { type: cardioLabel } : null,
     isRestDay: false,
   };
+}
+
+function deriveTodayCardio(plan: WorkoutPlanResponse | null): string | null {
+  if (!plan) return null;
+  const todayName = DOW_NAMES[new Date().getDay()];
+  const dayBlock = (plan.plan?.weeklyPlan ?? {})[todayName];
+  const label = (dayBlock?.cardio?.type || '').trim();
+  return label || null;
+}
+
+/** Rough METs-based kcal estimate for the "Mark complete" one-tap cardio
+ *  log. Assumes 30 minutes at a moderate pace for a 165 lb user. Good
+ *  enough for a quick-log; the Manual Log path (Quick Log cardio modal)
+ *  is for precise entry. */
+function estimateCardioBurn(label: string): number {
+  const l = label.toLowerCase();
+  const mets =
+    l.includes('easy run') || l.includes('walk') || l.includes('easy ride') ? 5 :
+    l.includes('tempo') || l.includes('brisk') ? 8 :
+    l.includes('interval') || l.includes('hiit') || l.includes('hill') ? 10 :
+    l.includes('long run') || l.includes('long ride') ? 9 :
+    l.includes('recovery') ? 4 :
+    l.includes('swim') ? 8 :
+    l.includes('jump rope') || l.includes('stair') ? 11 :
+    7;
+  const minutes = 30;
+  const weightLbs = 165;
+  return Math.round((mets * 3.5 * weightLbs * 0.453592) / 200 * minutes);
 }
 
 /** Seed the strength session with today's scheduled exercises + start

@@ -1383,6 +1383,27 @@ def api_workout_plan_get():
     return jsonify(plan)
 
 
+@app.route("/api/workout-plan/save", methods=["POST"])
+@login_required
+def api_workout_plan_save():
+    """Save a directly-provided plan as active. Used by the AI Import and
+    Manual Builder modes where the plan is already constructed client-
+    side and we just need to persist it. Body:
+      { plan: <weeklyPlan dict>, quiz_payload?: dict, understanding?: str }"""
+    from db import get_active_workout_plan, save_active_workout_plan
+    data = request.get_json() or {}
+    plan = data.get("plan")
+    if not isinstance(plan, dict):
+        return jsonify({"error": "Missing plan body"}), 400
+    save_active_workout_plan(
+        uid(),
+        plan,
+        quiz_payload=data.get("quiz_payload"),
+        understanding=data.get("understanding"),
+    )
+    return jsonify(get_active_workout_plan(uid()) or {}), 201
+
+
 @app.route("/api/workout-plan/generate", methods=["POST"])
 @login_required
 def api_workout_plan_generate():

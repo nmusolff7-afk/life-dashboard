@@ -28,6 +28,33 @@ export async function fetchWorkoutPlan(): Promise<WorkoutPlanResponse | null> {
   return (await res.json()) as WorkoutPlanResponse;
 }
 
+/** Parse a free-form plan text block via the AI Import flow. Returns a
+ *  normalized weekly plan — NOT yet saved. Caller reviews + tweaks,
+ *  then calls saveWorkoutPlan. */
+export async function parseWorkoutPlanText(text: string): Promise<WeeklyPlan> {
+  const res = await apiFetch('/api/parse-workout-plan', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  return jsonOrThrow<WeeklyPlan>(res, 'parse-workout-plan');
+}
+
+/** Save a pre-built plan (AI Import or Manual Builder) as the active
+ *  plan. Archives any prior active plan. */
+export async function saveWorkoutPlan(params: {
+  plan: WeeklyPlan;
+  quiz_payload?: unknown;
+  understanding?: string;
+}): Promise<WorkoutPlanResponse> {
+  const res = await apiFetch('/api/workout-plan/save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  return jsonOrThrow<WorkoutPlanResponse>(res, 'workout-plan/save');
+}
+
 /** Generate a new plan from the builder quiz. Archives any previous
  *  active plan and installs this one. */
 export async function generateWorkoutPlan(

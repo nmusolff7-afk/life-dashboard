@@ -4,11 +4,17 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 
 import { WorkoutDetailModal } from '../../../components/apex';
 import { useWorkoutHistory } from '../../../lib/hooks/useHomeData';
+import { useWorkoutPlan } from '../../../lib/hooks/useWorkoutPlan';
 import { useTokens } from '../../../lib/theme';
 
 import { classifyAsStrength, parseDescription, strength_weekly_volume_label } from '../../../lib/strengthHelpers';
 
 import type { Workout } from '../../../../shared/src/types/home';
+import type { DayName } from '../../../../shared/src/types/plan';
+
+const DAYS: DayName[] = [
+  'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+];
 
 /** Strength subsystem detail — weekly volume trend + recent strength
  *  sessions. Per-lift PR charts require per-set data that lives server-
@@ -18,6 +24,7 @@ import type { Workout } from '../../../../shared/src/types/home';
 export default function StrengthDetail() {
   const t = useTokens();
   const history = useWorkoutHistory(90);
+  const planState = useWorkoutPlan();
   const [detailWorkout, setDetailWorkout] = useState<Workout | null>(null);
 
   const strengthSessions = useMemo(
@@ -47,6 +54,28 @@ export default function StrengthDetail() {
         }}
       />
       <ScrollView contentContainerStyle={styles.content}>
+        {/* Scheduled strength days from the active plan. Shown above
+            the volume card so the user sees what's coming. */}
+        {planState.plan ? (
+          <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
+            <Text style={[styles.cardTitle, { color: t.muted }]}>Weekly schedule</Text>
+            {DAYS.map((d) => {
+              const day = planState.plan?.plan.weeklyPlan[d];
+              const exs = day?.exercises ?? [];
+              return (
+                <View key={d} style={[styles.planRow, { borderBottomColor: t.border }]}>
+                  <Text style={[styles.planDay, { color: t.accent }]}>{d.slice(0, 3)}</Text>
+                  <Text style={[styles.planBody, { color: t.text }]} numberOfLines={2}>
+                    {exs.length === 0 ? (
+                      <Text style={{ color: t.subtle }}>Rest / no strength</Text>
+                    ) : exs.map((e) => `${e.name} ${e.sets}×${e.reps}`).join(', ')}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        ) : null}
+
         <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
           <Text style={[styles.cardTitle, { color: t.muted }]}>Weekly volume</Text>
           <Text style={[styles.bigValue, { color: t.text }]}>
@@ -196,4 +225,12 @@ const styles = StyleSheet.create({
   sessionMeta: { fontSize: 11 },
   sessionKcal: { fontSize: 13, fontWeight: '700' },
   empty: { fontSize: 12, padding: 16, textAlign: 'center' },
+  planRow: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  planDay: { fontSize: 12, fontWeight: '700', minWidth: 32 },
+  planBody: { fontSize: 12, flex: 1, lineHeight: 17 },
 });

@@ -515,24 +515,44 @@ def shorten_label(description: str) -> str:
 
 # ── Workout plan parsing ───────────────────────────────
 
-PLAN_PROMPT = """You are a fitness coach. Given a workout schedule in any format, convert it into a structured weekly plan.
+PLAN_PROMPT = """You are a fitness coach. Parse the user's free-form weekly
+schedule into a structured plan with BOTH strength and cardio per day.
 
-Respond ONLY with this exact JSON structure (no markdown, no explanation):
+Respond ONLY with this exact JSON shape (no markdown, no prose):
 {
-  "Monday":    [{"name": "<exercise name>", "sets": <integer>}, ...],
-  "Tuesday":   [...],
-  "Wednesday": [...],
-  "Thursday":  [...],
-  "Friday":    [...],
-  "Saturday":  [...],
-  "Sunday":    [...]
+  "weeklyPlan": {
+    "Monday": {
+      "label": "<2–3 word day label, e.g. 'Push Day'|'Upper A'|'Rest'>",
+      "exercises": [
+        {"name": "<clean title-case exercise>", "sets": <int>, "reps": "<range or count>", "rest": "<60s|90s|2min|null>", "notes": null}
+      ],
+      "cardio": {"type": "<specific session label>", "committed": true}
+    },
+    ...(Tuesday–Sunday same shape)
+  },
+  "planNotes": "<1–2 sentence summary of the plan>"
 }
 
-Rules:
-- Include all 7 days. Use an empty array [] for rest days.
-- If sets are not specified, use a sensible default (3-4 sets).
-- Exercise names should be clean title-case (e.g. "Bench Press" not "bench press (barbell)").
-- If a day has multiple exercises, list them in logical order."""
+Rules (non-negotiable):
+- Include all 7 days. Rest days use label "Rest", exercises [], cardio null.
+- Strength exercises go into `exercises`; don't mix cardio in there.
+- If the user mentioned cardio for a day, put it in `cardio.type` using
+  ONLY these specific labels (never generic "Cardio"):
+    Running: "Easy Run" | "Tempo Run" | "Interval Run" | "Long Run" |
+             "Recovery Run" | "Hill Repeats" | "Fartlek"
+    Cycling: "Easy Ride" | "Tempo Ride" | "Interval Ride" | "Long Ride" |
+             "Recovery Ride"
+    Walking: "Easy Walk" | "Brisk Walk" | "Incline Walk" | "Long Walk"
+    Other:   "HIIT Circuit" | "Swimming" | "Jump Rope" | "Stairmaster" |
+             "Rowing" | "Elliptical"
+  If the user's description is ambiguous, pick the closest label.
+- `rest` is optional; omit or null if not implied.
+- `reps` is a string — "8-12", "5", "AMRAP", "30 sec", etc.
+- Default to 3 sets if unspecified. Preserve their exact numbers otherwise.
+- Exercise names in clean title-case (e.g. "Bench Press" not "bench press (bb)").
+- Do NOT invent exercises or cardio the user didn't mention; if a day is
+  blank, it's a rest day.
+- planNotes: one or two sentences describing the split + cardio cadence."""
 
 _DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
@@ -1000,13 +1020,43 @@ Give a brief, practical observation about where they stand on calories right now
 
 
 def parse_workout_plan(text: str) -> dict:
+    """Parse free-form plan text into the structured {weeklyPlan, planNotes}
+    shape — same envelope generate_comprehensive_plan uses. Mobile picks
+    up the result and saves it via /api/workout-plan/save."""
     response = _client().messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=1024,
-        timeout=30.0,
+        max_tokens=2048,
+        timeout=45.0,
         system=PLAN_PROMPT,
         messages=[{"role": "user", "content": text}],
     )
     raw = next((b.text for b in response.content if b.type == "text"), "")
     data = _parse_json(raw)
-    return {d: data.get(d, []) for d in _DAYS}
+    weekly = data.get("weeklyPlan")
+    if not isinstance(weekly, dict):
+        # Backward-compat: if the model slipped back to the old flat
+        # {Monday: [...]} shape, coerce it into the new envelope with
+        # rest days filled in and cardio omitted.
+        weekly = {}
+        for d in _DAYS:
+            entries = data.get(d) or []
+            exs = [
+                {
+                    "name": e.get("name") or "",
+                    "sets": int(e.get("sets") or 3),
+                    "reps": str(e.get("reps") or "8-12"),
+                    "rest": e.get("rest"),
+                    "notes": e.get("notes"),
+                }
+                for e in entries if isinstance(e, dict) and e.get("name")
+            ]
+            weekly[d] = {
+                "label": "Rest" if not exs else "Workout",
+                "exercises": exs,
+                "cardio": None,
+            }
+    # Ensure all 7 days exist so the client doesn't have to fill blanks.
+    for d in _DAYS:
+        if d not in weekly or not isinstance(weekly[d], dict):
+            weekly[d] = {"label": "Rest", "exercises": [], "cardio": None}
+    return {"weeklyPlan": weekly, "planNotes": data.get("planNotes") or ""}
