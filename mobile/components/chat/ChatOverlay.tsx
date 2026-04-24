@@ -137,8 +137,6 @@ export function ChatOverlay() {
 
   if (dismissed) return null;
 
-  const hasTurns = chat.turns.length > 0;
-
   const shortcuts: Shortcut[] = universalShortcuts({
     expandedKey: shortcutExpandedKey,
     setExpandedKey: setShortcutExpandedKey,
@@ -169,7 +167,6 @@ export function ChatOverlay() {
   const INPUT_PILL_HEIGHT = 50;
   const inputBottomCollapsed =
     restingFabBottomFromScreenBottom - INPUT_DOWN_SHIFT;
-  const conversationBottomCollapsed = railBottomFromScreenBottom;
 
   // EXPANDED positions
   const expandedInputBottom =
@@ -206,9 +203,10 @@ export function ChatOverlay() {
       </Animated.View>
 
       <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { opacity: anim }]}>
-        {/* Shortcut rail — hidden while expanded or when there are
-            prior turns (conversation takes its place). */}
-        {!hasTurns && !expanded ? (
+        {/* Shortcut rail — always visible while collapsed, regardless
+            of whether prior chat turns exist. Prior history is only
+            revealed when the user taps the input (expanded state). */}
+        {!expanded ? (
           <View
             pointerEvents="box-none"
             style={[
@@ -223,23 +221,18 @@ export function ChatOverlay() {
           </View>
         ) : null}
 
-        {/* Conversation card. Collapsed: rises above rail on the LEFT of
-            the FAB. Expanded: fullscreen card with back chevron in its
-            own header. */}
-        {(hasTurns || expanded) ? (
+        {/* Conversation card — expanded state only. Fullscreen-ish
+            card with back chevron in its own header. Prior turns
+            remain in memory so tapping the input again surfaces them
+            without a reset. Closing via FAB × re-enters the collapsed
+            state with rail + input on next open. */}
+        {expanded ? (
           <View
             pointerEvents="box-none"
-            style={
-              expanded
-                ? [
-                    styles.conversationAnchorExpanded,
-                    { top: expandedConversationTop, bottom: expandedConversationBottom },
-                  ]
-                : [
-                    styles.conversationAnchor,
-                    { left: 12, right: inputRight, bottom: conversationBottomCollapsed },
-                  ]
-            }>
+            style={[
+              styles.conversationAnchorExpanded,
+              { top: expandedConversationTop, bottom: expandedConversationBottom },
+            ]}>
             <View
               style={[
                 styles.conversation,
