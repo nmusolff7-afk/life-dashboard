@@ -47,7 +47,7 @@ const CLEARANCE_ABOVE_FAB = 2;
 /** Systemic offset to shift collapsed rail + input DOWN to read inline
  *  with the FAB on-device. Keep in one place so rail + input always
  *  move together. */
-const COLLAPSED_DOWN_SHIFT = 15;
+const COLLAPSED_DOWN_SHIFT = 13;
 /** Extra breathing room above the system keyboard. */
 const INPUT_CLEAR_ABOVE_KB = 20;
 

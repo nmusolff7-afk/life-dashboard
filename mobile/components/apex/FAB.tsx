@@ -14,24 +14,13 @@ interface Props {
 
 const FAB_SIZE = 52;
 const FAB_RIGHT = 18;
-/** Gap between the top of the tab bar and the bottom of the FAB when
- *  the chat is closed (resting position). */
+/** Gap between the top of the tab bar and the bottom of the FAB. */
 const FAB_GAP_ABOVE_TAB_BAR = 12;
 const TAB_BAR_HEIGHT = 64;
-/** When chat is OPEN, FAB migrates to the top-right of the screen /
- *  top of the conversation card. Offset from the status-bar safe-area. */
-const FAB_TOP_GAP = 8;
 
-/** FAB + chat toggle.
- *
- *   Chat closed (resting): bottom-right, above the tab bar. + icon.
- *   Chat open: top-right, aligned with the top of the conversation
- *              card / status-bar safe area. × icon (rotated 45°).
- *
- *  The migration is a layout jump (no animation yet) — the dim
- *  backdrop appearing simultaneously masks the jump visually. If we
- *  want a smoother translation later, wrap the position in Animated.
- */
+/** FAB + chat toggle. Always bottom-right above the tab bar. Tap
+ *  rotates + → × to indicate the toggle; the ChatOverlay renders the
+ *  shortcut rail + input pill around this fixed position. */
 export function FAB({ from = 'home' }: Props) {
   const t = useTokens();
   const chat = useChatSession();
@@ -67,28 +56,16 @@ export function FAB({ from = 'home' }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Re-measure whenever chat.visible flips (FAB moves top-right vs
-  // bottom-right). onLayout doesn't always fire for pure position
-  // changes on absolute-positioned children.
-  useEffect(() => {
-    const id = setTimeout(measure, 60);
-    return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chat.visible]);
-
   const rotate = anim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] });
 
-  // Position switches based on chat.visible.
-  const positionStyle = chat.visible
-    ? { top: insets.top + FAB_TOP_GAP, right: FAB_RIGHT }
-    : { bottom: TAB_BAR_HEIGHT + insets.bottom + FAB_GAP_ABOVE_TAB_BAR, right: FAB_RIGHT };
+  const fabBottom = TAB_BAR_HEIGHT + insets.bottom + FAB_GAP_ABOVE_TAB_BAR;
 
   return (
     <View
       ref={containerRef}
       onLayout={measure}
       collapsable={false}
-      style={[styles.fab, positionStyle]}
+      style={[styles.fab, { bottom: fabBottom, right: FAB_RIGHT }]}
       pointerEvents="box-none">
       <Pressable
         accessibilityRole="button"
