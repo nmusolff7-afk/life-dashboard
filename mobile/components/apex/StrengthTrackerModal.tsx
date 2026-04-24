@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -21,72 +21,54 @@ import {
   blankSet,
   buildWorkoutDescription,
   formatTimer,
-  loadTemplate,
   saveTemplate,
   type StrengthExercise,
 } from '../../lib/strength';
+import { useStrengthSession } from '../../lib/useStrengthSession';
 import { useTokens } from '../../lib/theme';
 
 interface Props {
-  visible: boolean;
-  onClose: () => void;
   /** Called after a session is logged successfully — triggers refetch on caller. */
   onLogged: () => void;
 }
 
-/** Full-screen strength workout tracker — ports Flask's #checklist-overlay
- *  behavior. Exercise list with checkable set rows, live workout timer, rest
- *  timer that resets on each set tick, Save & Log flow that compresses the
- *  session into a single /api/log-workout row with a Claude-estimated burn. */
-export function StrengthTrackerModal({ visible, onClose, onLogged }: Props) {
+/** Full-screen strength workout tracker — ports Flask's #checklist-overlay.
+ *  Session state lives in useStrengthSession so the modal is minimizable and
+ *  the banner outside keeps ticking. Save & Log flow builds a descriptive
+ *  string, calls /api/burn-estimate + /api/log-workout. */
+export function StrengthTrackerModal({ onLogged }: Props) {
   const t = useTokens();
   const insets = useSafeAreaInsets();
-  const [exercises, setExercises] = useState<StrengthExercise[]>([]);
-  const [hydrated, setHydrated] = useState(false);
-
-  // Timers — session elapsed since modal opened, rest since last set tick.
-  const [startTs, setStartTs] = useState<number | null>(null);
-  const [lastTickTs, setLastTickTs] = useState<number | null>(null);
+  const session = useStrengthSession();
   const [now, setNow] = useState(Date.now());
   const [saving, setSaving] = useState(false);
 
-  // Hydrate template on first open.
-  useEffect(() => {
-    if (visible && !hydrated) {
-      loadTemplate().then((t) => {
-        setExercises(t && t.length > 0 ? t : [blankExercise()]);
-        setStartTs(Date.now());
-        setLastTickTs(Date.now());
-        setHydrated(true);
-      });
-    }
-    if (!visible && hydrated) {
-      // Fully reset on close so reopening starts a fresh session.
-      setExercises([]);
-      setStartTs(null);
-      setLastTickTs(null);
-      setHydrated(false);
-    }
-  }, [visible, hydrated]);
+  const visible = session.modalVisible;
+  const exercises = session.exercises;
+  const startTs = session.startTs;
+  const lastTickTs = session.lastTickTs;
 
-  // Timer tick.
+  // Timer tick. Runs whenever there's an active session (visible or not).
   useEffect(() => {
-    if (!visible || startTs == null) return;
+    if (startTs == null) return;
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [visible, startTs]);
+  }, [startTs]);
 
   const elapsedSec = startTs != null ? Math.floor((now - startTs) / 1000) : 0;
   const restSec = lastTickTs != null ? Math.floor((now - lastTickTs) / 1000) : 0;
 
-  // ── Mutators ──────────────────────────────────────────────────────────
+  // ── Mutators (all go through context.setExercises) ───────────────────────
 
-  const updateExercise = useCallback((idx: number, update: (ex: StrengthExercise) => StrengthExercise) => {
-    setExercises((prev) => prev.map((ex, i) => (i === idx ? update(ex) : ex)));
-  }, []);
+  const updateExercise = useCallback(
+    (idx: number, update: (ex: StrengthExercise) => StrengthExercise) => {
+      session.setExercises(exercises.map((ex, i) => (i === idx ? update(ex) : ex)));
+    },
+    [exercises, session],
+  );
 
   const toggleSet = (exIdx: number, setIdx: number) => {
-    setLastTickTs(Date.now()); // reset rest timer on any check/uncheck
+    session.tickRest();
     updateExercise(exIdx, (ex) => ({
       ...ex,
       sets: ex.sets.map((s, i) => (i === setIdx ? { ...s, completed: !s.completed } : s)),
@@ -120,28 +102,33 @@ export function StrengthTrackerModal({ visible, onClose, onLogged }: Props) {
   };
 
   const addExercise = () => {
-    setExercises((prev) => [...prev, blankExercise(`Exercise ${prev.length + 1}`)]);
+    session.setExercises([...exercises, blankExercise(`Exercise ${exercises.length + 1}`)]);
   };
 
   const removeExercise = (idx: number) => {
-    setExercises((prev) => prev.filter((_, i) => i !== idx));
+    session.setExercises(exercises.filter((_, i) => i !== idx));
   };
 
-  // ── Close / discard ───────────────────────────────────────────────────
+  // ── Minimize / discard ───────────────────────────────────────────────────
+
+  const handleMinimize = () => {
+    // Minimize just hides the modal — session keeps ticking + banner shows.
+    session.minimize();
+  };
 
   const handleDiscard = () => {
     const anyCompleted = exercises.some((ex) => ex.sets.some((s) => s.completed));
     if (anyCompleted) {
       Alert.alert('Discard workout?', 'All progress in this session will be lost.', [
         { text: 'Keep going', style: 'cancel' },
-        { text: 'Discard', style: 'destructive', onPress: onClose },
+        { text: 'Discard', style: 'destructive', onPress: () => void session.end() },
       ]);
     } else {
-      onClose();
+      void session.end();
     }
   };
 
-  // ── Save & Log ────────────────────────────────────────────────────────
+  // ── Save & Log ───────────────────────────────────────────────────────────
 
   const handleSave = async () => {
     const anyCompleted = exercises.some((ex) => ex.sets.some((s) => s.completed));
@@ -157,13 +144,12 @@ export function StrengthTrackerModal({ visible, onClose, onLogged }: Props) {
         const est = await estimateBurn(description);
         calories = est.calories_burned ?? 0;
       } catch {
-        // Fall back to a rough "5 kcal/min" heuristic if Claude is unavailable.
         calories = Math.max(50, Math.round((elapsedSec / 60) * 5));
       }
       await logWorkout(description, calories);
       await saveTemplate(exercises);
       onLogged();
-      onClose();
+      await session.end();
     } catch (e) {
       Alert.alert('Save failed', e instanceof Error ? e.message : String(e));
     } finally {
@@ -171,14 +157,14 @@ export function StrengthTrackerModal({ visible, onClose, onLogged }: Props) {
     }
   };
 
-  // ── Render ────────────────────────────────────────────────────────────
+  // ── Render ───────────────────────────────────────────────────────────────
 
   return (
     <Modal
       animationType="slide"
       presentationStyle="fullScreen"
       visible={visible}
-      onRequestClose={handleDiscard}>
+      onRequestClose={handleMinimize}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1, backgroundColor: t.bg }}>
@@ -191,9 +177,9 @@ export function StrengthTrackerModal({ visible, onClose, onLogged }: Props) {
               paddingTop: insets.top + 8,
             },
           ]}>
-          <Pressable onPress={handleDiscard} style={styles.headerBtn} hitSlop={8}>
-            <Ionicons name="chevron-back" size={24} color={t.muted} />
-            <Text style={[styles.headerBtnLabel, { color: t.muted }]}>Discard</Text>
+          <Pressable onPress={handleMinimize} style={styles.headerBtn} hitSlop={8}>
+            <Ionicons name="chevron-down" size={24} color={t.muted} />
+            <Text style={[styles.headerBtnLabel, { color: t.muted }]}>Hide</Text>
           </Pressable>
 
           <View style={styles.timers}>
@@ -215,6 +201,13 @@ export function StrengthTrackerModal({ visible, onClose, onLogged }: Props) {
             {saving ? <ActivityIndicator color="#fff" /> : (
               <Text style={styles.saveLabel}>Save & Log</Text>
             )}
+          </Pressable>
+        </View>
+
+        {/* Secondary toolbar row: Discard button so it's not in the primary header */}
+        <View style={[styles.subHeader, { borderBottomColor: t.border }]}>
+          <Pressable onPress={handleDiscard} hitSlop={6}>
+            <Text style={[styles.discardLabel, { color: t.danger }]}>Discard workout</Text>
           </Pressable>
         </View>
 
@@ -361,7 +354,7 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     borderBottomWidth: 1,
   },
-  headerBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 4 },
+  headerBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 4, gap: 2 },
   headerBtnLabel: { fontSize: 13, fontWeight: '500' },
 
   timers: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
@@ -379,6 +372,14 @@ const styles = StyleSheet.create({
     minWidth: 100,
   },
   saveLabel: { fontSize: 13, fontWeight: '700', color: '#fff' },
+
+  subHeader: {
+    alignItems: 'flex-end',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  discardLabel: { fontSize: 12, fontWeight: '600' },
 
   body: { padding: 14, gap: 10 },
 
