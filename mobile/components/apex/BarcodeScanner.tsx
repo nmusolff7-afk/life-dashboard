@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { logMeal } from '../../lib/api/nutrition';
+import { logMeal, lookupBarcodeAi } from '../../lib/api/nutrition';
 import { useTokens } from '../../lib/theme';
 
 interface Props {
@@ -241,11 +241,47 @@ export function BarcodeScanner({ visible, onClose, onLogged }: Props) {
             <Text style={styles.loadingText}>
               Barcode {scannedCode} isn't in the Open Food Facts database.
             </Text>
-            <Pressable
-              onPress={reset}
-              style={[styles.permBtn, { backgroundColor: t.accent, marginTop: 12 }]}>
-              <Text style={styles.permBtnLabel}>Scan another</Text>
-            </Pressable>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+              <Pressable
+                onPress={async () => {
+                  setStage('lookup');
+                  try {
+                    const ai = await lookupBarcodeAi(scannedCode);
+                    // Reuse the review stage by shaping an AI response
+                    // as a ProductMacros-like card. AI returns per-serving
+                    // already, so use grams=serving=100 as a neutral base.
+                    setProduct({
+                      label: `${ai.description} (AI estimate)`,
+                      per100: {
+                        calories: ai.calories,
+                        protein_g: ai.protein_g,
+                        carbs_g: ai.carbs_g,
+                        fat_g: ai.fat_g,
+                        sugar_g: ai.sugar_g,
+                        fiber_g: ai.fiber_g,
+                        sodium_mg: ai.sodium_mg,
+                      },
+                      defaultServingG: 100,
+                    });
+                    setServingText('100');
+                    setStage('review');
+                  } catch (e) {
+                    Alert.alert(
+                      'AI estimate failed',
+                      e instanceof Error ? e.message : String(e),
+                    );
+                    setStage('not-found');
+                  }
+                }}
+                style={[styles.permBtn, { backgroundColor: t.accent }]}>
+                <Text style={styles.permBtnLabel}>Estimate with AI</Text>
+              </Pressable>
+              <Pressable
+                onPress={reset}
+                style={[styles.permBtn, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
+                <Text style={styles.permBtnLabel}>Scan another</Text>
+              </Pressable>
+            </View>
           </View>
         ) : null}
 

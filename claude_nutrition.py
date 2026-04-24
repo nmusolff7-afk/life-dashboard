@@ -196,12 +196,28 @@ Rules:
 - sugar_g, fiber_g, and sodium_mg are REQUIRED for every item. Look up real nutritional data — most foods have non-zero values for at least one of these. Do NOT default them to 0 unless the food genuinely contains none."""
 
 
-def scan_meal_image(image_b64: str, media_type: str, context: str = "") -> dict:
+def scan_meal_image(image_b64: str, media_type: str, context: str = "", *, premium: bool = False) -> dict:
+    """Meal-photo scan. PRD §4.4.5 tier split:
+      Standard (Core) — Sonnet 4.6 — ~$0.015/call — 1024 output tokens
+      Premium (Pro)   — Opus 4.6   — ~$0.080/call — 1024 output tokens,
+                                     expanded prompt for portion anchoring
+
+    `premium=True` unlocks the Opus model. Callers are responsible for
+    gating this behind the user's tier + daily Premium Scan cap."""
+    model = "claude-opus-4-6" if premium else "claude-sonnet-4-6"
     prompt = SCAN_PROMPT
+    if premium:
+        prompt += (
+            "\n\nYou are the Premium Scan model. Take extra care with:"
+            "\n- Portion inference from visual anchors (cups, plates, hands, utensils)"
+            "\n- Hidden ingredients (oils, dressings, sauces, butter)"
+            "\n- Multi-item plates — each component gets its own row"
+            "\n- Prep-method impact (fried vs grilled vs raw)"
+        )
     if context:
         prompt += f"\n\nAdditional context from the user: {context}"
     response = _client().messages.create(
-        model="claude-opus-4-6",
+        model=model,
         max_tokens=1024,
         timeout=30.0,
         messages=[{
@@ -232,6 +248,57 @@ def scan_meal_image(image_b64: str, media_type: str, context: str = "") -> dict:
         "sodium_mg":   int(data.get("sodium_mg", 0)),
         "items":       _parse_nutrition_items(data),
         "notes":       data.get("notes", ""),
+        "model":       model,
+        "premium":     premium,
+    }
+
+
+# ── Barcode AI fallback (Open Food Facts 404 → estimate by name) ───────
+
+BARCODE_AI_PROMPT = """The user scanned a barcode but Open Food Facts
+didn't find the product. Given just the barcode number and any hint text,
+estimate a typical packaged-food item's macros. Be conservative — assume
+one serving of a common grocery version. Respond with JSON:
+{
+  "description": "<2-5 word guess at what this product is>",
+  "calories": <int>,
+  "protein_g": <number with one decimal>,
+  "carbs_g": <number with one decimal>,
+  "fat_g": <number with one decimal>,
+  "sugar_g": <number with one decimal>,
+  "fiber_g": <number with one decimal>,
+  "sodium_mg": <int>,
+  "notes": "<one sentence: what category you assumed + typical serving>"
+}"""
+
+
+def estimate_from_barcode(barcode: str, hint: str = "") -> dict:
+    """Haiku fallback when Open Food Facts returns no product. Caller
+    passes the raw barcode number plus optional hint (e.g. user-typed
+    name). Cheap — same cost profile as estimate_nutrition."""
+    user_content = f"Barcode: {barcode}"
+    if hint.strip():
+        user_content += f"\nUser hint: {hint.strip()}"
+    response = _client().messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=512,
+        timeout=15.0,
+        system=BARCODE_AI_PROMPT,
+        messages=[{"role": "user", "content": user_content}],
+    )
+    text = next((b.text for b in response.content if b.type == "text"), "")
+    data = _parse_json(text)
+    return {
+        "description": data.get("description", f"Item {barcode[-4:]}"),
+        "calories":    int(data.get("calories", 0)),
+        "protein_g":   float(data.get("protein_g", 0)),
+        "carbs_g":     float(data.get("carbs_g", 0)),
+        "fat_g":       float(data.get("fat_g", 0)),
+        "sugar_g":     float(data.get("sugar_g", 0)),
+        "fiber_g":     float(data.get("fiber_g", 0)),
+        "sodium_mg":   int(data.get("sodium_mg", 0)),
+        "notes":       data.get("notes", ""),
+        "source":      "ai",
     }
 
 
