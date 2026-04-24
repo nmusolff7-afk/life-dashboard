@@ -25,6 +25,7 @@ from db import (
     get_profile_map, is_onboarding_complete,
     insert_mind_task, get_mind_tasks, toggle_mind_task, delete_mind_task,
     save_daily_weight, get_daily_weight,
+    add_hydration_oz, get_hydration_oz, reset_hydration,
     compute_momentum, get_momentum_history,
     save_gmail_tokens, get_gmail_tokens, delete_gmail_tokens, update_gmail_access_token,
     upsert_gmail_cache, get_gmail_cache, clear_gmail_cache,
@@ -459,6 +460,41 @@ def api_delete_account():
         return jsonify({"error": "Account deletion failed. Please contact support."}), 500
     session.clear()
     return jsonify({"ok": True})
+
+
+@app.route("/api/hydration/today")
+@login_required
+def api_hydration_today():
+    """Return today's hydration total (oz) for the authed user."""
+    today = client_today()
+    return jsonify({"oz": get_hydration_oz(uid(), today), "date": today})
+
+
+@app.route("/api/hydration/log", methods=["POST"])
+@login_required
+def api_hydration_log():
+    """Add N oz to today's hydration total. Body: { oz }.
+    Returns the updated total."""
+    data = request.get_json(silent=True) or {}
+    try:
+        oz = float(data.get("oz") or 0)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid oz"}), 400
+    if oz <= 0 or oz > 100:
+        return jsonify({"error": "Invalid oz — must be 0 < oz <= 100"}), 400
+    today = data.get("client_date") or client_today()
+    add_hydration_oz(uid(), today, oz)
+    return jsonify({"oz": get_hydration_oz(uid(), today), "date": today})
+
+
+@app.route("/api/hydration/reset", methods=["POST"])
+@login_required
+def api_hydration_reset():
+    """Reset today's hydration to 0 (undo)."""
+    today = request.get_json(silent=True) or {}
+    d = today.get("client_date") or client_today()
+    reset_hydration(uid(), d)
+    return jsonify({"oz": 0.0, "date": d})
 
 
 @app.route("/api/log-weight", methods=["POST"])

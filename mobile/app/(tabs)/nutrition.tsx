@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
@@ -7,11 +7,13 @@ import {
   CalorieRingCard,
   CaloriesConsumedChart,
   FAB,
+  HydrationCard,
   LogMealCard,
   MacroTrendsCard,
   MealHistoryList,
   MealPhotoScanner,
   NutritionMacrosCard,
+  OverallScoreHero,
   PantryScanner,
   RecentMealsChips,
   SavedMealsPicker,
@@ -19,6 +21,8 @@ import {
   TabHeader,
   TodayMealsList,
 } from '../../components/apex';
+import { DEFAULT_PREFERENCES, loadPreferences, type Preferences } from '../../lib/preferences';
+import { useNutritionScore } from '../../lib/hooks/useScores';
 import {
   useMealHistory,
   useProfile,
@@ -44,6 +48,13 @@ export default function NutritionScreen() {
   const savedMeals = useSavedMeals();
   const history = useMealHistory(90);
   const balance = useLiveCalorieBalance();
+  const nutritionScore = useNutritionScore();
+
+  // Hydration opt-in pref — re-hydrates (heh) from AsyncStorage on focus.
+  const [prefs, setPrefs] = useState<Preferences>(DEFAULT_PREFERENCES);
+  useEffect(() => {
+    loadPreferences().then(setPrefs).catch(() => {});
+  }, []);
 
   const [refreshing, setRefreshing] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
@@ -59,6 +70,7 @@ export default function NutritionScreen() {
         profile.refetch(),
         savedMeals.refetch(),
         history.refetch(),
+        nutritionScore.refetch(),
       ]);
     } finally {
       setRefreshing(false);
@@ -126,13 +138,24 @@ export default function NutritionScreen() {
         }>
         {tab === 'today' ? (
           <>
-            <View style={styles.scoreBlock}>
-              <Text style={[styles.scoreBig, { color: t.subtle }]}>—</Text>
-              <Text style={[styles.scoreLabel, { color: t.nutrition }]}>Nutrition score</Text>
-              <Text style={[styles.scoreHint, { color: t.muted }]}>
-                Score calculated once you have enough data.
-              </Text>
-            </View>
+            <OverallScoreHero
+              data={
+                nutritionScore.data
+                  ? {
+                      score: nutritionScore.data.score,
+                      band: nutritionScore.data.band,
+                      reason: nutritionScore.data.reason,
+                      calibrating: nutritionScore.data.calibrating,
+                      contributing: ['nutrition'],
+                      effective_weights: { fitness: 0, nutrition: 100, finance: 0, time: 0 },
+                      data_completeness_overall: nutritionScore.data.data_completeness_overall,
+                      sparkline_7d: nutritionScore.data.sparkline_7d ?? [],
+                      cta: nutritionScore.data.cta,
+                    }
+                  : null
+              }
+              loading={nutritionScore.loading}
+            />
 
             <CalorieRingCard
               totalIntake={totalIntake}
@@ -145,6 +168,10 @@ export default function NutritionScreen() {
               targets={macroTargets}
               empty={meals.length === 0}
             />
+
+            {prefs.hydrationActive ? (
+              <HydrationCard goalOz={prefs.hydrationGoalOz} />
+            ) : null}
 
             <RecentMealsChips
               saved={savedMeals.data ?? []}
@@ -208,9 +235,4 @@ export default function NutritionScreen() {
 
 const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 96, gap: 16 },
-
-  scoreBlock: { alignItems: 'center', paddingVertical: 8, gap: 2 },
-  scoreBig: { fontSize: 56, fontWeight: '700', lineHeight: 58, letterSpacing: -1.2 },
-  scoreLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 4 },
-  scoreHint: { fontSize: 12, textAlign: 'center', marginTop: 2 },
 });

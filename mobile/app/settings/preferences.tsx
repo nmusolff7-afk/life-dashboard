@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { SegmentedControl } from '../../components/ui';
 import {
@@ -129,6 +129,22 @@ export default function PreferencesScreen() {
                 translations.
               </Text>
             </Section>
+
+            <Section label="Hydration">
+              <View style={[styles.rowBetween, { backgroundColor: t.surface, borderColor: t.border }]}>
+                <Text style={[styles.rowLabel, { color: t.text }]}>Track hydration</Text>
+                <Switch
+                  value={prefs.hydrationActive}
+                  onValueChange={(v) => update('hydrationActive', v)}
+                  trackColor={{ true: t.accent, false: t.surface2 }}
+                  thumbColor="#fff"
+                />
+              </View>
+              <Text style={[styles.hint, { color: t.subtle }]}>
+                Opt-in per PRD §4.4.12. Adds a hydration widget to Nutrition Today with
+                quick-add buttons (+8 / +16 / +24 oz). Daily goal: {prefs.hydrationGoalOz} oz.
+              </Text>
+            </Section>
           </>
         )}
       </ScrollView>
@@ -162,4 +178,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     overflow: 'hidden',
   },
+
+  rowBetween: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  rowLabel: { fontSize: 14, fontWeight: '500' },
 });
