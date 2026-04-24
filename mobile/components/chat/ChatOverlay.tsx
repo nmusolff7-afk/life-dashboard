@@ -1,10 +1,10 @@
-import { Keyboard } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
   Easing,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Pressable,
   ScrollView,
@@ -54,6 +54,21 @@ export function ChatOverlay() {
   const [dismissed, setDismissed] = useState(true);
   const [shortcutExpandedKey, setShortcutExpandedKey] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [kbHeight, setKbHeight] = useState(0);
+
+  // Manually track keyboard height so absolutely-positioned children
+  // (input pill, conversation panel) can lift above the keyboard.
+  // KeyboardAvoidingView with behavior="padding" doesn't reliably push
+  // children that use `bottom: X` positioning — the padding shrinks the
+  // content area but absolute children measured-from-bottom don't track
+  // that on every iOS version. This direct approach always works.
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const sub1 = Keyboard.addListener(showEvt, (e) => setKbHeight(e.endCoordinates?.height ?? 0));
+    const sub2 = Keyboard.addListener(hideEvt, () => setKbHeight(0));
+    return () => { sub1.remove(); sub2.remove(); };
+  }, []);
 
   useEffect(() => {
     if (chat.visible && dismissed) setDismissed(false);
@@ -110,11 +125,11 @@ export function ChatOverlay() {
   const conversationBottomCollapsed = railBottomFromScreenBottom;
 
   // EXPANDED positions — input widens full-width (minus 12pt gutters)
-  // and sits above the keyboard. Conversation fills the space above the
-  // input, starting below the status bar / ScreenHeader area.
-  // KeyboardAvoidingView handles the keyboard lift.
-  const expandedInputBottom = insets.bottom + 8;
-  const expandedConversationTop = insets.top + 12;
+  // and sits above the keyboard. Bottom offset includes measured
+  // keyboard height when the keyboard is open.
+  const expandedInputBottom = kbHeight > 0 ? kbHeight + 8 : insets.bottom + 8;
+  // Back chevron lives at insets.top + 8 and is ~44pt tall; leave room.
+  const expandedConversationTop = insets.top + 60;
 
   const collapse = () => {
     setExpanded(false);
@@ -144,11 +159,29 @@ export function ChatOverlay() {
         />
       </Animated.View>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="box-none">
-        <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { opacity: anim }]}>
+      <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { opacity: anim }]}>
+          {/* Top-left back chevron — visible only when expanded.
+              Collapses the overlay back to the FAB-inline state without
+              closing or sending. Positioned with safe-area top inset so
+              it clears the status bar on every device. */}
+          {expanded ? (
+            <Pressable
+              onPress={collapse}
+              accessibilityRole="button"
+              accessibilityLabel="Collapse chat"
+              hitSlop={10}
+              style={[
+                styles.backBtnTopLeft,
+                {
+                  top: insets.top + 8,
+                  left: 12,
+                  backgroundColor: t.surface,
+                  borderColor: t.border,
+                },
+              ]}>
+              <Ionicons name="chevron-back" size={22} color={t.text} />
+            </Pressable>
+          ) : null}
           {/* Shortcut rail — hidden while expanded or when there are
               prior turns (conversation takes its place). */}
           {!hasTurns && !expanded ? (
@@ -230,11 +263,9 @@ export function ChatOverlay() {
               sending={chat.sending}
               onSend={chat.send}
               onFocus={handleInputFocus}
-              onBack={expanded ? collapse : undefined}
             />
           </View>
-        </Animated.View>
-      </KeyboardAvoidingView>
+      </Animated.View>
     </View>
   );
 }
@@ -277,5 +308,14 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 6,
     lineHeight: 18,
+  },
+  backBtnTopLeft: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

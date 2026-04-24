@@ -9,10 +9,6 @@ import { useTokens } from '../../lib/theme';
 interface Props {
   sending: boolean;
   onSend: (text: string) => void;
-  /** Optional back button on the far left — restores pre-expansion
-   *  state. Parent controls whether it's visible (only shown when the
-   *  input is expanded). */
-  onBack?: () => void;
   /** Autofocus the input when first rendered. */
   autoFocus?: boolean;
   /** Fired when the TextInput gains keyboard focus — parent uses this
@@ -24,7 +20,7 @@ interface Props {
 /** Chat input pill. Syncs its text state with chat.draftText so messages
  *  typed into the ChatDock carry over into the expanded overlay and vice
  *  versa. */
-export function ChatInput({ sending, onSend, onBack, autoFocus, onFocus }: Props) {
+export function ChatInput({ sending, onSend, autoFocus, onFocus }: Props) {
   const t = useTokens();
   const haptics = useHaptics();
   const chat = useChatSession();
@@ -64,18 +60,6 @@ export function ChatInput({ sending, onSend, onBack, autoFocus, onFocus }: Props
 
   return (
     <View style={[styles.wrap, { backgroundColor: t.surface, borderColor: t.border }]}>
-      {onBack ? (
-        <Pressable
-          onPress={() => {
-            haptics.fire('tap');
-            onBack();
-          }}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={20} color={t.muted} />
-        </Pressable>
-      ) : null}
       <TextInput
         ref={inputRef}
         value={text}
@@ -120,12 +104,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 6,
     paddingVertical: 6,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   input: {
     flex: 1,
