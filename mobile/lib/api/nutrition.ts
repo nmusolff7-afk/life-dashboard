@@ -4,6 +4,7 @@ import type {
   TodayNutritionResponse,
 } from '../../../shared/src/types/home';
 import { apiFetch } from '../api';
+import { clientTimeFields } from '../localTime';
 
 async function jsonOrThrow<T>(res: Response, ctx: string): Promise<T> {
   if (!res.ok) {
@@ -46,7 +47,7 @@ export async function logMeal(payload: MealPayload): Promise<TodayNutritionRespo
   const res = await apiFetch('/api/log-meal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, ...clientTimeFields() }),
   });
   return jsonOrThrow<TodayNutritionResponse>(res, 'log-meal');
 }

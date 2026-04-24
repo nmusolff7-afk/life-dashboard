@@ -66,8 +66,13 @@ export const useActivityCalendar = (days = 90): ApiState<ActivityCalendarDay[]> 
 // Steps: Flask stores this in browser localStorage only (no API endpoint). On
 // mobile we use AsyncStorage keyed by date so refreshes are stable.
 
+import { localToday } from '../localTime';
+
 function todayKey(): string {
-  return `apex.steps.${new Date().toISOString().slice(0, 10)}`;
+  // Key on the user's local date, not UTC — otherwise a PDT user at 6pm
+  // would already be reading "tomorrow's" bucket and "today" rolls over
+  // at 5pm local instead of midnight.
+  return `apex.steps.${localToday()}`;
 }
 
 export interface StepsState {
