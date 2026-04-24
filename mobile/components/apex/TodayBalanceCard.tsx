@@ -35,9 +35,12 @@ interface MacroTargets {
 }
 
 interface Props {
-  caloriesConsumed: number;
-  calorieTarget?: number | null;
-  tdee?: number | null;
+  /** Calories logged today. */
+  totalIntake: number;
+  /** totalBurn + deficit_surplus, live from useLiveCalorieBalance. */
+  goalIntake?: number | null;
+  /** Live RMR + NEAT + EAT + TEF. */
+  totalBurn?: number | null;
   macroValues: MacroValues;
   macroTargets?: MacroTargets;
   empty?: boolean;
@@ -64,9 +67,9 @@ const CIRC = 2 * Math.PI * R;
  *  rendered inside a horizontal paging ScrollView so users can swipe OR tap
  *  the tab row to switch. Tab underline animates by index. */
 export function TodayBalanceCard({
-  caloriesConsumed,
-  calorieTarget,
-  tdee,
+  totalIntake,
+  goalIntake,
+  totalBurn,
   macroValues,
   macroTargets,
   empty,
@@ -119,9 +122,9 @@ export function TodayBalanceCard({
           onMomentumScrollEnd={onMomentumScrollEnd}>
           <View style={[styles.page, { width: pageWidth }]}>
             <BalancePanel
-              caloriesConsumed={caloriesConsumed}
-              calorieTarget={calorieTarget}
-              tdee={tdee}
+              totalIntake={totalIntake}
+              goalIntake={goalIntake}
+              totalBurn={totalBurn}
             />
           </View>
           <View style={[styles.page, { width: pageWidth }]}>
@@ -160,45 +163,47 @@ function TabBtn({ label, active, onPress }: { label: string; active: boolean; on
 // ─── Balance panel ──────────────────────────────────────────────────────
 
 function BalancePanel({
-  caloriesConsumed,
-  calorieTarget,
-  tdee,
-}: Pick<Props, 'caloriesConsumed' | 'calorieTarget' | 'tdee'>) {
+  totalIntake,
+  goalIntake,
+  totalBurn,
+}: Pick<Props, 'totalIntake' | 'goalIntake' | 'totalBurn'>) {
   const t = useTokens();
-  const consumed = Math.max(0, caloriesConsumed);
-  const target = calorieTarget ?? 0;
-  const burn = tdee ?? 0;
-  const hasData = consumed > 0 || burn > 0;
+  const intake = Math.max(0, totalIntake);
+  const goal = goalIntake ?? 0;
+  const burn = totalBurn ?? 0;
+  const hasData = intake > 0 || burn > 0;
 
-  const pct = target > 0 ? Math.min(1, consumed / target) : 0;
+  const pct = goal > 0 ? Math.min(1, intake / goal) : 0;
   const dash = CIRC * pct;
-  const remaining = target - consumed;
+  const distanceToGoal = goal - intake; // +ve = cals left, -ve = over
 
   const ringColor = !hasData
     ? t.surface2
-    : remaining > 0
+    : distanceToGoal > 0
       ? t.green
-      : remaining > -200
+      : distanceToGoal > -200
         ? t.amber
         : t.danger;
 
   let centerValue = '—';
   let centerLabel = 'balance';
   let centerColor = t.muted;
-  if (hasData && target > 0) {
-    if (remaining >= 0) {
-      centerValue = Math.round(remaining).toLocaleString();
+  if (hasData && goal > 0) {
+    if (distanceToGoal >= 0) {
+      centerValue = Math.round(distanceToGoal).toLocaleString();
       centerLabel = 'cals left';
       centerColor = t.green;
     } else {
-      centerValue = Math.round(Math.abs(remaining)).toLocaleString();
-      centerLabel = 'over target';
+      centerValue = Math.round(Math.abs(distanceToGoal)).toLocaleString();
+      centerLabel = 'over goal';
       centerColor = t.danger;
     }
   }
 
-  const actualDeficit = burn - consumed;
-  const isDeficit = actualDeficit >= 0;
+  // "Actual current deficit/surplus" per founder spec: totalBurn − totalIntake
+  // Positive → actual deficit; negative → actual surplus.
+  const actualNet = burn - intake;
+  const isDeficit = actualNet >= 0;
   const equationColor = isDeficit ? t.green : t.danger;
 
   return (
@@ -232,12 +237,12 @@ function BalancePanel({
           <Text style={[styles.eqStrong, { color: t.text }]}>−</Text>
           <Text style={[styles.eqStrong, { color: t.text }]}>
             {' '}
-            {Math.round(consumed).toLocaleString()}
+            {Math.round(intake).toLocaleString()}
           </Text>
-          <Text style={[styles.eqDim, { color: t.muted }]}> eaten </Text>
+          <Text style={[styles.eqDim, { color: t.muted }]}> intake </Text>
           <Text style={[styles.eqStrong, { color: t.text }]}>= </Text>
           <Text style={[styles.eqStrong, { color: equationColor }]}>
-            {Math.abs(Math.round(actualDeficit)).toLocaleString()}
+            {Math.abs(Math.round(actualNet)).toLocaleString()}
           </Text>
           <Text style={[styles.eqDim, { color: t.muted }]}>
             {' '}

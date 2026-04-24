@@ -16,12 +16,10 @@ import {
   useTodaySteps,
   useTodayWorkouts,
 } from '../../lib/hooks/useHomeData';
+import { useLiveCalorieBalance } from '../../lib/hooks/useLiveCalorieBalance';
 import { useScores } from '../../lib/hooks/useScores';
 import { useTokens } from '../../lib/theme';
 import { useResetScrollOnFocus } from '../../lib/useResetScrollOnFocus';
-import { computeNeat, type Occupation } from '../../../shared/src/logic/neat';
-import { resolveTef } from '../../../shared/src/logic/tef';
-import { computeTdee } from '../../../shared/src/logic/tdee';
 import { localToday } from '../../lib/localTime';
 
 // PRD §4.4.9 — FDA-default secondary nutrients. Used as fallback when the
@@ -46,6 +44,7 @@ export default function HomeScreen() {
   const loggedDatesApi = useLoggedDates(90);
   const scores = useScores();
   const stepsState = useTodaySteps();
+  const balance = useLiveCalorieBalance();
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
@@ -68,34 +67,9 @@ export default function HomeScreen() {
   const loggedDates = useMemo(() => new Set(loggedDatesApi.data ?? []), [loggedDatesApi.data]);
 
   const totals = nutrition.data?.totals;
-  const burn = workouts.data?.burn ?? 0;
-  const consumed = totals?.total_calories ?? 0;
-
-  // Live TDEE per PRD / PWA math — see templates/index.html ~L5944:
-  //   calTarget = tdee + profile.deficit
-  // where tdee updates continuously from today's actual steps, workout burn,
-  // and logged macros. Stored user_goals.calorie_target is a stale snapshot
-  // and would desync as soon as today's activity diverges from the profile's
-  // assumed burn.
-  const occupation: Occupation = ((): Occupation => {
-    const ws = profile.data?.work_style;
-    return ws === 'standing' || ws === 'physical' ? ws : 'sedentary';
-  })();
-  const workoutDescriptions = (workouts.data?.workouts ?? []).map((w) => w.description ?? '');
-  const neat = computeNeat({
-    occupation,
-    totalSteps: stepsState.steps ?? 0,
-    workoutDescriptions,
-  });
-  const tef = resolveTef(consumed, {
-    proteinG: totals?.total_protein ?? 0,
-    carbsG: totals?.total_carbs ?? 0,
-    fatG: totals?.total_fat ?? 0,
-  });
-  const rmr = profile.data?.rmr_kcal ?? 0;
-  const liveTdee = rmr > 0 ? computeTdee({ rmr, neat: neat.neatKcal, eat: burn, tef }) : null;
-  const deficit = profile.data?.goal_targets?.deficit_surplus ?? 0;
-  const calorieTarget = liveTdee != null ? liveTdee + deficit : null;
+  // Calorie math — all displays use these names (never RMR/NEAT/EAT/TEF
+  // individually outside Settings). See useLiveCalorieBalance.ts for the spec.
+  const { totalBurn, totalIntake, goalIntake, deficitSurplus, distanceToGoal } = balance;
 
   // Macro targets — from profile when set, otherwise FDA defaults for micros.
   // E3 locked fix: Home's previous null micro targets meant the bars never
@@ -114,21 +88,24 @@ export default function HomeScreen() {
   // Per-row blurbs ("most important data point" per PRD §4.2.3, locked D2).
   const fitnessBlurb = useMemo(() => {
     const w = workouts.data?.workouts ?? [];
-    if (w.length === 0) return 'No activity logged yet today';
+    if (w.length === 0 && totalBurn == null) return 'No activity logged yet today';
     const last = w[w.length - 1];
-    const shortDesc = (last.description ?? '').split(',')[0].slice(0, 40);
-    return `${burn} cal burned · last: ${shortDesc || 'workout'}`;
-  }, [workouts.data, burn]);
+    const shortDesc = last ? (last.description ?? '').split(',')[0].slice(0, 40) : null;
+    const burnText = totalBurn != null ? `${totalBurn} cal burned` : 'tracking burn';
+    return shortDesc ? `${burnText} · last: ${shortDesc}` : burnText;
+  }, [workouts.data, totalBurn]);
 
   const nutritionBlurb = useMemo(() => {
     const meals = nutrition.data?.meals ?? [];
     if (meals.length === 0) return 'No meals logged yet today';
-    if (calorieTarget != null) {
-      const remaining = Math.max(0, calorieTarget - consumed);
-      return `${consumed} of ${calorieTarget} cal · ${remaining} left`;
+    if (goalIntake != null && distanceToGoal != null) {
+      const tail = distanceToGoal >= 0
+        ? `${distanceToGoal} cals left`
+        : `${Math.abs(distanceToGoal)} over`;
+      return `${totalIntake} of ${goalIntake} cal · ${tail}`;
     }
-    return `${consumed} cal consumed`;
-  }, [nutrition.data, consumed, calorieTarget]);
+    return `${totalIntake} cal consumed`;
+  }, [nutrition.data, totalIntake, goalIntake, distanceToGoal]);
 
   // Fitness rich content — small stat trio (weight / steps / workout) per
   // PRD §4.2.3 Fitness Card ("Weight · Steps · Cal burned · Last workout").
@@ -187,7 +164,8 @@ export default function HomeScreen() {
                 <View style={[styles.goalBarFill, { backgroundColor: t.fitness, width: '35%' }]} />
               </View>
               <Text style={[styles.goalSub, { color: t.muted }]} numberOfLines={1}>
-                {activeGoal.calorie_target} kcal target · {Math.abs(deficit)} kcal {deficit < 0 ? 'deficit' : 'surplus'}
+                {goalIntake != null ? `${goalIntake} kcal goal · ` : ''}
+                {Math.abs(deficitSurplus)} kcal {deficitSurplus < 0 ? 'deficit' : 'surplus'}
               </Text>
             </Pressable>
           </View>
@@ -205,7 +183,7 @@ export default function HomeScreen() {
               <View style={styles.statGrid}>
                 <MiniStat label="Weight" value={weightLbs != null ? `${Math.round(weightLbs)}` : '—'} unit="lbs" />
                 <MiniStat label="Steps" value={stepsToday > 0 ? stepsToday.toLocaleString() : '—'} />
-                <MiniStat label="Burned" value={`${burn}`} unit="kcal" />
+                <MiniStat label="Burned" value={totalBurn != null ? `${totalBurn}` : '—'} unit="kcal" />
               </View>
             }
           />

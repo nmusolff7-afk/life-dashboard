@@ -1,21 +1,41 @@
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { useBurnChart } from '../../lib/hooks/useHomeData';
+import { OCC_BASE, type Occupation } from '../../../shared/src/logic/neat';
+import { computeTefFlat } from '../../../shared/src/logic/tef';
+import { useBurnChart, useCalorieChart, useProfile } from '../../lib/hooks/useHomeData';
 import { useTokens } from '../../lib/theme';
 import { LineChart, type ChartPoint } from './LineChart';
 import { RangePills, type Range } from './RangePills';
 
-/** Daily total calories burned over a range. */
+/** Daily total burn (RMR + NEAT + EAT + TEF). Historical days reconstruct
+ *  TEF from the day's calories and NEAT from the user's occupation base
+ *  (we don't store daily steps server-side yet). Matches the founder's
+ *  single-burn-number model — never just workout calories alone. */
 export function BurnTrendCard() {
   const t = useTokens();
   const [range, setRange] = useState<Range>(30);
   const burn = useBurnChart(range);
+  const cals = useCalorieChart(range);
+  const profile = useProfile();
 
-  const points: ChartPoint[] = useMemo(
-    () => (burn.data ?? []).map((row, i) => ({ x: i, y: row.total_burn })),
-    [burn.data],
-  );
+  const points: ChartPoint[] = useMemo(() => {
+    const rmr = profile.data?.rmr_kcal ?? 0;
+    const occ: Occupation = ((): Occupation => {
+      const ws = profile.data?.work_style;
+      return ws === 'standing' || ws === 'physical' ? ws : 'sedentary';
+    })();
+    const neatBase = OCC_BASE[occ];
+    // Align the two per-day series by date
+    const calMap = new Map<string, number>();
+    (cals.data ?? []).forEach((r) => calMap.set(r.date, r.calories));
+    return (burn.data ?? []).map((row, i) => {
+      const dayCals = calMap.get(row.date) ?? 0;
+      const tef = computeTefFlat(dayCals);
+      const total = rmr + neatBase + row.total_burn + tef;
+      return { x: i, y: total };
+    });
+  }, [burn.data, cals.data, profile.data]);
 
   const totalOver = points.reduce((sum, p) => sum + p.y, 0);
   const avg = points.length > 0 ? Math.round(totalOver / points.length) : 0;

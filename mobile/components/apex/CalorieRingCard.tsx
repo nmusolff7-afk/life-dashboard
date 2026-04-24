@@ -4,51 +4,49 @@ import Svg, { Circle } from 'react-native-svg';
 import { useTokens } from '../../lib/theme';
 
 interface Props {
-  caloriesConsumed: number;
-  caloriesBurned: number;
-  calorieTarget?: number | null;
+  /** Calories logged today. */
+  totalIntake: number;
+  /** Live TDEE — RMR + NEAT + EAT + TEF. Null until profile loads. */
+  totalBurn: number | null;
+  /** Goal intake = totalBurn + deficitSurplus. Null until profile loads. */
+  goalIntake: number | null;
 }
 
 const RING_SIZE = 220;
 const R = 50;
 const CIRC = 2 * Math.PI * R;
 
-/** Full-width donut showing consumed / target, with red overflow when the
- *  user goes over. Center reads "remaining" or "over by" with the target
- *  caption below, and three mini-stats (Consumed · Burned · Net) underneath. */
-export function CalorieRingCard({ caloriesConsumed, caloriesBurned, calorieTarget }: Props) {
+/** Donut: totalIntake / goalIntake. Center reads distance-to-goal
+ *  ("X cals left" or "X over"). Three mini-stats below — Intake · Burn ·
+ *  Net — where Burn is the live totalBurn (RMR+NEAT+EAT+TEF, never just
+ *  workout calories) and Net is totalBurn − totalIntake (current actual
+ *  deficit/surplus). RMR/NEAT/EAT/TEF individually live only in Settings. */
+export function CalorieRingCard({ totalIntake, totalBurn, goalIntake }: Props) {
   const t = useTokens();
-  const consumed = Math.max(0, caloriesConsumed);
-  const burned = Math.max(0, caloriesBurned);
-  const target = calorieTarget ?? 0;
-  const hasTarget = target > 0;
-  const remaining = target - consumed;
-  const over = hasTarget && consumed > target;
+  const intake = Math.max(0, totalIntake);
+  const burn = totalBurn ?? 0;
+  const goal = goalIntake ?? 0;
+  const hasGoal = goal > 0;
+  const distanceToGoal = goal - intake; // positive = cals left, negative = over
+  const over = hasGoal && intake > goal;
 
-  // Main arc (orange progress up to target).
-  const mainDash = hasTarget ? CIRC * Math.min(1, consumed / target) : 0;
-  // Overflow arc (red portion past target), clamped to one revolution so
-  // we don't double-draw on 3x+.
-  const overflowDash = over ? CIRC * Math.min(1, (consumed - target) / target) : 0;
+  const mainDash = hasGoal ? CIRC * Math.min(1, intake / goal) : 0;
+  const overflowDash = over ? CIRC * Math.min(1, (intake - goal) / goal) : 0;
 
-  const big = !hasTarget
+  const big = !hasGoal
     ? '—'
-    : over
-      ? `${Math.round(Math.abs(remaining)).toLocaleString()}`
-      : `${Math.round(remaining).toLocaleString()}`;
-  const bigColor = !hasTarget ? t.muted : over ? t.danger : t.text;
-  const topLabel = !hasTarget ? 'log meals' : over ? 'over' : 'remaining';
+    : `${Math.round(Math.abs(distanceToGoal)).toLocaleString()}`;
+  const bigColor = !hasGoal ? t.muted : over ? t.danger : t.text;
+  const topLabel = !hasGoal ? 'log meals' : over ? 'over goal' : 'cals left';
 
-  const net = consumed - burned;
+  const actualNet = totalBurn != null ? burn - intake : null; // + = current deficit
 
   return (
     <View style={[styles.card, { backgroundColor: t.surface, shadowColor: '#000' }]}>
       <View style={styles.ringWrap}>
         <Svg width={RING_SIZE} height={RING_SIZE} viewBox="0 0 120 120">
-          {/* Grey track */}
           <Circle cx={60} cy={60} r={R} fill="none" stroke={t.surface2} strokeWidth={12} />
-          {/* Main orange (or green-on-hit) arc */}
-          {hasTarget ? (
+          {hasGoal ? (
             <Circle
               cx={60}
               cy={60}
@@ -62,7 +60,6 @@ export function CalorieRingCard({ caloriesConsumed, caloriesBurned, calorieTarge
               origin="60, 60"
             />
           ) : null}
-          {/* Red overflow, overlaid starting at 12 o'clock. */}
           {over ? (
             <Circle
               cx={60}
@@ -82,24 +79,20 @@ export function CalorieRingCard({ caloriesConsumed, caloriesBurned, calorieTarge
         <View style={styles.ringCenter} pointerEvents="none">
           <Text style={[styles.bigValue, { color: bigColor }]}>{big}</Text>
           <Text style={[styles.bigLabel, { color: t.muted }]}>{topLabel.toUpperCase()}</Text>
-          {hasTarget ? (
+          {hasGoal ? (
             <Text style={[styles.bigTarget, { color: t.subtle }]}>
-              of {target.toLocaleString()} target
+              of {goal.toLocaleString()} goal
             </Text>
           ) : null}
         </View>
       </View>
 
       <View style={styles.miniRow}>
-        <MiniStat label="Consumed" value={consumed} color={t.cal} />
+        <MiniStat label="Intake" value={intake} color={t.cal} />
         <View style={[styles.miniDivider, { backgroundColor: t.border }]} />
-        <MiniStat label="Burned" value={burned} color={t.fitness} />
+        <MiniStat label="Burn" value={burn} color={t.fitness} />
         <View style={[styles.miniDivider, { backgroundColor: t.border }]} />
-        <MiniStat
-          label="Net"
-          value={net}
-          color={net <= (target || Infinity) ? t.text : t.danger}
-        />
+        <NetStat value={actualNet} />
       </View>
     </View>
   );
@@ -111,6 +104,29 @@ function MiniStat({ label, value, color }: { label: string; value: number; color
     <View style={styles.mini}>
       <Text style={[styles.miniValue, { color }]}>
         {Math.round(value).toLocaleString()} <Text style={[styles.miniUnit, { color: t.muted }]}>kcal</Text>
+      </Text>
+      <Text style={[styles.miniLabel, { color: t.muted }]}>{label}</Text>
+    </View>
+  );
+}
+
+function NetStat({ value }: { value: number | null }) {
+  const t = useTokens();
+  if (value == null) {
+    return (
+      <View style={styles.mini}>
+        <Text style={[styles.miniValue, { color: t.muted }]}>—</Text>
+        <Text style={[styles.miniLabel, { color: t.muted }]}>Net</Text>
+      </View>
+    );
+  }
+  const deficit = value >= 0;
+  const label = deficit ? 'Deficit' : 'Surplus';
+  const color = deficit ? t.green : t.amber;
+  return (
+    <View style={styles.mini}>
+      <Text style={[styles.miniValue, { color }]}>
+        {Math.round(Math.abs(value)).toLocaleString()} <Text style={[styles.miniUnit, { color: t.muted }]}>kcal</Text>
       </Text>
       <Text style={[styles.miniLabel, { color: t.muted }]}>{label}</Text>
     </View>
