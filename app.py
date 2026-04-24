@@ -1406,6 +1406,67 @@ def api_gmail_label():
     return jsonify({"ok": True})
 
 
+# ── Chatbot (PRD §4.7) ──────────────────────────────────
+# Buffered (non-SSE) chatbot endpoint per locked C3. Builds 9 typed
+# context containers (Profile/Goals/Nutrition/Fitness real; Finance/Life
+# null placeholders at this phase), calls Haiku, returns the response
+# synchronously. Audit row persisted per C1 — names-only.
+
+@app.route("/api/chatbot/query", methods=["POST"])
+@login_required
+def api_chatbot_query():
+    import chatbot as _cb
+    data = request.get_json(silent=True) or {}
+    query = (data.get("query") or "").strip()
+    if not query:
+        return jsonify({"error": "Empty query"}), 400
+    if len(query) > 2000:
+        return jsonify({"error": "Query too long (max 2000 characters)"}), 400
+    history = data.get("conversation_history") or []
+    surface = data.get("surface")
+    session_id = data.get("session_id") or ""
+    try:
+        result = _cb.answer_query(
+            user_id=uid(),
+            query=query,
+            conversation_history=history,
+            surface=surface,
+            session_id=session_id,
+        )
+        return jsonify(result)
+    except Exception:
+        _log.exception("chatbot/query failed")
+        return jsonify({"error": "Chatbot temporarily unavailable"}), 500
+
+
+@app.route("/api/chatbot/audit")
+@login_required
+def api_chatbot_audit_list():
+    import chatbot as _cb
+    try:
+        limit = min(int(request.args.get("limit", 50)), 200)
+    except (TypeError, ValueError):
+        limit = 50
+    return jsonify({"rows": _cb.list_audit(uid(), limit=limit)})
+
+
+@app.route("/api/chatbot/audit/<int:audit_id>", methods=["DELETE"])
+@login_required
+def api_chatbot_audit_delete(audit_id):
+    import chatbot as _cb
+    ok = _cb.delete_audit_row(uid(), audit_id)
+    return jsonify({"ok": ok})
+
+
+@app.route("/api/chatbot/audit/export")
+@login_required
+def api_chatbot_audit_export():
+    """GDPR Article 15 compliance — user's full chatbot audit as JSON."""
+    import chatbot as _cb
+    rows = _cb.list_audit(uid(), limit=10000)
+    return jsonify({"user_id": uid(), "exported_at": datetime.now().isoformat(), "rows": rows})
+
+
 # ── Scoring (PRD §9) ────────────────────────────────────
 # Deterministic category + overall scoring. Replaces the legacy momentum
 # system for mobile clients. /api/momentum/* below stays live for the
@@ -1895,6 +1956,15 @@ def _score_snapshot_worker():
             _log.info("nightly snapshot complete for %s", yesterday)
         except Exception as e:
             _log.warning("nightly snapshot failed: %s", e)
+
+        # Nightly chatbot audit retention purge — 30 days both tiers per v1.21.
+        try:
+            import chatbot as _cb
+            removed = _cb.purge_audit_older_than(days=30)
+            if removed:
+                _log.info("chatbot_audit purge removed %d rows", removed)
+        except Exception as e:
+            _log.warning("chatbot_audit purge failed: %s", e)
 
 
 def _snapshot_all_users(target_date: str, scoring_module):

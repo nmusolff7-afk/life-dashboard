@@ -1,6 +1,7 @@
-import { Stack } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
 import {
   DEFAULT_PRIVACY,
@@ -25,6 +26,7 @@ const SOURCES: { key: keyof PrivacyPrefs; label: string }[] = [
 
 export default function Privacy() {
   const t = useTokens();
+  const router = useRouter();
   const [prefs, setPrefs] = useState<PrivacyPrefs>(DEFAULT_PRIVACY);
   const [loading, setLoading] = useState(true);
 
@@ -57,6 +59,27 @@ export default function Privacy() {
           toggles let you revoke it without disconnecting. Data still syncs for scoring and
           display; turning a toggle off just stops the chatbot from seeing it in prompts.
         </Text>
+
+        <Pressable
+          onPress={() => router.push('/settings/chatbot-audit')}
+          style={({ pressed }) => [
+            styles.auditLink,
+            {
+              backgroundColor: t.surface,
+              borderColor: t.border,
+              opacity: pressed ? 0.85 : 1,
+              transform: [{ scale: pressed ? 0.99 : 1 }],
+            },
+          ]}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.auditTitle, { color: t.text }]}>View Chatbot Audit</Text>
+            <Text style={[styles.auditSub, { color: t.muted }]}>
+              Every chatbot call, 30-day retention — what was sent, what came back.
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={t.muted} />
+        </Pressable>
+
         {loading ? (
           <ActivityIndicator color={t.accent} />
         ) : (
@@ -98,4 +121,15 @@ const styles = StyleSheet.create({
   },
   name: { fontSize: 14, fontWeight: '500', flex: 1 },
   hint: { fontSize: 11, marginTop: 12, lineHeight: 16 },
+  auditLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 6,
+  },
+  auditTitle: { fontSize: 14, fontWeight: '600' },
+  auditSub: { fontSize: 12, marginTop: 2, lineHeight: 16 },
 });
