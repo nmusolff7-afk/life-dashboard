@@ -27,7 +27,8 @@ export function universalShortcuts(deps: Deps): Shortcut[] {
     (hourNow >= 11 && hourNow < 14) ||
     (hourNow >= 17 && hourNow < 21);
 
-  // Meal-log sub-options, revealed when Log Meal is tapped.
+  // Meal-log sub-options, revealed when Log Meal is tapped. Short labels
+  // so pills fit in the ~80pt narrow column over the FAB.
   if (expandedKey === 'log-meal') {
     return [
       {
@@ -38,7 +39,7 @@ export function universalShortcuts(deps: Deps): Shortcut[] {
       },
       {
         key: 'meal-scan',
-        label: 'Scan Meal',
+        label: 'Scan',
         icon: 'camera-outline',
         onPress: () => goto('/(tabs)/nutrition?open=scan'),
       },
@@ -50,7 +51,7 @@ export function universalShortcuts(deps: Deps): Shortcut[] {
       },
       {
         key: 'meal-saved',
-        label: 'Saved Meals',
+        label: 'Saved',
         icon: 'bookmark-outline',
         onPress: () => goto('/(tabs)/nutrition?open=saved'),
       },
@@ -66,20 +67,20 @@ export function universalShortcuts(deps: Deps): Shortcut[] {
   return [
     {
       key: 'log-meal',
-      label: 'Log Meal',
+      label: 'Meal',
       icon: 'restaurant-outline',
       emphasized: mealHours,
       onPress: () => setExpandedKey('log-meal'),
     },
     {
       key: 'log-workout',
-      label: 'Log Workout',
+      label: 'Workout',
       icon: 'barbell-outline',
       onPress: () => goto('/(tabs)/fitness'),
     },
     {
       key: 'log-weight',
-      label: 'Log Weight',
+      label: 'Weight',
       icon: 'scale-outline',
       onPress: () => goto('/fitness/subsystem/body'),
     },

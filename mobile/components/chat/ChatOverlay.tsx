@@ -32,7 +32,10 @@ import { universalShortcuts } from './surfaceShortcuts';
 const FAB_SIZE = 52;
 const FAB_BOTTOM = 14;
 const FAB_RIGHT = 18;
-const SHORTCUT_COL_WIDTH = 170; // pill width
+// Shortcut column is sized to roughly match the FAB's own footprint so
+// pills stack directly over the button. 80pt is wide enough for the
+// compact "icon over tiny label" pill without looking crammed.
+const SHORTCUT_COL_WIDTH = 80;
 
 export function ChatOverlay() {
   const t = useTokens();
@@ -106,16 +109,19 @@ export function ChatOverlay() {
         style={StyleSheet.absoluteFill}
         pointerEvents="box-none">
         <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { opacity: anim }]}>
-          {/* Shortcut rail — right side, stacked with its bottom edge just
-              above the FAB. Hidden when conversation has content. */}
+          {/* Shortcut rail — anchored horizontally centered over the
+              FAB so pills stack directly above the rotating +. Width
+              matches FAB footprint (~80pt) per founder spec. */}
           {!hasTurns ? (
             <View
               pointerEvents="box-none"
               style={[
                 styles.railAnchor,
                 {
-                  right: FAB_RIGHT,
-                  bottom: fabTopOffset + 10, // 10pt gap above the FAB
+                  // Center column over FAB: FAB left edge = right:18 + 26 (half of 52)
+                  // so the column's center aligns with the FAB's center.
+                  right: FAB_RIGHT + FAB_SIZE / 2 - SHORTCUT_COL_WIDTH / 2,
+                  bottom: fabTopOffset + 10,
                   width: SHORTCUT_COL_WIDTH,
                 },
               ]}>
