@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, Text, type PressableProps } from 'react-native';
+import { Pressable, StyleSheet, Text, type PressableProps, type GestureResponderEvent } from 'react-native';
 
 import { useTokens } from '../../lib/theme';
+import { useHaptics } from '../../lib/useHaptics';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
@@ -9,8 +10,10 @@ interface Props extends Omit<PressableProps, 'children'> {
   variant?: ButtonVariant;
 }
 
-export function Button({ variant = 'primary', title, disabled, style, ...rest }: Props) {
+export function Button({ variant = 'primary', title, disabled, style, onPressIn, ...rest }: Props) {
   const t = useTokens();
+  const haptics = useHaptics();
+
   const bg =
     variant === 'primary' ? t.accent :
     variant === 'secondary' ? t.surface :
@@ -20,13 +23,24 @@ export function Button({ variant = 'primary', title, disabled, style, ...rest }:
     variant === 'secondary' ? t.text : t.accent;
   const borderColor = variant === 'secondary' ? t.border : 'transparent';
 
+  const handlePressIn = (e: GestureResponderEvent) => {
+    if (!disabled) haptics.fire('tap');
+    onPressIn?.(e);
+  };
+
   return (
     <Pressable
       accessibilityRole="button"
       disabled={disabled}
+      onPressIn={handlePressIn}
       style={({ pressed }) => [
         styles.btn,
-        { backgroundColor: bg, borderColor, opacity: disabled ? 0.4 : pressed ? 0.82 : 1 },
+        {
+          backgroundColor: bg,
+          borderColor,
+          opacity: disabled ? 0.4 : pressed ? 0.88 : 1,
+          transform: [{ scale: disabled ? 1 : pressed ? 0.97 : 1 }],
+        },
         typeof style === 'function' ? undefined : style,
       ]}
       {...rest}>
