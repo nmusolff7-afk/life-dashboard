@@ -50,9 +50,11 @@ const RAIL_DOWN_SHIFT = 13;
 /** Offset to shift the chat input pill DOWN so it reads as inline with
  *  the FAB's vertical band. Tuned independently of the rail per
  *  founder feedback. */
-const INPUT_DOWN_SHIFT = 10;
-/** Extra breathing room above the system keyboard. */
-const INPUT_CLEAR_ABOVE_KB = 20;
+const INPUT_DOWN_SHIFT = 5;
+/** Clearance above the system keyboard when the input is expanded.
+ *  Founder-tuned 20 → 35 so the pill sits 15pt higher than before,
+ *  well clear of the keyboard's top edge + home-indicator band. */
+const INPUT_CLEAR_ABOVE_KB = 35;
 
 /** FAB "resting" math constants — mirror FAB.tsx so the rail + input
  *  can anchor to where the FAB WOULD be (bottom-right above the tab
