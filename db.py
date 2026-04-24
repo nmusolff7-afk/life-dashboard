@@ -258,6 +258,20 @@ def init_db():
         except sqlite3.OperationalError:
             pass  # column already exists
 
+        # Migrate: ensure (user_id, log_date) uniqueness on daily_activity.
+        # Older databases were created with PRIMARY KEY(log_date) and had user_id
+        # bolted on via ALTER TABLE. Without a matching unique constraint,
+        # `save_daily_weight`'s ON CONFLICT(user_id, log_date) fails with
+        # "ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE constraint".
+        try:
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_daily_activity_user_date "
+                "ON daily_activity(user_id, log_date)"
+            )
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
         # Migrate: add energy_level, stress_level, sleep_quality, mood_level, focus_level to mind_checkins
         for col in ("energy_level INTEGER", "stress_level INTEGER",
                     "sleep_quality INTEGER", "mood_level INTEGER", "focus_level INTEGER",

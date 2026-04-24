@@ -672,6 +672,14 @@ def _run_profile_generation(user_id: int, raw: dict):
             _log.info("Goal targets computed for user %s: %s → %s kcal",
                       user_id, goal_key, targets["calorie_target"])
 
+            # Seed daily_activity with the onboarding weight so the trend chart
+            # has a real baseline from day 1. Upsert keeps this idempotent if
+            # the user reruns profile generation.
+            try:
+                save_daily_weight(user_id, date.today().isoformat(), cur_wt)
+            except Exception as seed_err:
+                _log.warning("weight seed for user %s failed: %s", user_id, seed_err)
+
         with _ob_lock:
             _ob_jobs[user_id] = {"status": "done", "profile": profile, "targets": targets}
     except Exception as e:
@@ -1509,7 +1517,13 @@ def api_meal_history():
 @login_required
 def api_weight_history():
     """Daily weight entries within the last N days, oldest first. Used for the
-    mobile Body-weight trend chart. Returns [{date, weight_lbs}]."""
+    mobile Body-weight trend chart. Returns [{date, weight_lbs}].
+
+    Fallback: if no daily_activity rows exist in the window but the user has a
+    starting weight in their onboarding record, synthesize a single baseline
+    point dated to onboarding completion (clamped into the window). This
+    ensures the chart renders for users who onboarded but never hit Save Weight
+    on the Flask PWA / mobile Body Stats editor."""
     days = int(request.args.get("days", 90))
     cutoff = (date.today() - timedelta(days=days)).isoformat()
     from db import get_conn
@@ -1523,7 +1537,31 @@ def api_weight_history():
             """,
             (uid(), cutoff),
         ).fetchall()
-    return jsonify([{"date": r["date"], "weight_lbs": r["weight_lbs"]} for r in rows])
+    results = [{"date": r["date"], "weight_lbs": r["weight_lbs"]} for r in rows]
+
+    if not results:
+        with get_conn() as conn:
+            ob = conn.execute(
+                "SELECT raw_inputs, profile_map, created_at FROM user_onboarding WHERE user_id = ?",
+                (uid(),)
+            ).fetchone()
+        if ob:
+            try:
+                pm = json.loads(ob["profile_map"] or "{}")
+                raw = json.loads(ob["raw_inputs"] or "{}")
+                baseline = pm.get("current_weight_lbs") or raw.get("current_weight_lbs")
+            except (ValueError, TypeError):
+                baseline = None
+            if baseline:
+                ob_date = (ob["created_at"] or "")[:10]
+                try:
+                    date.fromisoformat(ob_date)
+                except ValueError:
+                    ob_date = cutoff
+                seed_date = ob_date if ob_date >= cutoff else cutoff
+                results.append({"date": seed_date, "weight_lbs": float(baseline)})
+
+    return jsonify(results)
 
 
 @app.route("/api/charts/burn")
