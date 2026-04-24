@@ -15,9 +15,16 @@ export default function NotificationsScreen() {
   const finish = () => router.replace('/(tabs)');
 
   const requestPermission = async () => {
-    // Skeleton: don't actually request OS permission here. Requires
-    // expo-notifications which isn't installed yet; adding it is a real
-    // Phase 3 task tied to the §4.9 notifications build.
+    // TODO(Phase 13.4): real expo-notifications permission prompt.
+    //   1. Add expo-notifications to package.json + expo prebuild
+    //   2. `await Notifications.requestPermissionsAsync()`
+    //   3. If granted, enable default quiet hours + category-default
+    //      aggressiveness in lock-/notification-prefs.
+    //   4. If denied, route to Settings → Notifications for manual
+    //      re-enable instructions.
+    // Kept as a stub for now because the package isn't in
+    // package.json — adding it requires a prebuild which is outside
+    // this change's scope.
     finish();
   };
 
