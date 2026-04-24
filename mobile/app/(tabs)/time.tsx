@@ -25,18 +25,23 @@ export default function TimeScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <TabHeader title="Time" />
-      <SubTabs<Tab>
-        tabs={[
-          { value: 'today', label: 'Today' },
-          { value: 'patterns', label: 'Patterns' },
-          { value: 'timeline', label: 'Timeline' },
-        ]}
-        value={tab}
-        onChange={(next) => {
-          setTab(next);
-          resetScroll();
-        }}
+      <TabHeader
+        title="Time"
+        right={
+          <SubTabs<Tab>
+            tabs={[
+              { value: 'today', label: 'Today' },
+              { value: 'patterns', label: 'Patterns' },
+              { value: 'timeline', label: 'Timeline' },
+            ]}
+            value={tab}
+            onChange={(next) => {
+              setTab(next);
+              resetScroll();
+            }}
+            compact
+          />
+        }
       />
       <ScrollView ref={scrollRef} contentContainerStyle={styles.content}>
         {tab === 'today' ? (

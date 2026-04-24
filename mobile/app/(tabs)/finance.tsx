@@ -21,18 +21,23 @@ export default function FinanceScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <TabHeader title="Finance" />
-      <SubTabs<Tab>
-        tabs={[
-          { value: 'today', label: 'Today' },
-          { value: 'progress', label: 'Progress' },
-          { value: 'history', label: 'History' },
-        ]}
-        value={tab}
-        onChange={(next) => {
-          setTab(next);
-          resetScroll();
-        }}
+      <TabHeader
+        title="Finance"
+        right={
+          <SubTabs<Tab>
+            tabs={[
+              { value: 'today', label: 'Today' },
+              { value: 'progress', label: 'Progress' },
+              { value: 'history', label: 'History' },
+            ]}
+            value={tab}
+            onChange={(next) => {
+              setTab(next);
+              resetScroll();
+            }}
+            compact
+          />
+        }
       />
       <ScrollView ref={scrollRef} contentContainerStyle={styles.content}>
         {tab === 'today' ? (

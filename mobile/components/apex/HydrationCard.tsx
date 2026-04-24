@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { fetchHydrationToday, logHydration, resetHydration, type HydrationToday } from '../../lib/api/hydration';
 import { useHaptics } from '../../lib/useHaptics';
@@ -40,12 +40,21 @@ export function HydrationCard({ goalOz }: Props) {
     if (sending) return;
     setSending(true);
     haptics.fire('tap');
+    // Optimistic local bump so the bar moves immediately even before the
+    // server responds. Rolled back if the POST fails.
+    const prev = state;
+    setState((s) => ({ oz: (s?.oz ?? 0) + oz, date: s?.date ?? '' }));
     try {
       const data = await logHydration(oz);
       setState(data);
       haptics.fire('success');
     } catch (e) {
       haptics.fire('error');
+      setState(prev);
+      Alert.alert(
+        'Hydration not saved',
+        e instanceof Error ? e.message : 'Request failed. Try again in a moment.',
+      );
     } finally {
       setSending(false);
     }
@@ -55,9 +64,17 @@ export function HydrationCard({ goalOz }: Props) {
     if (sending) return;
     setSending(true);
     haptics.fire('tap');
+    const prev = state;
+    setState({ oz: 0, date: state?.date ?? '' });
     try {
       const data = await resetHydration();
       setState(data);
+    } catch (e) {
+      setState(prev);
+      Alert.alert(
+        'Reset failed',
+        e instanceof Error ? e.message : 'Request failed. Try again.',
+      );
     } finally {
       setSending(false);
     }

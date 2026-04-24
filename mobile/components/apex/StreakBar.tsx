@@ -10,6 +10,9 @@ interface Props {
   loggedDates: Set<string>;
   today: string;
   days?: number;
+  /** Compact mode — just flame stacked over streak count; used when
+   *  nested inside TabHeader's right slot. */
+  compact?: boolean;
 }
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -30,15 +33,10 @@ function dayOfWeek(iso: string): string {
   return DOW[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
 }
 
-export function StreakBar({ loggedDates, today, days = 90 }: Props) {
+export function StreakBar({ loggedDates, today, days = 90, compact }: Props) {
   const t = useTokens();
   const router = useRouter();
   const scrollRef = useRef<ScrollView>(null);
-
-  const dates = useMemo(
-    () => Array.from({ length: days }, (_, i) => subDaysIso(today, days - 1 - i)),
-    [days, today],
-  );
 
   const streak = useMemo(() => {
     const log: Record<string, DailyEntry> = {};
@@ -47,6 +45,26 @@ export function StreakBar({ loggedDates, today, days = 90 }: Props) {
     });
     return computeStreak({ dailyLog: log, today });
   }, [loggedDates, today]);
+
+  if (compact) {
+    // Inline-in-TabHeader variant: flame icon with streak-day number
+    // stacked immediately below per founder's spec. Tap opens today's
+    // day detail.
+    return (
+      <Pressable
+        onPress={() => router.push({ pathname: '/day/[date]', params: { date: today } })}
+        accessibilityRole="button"
+        accessibilityLabel={`Streak ${streak} days`}
+        style={styles.compactWrap}>
+        <Text style={styles.compactFlame}>🔥</Text>
+        <Text style={[styles.compactCount, { color: streak > 0 ? t.text : t.muted }]}>
+          {streak}
+        </Text>
+      </Pressable>
+    );
+  }
+
+  const dates = Array.from({ length: days }, (_, i) => subDaysIso(today, days - 1 - i));
 
   return (
     <View style={styles.wrap}>
@@ -88,10 +106,13 @@ export function StreakBar({ loggedDates, today, days = 90 }: Props) {
             </Pressable>
           );
         })}
+        {/* Flame with streak count stacked below — matches the compact
+            variant's vertical layout so the 90-day strip and the header
+            streak widget read the same. */}
         <View style={styles.flameWrap}>
           <Text style={styles.flame}>🔥</Text>
           <Text style={[styles.flameCount, { color: streak > 0 ? t.text : t.muted }]}>
-            {streak}d
+            {streak}
           </Text>
         </View>
       </ScrollView>
@@ -113,12 +134,21 @@ const styles = StyleSheet.create({
   },
   dotText: { fontSize: 11 },
   flameWrap: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
     paddingLeft: 10,
     paddingRight: 4,
+    gap: 0,
   },
   flame: { fontSize: 18 },
-  flameCount: { fontSize: 14, fontWeight: '600' },
+  flameCount: { fontSize: 11, fontWeight: '700', lineHeight: 13 },
+
+  compactWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 0,
+    paddingHorizontal: 4,
+  },
+  compactFlame: { fontSize: 24, lineHeight: 26 },
+  compactCount: { fontSize: 13, fontWeight: '700', lineHeight: 15 },
 });

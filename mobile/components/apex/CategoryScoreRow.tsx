@@ -1,5 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter, type Href } from 'expo-router';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { CategoryKey, CategoryScoreResponse } from '../../../shared/src/types/score';
@@ -14,10 +15,11 @@ interface Props {
    *  from its existing hooks (today's meals, workouts, weight, etc.) and
    *  passes it in; the row just renders. Null → blurb section is hidden. */
   blurb?: string | null;
-  /** Optional rich content rendered below the blurb — e.g. macro bars on
-   *  the Nutrition row, stats grid on the Fitness row. Kept as a slot so
-   *  category-specific detail lives in the parent, not this primitive. */
+  /** Inline content rendered directly below the blurb (always visible). */
   richContent?: ReactNode;
+  /** Extra content revealed only when the user taps the expand chevron.
+   *  For Nutrition: sugar/fiber/sodium micros. For Fitness: deeper stats. */
+  expandedContent?: ReactNode;
   /** Expo Router path to navigate to on tap. */
   href?: Href;
 }
@@ -33,10 +35,19 @@ const CATEGORY_LABELS: Record<CategoryKey, string> = {
  *  category-color left accent + most-important-data-point blurb. No trend
  *  arrows (also D2). Accent pattern per D1 — left border in category color
  *  is the only strong color on the card. */
-export function CategoryScoreRow({ category, data, loading, blurb, richContent, href }: Props) {
+export function CategoryScoreRow({
+  category,
+  data,
+  loading,
+  blurb,
+  richContent,
+  expandedContent,
+  href,
+}: Props) {
   const t = useTokens();
   const haptics = useHaptics();
   const router = useRouter();
+  const [expanded, setExpanded] = useState(false);
 
   const categoryColor =
     category === 'fitness' ? t.fitness
@@ -100,6 +111,30 @@ export function CategoryScoreRow({ category, data, loading, blurb, richContent, 
       </View>
 
       {richContent ? <View style={styles.richWrap}>{richContent}</View> : null}
+
+      {expandedContent ? (
+        <>
+          {expanded ? <View style={styles.expandedWrap}>{expandedContent}</View> : null}
+          <Pressable
+            onPress={(e) => {
+              // Prevent the row's outer Pressable (navigate) from firing
+              // when the expand chevron is tapped.
+              e.stopPropagation?.();
+              haptics.fire('tap');
+              setExpanded((v) => !v);
+            }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={expanded ? 'Collapse' : 'Expand'}
+            style={[styles.expandTab, { borderTopColor: t.border }]}>
+            <Ionicons
+              name={expanded ? 'chevron-up' : 'chevron-down'}
+              size={14}
+              color={t.muted}
+            />
+          </Pressable>
+        </>
+      ) : null}
     </Pressable>
   );
 }
@@ -119,6 +154,15 @@ const styles = StyleSheet.create({
   },
   richWrap: {
     gap: 8,
+  },
+  expandedWrap: {
+    gap: 8,
+  },
+  expandTab: {
+    marginTop: 6,
+    paddingVertical: 6,
+    alignItems: 'center',
+    borderTopWidth: 1,
   },
   leftCol: {
     flex: 1,

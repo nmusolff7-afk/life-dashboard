@@ -12,35 +12,38 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useChatSession } from '../../lib/useChatSession';
 import { useTokens } from '../../lib/theme';
 import { ChatBubble, TypingBubble } from './ChatBubble';
 import { ChatInput } from './ChatInput';
 import { ChatShortcutRail, type Shortcut } from './ChatShortcutRail';
-import { shortcutsForSurface } from './surfaceShortcuts';
+import { universalShortcuts } from './surfaceShortcuts';
 
-/** PRD §4.7.4 layout. Founder-locked:
- *  - The FAB stays put and rotates 45° into an `×` — it IS the close
- *    button. This overlay has NO close control of its own.
- *  - Dim backdrop fades in (tap-to-dismiss).
- *  - RIGHT side: vertical shortcut column, fixed width, sitting in the
- *    space above the FAB. All pills same width.
- *  - LEFT side: chat input pill at the bottom-left (immediately left of
- *    the FAB). Conversation bubbles rise up above the input.
- *  - Content fades in-place — no slide/translate. Everything appears
- *    AROUND the FAB without the whole panel dropping.
- *  - When the conversation has turns: shortcut column collapses, chat
- *    area expands to full width.
- */
+/** FAB layout math: FAB is at `bottom: 14`, `right: 18`, size 52. Overlay
+ *  content must sit directly around that fixed button:
+ *    - Chat input pill: aligned bottom-left, its bottom at FAB bottom
+ *    - Shortcut rail: stacked vertically in a column whose bottom edge
+ *      sits flush with the TOP of the FAB (so the lowest pill is right
+ *      above the button).
+ *  No translateY on open — content fades in place while the FAB itself
+ *  rotates. */
+const FAB_SIZE = 52;
+const FAB_BOTTOM = 14;
+const FAB_RIGHT = 18;
+const SHORTCUT_COL_WIDTH = 170; // pill width
+
 export function ChatOverlay() {
   const t = useTokens();
   const scheme = useColorScheme();
   const router = useRouter();
   const chat = useChatSession();
+  const insets = useSafeAreaInsets();
   const anim = useRef(new Animated.Value(0)).current;
   const scrollRef = useRef<ScrollView>(null);
   const [dismissed, setDismissed] = useState(true);
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (chat.visible && dismissed) setDismissed(false);
@@ -53,6 +56,10 @@ export function ChatOverlay() {
       if (finished && !chat.visible) setDismissed(true);
     });
   }, [chat.visible, anim, dismissed]);
+
+  useEffect(() => {
+    if (!chat.visible) setExpandedKey(null);
+  }, [chat.visible]);
 
   useEffect(() => {
     if (chat.turns.length > 0) {
@@ -68,14 +75,23 @@ export function ChatOverlay() {
   });
   const hasTurns = chat.turns.length > 0;
 
-  const shortcuts: Shortcut[] = shortcutsForSurface(chat.surface, {
+  // Universal shortcuts — identical across every surface per founder.
+  const shortcuts: Shortcut[] = universalShortcuts({
     router,
     closeOverlay: chat.close,
+    expandedKey,
+    setExpandedKey,
   });
+
+  // The FAB's top edge, measured from the bottom of the screen (accounting
+  // for safe area inset). The shortcut rail sits above this line.
+  const fabTopOffset = FAB_BOTTOM + FAB_SIZE + insets.bottom;
+  // The chat input's bottom aligns with the FAB bottom.
+  const inputBottomOffset = FAB_BOTTOM + insets.bottom;
 
   return (
     <View pointerEvents={chat.visible ? 'auto' : 'none'} style={StyleSheet.absoluteFill}>
-      {/* Dim backdrop — tap to dismiss */}
+      {/* Dim backdrop */}
       <Animated.View
         pointerEvents={chat.visible ? 'auto' : 'none'}
         style={[
@@ -87,52 +103,76 @@ export function ChatOverlay() {
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.kav}
+        style={StyleSheet.absoluteFill}
         pointerEvents="box-none">
-        {/* Content fades in-place (opacity only). No translateY — the whole
-            composition appears around the fixed FAB. */}
-        <Animated.View pointerEvents="box-none" style={[styles.panel, { opacity: anim }]}>
-          {/* Conversation — when turns exist, renders above the input
-              spanning close to full width. */}
-          {hasTurns ? (
+        <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { opacity: anim }]}>
+          {/* Shortcut rail — right side, stacked with its bottom edge just
+              above the FAB. Hidden when conversation has content. */}
+          {!hasTurns ? (
             <View
+              pointerEvents="box-none"
               style={[
-                styles.conversation,
-                { backgroundColor: t.bg + 'EE', borderColor: t.border },
+                styles.railAnchor,
+                {
+                  right: FAB_RIGHT,
+                  bottom: fabTopOffset + 10, // 10pt gap above the FAB
+                  width: SHORTCUT_COL_WIDTH,
+                },
               ]}>
-              <View style={styles.conversationHeader}>
-                <Text style={[styles.conversationTitle, { color: t.muted }]}>Chat</Text>
-                <Pressable onPress={chat.reset} accessibilityRole="button">
-                  <Text style={[styles.resetLink, { color: t.accent }]}>Clear</Text>
-                </Pressable>
-              </View>
-              <ScrollView
-                ref={scrollRef}
-                style={styles.bubbles}
-                contentContainerStyle={styles.bubblesContent}
-                keyboardShouldPersistTaps="handled">
-                {chat.turns.map((turn) => (
-                  <ChatBubble key={turn.id} turn={turn} />
-                ))}
-                {chat.sending ? <TypingBubble /> : null}
-              </ScrollView>
+              <ChatShortcutRail shortcuts={shortcuts} />
             </View>
           ) : null}
 
-          {/* Bottom row — shortcut rail on the right (reserving the FAB's
-              column width so shortcuts sit directly above the rotated X);
-              chat input on the left (immediately left of the FAB). */}
-          <View style={styles.bottomRow} pointerEvents="box-none">
-            <View style={styles.leftCol}>
-              <ChatInput sending={chat.sending} onSend={chat.send} />
-            </View>
-            {!hasTurns && shortcuts.length > 0 ? (
-              <View style={styles.rightCol}>
-                <ChatShortcutRail shortcuts={shortcuts} />
+          {/* Conversation — rises up on the LEFT when turns exist. Reserves
+              right-side column for the shortcut rail / FAB. */}
+          {hasTurns ? (
+            <View
+              pointerEvents="box-none"
+              style={[
+                styles.conversationAnchor,
+                {
+                  left: 12,
+                  right: FAB_RIGHT + FAB_SIZE + 10,
+                  bottom: fabTopOffset + 10,
+                },
+              ]}>
+              <View
+                style={[
+                  styles.conversation,
+                  { backgroundColor: t.bg + 'EE', borderColor: t.border },
+                ]}>
+                <View style={styles.conversationHeader}>
+                  <Text style={[styles.conversationTitle, { color: t.muted }]}>Chat</Text>
+                  <Pressable onPress={chat.reset} accessibilityRole="button">
+                    <Text style={[styles.resetLink, { color: t.accent }]}>Clear</Text>
+                  </Pressable>
+                </View>
+                <ScrollView
+                  ref={scrollRef}
+                  style={styles.bubbles}
+                  contentContainerStyle={styles.bubblesContent}
+                  keyboardShouldPersistTaps="handled">
+                  {chat.turns.map((turn) => (
+                    <ChatBubble key={turn.id} turn={turn} />
+                  ))}
+                  {chat.sending ? <TypingBubble /> : null}
+                </ScrollView>
               </View>
-            ) : (
-              <View style={styles.fabSpacer} />
-            )}
+            </View>
+          ) : null}
+
+          {/* Chat input — bottom-left, its bottom flush with FAB bottom. */}
+          <View
+            pointerEvents="box-none"
+            style={[
+              styles.inputAnchor,
+              {
+                left: 12,
+                right: FAB_RIGHT + FAB_SIZE + 10,
+                bottom: inputBottomOffset,
+              },
+            ]}>
+            <ChatInput sending={chat.sending} onSend={chat.send} />
           </View>
         </Animated.View>
       </KeyboardAvoidingView>
@@ -140,29 +180,22 @@ export function ChatOverlay() {
   );
 }
 
-// Reserve column width equal to the FAB footprint so shortcut pills align
-// directly above the FAB and the chat input sits cleanly to its left.
-const SHORTCUT_COL_WIDTH = 150;
-const FAB_COL = 60; // FAB diameter (52) + right margin (18) minus 10 of float
-
 const styles = StyleSheet.create({
-  kav: {
-    flex: 1,
-    justifyContent: 'flex-end',
+  railAnchor: {
+    position: 'absolute',
+    alignItems: 'stretch',
   },
-  panel: {
-    paddingHorizontal: 12,
-    // Bottom padding matches the FAB's 14px so the chat input sits flush
-    // with the bottom of the FAB without covering it.
-    paddingBottom: 14,
-    gap: 12,
+  inputAnchor: {
+    position: 'absolute',
+  },
+  conversationAnchor: {
+    position: 'absolute',
+    maxHeight: 420,
   },
   conversation: {
     borderRadius: 16,
     borderWidth: 1,
-    maxHeight: 440,
     overflow: 'hidden',
-    marginRight: FAB_COL,
   },
   conversationHeader: {
     flexDirection: 'row',
@@ -181,27 +214,4 @@ const styles = StyleSheet.create({
   resetLink: { fontSize: 12, fontWeight: '600' },
   bubbles: { paddingHorizontal: 10, paddingBottom: 10 },
   bubblesContent: { paddingBottom: 4 },
-
-  bottomRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 10,
-  },
-  leftCol: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  rightCol: {
-    alignItems: 'stretch',
-    width: SHORTCUT_COL_WIDTH,
-    // The rail needs a bit of room above the FAB so the bottom pill
-    // doesn't sit on top of the button.
-    paddingBottom: 64,
-  },
-  fabSpacer: {
-    // When conversation is open (shortcuts hidden) the right column
-    // collapses to just the FAB's width so the input doesn't overlap
-    // the button.
-    width: FAB_COL,
-  },
 });

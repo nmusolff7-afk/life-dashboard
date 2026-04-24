@@ -23,7 +23,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   units: 'imperial',
   haptics: 'subtle',
   language: 'en',
-  hydrationActive: false,
+  hydrationActive: true,
   hydrationGoalOz: 64,
 };
 

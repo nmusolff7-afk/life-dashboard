@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
@@ -13,7 +14,6 @@ import {
   MealHistoryList,
   MealPhotoScanner,
   NutritionMacrosCard,
-  OverallScoreHero,
   PantryScanner,
   RecentMealsChips,
   SavedMealsPicker,
@@ -39,6 +39,8 @@ type Tab = 'today' | 'progress' | 'history';
 
 export default function NutritionScreen() {
   const t = useTokens();
+  const router = useRouter();
+  const params = useLocalSearchParams<{ open?: string }>();
   const [tab, setTab] = useState<Tab>('today');
   const { ref: scrollRef, resetScroll } = useResetScrollOnFocus();
 
@@ -50,11 +52,31 @@ export default function NutritionScreen() {
   const balance = useLiveCalorieBalance();
   const nutritionScore = useNutritionScore();
 
-  // Hydration opt-in pref — re-hydrates (heh) from AsyncStorage on focus.
+  // Hydration opt-in pref — re-hydrates (heh) from AsyncStorage on mount
+  // AND every time the Nutrition tab regains focus, so toggling in
+  // Settings → Preferences takes effect immediately on navigation back.
   const [prefs, setPrefs] = useState<Preferences>(DEFAULT_PREFERENCES);
+  useFocusEffect(
+    useCallback(() => {
+      loadPreferences().then(setPrefs).catch(() => {});
+    }, []),
+  );
+
+  // Respond to ?open=manual|scan|barcode|saved query param fired from the
+  // chat overlay's Log Meal sub-shortcuts. Clears the param after opening
+  // so re-navigating to the tab doesn't re-open.
   useEffect(() => {
-    loadPreferences().then(setPrefs).catch(() => {});
-  }, []);
+    const open = params.open;
+    if (!open) return;
+    setTab('today');
+    if (open === 'scan') setPhotoOpen(true);
+    else if (open === 'barcode') setBarcodeOpen(true);
+    else if (open === 'saved') setSavedOpen(true);
+    else if (open === 'pantry') setPantryOpen(true);
+    // Clear the param so subsequent navigations don't re-trigger.
+    router.setParams({ open: undefined });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.open]);
 
   const [refreshing, setRefreshing] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
@@ -117,18 +139,23 @@ export default function NutritionScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <TabHeader title="Nutrition" />
-      <SubTabs<Tab>
-        tabs={[
-          { value: 'today', label: 'Today' },
-          { value: 'progress', label: 'Progress' },
-          { value: 'history', label: 'History' },
-        ]}
-        value={tab}
-        onChange={(next) => {
-          setTab(next);
-          resetScroll();
-        }}
+      <TabHeader
+        title="Nutrition"
+        right={
+          <SubTabs<Tab>
+            tabs={[
+              { value: 'today', label: 'Today' },
+              { value: 'progress', label: 'Progress' },
+              { value: 'history', label: 'History' },
+            ]}
+            value={tab}
+            onChange={(next) => {
+              setTab(next);
+              resetScroll();
+            }}
+            compact
+          />
+        }
       />
       <ScrollView
         ref={scrollRef}
@@ -138,29 +165,15 @@ export default function NutritionScreen() {
         }>
         {tab === 'today' ? (
           <>
-            <OverallScoreHero
-              data={
-                nutritionScore.data
-                  ? {
-                      score: nutritionScore.data.score,
-                      band: nutritionScore.data.band,
-                      reason: nutritionScore.data.reason,
-                      calibrating: nutritionScore.data.calibrating,
-                      contributing: ['nutrition'],
-                      effective_weights: { fitness: 0, nutrition: 100, finance: 0, time: 0 },
-                      data_completeness_overall: nutritionScore.data.data_completeness_overall,
-                      sparkline_7d: nutritionScore.data.sparkline_7d ?? [],
-                      cta: nutritionScore.data.cta,
-                    }
-                  : null
-              }
-              loading={nutritionScore.loading}
-            />
-
+            {/* Score pill lives inside the Calorie Ring card (top-right)
+                instead of a separate hero — keeps the ring as the single
+                dominant visual and avoids stacking two big numbers. */}
             <CalorieRingCard
               totalIntake={totalIntake}
               totalBurn={totalBurn}
               goalIntake={goalIntake}
+              score={nutritionScore.data?.score ?? null}
+              scoreBand={nutritionScore.data?.band}
             />
 
             <NutritionMacrosCard

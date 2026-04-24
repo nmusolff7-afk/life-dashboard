@@ -131,7 +131,10 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <TabHeader title="Home" />
+      <TabHeader
+        title="Home"
+        right={<StreakBar loggedDates={loggedDates} today={today} days={90} compact />}
+      />
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={styles.content}
@@ -146,10 +149,8 @@ export default function HomeScreen() {
           </Pressable>
         ) : null}
 
-        {/* Streak bar anchors the top — matches Flask PWA layout. */}
-        <StreakBar loggedDates={loggedDates} today={today} days={90} />
-
-        {/* Overall Score — BLUF for the tab. */}
+        {/* Overall Score — BLUF for the tab. (Streak bar is nested in
+            the header above per founder's save-vertical-space spec.) */}
         <OverallScoreHero data={scores.overall.data} loading={scores.overall.loading} />
 
         {/* Active goals strip. Single card until §4.10 goal library lands. */}
@@ -197,6 +198,28 @@ export default function HomeScreen() {
                 <MiniStat label="Burned" value={totalBurn != null ? `${totalBurn}` : '—'} unit="kcal" />
               </View>
             }
+            expandedContent={
+              <View style={styles.statGrid}>
+                <MiniStat
+                  label="Workouts"
+                  value={`${(workouts.data?.workouts ?? []).length}`}
+                />
+                <MiniStat
+                  label="Intake"
+                  value={totalIntake > 0 ? `${totalIntake}` : '—'}
+                  unit="kcal"
+                />
+                <MiniStat
+                  label="Net"
+                  value={
+                    totalBurn != null
+                      ? `${Math.abs(totalBurn - totalIntake)}`
+                      : '—'
+                  }
+                  unit={totalBurn != null && totalBurn - totalIntake >= 0 ? 'deficit' : 'surplus'}
+                />
+              </View>
+            }
           />
 
           <CategoryScoreRow
@@ -228,7 +251,10 @@ export default function HomeScreen() {
                   target={macroTargets.fatG}
                   unit="g"
                 />
-                <View style={[styles.divider, { backgroundColor: 'rgba(255,255,255,0.05)' }]} />
+              </View>
+            }
+            expandedContent={
+              <View style={styles.macroBars}>
                 <ProgressRow
                   label="Sugar"
                   color={t.sugar}

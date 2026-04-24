@@ -108,18 +108,23 @@ export default function FitnessScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <TabHeader title="Fitness" />
-      <SubTabs<Tab>
-        tabs={[
-          { value: 'today', label: 'Today' },
-          { value: 'progress', label: 'Progress' },
-          { value: 'history', label: 'History' },
-        ]}
-        value={tab}
-        onChange={(next) => {
-          setTab(next);
-          resetScroll();
-        }}
+      <TabHeader
+        title="Fitness"
+        right={
+          <SubTabs<Tab>
+            tabs={[
+              { value: 'today', label: 'Today' },
+              { value: 'progress', label: 'Progress' },
+              { value: 'history', label: 'History' },
+            ]}
+            value={tab}
+            onChange={(next) => {
+              setTab(next);
+              resetScroll();
+            }}
+            compact
+          />
+        }
       />
       <ScrollView
         ref={scrollRef}

@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
+import type { ScoreBand } from '../../../shared/src/types/score';
 import { useTokens } from '../../lib/theme';
 
 interface Props {
@@ -10,6 +11,11 @@ interface Props {
   totalBurn: number | null;
   /** Goal intake = totalBurn + deficitSurplus. Null until profile loads. */
   goalIntake: number | null;
+  /** Nutrition score to surface as a compact pill at the top-right of
+   *  the card. Lets Nutrition Today retain the score without stacking
+   *  another big hero next to the ring. Null hides the pill. */
+  score?: number | null;
+  scoreBand?: ScoreBand;
 }
 
 const RING_SIZE = 220;
@@ -21,8 +27,13 @@ const CIRC = 2 * Math.PI * R;
  *  Net — where Burn is the live totalBurn (RMR+NEAT+EAT+TEF, never just
  *  workout calories) and Net is totalBurn − totalIntake (current actual
  *  deficit/surplus). RMR/NEAT/EAT/TEF individually live only in Settings. */
-export function CalorieRingCard({ totalIntake, totalBurn, goalIntake }: Props) {
+export function CalorieRingCard({ totalIntake, totalBurn, goalIntake, score, scoreBand }: Props) {
   const t = useTokens();
+  const bandColor =
+    scoreBand === 'green' ? t.green
+      : scoreBand === 'amber' ? t.amber
+      : scoreBand === 'red' ? t.danger
+      : t.muted;
   const intake = Math.max(0, totalIntake);
   const burn = totalBurn ?? 0;
   const goal = goalIntake ?? 0;
@@ -43,6 +54,13 @@ export function CalorieRingCard({ totalIntake, totalBurn, goalIntake }: Props) {
 
   return (
     <View style={[styles.card, { backgroundColor: t.surface, shadowColor: '#000' }]}>
+      {score != null ? (
+        <View style={[styles.scorePill, { backgroundColor: t.surface2 }]}>
+          <Text style={[styles.scorePillLabel, { color: t.muted }]}>NUTRITION</Text>
+          <Text style={[styles.scorePillValue, { color: t.text }]}>{score}</Text>
+          <View style={[styles.scorePillDot, { backgroundColor: bandColor }]} />
+        </View>
+      ) : null}
       <View style={styles.ringWrap}>
         <Svg width={RING_SIZE} height={RING_SIZE} viewBox="0 0 120 120">
           <Circle cx={60} cy={60} r={R} fill="none" stroke={t.surface2} strokeWidth={12} />
@@ -157,6 +175,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  scorePill: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 100,
+    zIndex: 2,
+  },
+  scorePillLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 0.8 },
+  scorePillValue: { fontSize: 14, fontWeight: '700' },
+  scorePillDot: { width: 6, height: 6, borderRadius: 3 },
+
   bigValue: { fontSize: 42, fontWeight: '700', lineHeight: 44, letterSpacing: -1 },
   bigLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 1.2, marginTop: 2 },
   bigTarget: { fontSize: 11, marginTop: 4 },
