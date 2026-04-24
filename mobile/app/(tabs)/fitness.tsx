@@ -11,9 +11,9 @@ import {
   LogActivityCard,
   NumberPromptModal,
   OverallScoreHero,
-  SavedWorkoutsStrip,
   SubTabs,
   TabHeader,
+  TodayScheduledWorkoutCard,
   TodayWorkoutsList,
   WeightTrendCard,
   WorkoutHistoryList,
@@ -96,7 +96,8 @@ export default function FitnessScreen() {
   });
 
   // Refetch when a FAB quick-log modal saves from over any tab.
-  const { dataVersion } = useChatSession();
+  const chat = useChatSession();
+  const { dataVersion } = chat;
   useEffect(() => {
     if (dataVersion > 0) void onRefresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -195,26 +196,23 @@ export default function FitnessScreen() {
               />
             </View>
 
-            {/* Start strength session — primary action */}
-            <Pressable
-              onPress={launchStrength}
-              style={({ pressed }) => [
-                styles.startStrengthBtn,
-                { backgroundColor: t.accent, opacity: pressed ? 0.85 : 1 },
-              ]}>
-              <Ionicons name="barbell" size={18} color="#fff" />
-              <Text style={styles.startStrengthLabel}>Start strength session</Text>
-            </Pressable>
+            {/* Today's Scheduled Workout card — replaces the old Start
+                Strength Session primary button per 11.5.5. Phase 12 will
+                plug in real plan data; for now we render the no-plan
+                state with a Build CTA. */}
+            <TodayScheduledWorkoutCard
+              plan={null}
+              onStartPlanned={launchStrength}
+              onStartAdhoc={launchStrength}
+            />
 
             <LogActivityCard
               onLogged={refreshAllWorkouts}
               onTemplateSaved={saved.refetch}
-            />
-
-            <SavedWorkoutsStrip
-              saved={saved.data ?? []}
-              onLogged={refreshAllWorkouts}
-              onRemoved={saved.refetch}
+              onStrengthPress={launchStrength}
+              onCardioPress={() => chat.openQuickLog('workout-cardio')}
+              onSavedPress={() => chat.openQuickLog('workout-saved')}
+              onWeightPress={() => chat.openQuickLog('weight')}
             />
 
             <TodayWorkoutsList workouts={todayWorkouts} onChanged={refreshAllWorkouts} />

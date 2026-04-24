@@ -4,56 +4,87 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View 
 
 import type { WorkoutSessionType } from '../../../shared/src/types/home';
 import { estimateBurn, logWorkout, saveWorkoutTemplate } from '../../lib/api/fitness';
+import { useHaptics } from '../../lib/useHaptics';
 import { useTokens } from '../../lib/theme';
 
 interface Props {
-  /** Called after a successful workout save so parents can refetch today's list. */
   onLogged: () => void;
-  /** Called after saving a new saved-workout template (refresh chips row). */
   onTemplateSaved?: () => void;
-  /** Optional prefill (from tapping a saved-workout chip). */
   initialDescription?: string;
   initialCalories?: number | null;
+  /** Strength tracker modal trigger — replaces the old FAB Strength submenu. */
+  onStrengthPress?: () => void;
+  /** Structured cardio entry modal. */
+  onCardioPress?: () => void;
+  /** Saved workouts picker. */
+  onSavedPress?: () => void;
+  /** Weight modal. */
+  onWeightPress?: () => void;
 }
 
-/** Flask #log-workout-card: description input, AI burn estimate, save.
- *  Mirrors the templates/index.html log-workout flow. */
+/** Log a workout by describing it — AI estimates kcal burn + classifies
+ *  cardio/strength. Mirrors LogMealCard visually and behaviorally:
+ *    • input first
+ *    • estimate button only visible once user starts typing
+ *    • kcal + session-type chip appear only after estimate
+ *    • four-action row below replaces the FAB workout submenu
+ */
+type Mode = 'input' | 'estimated';
+
 export function LogActivityCard({
   onLogged,
   onTemplateSaved,
   initialDescription = '',
   initialCalories = null,
+  onStrengthPress,
+  onCardioPress,
+  onSavedPress,
+  onWeightPress,
 }: Props) {
   const t = useTokens();
+  const haptics = useHaptics();
   const [description, setDescription] = useState(initialDescription);
-  const [calories, setCalories] = useState<string>(
-    initialCalories != null ? String(initialCalories) : '',
-  );
+  const [calories, setCalories] = useState<number | null>(initialCalories);
   const [notes, setNotes] = useState<string>('');
   const [sessionType, setSessionType] = useState<WorkoutSessionType | null>(null);
+  const [mode, setMode] = useState<Mode>(initialCalories != null ? 'estimated' : 'input');
   const [estimating, setEstimating] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const reset = () => {
     setDescription('');
-    setCalories('');
+    setCalories(null);
     setNotes('');
     setSessionType(null);
+    setMode('input');
+  };
+
+  const handleTextChange = (v: string) => {
+    setDescription(v);
+    // Any edit after an estimate invalidates it — match LogMealCard's
+    // "re-type clears the estimate" behaviour so users aren't saving a
+    // stale AI result against new text.
+    if (mode === 'estimated') {
+      setCalories(null);
+      setNotes('');
+      setSessionType(null);
+      setMode('input');
+    }
   };
 
   const handleEstimate = async () => {
     const desc = description.trim();
-    if (!desc) {
-      Alert.alert('Add a description', 'Describe the workout so we can estimate burn.');
-      return;
-    }
+    if (!desc) return;
+    haptics.fire('tap');
     setEstimating(true);
     try {
       const est = await estimateBurn(desc);
-      setCalories(String(est.calories_burned));
+      setCalories(est.calories_burned);
       setNotes(est.notes ?? '');
       setSessionType(est.session_type ?? null);
+      setMode('estimated');
     } catch (e) {
+      haptics.fire('error');
       Alert.alert('Burn estimate failed', e instanceof Error ? e.message : String(e));
     } finally {
       setEstimating(false);
@@ -61,22 +92,16 @@ export function LogActivityCard({
   };
 
   const handleSave = async () => {
-    const desc = description.trim();
-    const kcal = parseInt(calories, 10);
-    if (!desc) {
-      Alert.alert('Add a description', 'Describe the workout first.');
-      return;
-    }
-    if (!Number.isFinite(kcal) || kcal < 0) {
-      Alert.alert('Missing calories', 'Tap Estimate burn or type a number.');
-      return;
-    }
+    if (calories == null) return;
+    haptics.fire('tap');
     setSaving(true);
     try {
-      await logWorkout(desc, kcal, sessionType);
+      await logWorkout(description.trim(), calories, sessionType);
+      haptics.fire('success');
       reset();
       onLogged();
     } catch (e) {
+      haptics.fire('error');
       Alert.alert('Save failed', e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
@@ -84,112 +109,218 @@ export function LogActivityCard({
   };
 
   const handleSaveTemplate = async () => {
-    const desc = description.trim();
-    const kcal = parseInt(calories, 10);
-    if (!desc || !Number.isFinite(kcal) || kcal <= 0) {
-      Alert.alert('Fill in the workout first', 'Description + calories required before saving as a template.');
-      return;
-    }
+    if (calories == null) return;
+    haptics.fire('tap');
     try {
-      await saveWorkoutTemplate(desc, kcal);
+      await saveWorkoutTemplate(description.trim(), calories);
       onTemplateSaved?.();
-      Alert.alert('Saved', 'Added to your quick-log templates.');
+      Alert.alert('Saved', 'Added to your saved workouts.');
     } catch (e) {
-      Alert.alert('Couldn’t save template', e instanceof Error ? e.message : String(e));
+      haptics.fire('error');
+      Alert.alert("Couldn't save", e instanceof Error ? e.message : String(e));
     }
   };
 
+  const hasText = description.trim().length > 0;
+  const kcalDisplay = calories ?? 0;
+
   return (
     <View style={[styles.card, { backgroundColor: t.surface, shadowColor: '#000' }]}>
-      <Text style={[styles.title, { color: t.muted }]}>Log activity</Text>
+      <Text style={[styles.title, { color: t.muted }]}>Log a workout</Text>
 
       <TextInput
         value={description}
-        onChangeText={setDescription}
-        placeholder="e.g. 30 min run, 5k pace"
+        onChangeText={handleTextChange}
+        placeholder="describe a workout you've completed"
         placeholderTextColor={t.subtle}
         multiline
         style={[styles.input, { color: t.text, backgroundColor: t.surface2, borderColor: t.border }]}
       />
+      <Text style={[styles.exampleHint, { color: t.subtle }]}>e.g. 4mi walk</Text>
 
-      <View style={styles.row}>
-        <TextInput
-          value={calories}
-          onChangeText={setCalories}
-          placeholder="kcal"
-          keyboardType="number-pad"
-          placeholderTextColor={t.subtle}
-          style={[styles.kcalInput, { color: t.text, backgroundColor: t.surface2, borderColor: t.border }]}
+      {mode === 'input' ? (
+        <>
+          {hasText ? (
+            <Pressable
+              onPress={handleEstimate}
+              disabled={estimating}
+              style={({ pressed }) => [
+                styles.estimateBtn,
+                { backgroundColor: t.accent, opacity: pressed || estimating ? 0.7 : 1 },
+              ]}>
+              {estimating ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="sparkles" size={16} color="#fff" />
+                  <Text style={styles.estimateLabel}>Estimate burn</Text>
+                </>
+              )}
+            </Pressable>
+          ) : null}
+
+          {/* Four-action row — visible always, mirrors the Nutrition
+              card's Photo/Barcode/Pantry/Saved cluster. Mapping per 11.5.3:
+              Strength Workout / Manual Cardio / Saved Workouts / Log Weight. */}
+          <View style={styles.iconRow}>
+            <IconBtn icon="barbell-outline" label="Strength" onPress={onStrengthPress} />
+            <IconBtn icon="walk-outline" label="Cardio" onPress={onCardioPress} />
+            <IconBtn icon="bookmark-outline" label="Saved" onPress={onSavedPress} />
+            <IconBtn icon="scale-outline" label="Weight" onPress={onWeightPress} />
+          </View>
+        </>
+      ) : (
+        <EstimatedBreakdown
+          description={description}
+          kcal={kcalDisplay}
+          sessionType={sessionType}
+          notes={notes}
+          onLog={handleSave}
+          onRedo={handleEstimate}
+          onSaveTemplate={handleSaveTemplate}
+          saving={saving}
+          redoing={estimating}
         />
-        <Pressable
-          onPress={handleEstimate}
-          disabled={estimating || !description.trim()}
-          style={[
-            styles.estBtn,
-            {
-              backgroundColor: t.surface2,
-              borderColor: t.border,
-              opacity: !description.trim() ? 0.5 : 1,
-            },
-          ]}>
-          {estimating ? (
-            <ActivityIndicator color={t.accent} />
-          ) : (
-            <>
-              <Ionicons name="flash-outline" size={16} color={t.accent} />
-              <Text style={[styles.estLabel, { color: t.accent }]}>Estimate burn</Text>
-            </>
-          )}
-        </Pressable>
-      </View>
+      )}
+    </View>
+  );
+}
+
+// ── Estimated breakdown ────────────────────────────────────────────────
+
+function EstimatedBreakdown({
+  description,
+  kcal,
+  sessionType,
+  notes,
+  onLog,
+  onRedo,
+  onSaveTemplate,
+  saving,
+  redoing,
+}: {
+  description: string;
+  kcal: number;
+  sessionType: WorkoutSessionType | null;
+  notes: string;
+  onLog: () => void;
+  onRedo: () => void;
+  onSaveTemplate: () => void;
+  saving: boolean;
+  redoing: boolean;
+}) {
+  const t = useTokens();
+  return (
+    <View style={breakdown.wrap}>
+      <Text style={[breakdown.kcal, { color: t.cal }]}>
+        {kcal.toLocaleString()} <Text style={[breakdown.kcalUnit, { color: t.muted }]}>kcal</Text>
+      </Text>
 
       {sessionType ? (
-        <View style={styles.typeRow}>
-          <View style={[styles.typeChip, { backgroundColor: t.surface2, borderColor: t.border }]}>
+        <View style={breakdown.typeRow}>
+          <View style={[breakdown.typeChip, { backgroundColor: t.surface2, borderColor: t.border }]}>
             <Ionicons
               name={sessionType === 'cardio' ? 'walk-outline' : sessionType === 'strength' ? 'barbell-outline' : 'flash-outline'}
               size={12}
               color={t.accent}
             />
-            <Text style={[styles.typeLabel, { color: t.text }]}>
+            <Text style={[breakdown.typeLabel, { color: t.text }]}>
               {sessionType === 'cardio' ? 'Cardio' : sessionType === 'strength' ? 'Strength' : 'Mixed'}
             </Text>
           </View>
-          <Text style={[styles.typeHint, { color: t.subtle }]}>AI-detected</Text>
+          <Text style={[breakdown.typeHint, { color: t.subtle }]}>AI-detected</Text>
         </View>
       ) : null}
 
       {notes ? (
-        <Text style={[styles.notes, { color: t.muted }]}>
+        <Text style={[breakdown.notes, { color: t.muted }]}>
           <Ionicons name="information-circle-outline" size={12} color={t.muted} /> {notes}
         </Text>
       ) : null}
 
-      <View style={styles.actions}>
+      <View style={breakdown.actions}>
         <Pressable
-          onPress={handleSaveTemplate}
-          style={({ pressed }) => [styles.templateBtn, { opacity: pressed ? 0.6 : 1 }]}>
+          onPress={onSaveTemplate}
+          style={({ pressed }) => [breakdown.templateBtn, { opacity: pressed ? 0.6 : 1 }]}
+          accessibilityLabel="Save workout">
           <Ionicons name="bookmark-outline" size={14} color={t.muted} />
-          <Text style={[styles.templateLabel, { color: t.muted }]}>Save template</Text>
+          <Text style={[breakdown.templateLabel, { color: t.muted }]}>Save workout</Text>
         </Pressable>
 
         <Pressable
-          onPress={handleSave}
+          onPress={onRedo}
+          disabled={redoing}
+          style={[breakdown.secondary, { backgroundColor: t.surface2 }]}>
+          {redoing ? (
+            <ActivityIndicator color={t.accent} />
+          ) : (
+            <Text style={[breakdown.secondaryLabel, { color: t.accent }]}>Re-estimate</Text>
+          )}
+        </Pressable>
+
+        <Pressable
+          onPress={onLog}
           disabled={saving}
           style={({ pressed }) => [
-            styles.saveBtn,
+            breakdown.primary,
             { backgroundColor: t.accent, opacity: saving || pressed ? 0.85 : 1 },
           ]}>
           {saving ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.saveLabel}>Log workout</Text>
+            <Text style={breakdown.primaryLabel}>Log workout</Text>
           )}
         </Pressable>
       </View>
+
+      <Text style={[breakdown.originalDesc, { color: t.subtle }]} numberOfLines={2}>
+        “{description}”
+      </Text>
     </View>
   );
 }
+
+// ── Icon-row buttons ───────────────────────────────────────────────────
+
+function IconBtn({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  label: string;
+  onPress?: () => void;
+}) {
+  const t = useTokens();
+  const haptics = useHaptics();
+  const comingSoon = !onPress;
+  return (
+    <Pressable
+      onPress={() => {
+        if (comingSoon) {
+          Alert.alert('Coming soon', `${label} opens once the wire-through is live.`);
+          return;
+        }
+        haptics.fire('tap');
+        onPress?.();
+      }}
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      style={({ pressed }) => [
+        styles.iconBtn,
+        {
+          backgroundColor: t.surface2,
+          borderColor: t.border,
+          opacity: pressed ? 0.7 : 1,
+        },
+      ]}>
+      <Ionicons name={icon} size={18} color={t.muted} />
+      <Text style={[styles.iconBtnLabel, { color: t.muted }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+// ── Styles ─────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   card: {
@@ -210,28 +341,36 @@ const styles = StyleSheet.create({
     fontSize: 15,
     minHeight: 56,
   },
-  row: { flexDirection: 'row', gap: 10, alignItems: 'stretch' },
-  kcalInput: {
-    width: 90,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 15,
-    textAlign: 'center',
-  },
-  estBtn: {
-    flex: 1,
+  exampleHint: { fontSize: 11, fontStyle: 'italic', marginTop: -6 },
+  estimateBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    borderWidth: 1,
     borderRadius: 14,
-    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  estLabel: { fontSize: 13, fontWeight: '600' },
-  typeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -4 },
+  estimateLabel: { color: '#fff', fontSize: 14, fontWeight: '700' },
+
+  iconRow: { flexDirection: 'row', gap: 8, justifyContent: 'space-between' },
+  iconBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+  },
+  iconBtnLabel: { fontSize: 10, fontWeight: '600' },
+});
+
+const breakdown = StyleSheet.create({
+  wrap: { gap: 12 },
+  kcal: { fontSize: 28, fontWeight: '700' },
+  kcalUnit: { fontSize: 12, fontWeight: '500' },
+
+  typeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   typeChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -243,17 +382,27 @@ const styles = StyleSheet.create({
   },
   typeLabel: { fontSize: 11, fontWeight: '700' },
   typeHint: { fontSize: 10, fontStyle: 'italic' },
-  notes: { fontSize: 12, marginTop: -4 },
-  actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  templateBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8 },
-  templateLabel: { fontSize: 12, fontWeight: '500' },
-  saveBtn: {
+
+  notes: { fontSize: 12, fontStyle: 'italic' },
+
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 },
+  templateBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 8 },
+  templateLabel: { fontSize: 11, fontWeight: '600' },
+  secondary: {
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  secondaryLabel: { fontSize: 13, fontWeight: '700' },
+  primary: {
+    flex: 1,
+    minWidth: 120,
     borderRadius: 14,
-    paddingHorizontal: 22,
     paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 130,
   },
-  saveLabel: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  primaryLabel: { color: '#fff', fontSize: 14, fontWeight: '700' },
+
+  originalDesc: { fontSize: 12, fontStyle: 'italic', marginTop: 2 },
 });

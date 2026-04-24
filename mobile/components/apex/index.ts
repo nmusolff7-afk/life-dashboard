@@ -13,6 +13,8 @@ export { CategoryScoreRow } from './CategoryScoreRow';
 export { FitnessSubsystemCard } from './FitnessSubsystemCard';
 export { OverallScoreHero } from './OverallScoreHero';
 export { LogActivityCard } from './LogActivityCard';
+export { TodayScheduledWorkoutCard } from './TodayScheduledWorkoutCard';
+export type { TodayScheduledWorkout } from './TodayScheduledWorkoutCard';
 export { TodayWorkoutsList } from './TodayWorkoutsList';
 export { SavedWorkoutsStrip } from './SavedWorkoutsStrip';
 export { NumberPromptModal } from './NumberPromptModal';

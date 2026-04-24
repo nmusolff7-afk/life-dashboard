@@ -132,40 +132,36 @@ export function LogMealCard({
             setMode('input');
           }
         }}
-        placeholder="What did you eat?"
+        placeholder="describe something you ate"
         placeholderTextColor={t.subtle}
         multiline
         style={[styles.input, { color: t.text, backgroundColor: t.surface2, borderColor: t.border }]}
       />
-      {/* E1 locked — voice input via the keyboard's built-in dictation mic.
-          Native voice-to-text as a dedicated in-card mic button lands in a
-          later phase (requires a native speech-recognition module + Expo
-          prebuild). Until then this hint points users at the free path. */}
-      <Text style={[styles.voiceHint, { color: t.subtle }]}>
-        Tip: tap the mic on your keyboard to dictate.
-      </Text>
+      <Text style={[styles.exampleHint, { color: t.subtle }]}>e.g. turkey sandwich</Text>
 
       {mode === 'input' ? (
         <>
-          <Pressable
-            onPress={handleEstimate}
-            disabled={estimating || !description.trim()}
-            style={({ pressed }) => [
-              styles.estimateBtn,
-              {
-                backgroundColor: t.accent,
-                opacity: !description.trim() || pressed ? 0.7 : 1,
-              },
-            ]}>
-            {estimating ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="sparkles" size={16} color="#fff" />
-                <Text style={styles.estimateLabel}>Estimate macros</Text>
-              </>
-            )}
-          </Pressable>
+          {description.trim().length > 0 ? (
+            <Pressable
+              onPress={handleEstimate}
+              disabled={estimating}
+              style={({ pressed }) => [
+                styles.estimateBtn,
+                {
+                  backgroundColor: t.accent,
+                  opacity: pressed || estimating ? 0.7 : 1,
+                },
+              ]}>
+              {estimating ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="sparkles" size={16} color="#fff" />
+                  <Text style={styles.estimateLabel}>Estimate macros</Text>
+                </>
+              )}
+            </Pressable>
+          ) : null}
 
           <View style={styles.iconRow}>
             <IconBtn icon="camera-outline" label="Photo" onPress={onPhotoScan} comingSoon={!onPhotoScan} />
@@ -370,7 +366,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   title: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1.1 },
-  voiceHint: { fontSize: 11, fontStyle: 'italic', marginTop: -6 },
+  exampleHint: { fontSize: 11, fontStyle: 'italic', marginTop: -6 },
   input: {
     borderWidth: 1,
     borderRadius: 14,
