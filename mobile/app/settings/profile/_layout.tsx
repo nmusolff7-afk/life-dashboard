@@ -10,6 +10,7 @@ export default function ProfileLayout() {
         headerStyle: { backgroundColor: t.bg },
         headerTintColor: t.text,
         headerShadowVisible: false,
+        contentStyle: { backgroundColor: t.bg },
       }}
     />
   );

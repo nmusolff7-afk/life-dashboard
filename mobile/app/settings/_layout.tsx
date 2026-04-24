@@ -14,6 +14,11 @@ export default function SettingsLayout() {
         headerStyle: { backgroundColor: t.bg },
         headerTintColor: t.text,
         headerShadowVisible: false,
+        // Background for the card during push/pop transitions. Without
+        // this the default white bleeds through on the first frame of
+        // the animation, causing a visible flash in both dark and light
+        // themes when navigating into Settings.
+        contentStyle: { backgroundColor: t.bg },
       }}>
       <Stack.Screen name="profile" options={{ headerShown: false }} />
     </Stack>

@@ -1,16 +1,19 @@
 import { useAuth } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { Redirect, Tabs } from 'expo-router';
+import { Redirect, Tabs, router as rootRouter, useSegments } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ScreenHeader, WorkoutActiveBanner } from '../../components/apex';
 import { useProfile } from '../../lib/hooks/useHomeData';
 import { useTokens } from '../../lib/theme';
+import { useChatSession } from '../../lib/useChatSession';
 import { useClerkBridge } from '../../lib/useClerkBridge';
 import { useHaptics } from '../../lib/useHaptics';
 import { useOnboardingStatus } from '../../lib/useOnboardingStatus';
+import { useStrengthSession } from '../../lib/useStrengthSession';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -107,7 +110,7 @@ export default function TabLayout() {
   const headerTitle = firstName ? `${firstName}'s Dashboard` : 'Your Dashboard';
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
+    <SwipeableTabs>
       <ScreenHeader title={headerTitle} />
       <WorkoutActiveBanner />
       <Tabs
@@ -119,7 +122,62 @@ export default function TabLayout() {
         <Tabs.Screen name="finance" options={{ title: 'Finance' }} />
         <Tabs.Screen name="time" options={{ title: 'Time' }} />
       </Tabs>
-    </View>
+    </SwipeableTabs>
+  );
+}
+
+/** Wraps the tab content in a horizontal pan gesture that flips
+ *  between the 5 main tabs. Only fires when no overlay is open —
+ *  FAB / QuickLog / Strength Tracker all veto the navigation so
+ *  accidental swipes inside those UIs don't leave them dangling.
+ *
+ *  activeOffsetX / failOffsetY mean the gesture only wins when the
+ *  user moves clearly horizontally (≥ 30pt) without any large
+ *  vertical component first — so vertical ScrollViews inside tabs
+ *  still scroll freely. */
+const TAB_ORDER = ['index', 'fitness', 'nutrition', 'finance', 'time'] as const;
+
+function SwipeableTabs({ children }: { children: React.ReactNode }) {
+  const t = useTokens();
+  const chat = useChatSession();
+  const strength = useStrengthSession();
+  const segments = useSegments();
+
+  const swipe = Gesture.Pan()
+    .activeOffsetX([-30, 30])
+    .failOffsetY([-20, 20])
+    .onEnd((e) => {
+      // Block when any overlay is open — prevents accidental tab
+      // swipes stealing focus from chat / modal / tracker.
+      if (chat.visible || chat.quickLog || strength.modalVisible) return;
+      if (segments[0] !== '(tabs)') return;
+
+      const currentTab = (segments[1] as string | undefined) ?? 'index';
+      const currentIdx = TAB_ORDER.indexOf(currentTab as typeof TAB_ORDER[number]);
+      if (currentIdx < 0) return;
+
+      const THRESHOLD = 60;
+      const VELOCITY = 500;
+      const fast = Math.abs(e.velocityX) > VELOCITY;
+      const far = Math.abs(e.translationX) > THRESHOLD;
+      if (!fast && !far) return;
+
+      if (e.translationX < 0 && currentIdx < TAB_ORDER.length - 1) {
+        // swipe left → next tab
+        const next = TAB_ORDER[currentIdx + 1];
+        rootRouter.navigate(`/(tabs)/${next === 'index' ? '' : next}` as never);
+      } else if (e.translationX > 0 && currentIdx > 0) {
+        // swipe right → previous tab
+        const prev = TAB_ORDER[currentIdx - 1];
+        rootRouter.navigate(`/(tabs)/${prev === 'index' ? '' : prev}` as never);
+      }
+    })
+    .runOnJS(true);
+
+  return (
+    <GestureDetector gesture={swipe}>
+      <View style={{ flex: 1, backgroundColor: t.bg }}>{children}</View>
+    </GestureDetector>
   );
 }
 
