@@ -386,6 +386,37 @@ def init_db():
 
         conn.commit()
 
+    # One-shot backfill of strength_sets from existing workout_logs.
+    # Only touches rows with parse_status IS NULL, so it's idempotent and
+    # safe to run on every app startup. First deploy processes the backlog
+    # (~26 workouts for user 9 at the time of this writing); subsequent
+    # deploys are a no-op for already-stamped rows.
+    try:
+        _backfill_all_strength_sets()
+    except Exception as _bf_err:
+        import logging as _log_mod
+        _log_mod.getLogger(__name__).warning("strength_sets backfill skipped: %s", _bf_err)
+
+
+def _backfill_all_strength_sets():
+    from strength_parser import parse_strength_description
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, description FROM workout_logs WHERE parse_status IS NULL"
+        ).fetchall()
+    for row in rows:
+        parsed = parse_strength_description(row["description"] or "")
+        new_status = "unparsed"
+        if parsed:
+            save_strength_sets(row["id"], parsed)
+            new_status = "parsed"
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE workout_logs SET parse_status = ? WHERE id = ?",
+                (new_status, row["id"]),
+            )
+            conn.commit()
+
 
 # ── Auth ────────────────────────────────────────────────
 
@@ -561,15 +592,34 @@ def delete_meal(meal_id, user_id):
 
 # ── Workouts ─────────────────────────────────────────────
 
-def insert_workout(user_id, description, calories_burned=0, log_date=None, logged_at=None):
+def insert_workout(user_id, description, calories_burned=0, log_date=None, logged_at=None) -> int:
+    """Insert a workout log row and parse its description into strength_sets.
+    Returns the new workout_logs.id."""
+    from strength_parser import parse_strength_description
+
     ld = log_date or date.today().isoformat()
     ts = logged_at or datetime.now().isoformat()
     with get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO workout_logs (user_id, logged_at, log_date, description, calories_burned, parse_status) VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, ts, ld, description, calories_burned, None),
+        )
+        workout_id = cur.lastrowid
+        conn.commit()
+
+    parsed = parse_strength_description(description or "")
+    new_status = "unparsed"
+    if parsed:
+        save_strength_sets(workout_id, parsed)
+        new_status = "parsed"
+
+    with get_conn() as conn:
         conn.execute(
-            "INSERT INTO workout_logs (user_id, logged_at, log_date, description, calories_burned) VALUES (?, ?, ?, ?, ?)",
-            (user_id, ts, ld, description, calories_burned),
+            "UPDATE workout_logs SET parse_status = ? WHERE id = ?",
+            (new_status, workout_id),
         )
         conn.commit()
+    return workout_id
 
 
 def get_today_workouts(user_id, log_date=None):
@@ -583,6 +633,10 @@ def get_today_workouts(user_id, log_date=None):
 
 
 def update_workout(workout_id, user_id, description, calories_burned):
+    """Update a workout. Reparses description into strength_sets — old sets are
+    replaced so the set list stays consistent with the current description."""
+    from strength_parser import parse_strength_description
+
     with get_conn() as conn:
         conn.execute(
             "UPDATE workout_logs SET description=?, calories_burned=? WHERE id=? AND user_id=?",
@@ -590,8 +644,25 @@ def update_workout(workout_id, user_id, description, calories_burned):
         )
         conn.commit()
 
+    delete_strength_sets_for_workout(workout_id)
+    parsed = parse_strength_description(description or "")
+    new_status = "unparsed"
+    if parsed:
+        save_strength_sets(workout_id, parsed)
+        new_status = "parsed"
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE workout_logs SET parse_status = ? WHERE id = ? AND user_id = ?",
+            (new_status, workout_id, user_id),
+        )
+        conn.commit()
+
 
 def delete_workout(workout_id, user_id):
+    # SQLite's ON DELETE CASCADE doesn't fire unless `PRAGMA foreign_keys = ON`
+    # is set per connection (it isn't, elsewhere in this codebase). Explicit
+    # cleanup so orphaned strength_sets can't accumulate.
+    delete_strength_sets_for_workout(workout_id)
     with get_conn() as conn:
         conn.execute("DELETE FROM workout_logs WHERE id = ? AND user_id = ?", (workout_id, user_id))
         conn.commit()
