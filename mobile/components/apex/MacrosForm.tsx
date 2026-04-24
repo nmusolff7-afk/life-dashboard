@@ -17,9 +17,16 @@ import {
   GOAL_CONFIGS,
 } from '../../../shared/src/logic/targets';
 import type { Occupation } from '../../../shared/src/logic/neat';
+import { computeProjection } from '../../../shared/src/logic/projection';
 import { updateGoal } from '../../lib/api/profile';
 import { useTokens } from '../../lib/theme';
+import { useHaptics } from '../../lib/useHaptics';
 import { SliderRow } from './SliderRow';
+
+/** Safety floor — never allow target calories below this value regardless of
+ *  slider position. Below this is medically dangerous and would bypass the
+ *  deficit model. The PWA uses the same conceptual minimum. */
+const MIN_SAFE_KCAL = 1200;
 
 interface Props {
   onboarding: OnboardingDataResponse | null;
@@ -43,6 +50,7 @@ function ageFromBirthday(iso: string | undefined): number | null {
 
 export function MacrosForm({ onboarding, profile, onSaved }: Props) {
   const t = useTokens();
+  const haptics = useHaptics();
   const saved = onboarding?.saved ?? null;
 
   const [goal, setGoal] = useState<GoalKey>('lose_weight');
@@ -118,11 +126,11 @@ export function MacrosForm({ onboarding, profile, onSaved }: Props) {
   }, [goal, bodyStats, tdeeResult]);
 
   const burn = tdeeResult?.tdee ?? 0;
-  const rmrFloor = suggestion?.rmr ?? 0;
   const suggestedDeficit = suggestion ? suggestion.deficitSurplus : 0;
-  // Live calorie-target = max(burn + deficit, rmr). Floored at RMR (not TDEE)
-  // so deficit has room to bite without ever dropping below resting burn.
-  const calorieTarget = Math.max(burn + deficit, rmrFloor);
+  // Live calorie-target = burn + deficit, floored at MIN_SAFE_KCAL. The PWA
+  // stops here too — RMR is NOT a floor because a real cut dips below RMR
+  // intraday, recovered via NEAT/TEF over the full day.
+  const calorieTarget = Math.max(burn + deficit, MIN_SAFE_KCAL);
 
   // Seed goal + sliders when data loads.
   useEffect(() => {
@@ -166,6 +174,43 @@ export function MacrosForm({ onboarding, profile, onSaved }: Props) {
     setSodium(2300);
   };
 
+  /** Tapping a goal card re-seeds every slider from the new goal's
+   *  suggestion. Users can still manually tweak afterwards. */
+  const handleGoalChange = (k: GoalKey) => {
+    setGoal(k);
+    if (bodyStats && tdeeResult) {
+      const s = computeTargets({
+        goal: k,
+        weightLbs: bodyStats.weightLbs,
+        targetWeightLbs: bodyStats.targetLbs,
+        heightFt: bodyStats.heightFt,
+        heightIn: bodyStats.heightIn,
+        ageYears: bodyStats.age,
+        sex: bodyStats.sex,
+        bodyFatPct: bodyStats.bf,
+        tdee: tdeeResult.tdee,
+      });
+      setDeficit(s.deficitSurplus);
+      setProtein(s.proteinG);
+      setCarbs(s.carbsG);
+      setFat(s.fatG);
+    }
+  };
+
+  // ── Time-to-goal projection (only when target weight is set) ────────────
+
+  const projection = useMemo(() => {
+    if (!bodyStats?.targetLbs || bodyStats.weightLbs === bodyStats.targetLbs) return null;
+    // projection.ts uses positive deficit = losing. My slider uses negative
+    // deficit = cutting, so flip the sign before calling.
+    const result = computeProjection({
+      currentWeightLbs: bodyStats.weightLbs,
+      targetWeightLbs: bodyStats.targetLbs,
+      dailyDeficitKcal: -deficit,
+    });
+    return result.weeks != null ? result : null;
+  }, [bodyStats?.weightLbs, bodyStats?.targetLbs, deficit]);
+
   const handleSave = async () => {
     if (!suggestion) {
       Alert.alert('Missing body stats', 'Fill out Body Stats first so we know your burn.');
@@ -186,8 +231,10 @@ export function MacrosForm({ onboarding, profile, onSaved }: Props) {
         sodium: Math.round(sodium),
       });
       await onSaved();
+      haptics.fire('success');
       Alert.alert('Saved', 'Your deficit + macro targets are updated. The Nutrition ring will reflect them.');
     } catch (e) {
+      haptics.fire('error');
       Alert.alert('Save failed', e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
@@ -212,7 +259,7 @@ export function MacrosForm({ onboarding, profile, onSaved }: Props) {
             return (
               <Pressable
                 key={k}
-                onPress={() => setGoal(k)}
+                onPress={() => handleGoalChange(k)}
                 style={[
                   styles.goalCard,
                   {
@@ -258,6 +305,30 @@ export function MacrosForm({ onboarding, profile, onSaved }: Props) {
           Missing body stats — fill them in first so we can compute your burn.
         </Text>
       )}
+
+      {/* Time to goal */}
+      {projection && bodyStats?.targetLbs ? (
+        <View style={[styles.projection, { backgroundColor: t.surface, borderColor: t.border }]}>
+          <Ionicons name="flag-outline" size={18} color={t.green} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.projectionTitle, { color: t.text }]}>
+              {projection.weeks} week{projection.weeks === 1 ? '' : 's'} to{' '}
+              {Math.round(bodyStats.targetLbs)} lbs
+            </Text>
+            <Text style={[styles.projectionDate, { color: t.muted }]}>
+              at this deficit, hits target {projection.projectedDate}
+            </Text>
+          </View>
+        </View>
+      ) : bodyStats?.targetLbs && bodyStats.weightLbs !== bodyStats.targetLbs ? (
+        <View style={[styles.projection, { backgroundColor: t.surface, borderColor: t.border }]}>
+          <Ionicons name="information-circle-outline" size={18} color={t.muted} />
+          <Text style={[styles.projectionDate, { color: t.muted, flex: 1 }]}>
+            Deficit direction doesn't match your goal weight. Adjust the slider to project time to
+            goal.
+          </Text>
+        </View>
+      ) : null}
 
       {/* Deficit slider */}
       <Section title="Daily deficit / surplus">
@@ -414,6 +485,18 @@ const styles = StyleSheet.create({
   suggestBtnLabel: { fontSize: 12, fontWeight: '700' },
 
   needStats: { fontSize: 13, paddingHorizontal: 2 },
+
+  projection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  projectionTitle: { fontSize: 14, fontWeight: '700' },
+  projectionDate: { fontSize: 12, marginTop: 2 },
 
   breakdown: {
     flexDirection: 'row',

@@ -9,6 +9,7 @@ import { ScreenHeader } from '../../components/apex';
 import { useProfile } from '../../lib/hooks/useHomeData';
 import { useTokens } from '../../lib/theme';
 import { useClerkBridge } from '../../lib/useClerkBridge';
+import { useHaptics } from '../../lib/useHaptics';
 import { useOnboardingStatus } from '../../lib/useOnboardingStatus';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -26,6 +27,7 @@ const TAB_ICONS: Record<string, IconName> = {
 function FlaskTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const t = useTokens();
   const insets = useSafeAreaInsets();
+  const haptics = useHaptics();
 
   return (
     <View
@@ -49,6 +51,7 @@ function FlaskTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         const color = focused ? t.accent : t.subtle;
 
         const onPress = () => {
+          haptics.fire('tap');
           const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
           if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
         };
