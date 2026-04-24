@@ -31,7 +31,10 @@ import { universalShortcuts } from './surfaceShortcuts';
  *  fades — matches the founder spec (everything dims except the FAB,
  *  text input box, and action buttons). */
 const SHORTCUT_COL_WIDTH = 80;
-const CLEARANCE_ABOVE_FAB = 16;
+// Rail bottom sits just above the FAB's top edge. Founder confirmed the
+// earlier 16pt clearance read as ~15pt too high; 2pt keeps visual
+// separation without the "floating away" gap.
+const CLEARANCE_ABOVE_FAB = 2;
 
 export function ChatOverlay() {
   const t = useTokens();
@@ -190,11 +193,13 @@ export function ChatOverlay() {
                 bottom: inputBottomFromScreenBottom,
               },
             ]}>
+            {/* No autoFocus — founder wants the keyboard to open only
+                when the user taps the input, not when the FAB opens
+                the overlay. */}
             <ChatInput
               sending={chat.sending}
               onSend={chat.send}
               onBack={chat.close}
-              autoFocus
             />
           </View>
         </Animated.View>

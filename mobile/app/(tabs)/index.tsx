@@ -163,37 +163,8 @@ export default function HomeScreen() {
             real-estate twice. */}
         <OverallScoreHero data={scores.overall.data} loading={scores.overall.loading} />
 
-        {/* Active goals strip. Single card until §4.10 goal library lands. */}
-        {activeGoal ? (
-          <View style={styles.horizPad}>
-            <Pressable
-              onPress={() => router.push('/goals')}
-              style={({ pressed }) => [
-                styles.goalCard,
-                {
-                  backgroundColor: t.surface,
-                  borderColor: t.border,
-                  transform: [{ scale: pressed ? 0.99 : 1 }],
-                },
-              ]}>
-              <View style={styles.goalHeader}>
-                <View style={[styles.goalCategoryDot, { backgroundColor: t.fitness }]} />
-                <Text style={[styles.goalTitle, { color: t.text }]} numberOfLines={1}>
-                  {activeGoal.goal_label}
-                </Text>
-              </View>
-              <View style={[styles.goalBarTrack, { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
-                <View style={[styles.goalBarFill, { backgroundColor: t.fitness, width: '35%' }]} />
-              </View>
-              <Text style={[styles.goalSub, { color: t.muted }]} numberOfLines={1}>
-                {goalIntake != null ? `${goalIntake} kcal goal · ` : ''}
-                {Math.abs(deficitSurplus)} kcal {deficitSurplus < 0 ? 'deficit' : 'surplus'}
-              </Text>
-            </Pressable>
-          </View>
-        ) : null}
-
-        {/* Four category score rows — full-width stacked per D2 */}
+        {/* Four category score rows — full-width stacked per D2. Goal
+            card now lives BELOW these per founder's latest order. */}
         <View style={styles.categoryStack}>
           <CategoryScoreRow
             category="fitness"
@@ -304,6 +275,39 @@ export default function HomeScreen() {
             href="/(tabs)/time"
           />
         </View>
+
+        {/* Active goals strip. Founder moved this to the bottom of the
+            card stack so the category rows sit directly under the
+            Overall Score hero. Single card until PRD §4.10 goal
+            library lands. */}
+        {activeGoal ? (
+          <View style={styles.horizPad}>
+            <Pressable
+              onPress={() => router.push('/goals')}
+              style={({ pressed }) => [
+                styles.goalCard,
+                {
+                  backgroundColor: t.surface,
+                  borderColor: t.border,
+                  transform: [{ scale: pressed ? 0.99 : 1 }],
+                },
+              ]}>
+              <View style={styles.goalHeader}>
+                <View style={[styles.goalCategoryDot, { backgroundColor: t.fitness }]} />
+                <Text style={[styles.goalTitle, { color: t.text }]} numberOfLines={1}>
+                  {activeGoal.goal_label}
+                </Text>
+              </View>
+              <View style={[styles.goalBarTrack, { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
+                <View style={[styles.goalBarFill, { backgroundColor: t.fitness, width: '35%' }]} />
+              </View>
+              <Text style={[styles.goalSub, { color: t.muted }]} numberOfLines={1}>
+                {goalIntake != null ? `${goalIntake} kcal goal · ` : ''}
+                {Math.abs(deficitSurplus)} kcal {deficitSurplus < 0 ? 'deficit' : 'surplus'}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
       </ScrollView>
       <FAB />
     </View>

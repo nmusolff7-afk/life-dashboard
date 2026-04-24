@@ -196,16 +196,10 @@ export default function FitnessScreen() {
               />
             </View>
 
-            {/* Today's Scheduled Workout card — replaces the old Start
-                Strength Session primary button per 11.5.5. Phase 12 will
-                plug in real plan data; for now we render the no-plan
-                state with a Build CTA. */}
-            <TodayScheduledWorkoutCard
-              plan={null}
-              onStartPlanned={launchStrength}
-              onStartAdhoc={launchStrength}
-            />
-
+            {/* Log Activity card first — primary user action on the
+                Fitness Today tab. Today's scheduled workout follows
+                below so the user can see what's planned after the
+                explicit log-action. */}
             <LogActivityCard
               onLogged={refreshAllWorkouts}
               onTemplateSaved={saved.refetch}
@@ -213,6 +207,15 @@ export default function FitnessScreen() {
               onCardioPress={() => chat.openQuickLog('workout-cardio')}
               onSavedPress={() => chat.openQuickLog('workout-saved')}
               onWeightPress={() => chat.openQuickLog('weight')}
+            />
+
+            {/* Today's Scheduled Workout card — Phase 12 will plug in
+                real plan data; for now we render the no-plan state
+                with a Build CTA. */}
+            <TodayScheduledWorkoutCard
+              plan={null}
+              onStartPlanned={launchStrength}
+              onStartAdhoc={launchStrength}
             />
 
             <TodayWorkoutsList workouts={todayWorkouts} onChanged={refreshAllWorkouts} />
