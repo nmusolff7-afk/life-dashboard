@@ -368,6 +368,28 @@ def init_db():
             )
         """)
 
+        # Workout plans (PRD §4.3.10). New table rather than a JSON blob on
+        # user_onboarding so we can keep history when the user switches
+        # plans — `is_active` scopes the live plan; archived rows stay
+        # reactivatable. Each row stores the AI-generated weeklyPlan JSON
+        # plus the builder quiz payload (so Revise has the original inputs).
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS workout_plans (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                plan_json      TEXT NOT NULL,
+                quiz_payload   TEXT,
+                understanding  TEXT,
+                is_active      INTEGER NOT NULL DEFAULT 0,
+                created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                archived_at    TIMESTAMP
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_workout_plans_user_active "
+            "ON workout_plans(user_id, is_active)"
+        )
+
         # Deterministic score snapshots — overall + per-category. Written by the
         # nightly job at 03:30 UTC and on-demand by /api/score/*. Immutable after
         # 7 days (Core) / 30 days (Pro) per PRD §9.12.5.
@@ -1083,6 +1105,136 @@ def get_ai_daily_count(user_id: int, date_str: str, feature: str) -> int:
             (user_id, date_str, feature),
         ).fetchone()
     return int(row["count"] or 0) if row else 0
+
+
+# ── Workout plans (PRD §4.3.10) ─────────────────────────
+
+def get_active_workout_plan(user_id: int) -> dict | None:
+    """Returns the user's currently active plan, or None. Shape:
+      { id, plan_json (already-parsed dict), quiz_payload (dict|None),
+        understanding (str|None), created_at, is_active: True }"""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, plan_json, quiz_payload, understanding, created_at "
+            "FROM workout_plans WHERE user_id = ? AND is_active = 1 "
+            "ORDER BY id DESC LIMIT 1",
+            (user_id,),
+        ).fetchone()
+    if not row:
+        return None
+    import json as _json
+    return {
+        "id": row["id"],
+        "plan": _json.loads(row["plan_json"] or "{}"),
+        "quiz_payload": _json.loads(row["quiz_payload"]) if row["quiz_payload"] else None,
+        "understanding": row["understanding"],
+        "created_at": row["created_at"],
+        "is_active": True,
+    }
+
+
+def save_active_workout_plan(
+    user_id: int,
+    plan: dict,
+    quiz_payload: dict | None = None,
+    understanding: str | None = None,
+) -> int:
+    """Deactivate any previous plans for this user and insert the new
+    one as active. Prior plans keep is_active=0 (archived) so the user
+    can reactivate a past plan later without losing it. Returns the new
+    plan's id."""
+    import json as _json
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE workout_plans SET is_active = 0, archived_at = CURRENT_TIMESTAMP "
+            "WHERE user_id = ? AND is_active = 1",
+            (user_id,),
+        )
+        cur = conn.execute(
+            "INSERT INTO workout_plans (user_id, plan_json, quiz_payload, "
+            "understanding, is_active) VALUES (?, ?, ?, ?, 1)",
+            (
+                user_id,
+                _json.dumps(plan),
+                _json.dumps(quiz_payload) if quiz_payload else None,
+                understanding,
+            ),
+        )
+        new_id = cur.lastrowid
+        conn.commit()
+    return int(new_id) if new_id is not None else 0
+
+
+def patch_active_workout_plan(user_id: int, plan: dict) -> bool:
+    """Overwrite the active plan's JSON (manual edits from the UI).
+    Keeps quiz_payload + understanding intact so Revise still has
+    context. Returns True on success."""
+    import json as _json
+    with get_conn() as conn:
+        cur = conn.execute(
+            "UPDATE workout_plans SET plan_json = ? "
+            "WHERE user_id = ? AND is_active = 1",
+            (_json.dumps(plan), user_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+
+
+def deactivate_workout_plan(user_id: int) -> bool:
+    """Archive the active plan. No new plan is inserted — caller either
+    builds a fresh one or leaves the user plan-less. Returns True on
+    success."""
+    with get_conn() as conn:
+        cur = conn.execute(
+            "UPDATE workout_plans SET is_active = 0, archived_at = CURRENT_TIMESTAMP "
+            "WHERE user_id = ? AND is_active = 1",
+            (user_id,),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+
+
+def count_plan_adherence_days(user_id: int, days: int = 30) -> tuple[int, int]:
+    """Counts (scheduled_days, completed_days) within the trailing `days`
+    window for Plan subsystem scoring. A day is 'completed' if the user
+    logged any workout on a date the plan scheduled a training session.
+    Rest days don't count either way."""
+    import json as _json
+    plan_row = get_active_workout_plan(user_id)
+    if not plan_row:
+        return (0, 0)
+    weekly = (plan_row["plan"] or {}).get("weeklyPlan") or {}
+    training_dow: set[int] = set()
+    dow_map = {"Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3,
+               "Friday": 4, "Saturday": 5, "Sunday": 6}
+    for day_name, day_block in weekly.items():
+        idx = dow_map.get(day_name)
+        if idx is None:
+            continue
+        exercises = (day_block or {}).get("exercises") or []
+        cardio = (day_block or {}).get("cardio")
+        if exercises or (cardio and (cardio.get("type") or "").strip()):
+            training_dow.add(idx)
+    if not training_dow:
+        return (0, 0)
+
+    from datetime import date as _date, timedelta as _td
+    today = _date.today()
+    scheduled = 0
+    completed = 0
+    with get_conn() as conn:
+        for i in range(days):
+            d = today - _td(days=i)
+            if d.weekday() not in training_dow:
+                continue
+            scheduled += 1
+            row = conn.execute(
+                "SELECT 1 FROM workout_logs WHERE user_id = ? AND log_date = ? LIMIT 1",
+                (user_id, d.isoformat()),
+            ).fetchone()
+            if row:
+                completed += 1
+    return (scheduled, completed)
 
 
 def incr_ai_daily_count(user_id: int, date_str: str, feature: str) -> int:

@@ -577,14 +577,12 @@ def _fitness_subsystems(user_id: int, as_of: str) -> list[dict]:
         }
     )
 
-    # CARDIO / SLEEP / RECOVERY / PLAN — HealthKit / plan-dependent. Stubbed
-    # for Phase 1; will fill in later phases. Their weights redistribute
-    # via graceful degradation at the category level.
+    # CARDIO / SLEEP / RECOVERY — HealthKit-dependent; stubbed until
+    # those pipes land. Weights redistribute via graceful degradation.
     for key, label, weight in [
         ("cardio",   "Cardio",   15.0),
         ("sleep",    "Sleep",    15.0),
         ("recovery", "Recovery", 10.0),
-        ("plan",     "Plan",     10.0),
     ]:
         subs.append({
             "key": key,
@@ -594,6 +592,52 @@ def _fitness_subsystems(user_id: int, as_of: str) -> list[dict]:
             "weight": weight,
             "signals": [],
         })
+
+    # PLAN — scheduled-vs-completed adherence. Reads the user's active
+    # workout plan (Phase 12) and counts the trailing 30-day window.
+    # Scheduled = days the plan had a training session. Completed =
+    # scheduled days that had a workout_logs row. Score is adherence
+    # ratio. Null when no plan or < 3 scheduled days in window.
+    from db import count_plan_adherence_days
+    scheduled, completed = count_plan_adherence_days(user_id, days=30)
+    plan_signals = []
+    if scheduled >= 3:
+        adherence = completed / scheduled
+        plan_score = piecewise_linear(adherence, 1.0, 0.15, math.inf, 0.8, math.inf)
+        plan_signals.append(
+            Signal(
+                name="plan_adherence",
+                label="Plan adherence",
+                weight=100.0,
+                score=plan_score,
+                data_completeness=1.0,
+            ).as_dict()
+        )
+        plan_combined = plan_score
+        plan_completeness = 1.0
+    else:
+        plan_signals.append(
+            Signal(
+                name="plan_adherence",
+                label="Plan adherence",
+                weight=100.0,
+                score=None,
+                data_completeness=0.0,
+            ).as_dict()
+        )
+        plan_combined = None
+        plan_completeness = 0.0
+    subs.append({
+        "key": "plan",
+        "label": "Plan",
+        "score": None if plan_combined is None else round(plan_combined * 100),
+        "band": band_for_score(None if plan_combined is None else round(plan_combined * 100)),
+        "weight": 10.0,
+        "signals": plan_signals,
+    })
+    # plan_completeness threaded for future overall completeness calc;
+    # currently consumed by the category-level reducer already.
+    _ = plan_completeness
 
     return subs
 

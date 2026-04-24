@@ -19,6 +19,13 @@ export default function SettingsScreen() {
         {/* Profile hero */}
         <SettingsRow title={email} hint="Tap to edit profile" onPress={() => router.push('/settings/profile')} />
 
+        <Text style={[styles.section, { color: t.muted }]}>Fitness</Text>
+        <SettingsRow
+          title="Workout plan"
+          hint="Build, edit, or switch your weekly plan"
+          onPress={() => router.push('/settings/workout-plan')}
+        />
+
         <Text style={[styles.section, { color: t.muted }]}>Account</Text>
         <SettingsRow title="Subscription & billing" onPress={() => router.push('/settings/subscription')} />
         <SettingsRow title="Connections" onPress={() => router.push('/settings/connections')} />

@@ -1370,6 +1370,102 @@ def api_revise_plan():
         return jsonify({"error": _AI_ERR}), 500
 
 
+# ── Workout plan CRUD (Phase 12) ───────────────────────
+
+@app.route("/api/workout-plan", methods=["GET"])
+@login_required
+def api_workout_plan_get():
+    """Return the user's currently active workout plan, or 204 if none."""
+    from db import get_active_workout_plan
+    plan = get_active_workout_plan(uid())
+    if not plan:
+        return ("", 204)
+    return jsonify(plan)
+
+
+@app.route("/api/workout-plan/generate", methods=["POST"])
+@login_required
+def api_workout_plan_generate():
+    """Generate a fresh plan from the builder quiz payload and save it
+    as the user's active plan. Archives any previous active plan.
+    Returns the newly saved plan row."""
+    from db import get_active_workout_plan, save_active_workout_plan
+    payload = request.get_json() or {}
+    try:
+        plan = generate_comprehensive_plan(payload)
+    except Exception:
+        _log.exception("workout-plan/generate AI call failed")
+        return jsonify({"error": _AI_ERR}), 500
+    try:
+        understanding = generate_plan_understanding(payload)
+    except Exception:
+        understanding = ""
+    save_active_workout_plan(uid(), {"weeklyPlan": plan.get("weeklyPlan") or plan,
+                                     "planNotes": plan.get("planNotes")},
+                             quiz_payload=payload,
+                             understanding=understanding)
+    out = get_active_workout_plan(uid())
+    return jsonify(out or {}), 201
+
+
+@app.route("/api/workout-plan/revise", methods=["POST"])
+@login_required
+def api_workout_plan_revise():
+    """Revise the user's active plan in place. Body:
+      { change_request: str } — the user's natural-language feedback.
+    Uses the stored quiz_payload + current plan_json as AI context. """
+    from db import get_active_workout_plan, save_active_workout_plan
+    data = request.get_json() or {}
+    change_request = (data.get("change_request") or "").strip()
+    if not change_request:
+        return jsonify({"error": "Missing change_request"}), 400
+    current = get_active_workout_plan(uid())
+    if not current:
+        return jsonify({"error": "No active plan to revise"}), 404
+    try:
+        revised = revise_plan(
+            current.get("quiz_payload") or {},
+            current.get("plan") or {},
+            change_request,
+        )
+    except Exception:
+        _log.exception("workout-plan/revise AI call failed")
+        return jsonify({"error": _AI_ERR}), 500
+    save_active_workout_plan(
+        uid(),
+        revised,
+        quiz_payload=current.get("quiz_payload"),
+        understanding=current.get("understanding"),
+    )
+    return jsonify(get_active_workout_plan(uid()) or {})
+
+
+@app.route("/api/workout-plan", methods=["PATCH"])
+@login_required
+def api_workout_plan_patch():
+    """Apply manual edits (exercise swap, set/rep change, add/remove).
+    Body: { plan: <full plan dict, including weeklyPlan + planNotes> }."""
+    from db import get_active_workout_plan, patch_active_workout_plan
+    data = request.get_json() or {}
+    plan = data.get("plan")
+    if not isinstance(plan, dict):
+        return jsonify({"error": "Missing plan body"}), 400
+    ok = patch_active_workout_plan(uid(), plan)
+    if not ok:
+        return jsonify({"error": "No active plan to edit"}), 404
+    return jsonify(get_active_workout_plan(uid()) or {})
+
+
+@app.route("/api/workout-plan", methods=["DELETE"])
+@login_required
+def api_workout_plan_delete():
+    """Deactivate the active plan. Does NOT delete the row — archived
+    for potential later reactivation."""
+    from db import deactivate_workout_plan
+    ok = deactivate_workout_plan(uid())
+    return jsonify({"deactivated": ok})
+
+
 # ── Gmail ──────────────────────────────────────────────
 
 @app.route("/api/gmail/status")

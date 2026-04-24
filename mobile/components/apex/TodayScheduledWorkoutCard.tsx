@@ -69,7 +69,7 @@ export function TodayScheduledWorkoutCard({
           <Pressable
             onPress={() => {
               haptics.fire('tap');
-              router.push('/fitness/subsystem/plan');
+              router.push('/fitness/plan/builder');
             }}
             style={({ pressed }) => [
               styles.primaryBtn,

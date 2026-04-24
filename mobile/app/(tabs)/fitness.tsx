@@ -28,6 +28,7 @@ import {
 } from '../../lib/hooks/useHomeData';
 import { useLiveCalorieBalance } from '../../lib/hooks/useLiveCalorieBalance';
 import { useFitnessScore } from '../../lib/hooks/useScores';
+import { useWorkoutPlan } from '../../lib/hooks/useWorkoutPlan';
 import { useChatSession } from '../../lib/useChatSession';
 import { useTokens } from '../../lib/theme';
 import { useDailyReset } from '../../lib/useDailyReset';
@@ -36,6 +37,8 @@ import { useStrengthSession } from '../../lib/useStrengthSession';
 import { useUnits } from '../../lib/useUnits';
 
 import type { SubsystemScore } from '../../../shared/src/types/score';
+import type { DayName, WorkoutPlanResponse } from '../../../shared/src/types/plan';
+import type { TodayScheduledWorkout } from '../../components/apex/TodayScheduledWorkoutCard';
 
 type Tab = 'today' | 'progress' | 'history';
 /** Filter chips on the Fitness History sub-tab. Weight trend lives on
@@ -59,6 +62,7 @@ export default function FitnessScreen() {
   const fitnessScore = useFitnessScore();
 
   const strength = useStrengthSession();
+  const workoutPlan = useWorkoutPlan();
   const [refreshing, setRefreshing] = useState(false);
   const [weightModal, setWeightModal] = useState(false);
   const [stepsModal, setStepsModal] = useState(false);
@@ -208,12 +212,14 @@ export default function FitnessScreen() {
               onWeightPress={() => chat.openQuickLog('weight')}
             />
 
-            {/* Today's Scheduled Workout card — Phase 12 will plug in
-                real plan data; for now we render the no-plan state
-                with a Build CTA. */}
+            {/* Today's Scheduled Workout card — pulls from the live
+                plan (Phase 12). The plan hook returns null when the
+                user has no active plan, which the card renders as the
+                Build-a-Plan state. */}
             <TodayScheduledWorkoutCard
-              plan={null}
-              onStartPlanned={launchStrength}
+              plan={deriveTodayFromPlan(workoutPlan.plan)}
+              loading={workoutPlan.loading}
+              onStartPlanned={() => startTodaysPlannedSession(workoutPlan.plan, strength)}
               onStartAdhoc={launchStrength}
             />
 
@@ -296,6 +302,65 @@ export default function FitnessScreen() {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
+
+const DOW_NAMES: DayName[] = [
+  'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
+];
+
+/** Convert the active workout plan response into the small shape the
+ *  TodayScheduledWorkoutCard consumes. Null when no plan is active. */
+function deriveTodayFromPlan(plan: WorkoutPlanResponse | null): TodayScheduledWorkout | null {
+  if (!plan) return null;
+  const todayName = DOW_NAMES[new Date().getDay()];
+  const dayBlock = (plan.plan?.weeklyPlan ?? {})[todayName];
+  if (!dayBlock) return { isRestDay: true };
+  const exercises = (dayBlock.exercises ?? []).map((e) => ({
+    name: e.name,
+    sets: Math.max(0, Number(e.sets ?? 0)),
+  }));
+  const cardioLabel = (dayBlock.cardio?.type || '').trim();
+  if (exercises.length === 0 && !cardioLabel) {
+    return { isRestDay: true };
+  }
+  return {
+    dayName: dayBlock.label || todayName,
+    exercises,
+    isRestDay: false,
+  };
+}
+
+/** Seed the strength session with today's scheduled exercises + start
+ *  it. Called from TodayScheduledWorkoutCard's "Start Workout" button
+ *  when a plan is active AND today isn't a rest day. */
+function startTodaysPlannedSession(
+  plan: WorkoutPlanResponse | null,
+  strength: { active: boolean; start: () => Promise<void>; maximize: () => void; setExercises: (e: { name: string; sets: { completed: boolean; weight: string; reps: string }[] }[]) => void },
+) {
+  if (!plan) {
+    if (strength.active) strength.maximize();
+    else void strength.start();
+    return;
+  }
+  const todayName = DOW_NAMES[new Date().getDay()];
+  const dayBlock = (plan.plan?.weeklyPlan ?? {})[todayName];
+  if (!dayBlock || (!dayBlock.exercises?.length)) {
+    if (strength.active) strength.maximize();
+    else void strength.start();
+    return;
+  }
+  if (strength.active) {
+    strength.maximize();
+    return;
+  }
+  const exercises = dayBlock.exercises.map((ex) => ({
+    name: ex.name,
+    sets: Array.from({ length: Math.max(1, Number(ex.sets ?? 3)) }, () => ({
+      completed: false, weight: '', reps: '',
+    })),
+  }));
+  strength.setExercises(exercises);
+  void strength.start();
+}
 
 const SUBSYSTEM_ORDER: Array<SubsystemScore['key']> = [
   'plan',
