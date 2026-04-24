@@ -16,6 +16,7 @@ import {
   RecentMealsChips,
   SavedMealsPicker,
   SubTabs,
+  TabHeader,
   TodayMealsList,
 } from '../../components/apex';
 import {
@@ -27,6 +28,7 @@ import {
 } from '../../lib/hooks/useHomeData';
 import { useLiveCalorieBalance } from '../../lib/hooks/useLiveCalorieBalance';
 import { useTokens } from '../../lib/theme';
+import { useDailyReset } from '../../lib/useDailyReset';
 import { useResetScrollOnFocus } from '../../lib/useResetScrollOnFocus';
 
 type Tab = 'today' | 'progress' | 'history';
@@ -69,6 +71,11 @@ export default function NutritionScreen() {
     history.refetch();
   };
 
+  // Silently refetch when the local calendar day rolls over.
+  useDailyReset(() => {
+    void onRefresh();
+  });
+
   const totals = nutrition.data?.totals;
   const meals = nutrition.data?.meals ?? [];
 
@@ -98,6 +105,7 @@ export default function NutritionScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
+      <TabHeader title="Nutrition" />
       <SubTabs<Tab>
         tabs={[
           { value: 'today', label: 'Today' },

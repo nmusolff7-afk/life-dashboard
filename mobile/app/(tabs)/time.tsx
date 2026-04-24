@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { EmptyState, FAB, SubTabs } from '../../components/apex';
+import { EmptyState, FAB, SubTabs, TabHeader } from '../../components/apex';
 import { useTokens } from '../../lib/theme';
 import { useResetScrollOnFocus } from '../../lib/useResetScrollOnFocus';
 
@@ -25,6 +25,7 @@ export default function TimeScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
+      <TabHeader title="Time" />
       <SubTabs<Tab>
         tabs={[
           { value: 'today', label: 'Today' },

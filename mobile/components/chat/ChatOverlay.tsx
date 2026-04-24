@@ -14,20 +14,22 @@ import {
   useColorScheme,
 } from 'react-native';
 
-import { useChatSession, type Surface } from '../../lib/useChatSession';
+import { useChatSession } from '../../lib/useChatSession';
 import { useTokens } from '../../lib/theme';
 import { ChatBubble, TypingBubble } from './ChatBubble';
 import { ChatInput } from './ChatInput';
 import { ChatShortcutRail, type Shortcut } from './ChatShortcutRail';
 import { shortcutsForSurface } from './surfaceShortcuts';
 
-/** Root portal rendered once at the tabs layout. Invisible until the FAB
- *  opens it. PRD §4.7.4 layout: dimmed backdrop, chat input pill above
- *  the X, vertical shortcut rail above the input.
- *
- *  Animation v1 is deliberately simple — a fade on the backdrop and
- *  slide-up on the input panel. Full 200ms rotate + spring polish can
- *  come in Phase 11. Focus here is behavior. */
+/** PRD §4.7.4 layout, founder-locked:
+ *  - Dim backdrop — tap to dismiss
+ *  - RIGHT half: vertical shortcut stack (all same width), immediately
+ *    above the FAB-position X close button
+ *  - LEFT half: chat area — input bubble at the bottom-left (directly left
+ *    of the X), conversation rises up to the left of the shortcut stack
+ *  - When conversation has turns: shortcuts collapse, chat area expands
+ *    to full width for comfortable reading
+ */
 export function ChatOverlay() {
   const t = useTokens();
   const scheme = useColorScheme();
@@ -49,7 +51,6 @@ export function ChatOverlay() {
     });
   }, [chat.visible, anim, dismissed]);
 
-  // Auto-scroll conversation to bottom when turns change
   useEffect(() => {
     if (chat.turns.length > 0) {
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 40);
@@ -72,7 +73,7 @@ export function ChatOverlay() {
 
   return (
     <View pointerEvents={chat.visible ? 'auto' : 'none'} style={StyleSheet.absoluteFill}>
-      {/* Dim backdrop — tap to dismiss */}
+      {/* Dim backdrop */}
       <Animated.View
         pointerEvents={chat.visible ? 'auto' : 'none'}
         style={[
@@ -95,9 +96,18 @@ export function ChatOverlay() {
               transform: [{ translateY: panelTranslate }],
             },
           ]}>
-          {/* Conversation area — visible once user sends a message */}
+          {/* Conversation — occupies the left half when present. When the
+              conversation has content, shortcuts collapse and the chat
+              area expands to full width for readability. */}
           {hasTurns ? (
-            <View style={[styles.conversation, { backgroundColor: t.bg + 'EE', borderColor: t.border }]}>
+            <View
+              style={[
+                styles.conversation,
+                {
+                  backgroundColor: t.bg + 'EE',
+                  borderColor: t.border,
+                },
+              ]}>
               <View style={styles.conversationHeader}>
                 <Text style={[styles.conversationTitle, { color: t.muted }]}>Chat</Text>
                 <Pressable onPress={chat.reset} accessibilityRole="button">
@@ -117,20 +127,22 @@ export function ChatOverlay() {
             </View>
           ) : null}
 
+          {/* Bottom row — shortcut rail on right half (stacked above X),
+              chat input on left half (immediately left of X). When chat
+              has messages the shortcut rail disappears and input grows
+              to full width. */}
           <View style={styles.bottomRow} pointerEvents="box-none">
-            {/* Shortcut rail — hidden while conversation has content */}
-            {!hasTurns ? (
-              <View style={styles.railWrap}>
-                <ChatShortcutRail shortcuts={shortcuts} />
-              </View>
-            ) : (
-              <View style={{ flex: 1 }} />
-            )}
-
-            <View style={styles.inputColumn}>
-              <View style={styles.inputWrap}>
+            <View style={styles.leftCol}>
+              <View style={[styles.inputWrap, hasTurns && styles.inputWrapWide]}>
                 <ChatInput sending={chat.sending} onSend={chat.send} />
               </View>
+            </View>
+
+            <View style={styles.rightCol}>
+              {/* Shortcut rail above X, same width column */}
+              {!hasTurns && shortcuts.length > 0 ? (
+                <ChatShortcutRail shortcuts={shortcuts} />
+              ) : null}
               <Pressable
                 onPress={chat.close}
                 accessibilityRole="button"
@@ -153,6 +165,8 @@ export function ChatOverlay() {
   );
 }
 
+const SHORTCUT_COL_WIDTH = 150;
+
 const styles = StyleSheet.create({
   kav: {
     flex: 1,
@@ -166,8 +180,11 @@ const styles = StyleSheet.create({
   conversation: {
     borderRadius: 16,
     borderWidth: 1,
-    maxHeight: 420,
+    maxHeight: 440,
     overflow: 'hidden',
+    // Leave room on the right so the conversation doesn't render behind
+    // the X button when shortcuts are hidden.
+    marginRight: 4,
   },
   conversationHeader: {
     flexDirection: 'row',
@@ -190,24 +207,31 @@ const styles = StyleSheet.create({
   bottomRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 10,
+    gap: 12,
   },
-  railWrap: {
+  leftCol: {
     flex: 1,
-    alignItems: 'flex-end',
-  },
-  inputColumn: {
-    alignItems: 'flex-end',
-    gap: 10,
+    justifyContent: 'flex-end',
   },
   inputWrap: {
-    minWidth: 220,
-    maxWidth: 260,
+    // By default the input sits in the left column. Width is constrained
+    // so the right column (shortcut rail + X) has dedicated space.
+    alignSelf: 'stretch',
+  },
+  inputWrapWide: {
+    // Once the conversation is open and shortcuts collapse, the input
+    // grows out to the full available width.
+  },
+  rightCol: {
+    alignItems: 'stretch',
+    width: SHORTCUT_COL_WIDTH,
+    gap: 10,
   },
   closeBtn: {
     width: 52,
     height: 52,
     borderRadius: 26,
+    alignSelf: 'flex-end',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -217,3 +241,6 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
 });
+
+/** Exported so ChatShortcutRail can target the right-column width. */
+export const CHAT_SHORTCUT_COL_WIDTH = SHORTCUT_COL_WIDTH;
