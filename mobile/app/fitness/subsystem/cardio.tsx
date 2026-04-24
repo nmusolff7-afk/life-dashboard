@@ -5,7 +5,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useWorkoutHistory } from '../../../lib/hooks/useHomeData';
 import { useTokens } from '../../../lib/theme';
 
-import { classifyAsCardio, estimateCardioDuration } from '../../../lib/fitness/cardioHelpers';
+import { classifyAsCardio, estimateCardioDuration } from '../../../lib/cardioHelpers';
 
 /** Cardio subsystem — weekly cardio-minutes trend + recent activity list.
  *  HR-zone breakdown deferred until HealthKit wiring (Phase 6). */

@@ -12,6 +12,7 @@ import {
   OverallScoreHero,
   SavedWorkoutsStrip,
   SubTabs,
+  TabHeader,
   TodayWorkoutsList,
   WeightTrendCard,
   WorkoutHistoryList,
@@ -27,6 +28,7 @@ import {
 import { useLiveCalorieBalance } from '../../lib/hooks/useLiveCalorieBalance';
 import { useFitnessScore } from '../../lib/hooks/useScores';
 import { useTokens } from '../../lib/theme';
+import { useDailyReset } from '../../lib/useDailyReset';
 import { useResetScrollOnFocus } from '../../lib/useResetScrollOnFocus';
 import { useStrengthSession } from '../../lib/useStrengthSession';
 import { useUnits } from '../../lib/useUnits';
@@ -82,6 +84,11 @@ export default function FitnessScreen() {
     history.refetch();
   };
 
+  // Silently refetch when the local day rolls over.
+  useDailyReset(() => {
+    void onRefresh();
+  });
+
   const weight = profile.data?.current_weight_lbs ?? null;
   const todayWorkouts = workouts.data?.workouts ?? [];
   const lastWorkout = todayWorkouts[todayWorkouts.length - 1];
@@ -101,6 +108,7 @@ export default function FitnessScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
+      <TabHeader title="Fitness" />
       <SubTabs<Tab>
         tabs={[
           { value: 'today', label: 'Today' },

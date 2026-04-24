@@ -2,6 +2,7 @@ export { ScreenHeader } from './ScreenHeader';
 export { EmptyState } from './EmptyState';
 export { FAB } from './FAB';
 export { SubTabs } from './SubTabs';
+export { TabHeader } from './TabHeader';
 export { SettingsRow } from './SettingsRow';
 export { StatCard } from './StatCard';
 export { StreakBar } from './StreakBar';

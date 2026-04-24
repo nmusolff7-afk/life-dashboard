@@ -5,7 +5,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 import { useWorkoutHistory } from '../../../lib/hooks/useHomeData';
 import { useTokens } from '../../../lib/theme';
 
-import { strength_weekly_volume_label, classifyAsStrength, parseDescription } from '../../../lib/fitness/strengthHelpers';
+import { classifyAsStrength, parseDescription, strength_weekly_volume_label } from '../../../lib/strengthHelpers';
 
 /** Strength subsystem detail — weekly volume trend + recent strength
  *  sessions. Per-lift PR charts require per-set data that lives server-

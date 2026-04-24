@@ -53,7 +53,7 @@ export function ChatShortcutRail({ shortcuts }: Props) {
 
 const styles = StyleSheet.create({
   wrap: {
-    alignItems: 'flex-end',
+    alignItems: 'stretch',
     gap: 8,
   },
   pill: {
@@ -63,6 +63,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 100,
+    // Parent ChatOverlay gives this column a fixed width so every pill
+    // in the stack is the same size — matches the founder's spec.
+    alignSelf: 'stretch',
   },
   label: {
     fontSize: 13,

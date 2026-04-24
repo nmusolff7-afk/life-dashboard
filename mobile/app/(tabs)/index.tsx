@@ -8,6 +8,7 @@ import {
   OverallScoreHero,
   ProgressRow,
   StreakBar,
+  TabHeader,
 } from '../../components/apex';
 import {
   useLoggedDates,
@@ -19,6 +20,7 @@ import {
 import { useLiveCalorieBalance } from '../../lib/hooks/useLiveCalorieBalance';
 import { useScores } from '../../lib/hooks/useScores';
 import { useTokens } from '../../lib/theme';
+import { useDailyReset } from '../../lib/useDailyReset';
 import { useResetScrollOnFocus } from '../../lib/useResetScrollOnFocus';
 import { localToday } from '../../lib/localTime';
 
@@ -61,6 +63,14 @@ export default function HomeScreen() {
       setRefreshing(false);
     }
   }, [nutrition, workouts, profile, loggedDatesApi, scores]);
+
+  // Silently refetch everything when the local calendar day rolls over.
+  // Otherwise "today's" sections keep showing yesterday's data until the
+  // user manually pulls-to-refresh.
+  useDailyReset(() => {
+    void onRefresh();
+    void stepsState.refetch();
+  });
 
   // Derived values ---------------------------------------------------------
 
@@ -121,6 +131,7 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
+      <TabHeader title="Home" />
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={styles.content}
