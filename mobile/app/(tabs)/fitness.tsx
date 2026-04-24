@@ -1,17 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
   ActivityCalendar,
   BurnTrendCard,
-  EmptyState,
   FAB,
+  FitnessSubsystemCard,
   LogActivityCard,
   NumberPromptModal,
+  OverallScoreHero,
   SavedWorkoutsStrip,
-  StatCard,
-  SubsystemsCard,
   SubTabs,
   TodayWorkoutsList,
   WeightTrendCard,
@@ -25,17 +24,23 @@ import {
   useTodayWorkouts,
   useWorkoutHistory,
 } from '../../lib/hooks/useHomeData';
+import { useLiveCalorieBalance } from '../../lib/hooks/useLiveCalorieBalance';
+import { useFitnessScore } from '../../lib/hooks/useScores';
 import { useTokens } from '../../lib/theme';
 import { useResetScrollOnFocus } from '../../lib/useResetScrollOnFocus';
 import { useStrengthSession } from '../../lib/useStrengthSession';
 import { useUnits } from '../../lib/useUnits';
 
+import type { SubsystemScore } from '../../../shared/src/types/score';
+
 type Tab = 'today' | 'progress' | 'history';
+type HistoryFilter = 'all' | 'workouts' | 'weight';
 
 export default function FitnessScreen() {
   const t = useTokens();
   const units = useUnits();
   const [tab, setTab] = useState<Tab>('today');
+  const [historyFilter, setHistoryFilter] = useState<HistoryFilter>('all');
   const { ref: scrollRef, resetScroll } = useResetScrollOnFocus();
 
   const profile = useProfile();
@@ -43,14 +48,14 @@ export default function FitnessScreen() {
   const saved = useSavedWorkouts();
   const stepsState = useTodaySteps();
   const history = useWorkoutHistory(90);
+  const balance = useLiveCalorieBalance();
+  const fitnessScore = useFitnessScore();
 
   const strength = useStrengthSession();
   const [refreshing, setRefreshing] = useState(false);
   const [weightModal, setWeightModal] = useState(false);
   const [stepsModal, setStepsModal] = useState(false);
 
-  /** Tap "Start strength session" — if one's already running, just maximize
-   *  the existing one; otherwise start fresh. */
   const launchStrength = () => {
     if (strength.active) strength.maximize();
     else void strength.start();
@@ -65,6 +70,7 @@ export default function FitnessScreen() {
         saved.refetch(),
         stepsState.refetch(),
         history.refetch(),
+        fitnessScore.refetch(),
       ]);
     } finally {
       setRefreshing(false);
@@ -78,6 +84,20 @@ export default function FitnessScreen() {
 
   const weight = profile.data?.current_weight_lbs ?? null;
   const todayWorkouts = workouts.data?.workouts ?? [];
+  const lastWorkout = todayWorkouts[todayWorkouts.length - 1];
+
+  // Per-subsystem hints — parent derives, child renders.
+  const hints = useMemo(() => buildSubsystemHints({
+    stepsToday: stepsState.steps ?? 0,
+    totalBurn: balance.totalBurn,
+    weightLbs: weight,
+    lastWorkoutDesc: lastWorkout?.description ?? null,
+    weightUnit: units.weightUnit,
+    formatWeight: units.formatWeight,
+  }), [stepsState.steps, balance.totalBurn, weight, lastWorkout, units]);
+
+  const subsystems = fitnessScore.data?.subsystems ?? [];
+  const orderedSubs = orderSubsystems(subsystems);
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
@@ -101,14 +121,46 @@ export default function FitnessScreen() {
         }>
         {tab === 'today' ? (
           <>
-            <View style={styles.scoreBlock}>
-              <Text style={[styles.scoreBig, { color: t.subtle }]}>—</Text>
-              <Text style={[styles.scoreLabel, { color: t.fitness }]}>Fitness score</Text>
-              <Text style={[styles.scoreHint, { color: t.muted }]}>
-                Activates once subsystems have enough data.
-              </Text>
+            {/* Fitness Score hero — reuses OverallScoreHero shape with
+                category data. Passing contributing=[fitness] keeps the
+                label simple. */}
+            <OverallScoreHero
+              data={
+                fitnessScore.data
+                  ? {
+                      score: fitnessScore.data.score,
+                      band: fitnessScore.data.band,
+                      reason: fitnessScore.data.reason,
+                      calibrating: fitnessScore.data.calibrating,
+                      contributing: ['fitness'],
+                      effective_weights: { fitness: 100, nutrition: 0, finance: 0, time: 0 },
+                      data_completeness_overall: fitnessScore.data.data_completeness_overall,
+                      sparkline_7d: fitnessScore.data.sparkline_7d ?? [],
+                      cta: fitnessScore.data.cta,
+                    }
+                  : null
+              }
+              loading={fitnessScore.loading}
+            />
+
+            {/* Today's summary — compact row of the key metrics. */}
+            <View style={styles.summaryRow}>
+              <SummaryCell label="Burn" value={balance.totalBurn != null ? `${balance.totalBurn}` : '—'} unit="kcal" color={t.fitness} />
+              <View style={[styles.summaryDivider, { backgroundColor: t.border }]} />
+              <SummaryCell
+                label="Steps"
+                value={stepsState.steps != null ? stepsState.steps.toLocaleString() : '—'}
+                color={t.text}
+              />
+              <View style={[styles.summaryDivider, { backgroundColor: t.border }]} />
+              <SummaryCell
+                label="Weight"
+                value={weight != null ? units.formatWeight(weight) : '—'}
+                color={t.text}
+              />
             </View>
 
+            {/* Start strength session — primary action */}
             <Pressable
               onPress={launchStrength}
               style={({ pressed }) => [
@@ -132,28 +184,17 @@ export default function FitnessScreen() {
 
             <TodayWorkoutsList workouts={todayWorkouts} onChanged={refreshAllWorkouts} />
 
-            <SubsystemsCard
-              profile={profile.data}
-              weightLbs={weight}
-              todayStepsState={{ steps: stepsState.steps }}
-              recentWorkouts={history.data ?? []}
-              onStartStrength={launchStrength}
-            />
-
-            <View style={styles.statRow}>
-              <StatCard
-                label={`Weight (${units.weightUnit})`}
-                value={units.formatWeight(weight)}
-                valueColor={weight == null ? undefined : t.text}
-                onPress={() => setWeightModal(true)}
-                style={styles.statHalf}
-              />
-              <StatCard
-                label="Steps"
-                value={stepsState.steps == null ? '—' : stepsState.steps.toLocaleString()}
-                onPress={() => setStepsModal(true)}
-                style={styles.statHalf}
-              />
+            {/* 7 subsystem cards stacked — each drills to its detail screen. */}
+            <View style={styles.subsystemStack}>
+              {orderedSubs.map((sub) => (
+                <FitnessSubsystemCard
+                  key={sub.key}
+                  subsystem={sub}
+                  href={`/fitness/subsystem/${sub.key}` as const as never}
+                  hint={hints[sub.key] ?? null}
+                  icon={ICONS[sub.key] ?? 'ellipse-outline'}
+                />
+              ))}
             </View>
           </>
         ) : null}
@@ -163,19 +204,30 @@ export default function FitnessScreen() {
             <BurnTrendCard />
             <WeightTrendCard />
             <ActivityCalendar />
-            <EmptyState
-              icon="🏋️"
-              title="Strength progression"
-              description="Per-lift top-set charts need per-set data (workout_logs schema change)."
-            />
           </>
         ) : null}
 
         {tab === 'history' ? (
-          <WorkoutHistoryList
-            workouts={history.data ?? []}
-            onChanged={refreshAllWorkouts}
-          />
+          <>
+            <View style={styles.filterRow}>
+              {(['all', 'workouts', 'weight'] as const).map((f) => (
+                <FilterChip
+                  key={f}
+                  label={f === 'all' ? 'All' : f === 'workouts' ? 'Workouts' : 'Weight'}
+                  active={historyFilter === f}
+                  onPress={() => setHistoryFilter(f)}
+                />
+              ))}
+            </View>
+
+            {historyFilter !== 'weight' ? (
+              <WorkoutHistoryList
+                workouts={history.data ?? []}
+                onChanged={refreshAllWorkouts}
+              />
+            ) : null}
+            {historyFilter !== 'workouts' ? <WeightTrendCard /> : null}
+          </>
         ) : null}
       </ScrollView>
       <FAB from="fitness" />
@@ -188,7 +240,6 @@ export default function FitnessScreen() {
         placeholder={units.units === 'metric' ? '82' : '180'}
         onClose={() => setWeightModal(false)}
         onSave={async (displayValue) => {
-          // Persist in canonical lbs regardless of display unit.
           await logWeight(units.toCanonicalWeightLbs(displayValue));
           await profile.refetch();
         }}
@@ -203,20 +254,124 @@ export default function FitnessScreen() {
           await stepsState.save(Math.round(n));
         }}
       />
-
-      {/* StrengthTrackerModal itself is rendered at the tabs-layout level so
-          it can be minimized without losing session state. See (tabs)/_layout.tsx. */}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  content: { padding: 16, paddingBottom: 96, gap: 16 },
+// ── Helpers ──────────────────────────────────────────────────────────
 
-  scoreBlock: { alignItems: 'center', paddingVertical: 8, gap: 2 },
-  scoreBig: { fontSize: 56, fontWeight: '700', lineHeight: 58, letterSpacing: -1.2 },
-  scoreLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 4 },
-  scoreHint: { fontSize: 12, textAlign: 'center', marginTop: 2 },
+const SUBSYSTEM_ORDER: Array<SubsystemScore['key']> = [
+  'plan',
+  'strength',
+  'cardio',
+  'body',
+  'movement',
+  'sleep',
+  'recovery',
+];
+
+const ICONS: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
+  plan: 'calendar-outline',
+  strength: 'barbell-outline',
+  cardio: 'pulse-outline',
+  body: 'body-outline',
+  movement: 'walk-outline',
+  sleep: 'moon-outline',
+  recovery: 'heart-circle-outline',
+};
+
+function orderSubsystems(subs: SubsystemScore[]): SubsystemScore[] {
+  const byKey = new Map(subs.map((s) => [s.key, s]));
+  const ordered: SubsystemScore[] = [];
+  for (const key of SUBSYSTEM_ORDER) {
+    const s = byKey.get(key);
+    if (s) ordered.push(s);
+  }
+  // Append any unknown-key subsystems at the end (future-proof)
+  for (const s of subs) {
+    if (!SUBSYSTEM_ORDER.includes(s.key as typeof SUBSYSTEM_ORDER[number])) {
+      ordered.push(s);
+    }
+  }
+  return ordered;
+}
+
+function buildSubsystemHints(ctx: {
+  stepsToday: number;
+  totalBurn: number | null;
+  weightLbs: number | null;
+  lastWorkoutDesc: string | null;
+  weightUnit: string;
+  formatWeight: (n: number | null) => string;
+}): Record<string, string> {
+  return {
+    plan: ctx.lastWorkoutDesc
+      ? `Last: ${ctx.lastWorkoutDesc.slice(0, 40)}`
+      : 'No active plan',
+    strength: ctx.lastWorkoutDesc?.match(/x\d+|set/i)
+      ? `Logged: ${ctx.lastWorkoutDesc.slice(0, 40)}`
+      : 'No strength logged today',
+    cardio: ctx.lastWorkoutDesc?.match(/\b(run|jog|bike|swim|walk|row|cardio)\b/i)
+      ? `Today: ${ctx.lastWorkoutDesc.slice(0, 40)}`
+      : 'No cardio logged today',
+    body: ctx.weightLbs != null
+      ? `${ctx.formatWeight(ctx.weightLbs)} today`
+      : 'Log weight to activate',
+    movement: ctx.stepsToday > 0
+      ? `${ctx.stepsToday.toLocaleString()} steps today`
+      : 'No steps logged today',
+    sleep: 'Connect Apple Health to activate',
+    recovery: 'Connect Apple Health to activate',
+  };
+}
+
+function SummaryCell({ label, value, unit, color }: { label: string; value: string; unit?: string; color: string }) {
+  const t = useTokens();
+  return (
+    <View style={styles.summaryCell}>
+      <Text style={[styles.summaryValue, { color }]}>
+        {value}
+        {unit ? <Text style={[styles.summaryUnit, { color: t.muted }]}> {unit}</Text> : null}
+      </Text>
+      <Text style={[styles.summaryLabel, { color: t.muted }]}>{label}</Text>
+    </View>
+  );
+}
+
+function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  const t = useTokens();
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.chip,
+        {
+          backgroundColor: active ? t.accent : t.surface,
+          borderColor: active ? t.accent : t.border,
+          opacity: pressed ? 0.88 : 1,
+        },
+      ]}>
+      <Text style={[styles.chipLabel, { color: active ? '#fff' : t.text, fontWeight: active ? '700' : '500' }]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  content: { padding: 16, paddingBottom: 96, gap: 14 },
+
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    gap: 0,
+  },
+  summaryDivider: { width: 1, height: 32, alignSelf: 'center' },
+  summaryCell: { flex: 1, alignItems: 'center', gap: 2 },
+  summaryValue: { fontSize: 16, fontWeight: '700' },
+  summaryUnit: { fontSize: 10, fontWeight: '500' },
+  summaryLabel: { fontSize: 10, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8 },
 
   startStrengthBtn: {
     flexDirection: 'row',
@@ -228,6 +383,14 @@ const styles = StyleSheet.create({
   },
   startStrengthLabel: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
-  statRow: { flexDirection: 'row', gap: 10 },
-  statHalf: { flexBasis: '48%', flexGrow: 1 },
+  subsystemStack: { gap: 8 },
+
+  filterRow: { flexDirection: 'row', gap: 8 },
+  chip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 100,
+    borderWidth: 1,
+  },
+  chipLabel: { fontSize: 13 },
 });
