@@ -58,7 +58,12 @@ interface SessionValue {
    *  mounted above the tabs so its hooks are separate from theirs. */
   dataVersion: number;
   fabAnchor: FabAnchor | null;
-  open: (surface?: Surface) => void;
+  /** Pending text from the persistent dock — ChatInput reads this on
+   *  open so a message typed into the dock doesn't evaporate when the
+   *  full overlay appears. Closing via the Back button restores the
+   *  dock's last state. */
+  draftText: string;
+  open: (surface?: Surface, initialText?: string) => void;
   close: () => void;
   send: (text: string) => Promise<void>;
   reset: () => void;
@@ -66,6 +71,7 @@ interface SessionValue {
   closeQuickLog: () => void;
   bumpDataVersion: () => void;
   setFabAnchor: (a: FabAnchor | null) => void;
+  setDraftText: (t: string) => void;
   sessionId: string;
 }
 
@@ -85,6 +91,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const [quickLog, setQuickLog] = useState<QuickLog | null>(null);
   const [dataVersion, setDataVersion] = useState(0);
   const [fabAnchor, setFabAnchor] = useState<FabAnchor | null>(null);
+  const [draftText, setDraftText] = useState('');
 
   // End the session after 30min of background per §4.7.7.
   const backgroundedAt = useRef<number | null>(null);
@@ -105,8 +112,9 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     return () => sub.remove();
   }, []);
 
-  const open = useCallback((s: Surface = 'home') => {
+  const open = useCallback((s: Surface = 'home', initialText?: string) => {
     setSurface(s);
+    if (initialText != null) setDraftText(initialText);
     setVisible(true);
   }, []);
 
@@ -224,6 +232,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       quickLog,
       dataVersion,
       fabAnchor,
+      draftText,
       open,
       close,
       send,
@@ -232,6 +241,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       closeQuickLog,
       bumpDataVersion,
       setFabAnchor,
+      setDraftText,
       sessionId,
     }),
     [
@@ -242,6 +252,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       quickLog,
       dataVersion,
       fabAnchor,
+      draftText,
       open,
       close,
       send,

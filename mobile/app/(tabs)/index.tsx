@@ -10,6 +10,7 @@ import {
   StreakBar,
   TabHeader,
 } from '../../components/apex';
+import { ChatDock } from '../../components/chat/ChatDock';
 import {
   useLoggedDates,
   useProfile,
@@ -306,6 +307,7 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
       <FAB />
+      <ChatDock surface="home" />
     </View>
   );
 }

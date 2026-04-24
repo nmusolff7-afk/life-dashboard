@@ -1,34 +1,81 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
+import { useChatSession } from '../../lib/useChatSession';
 import { useHaptics } from '../../lib/useHaptics';
 import { useTokens } from '../../lib/theme';
 
 interface Props {
   sending: boolean;
   onSend: (text: string) => void;
+  /** Optional back button on the far left — restores pre-expansion
+   *  state without sending. Shown in the expanded overlay. */
+  onBack?: () => void;
+  /** Autofocus the input when first rendered. Lets the overlay open
+   *  with the keyboard already up after the dock hands off. */
+  autoFocus?: boolean;
 }
 
-export function ChatInput({ sending, onSend }: Props) {
+/** Chat input pill. Syncs its text state with chat.draftText so messages
+ *  typed into the ChatDock carry over into the expanded overlay and vice
+ *  versa. */
+export function ChatInput({ sending, onSend, onBack, autoFocus }: Props) {
   const t = useTokens();
   const haptics = useHaptics();
-  const [text, setText] = useState('');
+  const chat = useChatSession();
+  const [text, setText] = useState(chat.draftText);
+  const inputRef = useRef<TextInput>(null);
+
+  // When the overlay opens with a draft from the dock, sync once so we
+  // show that text inside the expanded input.
+  useEffect(() => {
+    setText(chat.draftText);
+    // intentionally only when draftText changes externally
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chat.draftText]);
+
+  useEffect(() => {
+    if (autoFocus) {
+      const id = setTimeout(() => inputRef.current?.focus(), 60);
+      return () => clearTimeout(id);
+    }
+  }, [autoFocus]);
+
+  const handleChange = (v: string) => {
+    setText(v);
+    chat.setDraftText(v);
+  };
 
   const canSend = !sending && text.trim().length > 0;
 
   const send = () => {
     if (!canSend) return;
     haptics.fire('tap');
-    onSend(text.trim());
+    const body = text.trim();
+    onSend(body);
     setText('');
+    chat.setDraftText('');
   };
 
   return (
     <View style={[styles.wrap, { backgroundColor: t.surface, borderColor: t.border }]}>
+      {onBack ? (
+        <Pressable
+          onPress={() => {
+            haptics.fire('tap');
+            onBack();
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          style={styles.backBtn}>
+          <Ionicons name="chevron-back" size={20} color={t.muted} />
+        </Pressable>
+      ) : null}
       <TextInput
+        ref={inputRef}
         value={text}
-        onChangeText={setText}
+        onChangeText={handleChange}
         placeholder="Ask anything"
         placeholderTextColor={t.subtle}
         editable={!sending}
@@ -41,6 +88,7 @@ export function ChatInput({ sending, onSend }: Props) {
       <Pressable
         onPress={send}
         disabled={!canSend}
+        accessibilityLabel="Send message"
         style={({ pressed }) => [
           styles.sendBtn,
           {
@@ -67,6 +115,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 6,
     paddingVertical: 6,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   input: {
     flex: 1,

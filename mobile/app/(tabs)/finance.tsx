@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { EmptyState, FAB, SubTabs, TabHeader } from '../../components/apex';
+import { ChatDock } from '../../components/chat/ChatDock';
 import { useTokens } from '../../lib/theme';
 import { useResetScrollOnFocus } from '../../lib/useResetScrollOnFocus';
 
@@ -76,6 +77,7 @@ export default function FinanceScreen() {
         ) : null}
       </ScrollView>
       <FAB from="finance" />
+      <ChatDock surface="finance" />
     </View>
   );
 }

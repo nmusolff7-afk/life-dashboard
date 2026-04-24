@@ -184,7 +184,12 @@ export function ChatOverlay() {
                 bottom: inputBottomFromScreenBottom,
               },
             ]}>
-            <ChatInput sending={chat.sending} onSend={chat.send} />
+            <ChatInput
+              sending={chat.sending}
+              onSend={chat.send}
+              onBack={chat.close}
+              autoFocus
+            />
           </View>
         </Animated.View>
       </KeyboardAvoidingView>

@@ -18,6 +18,7 @@ import {
   WeightTrendCard,
   WorkoutHistoryList,
 } from '../../components/apex';
+import { ChatDock } from '../../components/chat/ChatDock';
 import { logWeight } from '../../lib/api/fitness';
 import { classifyAsStrength } from '../../lib/strengthHelpers';
 import {
@@ -267,6 +268,7 @@ export default function FitnessScreen() {
         ) : null}
       </ScrollView>
       <FAB from="fitness" />
+      <ChatDock surface="fitness" />
 
       <NumberPromptModal
         visible={weightModal}

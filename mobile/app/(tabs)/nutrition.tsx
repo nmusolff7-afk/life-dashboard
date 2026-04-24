@@ -21,6 +21,7 @@ import {
   TabHeader,
   TodayMealsList,
 } from '../../components/apex';
+import { ChatDock } from '../../components/chat/ChatDock';
 import { DEFAULT_PREFERENCES, loadPreferences, type Preferences } from '../../lib/preferences';
 import { useNutritionScore } from '../../lib/hooks/useScores';
 import {
@@ -285,6 +286,7 @@ export default function NutritionScreen() {
         ) : null}
       </ScrollView>
       <FAB from="nutrition" />
+      <ChatDock surface="nutrition" />
 
       <MealPhotoScanner
         visible={photoOpen}
