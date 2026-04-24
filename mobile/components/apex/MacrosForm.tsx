@@ -19,6 +19,7 @@ import {
 import type { Occupation } from '../../../shared/src/logic/neat';
 import { computeProjection } from '../../../shared/src/logic/projection';
 import { updateGoal } from '../../lib/api/profile';
+import { DEFAULT_PREFERENCES, loadPreferences, type Preferences } from '../../lib/preferences';
 import { useTokens } from '../../lib/theme';
 import { useHaptics } from '../../lib/useHaptics';
 import { SliderRow } from './SliderRow';
@@ -64,6 +65,10 @@ export function MacrosForm({ onboarding, profile, onSaved }: Props) {
   const [fiber, setFiber] = useState(30);
   const [sodium, setSodium] = useState(2300);
   const [saving, setSaving] = useState(false);
+  const [prefs, setPrefs] = useState<Preferences>(DEFAULT_PREFERENCES);
+  useEffect(() => {
+    loadPreferences().then(setPrefs).catch(() => {});
+  }, []);
 
   const bodyStats = useMemo(() => {
     const weightLbs = (saved?.current_weight_lbs as number | undefined) ?? profile?.current_weight_lbs ?? null;
@@ -216,11 +221,18 @@ export function MacrosForm({ onboarding, profile, onSaved }: Props) {
       Alert.alert('Missing body stats', 'Fill out Body Stats first so we know your burn.');
       return;
     }
+    // RMR lock (Advanced pref): when ON, preserve the previously stored
+    // RMR instead of recomputing from fresh body stats. Without this, a
+    // user who tuned their RMR manually would see it silently re-shift
+    // every time they save from this screen.
+    const lockedRmr = profile?.rmr_kcal ?? null;
+    const rmrToPersist = prefs.rmrLocked && lockedRmr != null ? lockedRmr : suggestion.rmr;
+
     setSaving(true);
     try {
       await updateGoal({
         goal,
-        rmr: suggestion.rmr,
+        rmr: rmrToPersist,
         tdee: burn, // full TDEE so Flask's target math differentiates goals
         deficit: Math.round(deficit),
         protein: Math.round(protein),

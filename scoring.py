@@ -313,15 +313,39 @@ def _nutrition_signals(user_id: int, as_of: str) -> list[Signal]:
         data_completeness=1.0 if meal_count else 0.0,
     )
 
-    # Hydration (weight=5) — gated by user opt-in. At v1 hydration is NOT
-    # wired yet, so the signal is permanently excluded (weight redistributes).
-    # Will be re-enabled in Phase 7 when hydration UI ships.
+    # Hydration (weight=5). Phase 7 shipped HydrationCard + log endpoint;
+    # daily_activity.hydration_oz now populates for users who opt in. If a
+    # user never logs water, data_completeness stays 0 and the B2 weight
+    # redistributor pushes the 5 points back to the other signals so the
+    # user isn't penalised for a feature they haven't enabled.
+    # Per-user goal override is a client-side pref (AsyncStorage) today —
+    # server uses the FDA-adjacent 64 oz default for scoring until that
+    # pref syncs server-side.
+    with get_conn() as conn:
+        hydro_row = conn.execute(
+            "SELECT hydration_oz FROM daily_activity WHERE user_id = ? AND log_date = ?",
+            (user_id, as_of),
+        ).fetchone()
+    hydro_oz = float(hydro_row["hydration_oz"] or 0) if hydro_row else 0.0
+    hydro_goal = 64.0
+    if hydro_oz > 0:
+        # Safe band ±10% of goal, D_max -50% under (severe dehydration).
+        # Over-hydration is not penalised — math.inf on the upside means
+        # any value at or above goal scores 1.0.
+        hydro_score = piecewise_linear(
+            hydro_oz, hydro_goal, hydro_goal * 0.1, math.inf,
+            hydro_goal * 0.5, math.inf,
+        )
+        hydro_completeness = 1.0
+    else:
+        hydro_score = None
+        hydro_completeness = 0.0
     hydration_sig = Signal(
         name="hydration",
         label="Hydration",
-        weight=0.0,  # 5.0 once hydration is activated per-user
-        score=None,
-        data_completeness=0.0,
+        weight=5.0,
+        score=hydro_score,
+        data_completeness=hydro_completeness,
     )
 
     return [cal_sig, prot_sig, log_sig, macro_sig, hydration_sig]

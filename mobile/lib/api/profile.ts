@@ -79,3 +79,16 @@ export async function pollOnboarding(): Promise<OnboardingPollResponse> {
   const res = await apiFetch('/api/onboarding/poll');
   return jsonOrThrow<OnboardingPollResponse>(res, 'onboarding/poll');
 }
+
+export interface ProfileSyncStatus {
+  out_of_sync: boolean;
+  /** Short human-readable reason, e.g. "diet preferences changed". */
+  reason: string | null;
+}
+
+/** Whether the stored profile_map needs an AI regeneration because the user
+ *  edited diet/goal fields that feed it. Returned by /api/profile/sync-status. */
+export async function fetchProfileSyncStatus(): Promise<ProfileSyncStatus> {
+  const res = await apiFetch('/api/profile/sync-status');
+  return jsonOrThrow<ProfileSyncStatus>(res, 'profile/sync-status');
+}
