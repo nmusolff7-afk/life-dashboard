@@ -302,9 +302,55 @@ def init_db():
                 PRIMARY KEY (user_id, summary_date, scale)
             )
         """)
+
+        # Strength sets — structured per-set data parsed (or logged explicitly)
+        # from workout_logs.description. Enables Strength subsystem scoring
+        # (weekly volume vs personal baseline per PRD §9.10.1).
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS strength_sets (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                workout_log_id INTEGER NOT NULL REFERENCES workout_logs(id) ON DELETE CASCADE,
+                exercise_name  TEXT NOT NULL,
+                set_number     INTEGER NOT NULL,
+                weight_lbs     REAL,
+                reps           INTEGER NOT NULL,
+                rpe            REAL,
+                created_at     TIMESTAMP NOT NULL
+            )
+        """)
+
+        # Deterministic score snapshots — overall + per-category. Written by the
+        # nightly job at 03:30 UTC and on-demand by /api/score/*. Immutable after
+        # 7 days (Core) / 30 days (Pro) per PRD §9.12.5.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS daily_scores (
+                user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                score_date   DATE NOT NULL,
+                category     TEXT NOT NULL,  -- 'overall' | 'fitness' | 'nutrition' | 'finance' | 'time'
+                score        INTEGER,         -- NULL when insufficient data
+                band         TEXT NOT NULL,   -- 'green' | 'amber' | 'red' | 'grey'
+                calibrating  INTEGER NOT NULL DEFAULT 0,
+                signals_json TEXT NOT NULL DEFAULT '[]',
+                data_completeness REAL NOT NULL DEFAULT 0.0,
+                computed_at  TIMESTAMP NOT NULL,
+                PRIMARY KEY (user_id, score_date, category)
+            )
+        """)
         # Migrate: add raw_deltas to daily_momentum for penalty-based scoring
         try:
             conn.execute("ALTER TABLE daily_momentum ADD COLUMN raw_deltas TEXT DEFAULT '{}'")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
+        # Migrate: add parse_status to workout_logs for strength-set parsing.
+        # 'parsed' = strength_sets rows were successfully extracted.
+        # 'unparsed' = parser couldn't extract structured sets (cardio, freestyle
+        #              text, or noisy description); flagged for later user review.
+        # 'explicit' = rows were written by a structured logger (new path).
+        # NULL = not yet processed by the backfill.
+        try:
+            conn.execute("ALTER TABLE workout_logs ADD COLUMN parse_status TEXT")
             conn.commit()
         except sqlite3.OperationalError:
             pass
@@ -333,6 +379,8 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_saved_meals_user         ON saved_meals(user_id)",
             "CREATE INDEX IF NOT EXISTS idx_saved_workouts_user      ON saved_workouts(user_id)",
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_clerk_id    ON users(clerk_user_id) WHERE clerk_user_id IS NOT NULL",
+            "CREATE INDEX IF NOT EXISTS idx_strength_sets_workout    ON strength_sets(workout_log_id)",
+            "CREATE INDEX IF NOT EXISTS idx_daily_scores_user_date   ON daily_scores(user_id, score_date)",
         ]:
             conn.execute(idx_sql)
 
@@ -741,6 +789,102 @@ def is_onboarding_complete(user_id):
 
 
 # ── Daily body-weight ───────────────────────────────────
+
+def save_strength_sets(workout_log_id: int, parsed_sets: list) -> int:
+    """Insert parsed sets for a workout. Caller supplies list[ParsedSet] from
+    strength_parser.parse_strength_description(). Returns count inserted."""
+    if not parsed_sets:
+        return 0
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        conn.executemany(
+            """
+            INSERT INTO strength_sets
+              (workout_log_id, exercise_name, set_number, weight_lbs, reps, rpe, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (workout_log_id, s["exercise_name"], s["set_number"],
+                 s["weight_lbs"], s["reps"], s["rpe"], now)
+                for s in parsed_sets
+            ],
+        )
+        conn.commit()
+    return len(parsed_sets)
+
+
+def get_strength_sets_for_workout(workout_log_id: int) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, exercise_name, set_number, weight_lbs, reps, rpe, created_at
+            FROM strength_sets
+            WHERE workout_log_id = ?
+            ORDER BY exercise_name, set_number
+            """,
+            (workout_log_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_strength_sets_for_workout(workout_log_id: int):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM strength_sets WHERE workout_log_id = ?", (workout_log_id,))
+        conn.commit()
+
+
+def strength_weekly_volume(user_id: int, end_date_iso: str, days: int = 7) -> float:
+    """Total (weight × reps) summed across strength_sets in the trailing window.
+    Used by the Strength-subsystem signal per PRD §9.10.1."""
+    from datetime import date as _date, timedelta as _td
+    start = (_date.fromisoformat(end_date_iso) - _td(days=days - 1)).isoformat()
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT COALESCE(SUM(s.weight_lbs * s.reps), 0.0) AS volume
+            FROM strength_sets s
+            JOIN workout_logs w ON w.id = s.workout_log_id
+            WHERE w.user_id = ? AND w.log_date BETWEEN ? AND ? AND s.weight_lbs IS NOT NULL
+            """,
+            (user_id, start, end_date_iso),
+        ).fetchone()
+    return float(row["volume"] or 0.0)
+
+
+def backfill_strength_sets_for_user(user_id: int) -> dict:
+    """One-shot migration: parse any workout_logs rows for this user that
+    haven't been processed yet (parse_status IS NULL) and insert the parsed
+    sets. Stamps parse_status = 'parsed' | 'unparsed' per row. Idempotent."""
+    from strength_parser import parse_strength_description
+
+    stats = {"scanned": 0, "parsed": 0, "unparsed": 0, "sets_inserted": 0}
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, description FROM workout_logs
+            WHERE user_id = ? AND parse_status IS NULL
+            """,
+            (user_id,),
+        ).fetchall()
+    for row in rows:
+        stats["scanned"] += 1
+        parsed = parse_strength_description(row["description"] or "")
+        if parsed:
+            save_strength_sets(row["id"], parsed)
+            stats["parsed"] += 1
+            stats["sets_inserted"] += len(parsed)
+            new_status = "parsed"
+        else:
+            stats["unparsed"] += 1
+            new_status = "unparsed"
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE workout_logs SET parse_status = ? WHERE id = ?",
+                (new_status, row["id"]),
+            )
+            conn.commit()
+    return stats
+
 
 def save_daily_weight(user_id: int, date_str: str, weight_lbs: float):
     """Upsert today's body-weight into daily_activity."""
