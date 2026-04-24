@@ -36,6 +36,12 @@ MIN_DAYS_FOR_CATEGORY_SCORE = 3  # locked B5
 WARMUP_DAYS = 14                 # PRD §9.6.3
 BASELINE_WINDOW_DAYS = 30        # PRD §9.6 — rolling median
 BASELINE_MIN_SAMPLES = 10        # ceil(30/3), per PRD §9.6.2
+# B2 graceful-degradation guard: the active subsystems must cover at
+# least this fraction of the category's total static weight, otherwise
+# the redistribution math would amplify a tiny slice into a full score.
+# Example: Fitness has 100pts of subsystem weight; if only Body (10pts)
+# is active we'd otherwise report Fitness = Body score, which misleads.
+MIN_ACTIVE_WEIGHT_FRACTION = 0.25
 
 # Score band thresholds (§4.2.9)
 BAND_GREEN_MIN = 75
@@ -719,6 +725,28 @@ def compute_fitness_score(user_id: int, as_of: str) -> CategoryResult:
             data_completeness_overall=data_completeness,
             sparkline_7d=_sparkline(user_id, as_of, "fitness"),
             cta="Log more fitness activity to activate your Fitness score.",
+        )
+
+    # B2 guard (PP-1 fix): without this, a user who has only logged weight
+    # (Body subsystem active, weight 10) gets Fitness == Body score because
+    # the redistribution collapses 100pts of category weight onto 10pts of
+    # active weight. That's a 10-for-100 amplification — misleading.
+    # Require at least 25% of the category's subsystem weight to be backed
+    # by real data before we claim a real score.
+    total_possible_weight = sum(s["weight"] for s in subsystems)
+    active_weight = sum(s["weight"] for s in active)
+    if total_possible_weight > 0 and (active_weight / total_possible_weight) < MIN_ACTIVE_WEIGHT_FRACTION:
+        return CategoryResult(
+            category="fitness",
+            score=None,
+            band="grey",
+            reason="insufficient_data",
+            calibrating=calibrating,
+            signals=flat_signals,
+            subsystems=subsystems,
+            data_completeness_overall=data_completeness,
+            sparkline_7d=_sparkline(user_id, as_of, "fitness"),
+            cta="Log workouts or steps to activate your full Fitness score — weight trend alone isn't enough.",
         )
 
     total_w = sum(s["weight"] for s in active)
