@@ -1,5 +1,6 @@
 import type { BurnEstimate, SavedWorkout, Workout } from '../../../shared/src/types/home';
 import { apiFetch } from '../api';
+import { clientTimeFields } from '../localTime';
 
 async function jsonOrThrow<T>(res: Response, ctx: string): Promise<T> {
   if (!res.ok) {
@@ -28,7 +29,11 @@ export async function logWorkout(description: string, caloriesBurned: number): P
   const res = await apiFetch('/api/log-workout', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ description, calories_burned: caloriesBurned }),
+    body: JSON.stringify({
+      description,
+      calories_burned: caloriesBurned,
+      ...clientTimeFields(),
+    }),
   });
   await jsonOrThrow<{ ok: boolean }>(res, 'log-workout');
 }
@@ -52,7 +57,7 @@ export async function logWeight(weightLbs: number): Promise<void> {
   const res = await apiFetch('/api/log-weight', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ weight_lbs: weightLbs }),
+    body: JSON.stringify({ weight_lbs: weightLbs, ...clientTimeFields() }),
   });
   await jsonOrThrow<{ ok: boolean }>(res, 'log-weight');
 }

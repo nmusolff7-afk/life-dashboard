@@ -13,24 +13,24 @@ import {
   useLoggedDates,
   useProfile,
   useTodayNutrition,
+  useTodaySteps,
   useTodayWorkouts,
 } from '../../lib/hooks/useHomeData';
 import { useScores } from '../../lib/hooks/useScores';
 import { useTokens } from '../../lib/theme';
 import { useResetScrollOnFocus } from '../../lib/useResetScrollOnFocus';
-
-function todayIso(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
+import { computeNeat, type Occupation } from '../../../shared/src/logic/neat';
+import { resolveTef } from '../../../shared/src/logic/tef';
+import { computeTdee } from '../../../shared/src/logic/tdee';
+import { localToday } from '../../lib/localTime';
 
 export default function HomeScreen() {
   const t = useTokens();
   const router = useRouter();
-  const today = todayIso();
+  // Use user's local timezone for "today" instead of UTC — otherwise
+  // anything west of UTC sees the streak-bar highlight jump forward
+  // and logs bucket into the wrong day late in the evening.
+  const today = localToday();
 
   const { ref: scrollRef } = useResetScrollOnFocus();
 
@@ -39,6 +39,7 @@ export default function HomeScreen() {
   const profile = useProfile();
   const loggedDatesApi = useLoggedDates(90);
   const scores = useScores();
+  const stepsState = useTodaySteps();
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
@@ -63,7 +64,33 @@ export default function HomeScreen() {
   const totals = nutrition.data?.totals;
   const burn = workouts.data?.burn ?? 0;
   const consumed = totals?.total_calories ?? 0;
-  const calorieTarget = profile.data?.goal_targets?.calorie_target ?? profile.data?.daily_calorie_goal ?? null;
+
+  // Live TDEE — RMR + NEAT + EAT + TEF computed from today's actual data.
+  // Mirrors templates/index.html `applyProfileToMeals` (line ~5906). The
+  // calorie target is then (liveTdee + deficit_surplus), where deficit is
+  // signed per goal (negative for weight loss, positive for surplus). The
+  // stored user_goals.calorie_target is NOT used here — it's a stale
+  // snapshot and would break calorie-remaining math whenever today's
+  // actual burn diverges from the profile's assumed burn.
+  const occupation: Occupation = ((): Occupation => {
+    const ws = profile.data?.work_style;
+    return ws === 'standing' || ws === 'physical' ? ws : 'sedentary';
+  })();
+  const workoutDescriptions = (workouts.data?.workouts ?? []).map((w) => w.description ?? '');
+  const neat = computeNeat({
+    occupation,
+    totalSteps: stepsState.steps ?? 0,
+    workoutDescriptions,
+  });
+  const tef = resolveTef(consumed, {
+    proteinG: totals?.total_protein ?? 0,
+    carbsG: totals?.total_carbs ?? 0,
+    fatG: totals?.total_fat ?? 0,
+  });
+  const rmr = profile.data?.rmr_kcal ?? 0;
+  const liveTdee = rmr > 0 ? computeTdee({ rmr, neat: neat.neatKcal, eat: burn, tef }) : null;
+  const deficit = profile.data?.goal_targets?.deficit_surplus ?? 0;
+  const calorieTarget = liveTdee != null ? liveTdee + deficit : null;
 
   const targets = profile.data?.goal_targets;
   const macroTargets = {
@@ -124,10 +151,12 @@ export default function HomeScreen() {
           </Pressable>
         ) : null}
 
-        {/* BLUF — Overall Score comes first, no preamble. */}
+        {/* Streak bar anchors the top — preserved from Flask PWA layout. */}
+        <StreakBar loggedDates={loggedDates} today={today} days={90} />
+
+        {/* Overall Score — BLUF for the tab. */}
         <OverallScoreHero data={scores.overall.data} loading={scores.overall.loading} />
 
-        <StreakBar loggedDates={loggedDates} today={today} days={90} />
 
         {/* Four category score rows — full-width stacked per D2 */}
         <View style={styles.categoryStack}>
@@ -165,7 +194,7 @@ export default function HomeScreen() {
           <TodayBalanceCard
             caloriesConsumed={consumed}
             calorieTarget={calorieTarget}
-            tdee={profile.data?.rmr_kcal ?? null}
+            tdee={liveTdee}
             macroValues={macroValues}
             macroTargets={macroTargets}
             empty={(nutrition.data?.meals.length ?? 0) === 0}
