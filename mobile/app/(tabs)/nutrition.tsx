@@ -5,7 +5,6 @@ import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native
 import {
   BarcodeScanner,
   CalorieBalanceChart,
-  CalorieRingCard,
   CaloriesConsumedChart,
   FAB,
   HydrationCard,
@@ -14,6 +13,7 @@ import {
   MealHistoryList,
   MealPhotoScanner,
   NutritionMacrosCard,
+  OverallScoreHero,
   PantryScanner,
   RecentMealsChips,
   SavedMealsPicker,
@@ -165,15 +165,65 @@ export default function NutritionScreen() {
         }>
         {tab === 'today' ? (
           <>
-            {/* Score pill lives inside the Calorie Ring card (top-right)
-                instead of a separate hero — keeps the ring as the single
-                dominant visual and avoids stacking two big numbers. */}
-            <CalorieRingCard
-              totalIntake={totalIntake}
-              totalBurn={totalBurn}
-              goalIntake={goalIntake}
-              score={nutritionScore.data?.score ?? null}
-              scoreBand={nutritionScore.data?.band}
+            {/* Big score hero — matches Fitness tab's top-of-page pattern. */}
+            <OverallScoreHero
+              data={
+                nutritionScore.data
+                  ? {
+                      score: nutritionScore.data.score,
+                      band: nutritionScore.data.band,
+                      reason: nutritionScore.data.reason,
+                      calibrating: nutritionScore.data.calibrating,
+                      contributing: ['nutrition'],
+                      effective_weights: { fitness: 0, nutrition: 100, finance: 0, time: 0 },
+                      data_completeness_overall: nutritionScore.data.data_completeness_overall,
+                      sparkline_7d: nutritionScore.data.sparkline_7d ?? [],
+                      cta: nutritionScore.data.cta,
+                    }
+                  : null
+              }
+              loading={nutritionScore.loading}
+            />
+
+            {/* Summary row — same shape as Fitness tab's (Burn·Steps·Weight). */}
+            <View style={styles.summaryRow}>
+              <SummaryCell
+                t={t}
+                label="Intake"
+                value={`${totalIntake}`}
+                unit="kcal"
+              />
+              <View style={[styles.summaryDivider, { backgroundColor: t.border }]} />
+              <SummaryCell
+                t={t}
+                label="Burn"
+                value={totalBurn != null ? `${totalBurn}` : '—'}
+                unit="kcal"
+              />
+              <View style={[styles.summaryDivider, { backgroundColor: t.border }]} />
+              <SummaryCell
+                t={t}
+                label={
+                  totalBurn != null && totalBurn >= totalIntake ? 'Remaining' : 'Over'
+                }
+                value={
+                  goalIntake != null
+                    ? `${Math.abs(goalIntake - totalIntake)}`
+                    : '—'
+                }
+                unit="kcal"
+                emphasize
+              />
+            </View>
+
+            {/* Log Meal moved up top per founder — primary action. */}
+            <LogMealCard
+              onLogged={refreshAllMeals}
+              onTemplateSaved={savedMeals.refetch}
+              onPhotoScan={() => setPhotoOpen(true)}
+              onBarcodeScan={() => setBarcodeOpen(true)}
+              onPantryScan={() => setPantryOpen(true)}
+              onSavedPick={() => setSavedOpen(true)}
             />
 
             <NutritionMacrosCard
@@ -190,15 +240,6 @@ export default function NutritionScreen() {
               saved={savedMeals.data ?? []}
               onLogged={refreshAllMeals}
               onRemoved={savedMeals.refetch}
-            />
-
-            <LogMealCard
-              onLogged={refreshAllMeals}
-              onTemplateSaved={savedMeals.refetch}
-              onPhotoScan={() => setPhotoOpen(true)}
-              onBarcodeScan={() => setBarcodeOpen(true)}
-              onPantryScan={() => setPantryOpen(true)}
-              onSavedPick={() => setSavedOpen(true)}
             />
 
             <TodayMealsList meals={meals} onChanged={refreshAllMeals} />
@@ -246,6 +287,44 @@ export default function NutritionScreen() {
   );
 }
 
+function SummaryCell({
+  t,
+  label,
+  value,
+  unit,
+  emphasize,
+}: {
+  t: ReturnType<typeof useTokens>;
+  label: string;
+  value: string;
+  unit?: string;
+  emphasize?: boolean;
+}) {
+  return (
+    <View style={styles.summaryCell}>
+      <Text style={[styles.summaryValue, { color: emphasize ? t.nutrition : t.text }]}>
+        {value}
+        {unit ? <Text style={[styles.summaryUnit, { color: t.muted }]}> {unit}</Text> : null}
+      </Text>
+      <Text style={[styles.summaryLabel, { color: t.muted }]}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 96, gap: 16 },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  summaryDivider: { width: 1, height: 32, alignSelf: 'center' },
+  summaryCell: { flex: 1, alignItems: 'center', gap: 2 },
+  summaryValue: { fontSize: 16, fontWeight: '700' },
+  summaryUnit: { fontSize: 10, fontWeight: '500' },
+  summaryLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
 });

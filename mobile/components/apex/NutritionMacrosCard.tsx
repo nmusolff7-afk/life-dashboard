@@ -42,13 +42,18 @@ export function NutritionMacrosCard({ consumed, targets, empty }: Props) {
         </Text>
       ) : (
         <>
-          <ProgressRow label="Protein" color={t.protein} consumed={consumed.proteinG}  target={targets?.proteinG}  unit="g" />
-          <ProgressRow label="Carbs"   color={t.carbs}   consumed={consumed.carbsG}    target={targets?.carbsG}    unit="g" />
-          <ProgressRow label="Fat"     color={t.fat}     consumed={consumed.fatG}      target={targets?.fatG}      unit="g" />
+          {/* Palette calmed down per founder — macros keep a single
+              nutrition-category orange; micros roll into a muted
+              secondary. Hit/over color states on ProgressRow still flip
+              to green/red when the user crosses thresholds, so the bars
+              aren't lifeless, just not a rainbow. */}
+          <ProgressRow label="Protein" color={t.nutrition} consumed={consumed.proteinG}  target={targets?.proteinG}  unit="g" />
+          <ProgressRow label="Carbs"   color={t.nutrition} consumed={consumed.carbsG}    target={targets?.carbsG}    unit="g" />
+          <ProgressRow label="Fat"     color={t.nutrition} consumed={consumed.fatG}      target={targets?.fatG}      unit="g" />
           <View style={[styles.divider, { backgroundColor: 'rgba(255,255,255,0.04)' }]} />
-          <ProgressRow label="Sugar"   color={t.sugar}   consumed={consumed.sugarG}    target={targets?.sugarG}    unit="g" />
-          <ProgressRow label="Fiber"   color={t.fiber}   consumed={consumed.fiberG}    target={targets?.fiberG}    unit="g" />
-          <ProgressRow label="Sodium"  color={t.sodium}  consumed={consumed.sodiumMg}  target={targets?.sodiumMg}  unit="mg" />
+          <ProgressRow label="Sugar"   color={t.muted}     consumed={consumed.sugarG}    target={targets?.sugarG}    unit="g" />
+          <ProgressRow label="Fiber"   color={t.muted}     consumed={consumed.fiberG}    target={targets?.fiberG}    unit="g" />
+          <ProgressRow label="Sodium"  color={t.muted}     consumed={consumed.sodiumMg}  target={targets?.sodiumMg}  unit="mg" />
         </>
       )}
     </View>

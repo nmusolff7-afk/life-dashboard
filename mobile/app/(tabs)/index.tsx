@@ -236,21 +236,21 @@ export default function HomeScreen() {
               <View style={styles.macroBars}>
                 <ProgressRow
                   label="Protein"
-                  color={t.protein}
+                  color={t.nutrition}
                   consumed={totals?.total_protein ?? 0}
                   target={macroTargets.proteinG}
                   unit="g"
                 />
                 <ProgressRow
                   label="Carbs"
-                  color={t.carbs}
+                  color={t.nutrition}
                   consumed={totals?.total_carbs ?? 0}
                   target={macroTargets.carbsG}
                   unit="g"
                 />
                 <ProgressRow
                   label="Fat"
-                  color={t.fat}
+                  color={t.nutrition}
                   consumed={totals?.total_fat ?? 0}
                   target={macroTargets.fatG}
                   unit="g"
@@ -261,21 +261,21 @@ export default function HomeScreen() {
               <View style={styles.macroBars}>
                 <ProgressRow
                   label="Sugar"
-                  color={t.sugar}
+                  color={t.muted}
                   consumed={totals?.total_sugar ?? 0}
                   target={macroTargets.sugarG}
                   unit="g"
                 />
                 <ProgressRow
                   label="Fiber"
-                  color={t.fiber}
+                  color={t.muted}
                   consumed={totals?.total_fiber ?? 0}
                   target={macroTargets.fiberG}
                   unit="g"
                 />
                 <ProgressRow
                   label="Sodium"
-                  color={t.sodium}
+                  color={t.muted}
                   consumed={totals?.total_sodium ?? 0}
                   target={macroTargets.sodiumMg}
                   unit="mg"
