@@ -4,12 +4,12 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 
 import {
   CategoryScoreRow,
-  FAB,
   OverallScoreHero,
   ProgressRow,
   StreakBar,
   TabHeader,
 } from '../../components/apex';
+import { AskAnythingCard } from '../../components/chat/AskAnythingCard';
 import {
   useLoggedDates,
   useProfile,
@@ -308,8 +308,9 @@ export default function HomeScreen() {
             </Pressable>
           </View>
         ) : null}
+
+        <AskAnythingCard surface="home" />
       </ScrollView>
-      <FAB />
     </View>
   );
 }

@@ -2,7 +2,8 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { EmptyState, FAB, SubTabs, TabHeader } from '../../components/apex';
+import { EmptyState, SubTabs, TabHeader } from '../../components/apex';
+import { AskAnythingCard } from '../../components/chat/AskAnythingCard';
 import { useTokens } from '../../lib/theme';
 import { useResetScrollOnFocus } from '../../lib/useResetScrollOnFocus';
 
@@ -74,8 +75,9 @@ export default function FinanceScreen() {
         {tab === 'history' ? (
           <EmptyState icon="🧾" title="Transaction history" description="Transactions by date appear here." />
         ) : null}
+
+        <AskAnythingCard surface="finance" />
       </ScrollView>
-      <FAB from="finance" />
     </View>
   );
 }

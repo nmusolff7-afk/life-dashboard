@@ -6,7 +6,6 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 import {
   ActivityCalendar,
   BurnTrendCard,
-  FAB,
   FitnessSubsystemCard,
   LogActivityCard,
   NumberPromptModal,
@@ -18,6 +17,7 @@ import {
   WeightTrendCard,
   WorkoutHistoryList,
 } from '../../components/apex';
+import { AskAnythingCard } from '../../components/chat/AskAnythingCard';
 import { logWeight } from '../../lib/api/fitness';
 import { classifyAsStrength } from '../../lib/strengthHelpers';
 import {
@@ -268,8 +268,9 @@ export default function FitnessScreen() {
             />
           </>
         ) : null}
+
+        <AskAnythingCard surface="fitness" />
       </ScrollView>
-      <FAB from="fitness" />
 
       <NumberPromptModal
         visible={weightModal}

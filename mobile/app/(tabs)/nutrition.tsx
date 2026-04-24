@@ -6,7 +6,6 @@ import {
   BarcodeScanner,
   CalorieBalanceChart,
   CaloriesConsumedChart,
-  FAB,
   HydrationCard,
   LogMealCard,
   MacroTrendsCard,
@@ -21,6 +20,7 @@ import {
   TabHeader,
   TodayMealsList,
 } from '../../components/apex';
+import { AskAnythingCard } from '../../components/chat/AskAnythingCard';
 import { DEFAULT_PREFERENCES, loadPreferences, type Preferences } from '../../lib/preferences';
 import { useNutritionScore } from '../../lib/hooks/useScores';
 import {
@@ -283,8 +283,9 @@ export default function NutritionScreen() {
         {tab === 'history' ? (
           <MealHistoryList meals={history.data ?? []} onChanged={refreshAllMeals} />
         ) : null}
+
+        <AskAnythingCard surface="nutrition" />
       </ScrollView>
-      <FAB from="nutrition" />
 
       <MealPhotoScanner
         visible={photoOpen}

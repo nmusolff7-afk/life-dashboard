@@ -1,19 +1,19 @@
 import { ClerkProvider, useAuth } from '@clerk/clerk-expo';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Stack, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { StrengthTrackerModal } from '../components/apex';
+import { FAB, StrengthTrackerModal } from '../components/apex';
 import { ChatOverlay } from '../components/chat/ChatOverlay';
 import { QuickLogHost } from '../components/chat/QuickLogHost';
 import { hydrateFlaskToken } from '../lib/flaskToken';
 import { useTodayWorkouts } from '../lib/hooks/useHomeData';
 import { ThemeProvider, useTheme } from '../lib/theme';
 import { tokenCache } from '../lib/tokenCache';
-import { ChatSessionProvider, useChatSession } from '../lib/useChatSession';
+import { ChatSessionProvider, useChatSession, type Surface } from '../lib/useChatSession';
 import { useDailyReset } from '../lib/useDailyReset';
 import { StrengthSessionProvider } from '../lib/useStrengthSession';
 
@@ -59,7 +59,13 @@ function ThemedStack() {
 
 /** Only mount the global overlay hosts once the user is signed in — their
  *  inner hooks fire authenticated fetches, which would 401 on auth
- *  screens otherwise. */
+ *  screens otherwise. Order matters for z-stacking:
+ *    1. ChatOverlay renders the dim backdrop + shortcut rail + chat input
+ *    2. FABHost renders the FAB — rendered AFTER ChatOverlay so it sits
+ *       above the dim (otherwise the dim would paint over the button)
+ *    3. QuickLogHost / StrengthTracker open modals on top of everything
+ *       when active
+ */
 function SignedInHosts() {
   const { isLoaded, isSignedIn } = useAuth();
   if (!isLoaded || !isSignedIn) return null;
@@ -67,10 +73,35 @@ function SignedInHosts() {
     <>
       <RootStrengthTrackerHost />
       <ChatOverlay />
+      <FABHost />
       <QuickLogHost />
       <RootMidnightFlush />
     </>
   );
+}
+
+const TAB_TO_SURFACE: Record<string, Surface> = {
+  index: 'home',
+  fitness: 'fitness',
+  nutrition: 'nutrition',
+  finance: 'finance',
+  time: 'time',
+};
+
+/** Root-level FAB mount. The FAB used to live inside each tab screen,
+ *  which placed it inside Stack's stacking context — below the dim
+ *  backdrop that ChatOverlay paints at the root. Moving it here puts it
+ *  on the same layer as the overlay's rail + input so the backdrop no
+ *  longer covers it, and `zIndex: 200` now works as intended. */
+function FABHost() {
+  const segments = useSegments();
+  // segments[0] is '(tabs)' when inside the tab group; segments[1] is
+  // the active tab route name (e.g. 'fitness'). Hide on every other
+  // screen (settings, day detail, goals, onboarding, auth).
+  if (segments[0] !== '(tabs)') return null;
+  const tabName = (segments[1] as string | undefined) ?? 'index';
+  const from = TAB_TO_SURFACE[tabName] ?? 'home';
+  return <FAB from={from} />;
 }
 
 /** Global midnight-rollover guard. Bumps chat.dataVersion at local
