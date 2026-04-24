@@ -319,6 +319,34 @@ def init_db():
             )
         """)
 
+        # Chatbot audit — names-only transparency log per locked C1.
+        # Persists timestamp, user, shortcut context, response summary (first
+        # 200 chars), model, tokens, cost. We do NOT store the full redacted
+        # prompt — containers_loaded is the names of containers sent, which
+        # satisfies §4.7.15 "user can see what was sent" without ballooning
+        # storage or creating a re-leak vector if the audit table is breached.
+        # 30-day retention both tiers per v1.21 update.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS chatbot_audit (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at       TIMESTAMP NOT NULL,
+                session_id       TEXT NOT NULL,
+                surface          TEXT,
+                shortcut_used    TEXT,
+                query_preview    TEXT,
+                containers_loaded TEXT NOT NULL DEFAULT '[]',
+                containers_skipped TEXT NOT NULL DEFAULT '[]',
+                response_summary TEXT,
+                model            TEXT,
+                input_tokens     INTEGER,
+                output_tokens    INTEGER,
+                cost_usd         REAL,
+                latency_ms       INTEGER,
+                result_status    TEXT NOT NULL DEFAULT 'ok'
+            )
+        """)
+
         # Deterministic score snapshots — overall + per-category. Written by the
         # nightly job at 03:30 UTC and on-demand by /api/score/*. Immutable after
         # 7 days (Core) / 30 days (Pro) per PRD §9.12.5.
@@ -381,6 +409,7 @@ def init_db():
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_clerk_id    ON users(clerk_user_id) WHERE clerk_user_id IS NOT NULL",
             "CREATE INDEX IF NOT EXISTS idx_strength_sets_workout    ON strength_sets(workout_log_id)",
             "CREATE INDEX IF NOT EXISTS idx_daily_scores_user_date   ON daily_scores(user_id, score_date)",
+            "CREATE INDEX IF NOT EXISTS idx_chatbot_audit_user_time  ON chatbot_audit(user_id, created_at DESC)",
         ]:
             conn.execute(idx_sql)
 
