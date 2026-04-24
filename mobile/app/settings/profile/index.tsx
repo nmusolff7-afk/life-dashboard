@@ -19,6 +19,7 @@ export default function ProfileIndex() {
         <SettingsRow title="Daily life" hint="Occupation, work style, stress" onPress={() => router.push('/settings/profile/daily-life')} />
         <SettingsRow title="Diet preferences" hint="Flags for next AI profile regeneration" onPress={() => router.push('/settings/profile/diet')} />
         <SettingsRow title="Macro targets" hint="Deficit / macros / micros sliders" onPress={() => router.push('/settings/profile/macros')} />
+        <SettingsRow title="Advanced" hint="Rollover, auto-adjust, RMR lock, water goal" onPress={() => router.push('/settings/profile/advanced')} />
         <SettingsRow title="Regenerate AI profile map" hint="Uses 1 AI call" onPress={() => router.push('/settings/profile/regenerate')} />
       </ScrollView>
     </View>

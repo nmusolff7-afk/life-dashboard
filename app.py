@@ -597,10 +597,22 @@ def api_onboarding_data():
     })
 
 
+DIET_FIELDS = {
+    "diet_type", "dietary_restrictions", "foods_disliked_list",
+    "foods_loved_list", "allergies", "cuisine_preferences",
+    "cooking_time_weeknight_min", "eats_out_per_week",
+}
+
+
 @app.route("/api/onboarding/save", methods=["POST"])
 @login_required
 def api_onboarding_save():
-    """Save raw page inputs progressively (called after each page)."""
+    """Save raw page inputs progressively (called after each page).
+    If any of the diet-related fields changed, set
+    profile_map_out_of_sync=1 so the UI can nudge the user to re-run
+    AI profile regeneration (PRD §4.8.4). Other field edits do NOT
+    flag out-of-sync — Body Stats and Daily Life recompute
+    deterministically."""
     data = request.get_json() or {}
     row = get_onboarding(uid())
     existing = {}
@@ -609,10 +621,41 @@ def api_onboarding_save():
             existing = json.loads(row["raw_inputs"])
         except Exception as e:
             _log.warning("Failed to parse existing onboarding inputs: %s", e)
-    # Only overwrite with non-null values so earlier pages aren't wiped
-    existing.update({k: v for k, v in data.items() if v is not None})
+
+    incoming = {k: v for k, v in data.items() if v is not None}
+
+    # Detect diet-field changes before merging so we can flag out-of-sync.
+    diet_changed = False
+    for k in DIET_FIELDS:
+        if k in incoming and incoming[k] != existing.get(k):
+            diet_changed = True
+            break
+
+    existing.update(incoming)
     upsert_onboarding_inputs(uid(), json.dumps(existing))
-    return jsonify({"ok": True})
+
+    if diet_changed:
+        from db import get_conn
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE user_onboarding SET profile_map_out_of_sync = 1, "
+                "profile_map_out_of_sync_reason = ? WHERE user_id = ?",
+                ("diet_edited", uid()),
+            )
+            conn.commit()
+    return jsonify({"ok": True, "profile_map_out_of_sync": 1 if diet_changed else 0})
+
+
+@app.route("/api/profile/sync-status")
+@login_required
+def api_profile_sync_status():
+    row = get_onboarding(uid())
+    if not row:
+        return jsonify({"out_of_sync": False, "reason": None})
+    return jsonify({
+        "out_of_sync": bool(row.get("profile_map_out_of_sync")),
+        "reason": row.get("profile_map_out_of_sync_reason"),
+    })
 
 
 @app.route("/api/onboarding/status")

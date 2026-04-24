@@ -87,10 +87,15 @@ export function ChatOverlay() {
   });
 
   // The FAB's top edge, measured from the bottom of the screen (accounting
-  // for safe area inset). The shortcut rail sits above this line.
-  const fabTopOffset = FAB_BOTTOM + FAB_SIZE + insets.bottom;
-  // The chat input's bottom aligns with the FAB bottom.
-  const inputBottomOffset = FAB_BOTTOM + insets.bottom;
+  // for safe area inset). The shortcut rail sits above this line + 20pt
+  // clearance. The chat input sits to the LEFT of the FAB with its bottom
+  // aligned a bit above the FAB's bottom so its pill frame doesn't clip
+  // over the rotating + visually.
+  const CLEARANCE_ABOVE_FAB = 20;
+  const fabTopOffset = FAB_BOTTOM + FAB_SIZE + insets.bottom + CLEARANCE_ABOVE_FAB;
+  // Input bottom sits slightly above the FAB center so the pill doesn't
+  // visually bleed over the button on devices with rounded corners.
+  const inputBottomOffset = FAB_BOTTOM + insets.bottom + CLEARANCE_ABOVE_FAB;
 
   return (
     <View pointerEvents={chat.visible ? 'auto' : 'none'} style={StyleSheet.absoluteFill}>
