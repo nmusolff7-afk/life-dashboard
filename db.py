@@ -850,19 +850,45 @@ def get_workout_history(user_id, days=90):
 
 
 def get_day_detail(user_id, date_str):
-    """Returns individual meal and workout rows for a specific date."""
+    """Day Detail payload per PRD §4.2a. Individual meal + workout rows +
+    rolled-up totals for the stat grid + weight and hydration for that
+    day. Stubs on categories we don't have data for yet (finance/time)."""
     with get_conn() as conn:
-        meals    = conn.execute(
+        meals = conn.execute(
             "SELECT * FROM meal_logs WHERE user_id = ? AND log_date = ? ORDER BY logged_at",
-            (user_id, date_str)
+            (user_id, date_str),
         ).fetchall()
         workouts = conn.execute(
             "SELECT * FROM workout_logs WHERE user_id = ? AND log_date = ? ORDER BY logged_at",
-            (user_id, date_str)
+            (user_id, date_str),
         ).fetchall()
+        activity = conn.execute(
+            "SELECT weight_lbs, hydration_oz FROM daily_activity "
+            "WHERE user_id = ? AND log_date = ?",
+            (user_id, date_str),
+        ).fetchone()
+
+    meal_rows = [dict(r) for r in meals]
+    workout_rows = [dict(r) for r in workouts]
+    totals = {
+        "calories": sum(int(m.get("calories") or 0) for m in meal_rows),
+        "protein_g": sum(float(m.get("protein_g") or 0) for m in meal_rows),
+        "carbs_g": sum(float(m.get("carbs_g") or 0) for m in meal_rows),
+        "fat_g": sum(float(m.get("fat_g") or 0) for m in meal_rows),
+        "sugar_g": sum(float(m.get("sugar_g") or 0) for m in meal_rows),
+        "fiber_g": sum(float(m.get("fiber_g") or 0) for m in meal_rows),
+        "sodium_mg": sum(float(m.get("sodium_mg") or 0) for m in meal_rows),
+        "workout_burn": sum(int(w.get("calories_burned") or 0) for w in workout_rows),
+    }
+    weight_lbs = float(activity["weight_lbs"]) if activity and activity["weight_lbs"] is not None else None
+    hydration_oz = float(activity["hydration_oz"]) if activity and activity["hydration_oz"] is not None else 0.0
     return {
-        "meals":    [dict(r) for r in meals],
-        "workouts": [dict(r) for r in workouts],
+        "date": date_str,
+        "meals": meal_rows,
+        "workouts": workout_rows,
+        "totals": totals,
+        "weight_lbs": weight_lbs,
+        "hydration_oz": hydration_oz,
     }
 
 
