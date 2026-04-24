@@ -8,6 +8,16 @@ if (!baseUrl && typeof __DEV__ !== 'undefined' && __DEV__) {
   console.warn('EXPO_PUBLIC_API_BASE_URL is not set in mobile/.env — API calls will fail.');
 }
 
+/** Structured error codes returned by /api/auth/clerk-verify so the
+ *  mobile bridge can distinguish terminal ("sign out") from
+ *  recoverable ("retry later") failures. */
+export type ClerkVerifyErrorCode =
+  | 'missing_token'
+  | 'clerk_token_invalid'
+  | 'clerk_api_unavailable'
+  | 'server_config'
+  | 'db_error';
+
 export type ClerkVerifyResponse = {
   ok: boolean;
   user_id?: number;
@@ -16,6 +26,7 @@ export type ClerkVerifyResponse = {
   flask_token?: string;
   is_new_user?: boolean;
   error?: string;
+  error_code?: ClerkVerifyErrorCode;
 };
 
 export const api = {

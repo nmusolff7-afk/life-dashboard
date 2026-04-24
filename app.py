@@ -331,21 +331,79 @@ def api_auth_logout():
     return jsonify({"ok": True})
 
 
+def _fetch_clerk_user_with_retry(clerk_user_id: str, secret_key: str) -> dict | None:
+    """Fetch a Clerk user record with exponential backoff on transient
+    failures (5xx + network). Returns None on a non-transient failure;
+    caller should fall back gracefully. Retries 3 times with 0.5s, 1s,
+    2s delays — total ~3.5s worst case which is well under the bridge
+    timeout on the mobile client."""
+    import time
+    url = f"https://api.clerk.com/v1/users/{clerk_user_id}"
+    headers = {"Authorization": f"Bearer {secret_key}"}
+    delays = [0.5, 1.0, 2.0]
+    last_err: str | None = None
+    for attempt in range(len(delays) + 1):
+        try:
+            resp = requests.get(url, headers=headers, timeout=10.0)
+            if resp.status_code in (500, 502, 503, 504) and attempt < len(delays):
+                last_err = f"Clerk API {resp.status_code}"
+                time.sleep(delays[attempt])
+                continue
+            resp.raise_for_status()
+            return resp.json()
+        except requests.Timeout:
+            last_err = "timeout"
+            if attempt < len(delays):
+                time.sleep(delays[attempt])
+                continue
+            break
+        except requests.ConnectionError:
+            last_err = "connection"
+            if attempt < len(delays):
+                time.sleep(delays[attempt])
+                continue
+            break
+        except requests.RequestException as e:
+            last_err = str(e)
+            break
+    _log.warning("Clerk API fetch failed for %s after retries: %s", clerk_user_id, last_err)
+    return None
+
+
 @app.route("/api/auth/clerk-verify", methods=["POST"])
 @limiter.limit("20/minute")
 def api_auth_clerk_verify():
-    """Exchange a Clerk session token for a Flask JWT. Creates the Flask user on first call."""
+    """Exchange a Clerk session token for a Flask JWT.
+
+    Idempotent: safe to call twice for the same clerk_user_id without
+    creating duplicate Flask users (race guard in
+    create_user_from_clerk). Returns structured error_code so the mobile
+    bridge can distinguish recoverable (clerk_api_unavailable → retry
+    later) from terminal (clerk_token_invalid → sign out) failures.
+    """
     data = request.get_json(silent=True) or {}
     clerk_token = (data.get("clerk_token") or "").strip()
     if not clerk_token:
-        return jsonify({"ok": False, "error": "clerk_token required"}), 400
+        return jsonify({
+            "ok": False,
+            "error": "clerk_token required",
+            "error_code": "missing_token",
+        }), 400
 
     claims = clerk_auth.verify_clerk_token(clerk_token)
     if claims is None:
-        return jsonify({"ok": False, "error": "Invalid Clerk token"}), 401
+        return jsonify({
+            "ok": False,
+            "error": "Invalid Clerk token",
+            "error_code": "clerk_token_invalid",
+        }), 401
     clerk_user_id = claims.get("sub")
     if not clerk_user_id:
-        return jsonify({"ok": False, "error": "Clerk token missing sub claim"}), 401
+        return jsonify({
+            "ok": False,
+            "error": "Clerk token missing sub claim",
+            "error_code": "clerk_token_invalid",
+        }), 401
 
     existing = get_user_by_clerk_id(clerk_user_id)
     email = ""
@@ -353,22 +411,23 @@ def api_auth_clerk_verify():
     if existing:
         user_id = existing["id"]
         username = existing["username"]
+        _log.info("clerk-verify: returning existing user_id=%s clerk=%s", user_id, clerk_user_id)
     else:
         secret_key = os.environ.get("CLERK_SECRET_KEY", "")
         if not secret_key:
-            _log.warning("Clerk verify: CLERK_SECRET_KEY not configured")
-            return jsonify({"ok": False, "error": "Server Clerk config missing"}), 500
-        try:
-            resp = requests.get(
-                f"https://api.clerk.com/v1/users/{clerk_user_id}",
-                headers={"Authorization": f"Bearer {secret_key}"},
-                timeout=10.0,
-            )
-            resp.raise_for_status()
-            clerk_user = resp.json()
-        except requests.RequestException as e:
-            _log.warning("Clerk API fetch failed for %s: %s", clerk_user_id, e)
-            return jsonify({"ok": False, "error": "Failed to fetch Clerk user"}), 502
+            _log.error("clerk-verify: CLERK_SECRET_KEY not configured — cannot hydrate new user")
+            return jsonify({
+                "ok": False,
+                "error": "Server Clerk config missing",
+                "error_code": "server_config",
+            }), 500
+        clerk_user = _fetch_clerk_user_with_retry(clerk_user_id, secret_key)
+        if clerk_user is None:
+            return jsonify({
+                "ok": False,
+                "error": "Clerk API unavailable",
+                "error_code": "clerk_api_unavailable",
+            }), 502
 
         primary_id = clerk_user.get("primary_email_address_id")
         for ea in clerk_user.get("email_addresses", []):
@@ -383,11 +442,24 @@ def api_auth_clerk_verify():
         try:
             user_id = create_user_from_clerk(clerk_user_id, email, base_username)
         except Exception:
-            _log.exception("create_user_from_clerk failed")
-            return jsonify({"ok": False, "error": "Failed to create user"}), 500
+            _log.exception("clerk-verify: create_user_from_clerk failed for clerk=%s", clerk_user_id)
+            return jsonify({
+                "ok": False,
+                "error": "Failed to create user",
+                "error_code": "db_error",
+            }), 500
         linked = get_user_by_clerk_id(clerk_user_id)
         username = linked["username"] if linked else base_username
+        # is_new_user is true when this request went through the
+        # creation branch. A concurrent request that lost the race will
+        # also see is_new_user=true here, but the mobile onboarding
+        # gate only reads /api/onboarding/status — not this flag — so
+        # a duplicate "new" signal doesn't cause re-onboarding.
         is_new_user = True
+        _log.info(
+            "clerk-verify: linked user_id=%s clerk=%s is_new=%s email_len=%d",
+            user_id, clerk_user_id, is_new_user, len(email or ""),
+        )
 
     flask_token = issue_jwt(user_id)
     return jsonify({

@@ -80,17 +80,21 @@ export function useClerkBridge(): void {
           return;
         }
 
-        // Step 3: bridge failed. Some failures indicate a dead Clerk session on
-        // the client (user was deleted server-side, or session is no longer valid).
-        // In those cases, force sign-out so the user lands back on the sign-in screen.
-        console.error('useClerkBridge: clerk-verify failed:', res.error);
-        const deadSession =
-          res.error === 'Failed to fetch Clerk user' || res.error === 'Invalid Clerk token';
-        if (deadSession) {
-          console.log('useClerkBridge: dead Clerk session detected — signing out');
+        // Step 3: bridge failed. The server returns a structured error_code
+        // that tells us whether to sign out or retry.
+        //   clerk_token_invalid → token is dead (user deleted on Clerk side,
+        //       or session revoked). Sign out so user lands on sign-in.
+        //   clerk_api_unavailable / server_config / db_error → transient or
+        //       server-side issue. KEEP the user signed in so the next
+        //       bridge attempt (next app launch or next useEffect run)
+        //       can succeed once the root cause clears.
+        console.error('useClerkBridge: clerk-verify failed:', res.error_code, res.error);
+        if (res.error_code === 'clerk_token_invalid' || res.error_code === 'missing_token') {
+          console.log('useClerkBridge: terminal Clerk failure — signing out');
           clearFlaskToken();
           await signOut();
         }
+        // Anything else: leave Clerk session intact; next render retries.
       } catch (err) {
         if (!cancelled) console.error('useClerkBridge: bridge call threw:', err);
       }

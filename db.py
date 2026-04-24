@@ -600,10 +600,19 @@ def get_user_by_clerk_id(clerk_user_id):
 
 
 def create_user_from_clerk(clerk_user_id: str, email: str, username: str) -> int:
-    """Create a new user linked to a Clerk identity. Returns new user_id.
+    """Create a new user linked to a Clerk identity. Returns user_id.
 
-    Username must be unique; appends 4 random digits on collision. password_hash
-    is a non-usable placeholder since Clerk owns credential verification.
+    Idempotent: if a concurrent request already inserted a row with this
+    clerk_user_id (race between two near-simultaneous /api/auth/clerk-
+    verify calls — easy to trigger via React strict-mode double-firing
+    of the bridge effect), we swallow the UNIQUE-constraint IntegrityError
+    and return the existing row's id. Without this guard the second
+    request blew up with a generic 500 and the mobile bridge couldn't
+    recover, blocking fresh signups.
+
+    Username must be unique; appends random digits on collision.
+    password_hash is a non-usable placeholder since Clerk owns
+    credential verification.
     """
     import random
     base_username = (username or "").strip().lower() or f"user{clerk_user_id[-8:].lower()}"
@@ -619,8 +628,18 @@ def create_user_from_clerk(clerk_user_id: str, email: str, username: str) -> int
                 conn.commit()
                 return cur.lastrowid
             except sqlite3.IntegrityError as e:
-                if "clerk_user_id" in str(e):
-                    raise  # caller should have checked first
+                msg = str(e)
+                if "clerk_user_id" in msg:
+                    # Concurrent insert beat us — return the winning row's id.
+                    row = conn.execute(
+                        "SELECT id FROM users WHERE clerk_user_id = ?",
+                        (clerk_user_id,),
+                    ).fetchone()
+                    if row:
+                        return int(row["id"])
+                    # Shouldn't happen; re-raise for visibility.
+                    raise
+                # Username collision — append random digits and retry.
                 attempt = f"{base_username}{random.randint(1000, 9999)}"
         raise RuntimeError(f"Could not create unique username for Clerk user {clerk_user_id}")
 
