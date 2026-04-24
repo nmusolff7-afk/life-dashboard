@@ -339,7 +339,7 @@ function SummaryCell({
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 16, paddingBottom: 24, gap: 16 },
+  content: { padding: 16, paddingBottom: 72, gap: 16 },
   summaryRow: {
     flexDirection: 'row',
     alignItems: 'center',

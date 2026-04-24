@@ -396,7 +396,7 @@ function FilterChip({ label, active, onPress }: { label: string; active: boolean
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 16, paddingBottom: 24, gap: 14 },
+  content: { padding: 16, paddingBottom: 72, gap: 14 },
 
   summaryRow: {
     flexDirection: 'row',

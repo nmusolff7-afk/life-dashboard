@@ -97,7 +97,7 @@ export default function TimeScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 16, paddingBottom: 24, gap: 10 },
+  content: { padding: 16, paddingBottom: 72, gap: 10 },
   focusCard: { borderWidth: 1, borderRadius: 20, padding: 20, gap: 6 },
   focusLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6 },
   focusBig: { fontSize: 32, fontWeight: '700' },

@@ -328,7 +328,7 @@ function MiniStat({ label, value, unit }: { label: string; value: string; unit?:
 }
 
 const styles = StyleSheet.create({
-  content: { paddingTop: 8, paddingBottom: 24, gap: 14 },
+  content: { paddingTop: 8, paddingBottom: 72, gap: 14 },
   horizPad: { paddingHorizontal: 16 },
 
   categoryStack: { paddingHorizontal: 16, gap: 10 },

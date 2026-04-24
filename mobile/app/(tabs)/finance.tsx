@@ -80,7 +80,7 @@ export default function FinanceScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 16, paddingBottom: 24, gap: 16 },
+  content: { padding: 16, paddingBottom: 72, gap: 16 },
   hero: { borderWidth: 1, borderRadius: 20, padding: 20, gap: 6 },
   heroLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6 },
   heroBig: { fontSize: 36, fontWeight: '700' },
