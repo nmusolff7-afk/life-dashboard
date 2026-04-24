@@ -156,8 +156,23 @@ export async function identifyIngredients(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ images }),
   });
-  const body = await jsonOrThrow<{ ingredients: PantryIngredient[] }>(res, 'meals/scan');
-  return body.ingredients ?? [];
+  // Server (identify_ingredients in claude_nutrition.py) returns
+  // { ingredients: string[] } — plain names, no confidence field.
+  // Coerce each string into the typed PantryIngredient shape so the
+  // PantryScanner renderer can read `.name`. Previously the UI showed
+  // "N ingredients found" but no labels because each entry's `.name`
+  // was undefined.
+  const body = await jsonOrThrow<{ ingredients: (string | PantryIngredient)[] }>(res, 'meals/scan');
+  const raw = body.ingredients ?? [];
+  return raw
+    .map((item) => {
+      if (typeof item === 'string') return { name: item.trim() };
+      if (item && typeof item === 'object' && typeof item.name === 'string') {
+        return { name: item.name.trim(), confidence: item.confidence };
+      }
+      return null;
+    })
+    .filter((x): x is PantryIngredient => x != null && x.name.length > 0);
 }
 
 /** Meal suggestion payload — options fit inside remaining calories. */

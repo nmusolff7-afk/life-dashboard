@@ -1058,7 +1058,14 @@ def api_meals_scan():
 @login_required
 def api_meals_suggest():
     data        = request.get_json() or {}
-    ingredients = data.get("ingredients", "").strip()
+    # PP-3b fix: accept either a pre-joined string (Flask PWA shape) or a
+    # list of ingredient names (mobile shape after PantryIngredient coercion).
+    # Previously calling .strip() on a list raised AttributeError → 500.
+    raw_ingredients = data.get("ingredients", "")
+    if isinstance(raw_ingredients, list):
+        ingredients = ", ".join(str(x).strip() for x in raw_ingredients if x).strip()
+    else:
+        ingredients = str(raw_ingredients or "").strip()
     images      = data.get("images", [])      # [{b64, media_type}]
     hour        = data.get("hour")             # 0-23, client local hour
     cal_consumed = data.get("calories_consumed", 0) or 0
