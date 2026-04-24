@@ -27,23 +27,27 @@ import { universalShortcuts } from './surfaceShortcuts';
  *
  *   COLLAPSED (default after FAB tap)
  *    - Shortcut rail stacks above the FAB
- *    - Chat input pill sits inline to the LEFT of the FAB at the FAB's
- *      vertical band
- *    - If there are prior turns, the conversation panel rises above the
- *      rail with scrollback
+ *    - Chat input pill sits BOTTOM-ALIGNED with the FAB (same baseline),
+ *      to the LEFT of the FAB so the pill visually tucks under the
+ *      button on the right edge
+ *    - Prior turns render above the rail
  *
  *   EXPANDED (after user taps the input — focuses the TextInput)
  *    - Shortcut rail HIDDEN
- *    - Conversation bubbles fill most of the screen (wider — occupy
- *      from 12pt on the left to 12pt on the right)
- *    - Input WIDENS to the same horizontal span and sits above the
- *      keyboard (KeyboardAvoidingView lifts it)
- *    - FAB stays bottom-right, still rotated to ×
- *    - Back button in the input pill collapses back to COLLAPSED without
- *      closing the overlay (restores shortcuts + tucks input back)
+ *    - Conversation card fills the screen from insets.top+12 down to
+ *      just above the input. Back chevron lives INSIDE the card header.
+ *    - Input widens (leaves FAB column reserved) and rises above the
+ *      keyboard via tracked kbHeight
+ *    - FAB rises in lock-step with the input so it always sits above
+ *      the input on the right hand side (FAB reads chat.inputExpanded
+ *      and its own kbHeight listener).
  */
 const SHORTCUT_COL_WIDTH = 80;
 const CLEARANCE_ABOVE_FAB = 2;
+/** Extra breathing room above the system keyboard (iOS on some devices
+ *  reports a height that's missing the home-indicator band — 20pt is
+ *  safe everywhere). */
+const INPUT_CLEAR_ABOVE_KB = 20;
 
 export function ChatOverlay() {
   const t = useTokens();
@@ -53,15 +57,13 @@ export function ChatOverlay() {
   const scrollRef = useRef<ScrollView>(null);
   const [dismissed, setDismissed] = useState(true);
   const [shortcutExpandedKey, setShortcutExpandedKey] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(false);
   const [kbHeight, setKbHeight] = useState(0);
 
-  // Manually track keyboard height so absolutely-positioned children
-  // (input pill, conversation panel) can lift above the keyboard.
-  // KeyboardAvoidingView with behavior="padding" doesn't reliably push
-  // children that use `bottom: X` positioning — the padding shrinks the
-  // content area but absolute children measured-from-bottom don't track
-  // that on every iOS version. This direct approach always works.
+  // Expanded state is context-level so the FAB (at root, outside this
+  // component tree) can react to it and rise above the keyboard.
+  const expanded = chat.inputExpanded;
+  const setExpanded = chat.setInputExpanded;
+
   useEffect(() => {
     const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
@@ -87,7 +89,7 @@ export function ChatOverlay() {
       setShortcutExpandedKey(null);
       setExpanded(false);
     }
-  }, [chat.visible]);
+  }, [chat.visible, setExpanded]);
 
   useEffect(() => {
     if (chat.turns.length > 0) {
@@ -120,16 +122,17 @@ export function ChatOverlay() {
   const inputRight = screen.width - fabX + 10;
   const fabBottomFromScreenBottom = screen.height - (fabY + fabSize);
   const INPUT_PILL_HEIGHT = 50;
-  const inputBottomCollapsed =
-    fabBottomFromScreenBottom + (fabSize - INPUT_PILL_HEIGHT) / 2;
+  // Bottom-align the input pill with the FAB's bottom edge — founder
+  // flagged the previous centered alignment read as "higher than it
+  // should be". Pill's bottom now sits at FAB's bottom.
+  const inputBottomCollapsed = fabBottomFromScreenBottom;
   const conversationBottomCollapsed = railBottomFromScreenBottom;
 
-  // EXPANDED positions — input widens full-width (minus 12pt gutters)
-  // and sits above the keyboard. Bottom offset includes measured
-  // keyboard height when the keyboard is open.
-  const expandedInputBottom = kbHeight > 0 ? kbHeight + 8 : insets.bottom + 8;
-  // Back chevron lives at insets.top + 8 and is ~44pt tall; leave room.
-  const expandedConversationTop = insets.top + 60;
+  // EXPANDED positions
+  const expandedInputBottom =
+    kbHeight > 0 ? kbHeight + INPUT_CLEAR_ABOVE_KB : insets.bottom + 16;
+  const expandedConversationTop = insets.top + 12;
+  const expandedConversationBottom = expandedInputBottom + INPUT_PILL_HEIGHT + 8;
 
   const collapse = () => {
     setExpanded(false);
@@ -142,8 +145,8 @@ export function ChatOverlay() {
 
   return (
     <View pointerEvents={chat.visible ? 'auto' : 'none'} style={StyleSheet.absoluteFill}>
-      {/* Dim backdrop. Sits BELOW the shortcut rail / input / FAB so
-          they stay lit. Tapping it dismisses the overlay. */}
+      {/* Dim backdrop. Sits BELOW the rail / input / FAB so they stay
+          lit. Tapping collapses expansion or closes the overlay. */}
       <Animated.View
         pointerEvents={chat.visible ? 'auto' : 'none'}
         style={[
@@ -160,111 +163,100 @@ export function ChatOverlay() {
       </Animated.View>
 
       <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { opacity: anim }]}>
-          {/* Top-left back chevron — visible only when expanded.
-              Collapses the overlay back to the FAB-inline state without
-              closing or sending. Positioned with safe-area top inset so
-              it clears the status bar on every device. */}
-          {expanded ? (
-            <Pressable
-              onPress={collapse}
-              accessibilityRole="button"
-              accessibilityLabel="Collapse chat"
-              hitSlop={10}
-              style={[
-                styles.backBtnTopLeft,
-                {
-                  top: insets.top + 8,
-                  left: 12,
-                  backgroundColor: t.surface,
-                  borderColor: t.border,
-                },
-              ]}>
-              <Ionicons name="chevron-back" size={22} color={t.text} />
-            </Pressable>
-          ) : null}
-          {/* Shortcut rail — hidden while expanded or when there are
-              prior turns (conversation takes its place). */}
-          {!hasTurns && !expanded ? (
-            <View
-              pointerEvents="box-none"
-              style={[
-                styles.railAnchor,
-                {
-                  left: railLeft,
-                  bottom: railBottomFromScreenBottom,
-                  width: SHORTCUT_COL_WIDTH,
-                },
-              ]}>
-              <ChatShortcutRail shortcuts={shortcuts} />
-            </View>
-          ) : null}
+        {/* Shortcut rail — hidden while expanded or when there are
+            prior turns (conversation takes its place). */}
+        {!hasTurns && !expanded ? (
+          <View
+            pointerEvents="box-none"
+            style={[
+              styles.railAnchor,
+              {
+                left: railLeft,
+                bottom: railBottomFromScreenBottom,
+                width: SHORTCUT_COL_WIDTH,
+              },
+            ]}>
+            <ChatShortcutRail shortcuts={shortcuts} />
+          </View>
+        ) : null}
 
-          {/* Conversation panel. Collapsed state: rises above the rail on
-              the LEFT of the FAB. Expanded state: fullscreen width, tall,
-              anchored above the input. */}
-          {(hasTurns || expanded) ? (
-            <View
-              pointerEvents="box-none"
-              style={
-                expanded
-                  ? [
-                      styles.conversationAnchorExpanded,
-                      { top: expandedConversationTop, bottom: expandedInputBottom + INPUT_PILL_HEIGHT + 8 },
-                    ]
-                  : [
-                      styles.conversationAnchor,
-                      { left: 12, right: inputRight, bottom: conversationBottomCollapsed },
-                    ]
-              }>
-              <View
-                style={[
-                  styles.conversation,
-                  { backgroundColor: t.bg + 'EE', borderColor: t.border },
-                ]}>
-                <View style={styles.conversationHeader}>
-                  <Text style={[styles.conversationTitle, { color: t.muted }]}>Chat</Text>
-                  <Pressable
-                    onPress={chat.reset}
-                    accessibilityRole="button"
-                    accessibilityLabel="Clear conversation">
-                    <Text style={[styles.resetLink, { color: t.accent }]}>Clear</Text>
-                  </Pressable>
-                </View>
-                <ScrollView
-                  ref={scrollRef}
-                  style={styles.bubbles}
-                  contentContainerStyle={styles.bubblesContent}
-                  keyboardShouldPersistTaps="handled">
-                  {chat.turns.length === 0 && expanded ? (
-                    <Text style={[styles.emptyHint, { color: t.subtle }]}>
-                      Ask anything about your data. I only see what's on your
-                      dashboard — no advice, just answers.
-                    </Text>
-                  ) : null}
-                  {chat.turns.map((turn) => (
-                    <ChatBubble key={turn.id} turn={turn} />
-                  ))}
-                  {chat.sending ? <TypingBubble /> : null}
-                </ScrollView>
-              </View>
-            </View>
-          ) : null}
-
-          {/* Chat input. Collapsed: left-of-FAB narrow. Expanded: full-
-              width above the keyboard, back-chevron collapses. */}
+        {/* Conversation card. Collapsed: rises above rail on the LEFT of
+            the FAB. Expanded: fullscreen card with back chevron in its
+            own header. */}
+        {(hasTurns || expanded) ? (
           <View
             pointerEvents="box-none"
             style={
               expanded
-                ? [styles.inputAnchor, { left: 12, right: 12, bottom: expandedInputBottom }]
-                : [styles.inputAnchor, { left: 12, right: inputRight, bottom: inputBottomCollapsed }]
+                ? [
+                    styles.conversationAnchorExpanded,
+                    { top: expandedConversationTop, bottom: expandedConversationBottom },
+                  ]
+                : [
+                    styles.conversationAnchor,
+                    { left: 12, right: inputRight, bottom: conversationBottomCollapsed },
+                  ]
             }>
-            <ChatInput
-              sending={chat.sending}
-              onSend={chat.send}
-              onFocus={handleInputFocus}
-            />
+            <View
+              style={[
+                styles.conversation,
+                { backgroundColor: t.bg + 'EE', borderColor: t.border },
+              ]}>
+              <View style={styles.conversationHeader}>
+                {expanded ? (
+                  <Pressable
+                    onPress={collapse}
+                    accessibilityRole="button"
+                    accessibilityLabel="Collapse chat"
+                    hitSlop={10}
+                    style={styles.headerBackBtn}>
+                    <Ionicons name="chevron-back" size={20} color={t.text} />
+                  </Pressable>
+                ) : null}
+                <Text style={[styles.conversationTitle, { color: t.muted }]}>Chat</Text>
+                <Pressable
+                  onPress={chat.reset}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear conversation">
+                  <Text style={[styles.resetLink, { color: t.accent }]}>Clear</Text>
+                </Pressable>
+              </View>
+              <ScrollView
+                ref={scrollRef}
+                style={styles.bubbles}
+                contentContainerStyle={styles.bubblesContent}
+                keyboardShouldPersistTaps="handled">
+                {chat.turns.length === 0 && expanded ? (
+                  <Text style={[styles.emptyHint, { color: t.subtle }]}>
+                    Ask anything about your data. I only see what's on your
+                    dashboard — no advice, just answers.
+                  </Text>
+                ) : null}
+                {chat.turns.map((turn) => (
+                  <ChatBubble key={turn.id} turn={turn} />
+                ))}
+                {chat.sending ? <TypingBubble /> : null}
+              </ScrollView>
+            </View>
           </View>
+        ) : null}
+
+        {/* Chat input. Collapsed: left-of-FAB narrow. Expanded: wider
+            but still leaves FAB column reserved so the FAB can sit
+            above the input on the right. */}
+        <View
+          pointerEvents="box-none"
+          style={
+            expanded
+              ? [styles.inputAnchor, { left: 12, right: inputRight, bottom: expandedInputBottom }]
+              : [styles.inputAnchor, { left: 12, right: inputRight, bottom: inputBottomCollapsed }]
+          }>
+          <ChatInput
+            sending={chat.sending}
+            onSend={chat.send}
+            onFocus={handleInputFocus}
+          />
+        </View>
       </Animated.View>
     </View>
   );
@@ -287,13 +279,20 @@ const styles = StyleSheet.create({
   },
   conversationHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 14,
+    gap: 8,
+    paddingHorizontal: 12,
     paddingTop: 10,
-    paddingBottom: 4,
+    paddingBottom: 6,
+  },
+  headerBackBtn: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   conversationTitle: {
+    flex: 1,
     fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase',
@@ -308,14 +307,5 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 6,
     lineHeight: 18,
-  },
-  backBtnTopLeft: {
-    position: 'absolute',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

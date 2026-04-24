@@ -58,11 +58,13 @@ interface SessionValue {
    *  mounted above the tabs so its hooks are separate from theirs. */
   dataVersion: number;
   fabAnchor: FabAnchor | null;
-  /** Pending text from the persistent dock — ChatInput reads this on
-   *  open so a message typed into the dock doesn't evaporate when the
-   *  full overlay appears. Closing via the Back button restores the
-   *  dock's last state. */
+  /** Pending text — preserves a user's message draft while the overlay
+   *  transitions between states. */
   draftText: string;
+  /** True when the chat input is focused and the overlay has expanded
+   *  into the fullscreen conversation view. FAB watches this so it can
+   *  rise above the keyboard-lifted input. */
+  inputExpanded: boolean;
   open: (surface?: Surface, initialText?: string) => void;
   close: () => void;
   send: (text: string) => Promise<void>;
@@ -72,6 +74,7 @@ interface SessionValue {
   bumpDataVersion: () => void;
   setFabAnchor: (a: FabAnchor | null) => void;
   setDraftText: (t: string) => void;
+  setInputExpanded: (v: boolean) => void;
   sessionId: string;
 }
 
@@ -92,6 +95,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const [dataVersion, setDataVersion] = useState(0);
   const [fabAnchor, setFabAnchor] = useState<FabAnchor | null>(null);
   const [draftText, setDraftText] = useState('');
+  const [inputExpanded, setInputExpanded] = useState(false);
 
   // End the session after 30min of background per §4.7.7.
   const backgroundedAt = useRef<number | null>(null);
@@ -233,6 +237,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       dataVersion,
       fabAnchor,
       draftText,
+      inputExpanded,
       open,
       close,
       send,
@@ -242,6 +247,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       bumpDataVersion,
       setFabAnchor,
       setDraftText,
+      setInputExpanded,
       sessionId,
     }),
     [
@@ -253,6 +259,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       dataVersion,
       fabAnchor,
       draftText,
+      inputExpanded,
       open,
       close,
       send,
