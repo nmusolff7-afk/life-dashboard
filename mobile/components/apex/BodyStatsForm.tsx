@@ -129,10 +129,15 @@ export function BodyStatsForm({ onboarding, profile, onSaved }: Props) {
   // ── Save ────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
-    const wLbs = parseFloat(weight);
+    // Round weight inputs to nearest 0.1 before persisting. Older paths
+    // stored long decimals from slider-driven edits which then redisplayed
+    // as integers via whole-lb rounding, confusing users.
+    const wRaw = parseFloat(weight);
+    const wLbs = Number.isFinite(wRaw) ? Math.round(wRaw * 10) / 10 : NaN;
     const hFt = parseInt(heightFt, 10);
     const hIn = parseInt(heightIn, 10);
-    const tgt = parseFloat(targetWeight);
+    const tgtRaw = parseFloat(targetWeight);
+    const tgt = Number.isFinite(tgtRaw) ? Math.round(tgtRaw * 10) / 10 : NaN;
     const bf = parseFloat(bodyFat);
     const computedAge = ageFromBirthday(birthday);
 

@@ -121,7 +121,12 @@ export function MealPhotoScanner({ visible, onClose, onLogged }: Props) {
     <Modal animationType="slide" presentationStyle="fullScreen" visible={visible} onRequestClose={resetAndClose}>
       <View style={[styles.root, { backgroundColor: '#000', paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <Pressable onPress={resetAndClose} hitSlop={10} style={styles.closeBtn}>
+          <Pressable
+            onPress={resetAndClose}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Close photo scanner"
+            style={styles.closeBtn}>
             <Ionicons name="close" size={26} color="#fff" />
           </Pressable>
           <Text style={styles.headerTitle}>

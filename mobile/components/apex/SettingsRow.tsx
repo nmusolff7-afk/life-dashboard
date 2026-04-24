@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useHaptics } from '../../lib/useHaptics';
 import { useTokens } from '../../lib/theme';
 
 interface Props {
@@ -12,9 +13,14 @@ interface Props {
 
 export function SettingsRow({ title, hint, onPress, right, destructive }: Props) {
   const t = useTokens();
+  const haptics = useHaptics();
   return (
     <Pressable
-      onPress={onPress}
+      onPress={() => {
+        if (!onPress) return;
+        haptics.fire('tap');
+        onPress();
+      }}
       disabled={!onPress}
       style={({ pressed }) => [
         styles.row,

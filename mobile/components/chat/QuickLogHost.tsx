@@ -498,7 +498,12 @@ function WeightModal({
       setError('Enter a valid weight.');
       return;
     }
-    const lbs = units.toCanonicalWeightLbs(n);
+    // Round to nearest 0.1 in the user's display unit, then convert to
+    // canonical lbs. Without this the server sometimes receives a long
+    // trailing decimal (e.g. 66.67824kg from a slider edit) which then
+    // re-displays as an integer because formatWeight rounds to whole lbs.
+    const rounded = Math.round(n * 10) / 10;
+    const lbs = units.toCanonicalWeightLbs(rounded);
     setSaving(true);
     setError(null);
     try {

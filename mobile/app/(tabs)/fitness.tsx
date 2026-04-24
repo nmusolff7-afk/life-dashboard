@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
@@ -18,6 +19,7 @@ import {
   WorkoutHistoryList,
 } from '../../components/apex';
 import { logWeight } from '../../lib/api/fitness';
+import { classifyAsStrength } from '../../lib/strengthHelpers';
 import {
   useProfile,
   useSavedWorkouts,
@@ -37,7 +39,10 @@ import { useUnits } from '../../lib/useUnits';
 import type { SubsystemScore } from '../../../shared/src/types/score';
 
 type Tab = 'today' | 'progress' | 'history';
-type HistoryFilter = 'all' | 'workouts' | 'weight';
+/** Filter chips on the Fitness History sub-tab. Weight trend lives on
+ *  the Progress sub-tab only — founder flagged the History duplication
+ *  and wants filtering by AI-classified session_type instead. */
+type HistoryFilter = 'all' | 'strength' | 'cardio' | 'mixed';
 
 export default function FitnessScreen() {
   const t = useTokens();
@@ -96,6 +101,15 @@ export default function FitnessScreen() {
     if (dataVersion > 0) void onRefresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataVersion]);
+
+  // Reset sub-tab to Today whenever this tab regains focus per founder —
+  // switching across the 5 main tabs should always land on the Today
+  // pane, never a stale Progress/History state from a prior visit.
+  useFocusEffect(
+    useCallback(() => {
+      setTab('today');
+    }, []),
+  );
 
   const weight = profile.data?.current_weight_lbs ?? null;
   const todayWorkouts = workouts.data?.workouts ?? [];
@@ -231,23 +245,26 @@ export default function FitnessScreen() {
         {tab === 'history' ? (
           <>
             <View style={styles.filterRow}>
-              {(['all', 'workouts', 'weight'] as const).map((f) => (
+              {(['all', 'strength', 'cardio', 'mixed'] as const).map((f) => (
                 <FilterChip
                   key={f}
-                  label={f === 'all' ? 'All' : f === 'workouts' ? 'Workouts' : 'Weight'}
+                  label={f.charAt(0).toUpperCase() + f.slice(1)}
                   active={historyFilter === f}
                   onPress={() => setHistoryFilter(f)}
                 />
               ))}
             </View>
 
-            {historyFilter !== 'weight' ? (
-              <WorkoutHistoryList
-                workouts={history.data ?? []}
-                onChanged={refreshAllWorkouts}
-              />
-            ) : null}
-            {historyFilter !== 'workouts' ? <WeightTrendCard /> : null}
+            <WorkoutHistoryList
+              workouts={(history.data ?? []).filter((w) => {
+                if (historyFilter === 'all') return true;
+                // Prefer the AI session_type stamped at log time; fall
+                // back to keyword classify for legacy rows.
+                const st = w.session_type ?? (classifyAsStrength(w.description ?? '') ? 'strength' : 'cardio');
+                return st === historyFilter;
+              })}
+              onChanged={refreshAllWorkouts}
+            />
           </>
         ) : null}
       </ScrollView>

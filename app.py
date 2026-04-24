@@ -501,13 +501,16 @@ def api_hydration_reset():
 @app.route("/api/log-weight", methods=["POST"])
 @login_required
 def api_log_weight():
-    """Save daily weight and update the user's profile current_weight."""
+    """Save daily weight and update the user's profile current_weight.
+    Accepts `client_date` (mobile canonical) or `date` (legacy PWA).
+    Round-to-0.1 happens client-side so the stored value matches what
+    the user typed."""
     data = request.get_json() or {}
     weight = data.get("weight_lbs")
-    date_str = data.get("date") or client_today()
+    date_str = data.get("client_date") or data.get("date") or client_today()
     if not weight or float(weight) < 30:
         return jsonify({"error": "Invalid weight"}), 400
-    weight = float(weight)
+    weight = round(float(weight), 1)
     save_daily_weight(uid(), date_str, weight)
     # Also update current_weight_lbs in the onboarding profile_map
     profile = get_profile_map(uid())

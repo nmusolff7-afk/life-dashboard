@@ -142,7 +142,12 @@ export function PantryScanner({ visible, onClose, onLogged, caloriesConsumedToda
     <Modal animationType="slide" presentationStyle="fullScreen" visible={visible} onRequestClose={close}>
       <View style={[styles.root, { backgroundColor: '#000', paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <Pressable onPress={close} hitSlop={10} style={styles.closeBtn}>
+          <Pressable
+            onPress={close}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Close pantry scanner"
+            style={styles.closeBtn}>
             <Ionicons name="close" size={26} color="#fff" />
           </Pressable>
           <Text style={styles.headerTitle}>

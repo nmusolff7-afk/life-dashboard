@@ -48,7 +48,11 @@ export function StreakBar({ loggedDates, today, days = 90, size = 'md' }: Props)
   }, [loggedDates, today]);
 
   const dates = Array.from({ length: days }, (_, i) => subDaysIso(today, days - 1 - i));
-  const dotSize = size === 'sm' ? 22 : 28;
+  // sm variant: dot sized so exactly 7 fit in the TabHeader right slot
+  // on a standard-width device (≈260pt available). 7 dots + 6 gaps + the
+  // flame cluster = ~252pt. 26pt dots with 4pt gaps land there; the 90-
+  // day history still scrolls horizontally beyond the visible 7.
+  const dotSize = size === 'sm' ? 26 : 28;
   const dotRadius = dotSize / 2;
   const showDow = size === 'md';
 
@@ -117,7 +121,7 @@ const styles = StyleSheet.create({
   wrapMd: { marginBottom: 4 },
   wrapSm: { flex: 1 },
   stripMd: { gap: 6, paddingHorizontal: 16, paddingVertical: 4, alignItems: 'center' },
-  stripSm: { gap: 4, paddingLeft: 8, paddingVertical: 2, alignItems: 'center' },
+  stripSm: { gap: 4, paddingLeft: 4, paddingVertical: 2, alignItems: 'center' },
   dayCol: { alignItems: 'center', gap: 2 },
   dowLabel: { fontSize: 9, fontWeight: '500' },
   dotTextMd: { fontSize: 11 },

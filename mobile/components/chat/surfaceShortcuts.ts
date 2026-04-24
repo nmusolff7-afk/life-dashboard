@@ -17,12 +17,6 @@ export function universalShortcuts(deps: Deps): Shortcut[] {
 
   const fire = (kind: QuickLog) => () => openQuickLog(kind);
 
-  const hourNow = new Date().getHours();
-  const mealHours =
-    (hourNow >= 5 && hourNow < 10) ||
-    (hourNow >= 11 && hourNow < 14) ||
-    (hourNow >= 17 && hourNow < 21);
-
   if (expandedKey === 'log-meal') {
     return [
       { key: 'meal-manual',  label: 'Manual',  icon: 'create-outline',        onPress: fire('meal-manual') },
@@ -48,7 +42,6 @@ export function universalShortcuts(deps: Deps): Shortcut[] {
       key: 'log-meal',
       label: 'Meal',
       icon: 'restaurant-outline',
-      emphasized: mealHours,
       onPress: () => setExpandedKey('log-meal'),
     },
     {

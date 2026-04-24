@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { EmptyState, FAB, SubTabs, TabHeader } from '../../components/apex';
@@ -18,6 +19,12 @@ export default function FinanceScreen() {
   const t = useTokens();
   const [tab, setTab] = useState<Tab>('today');
   const { ref: scrollRef, resetScroll } = useResetScrollOnFocus();
+
+  useFocusEffect(
+    useCallback(() => {
+      setTab('today');
+    }, []),
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>

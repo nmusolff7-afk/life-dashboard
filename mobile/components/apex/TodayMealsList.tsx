@@ -1,8 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Meal } from '../../../shared/src/types/home';
+import { deleteMeal } from '../../lib/api/nutrition';
+import { useHaptics } from '../../lib/useHaptics';
 import { useTokens } from '../../lib/theme';
 import { MealDetailModal } from './MealDetailModal';
 
@@ -25,7 +27,12 @@ function formatTime(iso: string): string {
  *  which hits /api/edit-meal or /api/delete-meal. */
 export function TodayMealsList({ meals, onChanged }: Props) {
   const t = useTokens();
+  const haptics = useHaptics();
   const [editing, setEditing] = useState<Meal | null>(null);
+  const openEdit = (m: Meal) => {
+    haptics.fire('tap');
+    setEditing(m);
+  };
 
   if (meals.length === 0) {
     return (
@@ -51,37 +58,76 @@ export function TodayMealsList({ meals, onChanged }: Props) {
         <Text style={[styles.total, { color: t.cal }]}>{totalKcal.toLocaleString()} kcal</Text>
       </View>
 
-      {sorted.map((m, idx) => (
-        <Pressable
-          key={m.id}
-          onPress={() => setEditing(m)}
-          style={({ pressed }) => [
-            styles.row,
-            {
-              borderBottomColor: t.border,
-              borderBottomWidth: idx < sorted.length - 1 ? StyleSheet.hairlineWidth : 0,
-              opacity: pressed ? 0.6 : 1,
-            },
-          ]}>
-          <Ionicons name="restaurant-outline" size={18} color={t.cal} />
-          <View style={styles.body}>
-            <View style={styles.headRow}>
-              <Text style={[styles.desc, { color: t.text }]} numberOfLines={2}>
-                {m.description}
-              </Text>
-              <Text style={[styles.kcal, { color: t.cal }]}>
-                {m.calories} <Text style={styles.kcalUnit}>kcal</Text>
-              </Text>
+      {sorted.map((m, idx) => {
+        const handleDelete = () => {
+          Alert.alert(
+            'Delete meal?',
+            `This removes "${m.description}" from today.`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Delete',
+                style: 'destructive',
+                onPress: async () => {
+                  try {
+                    await deleteMeal(m.id);
+                    onChanged();
+                  } catch (e) {
+                    Alert.alert('Delete failed', e instanceof Error ? e.message : String(e));
+                  }
+                },
+              },
+            ],
+          );
+        };
+        return (
+          <Pressable
+            key={m.id}
+            onPress={() => openEdit(m)}
+            style={({ pressed }) => [
+              styles.row,
+              {
+                borderBottomColor: t.border,
+                borderBottomWidth: idx < sorted.length - 1 ? StyleSheet.hairlineWidth : 0,
+                opacity: pressed ? 0.6 : 1,
+              },
+            ]}>
+            <Ionicons name="restaurant-outline" size={18} color={t.cal} />
+            <View style={styles.body}>
+              <View style={styles.headRow}>
+                <Text style={[styles.desc, { color: t.text }]} numberOfLines={2}>
+                  {m.description}
+                </Text>
+                <Text style={[styles.kcal, { color: t.cal }]}>
+                  {m.calories} <Text style={styles.kcalUnit}>kcal</Text>
+                </Text>
+              </View>
+              <Text style={[styles.time, { color: t.muted }]}>{formatTime(m.logged_at)}</Text>
+              <View style={styles.macros}>
+                <MacroTag label="P" value={m.protein_g ?? 0} color={t.protein} />
+                <MacroTag label="C" value={m.carbs_g ?? 0} color={t.carbs} />
+                <MacroTag label="F" value={m.fat_g ?? 0} color={t.fat} />
+              </View>
             </View>
-            <Text style={[styles.time, { color: t.muted }]}>{formatTime(m.logged_at)}</Text>
-            <View style={styles.macros}>
-              <MacroTag label="P" value={m.protein_g ?? 0} color={t.protein} />
-              <MacroTag label="C" value={m.carbs_g ?? 0} color={t.carbs} />
-              <MacroTag label="F" value={m.fat_g ?? 0} color={t.fat} />
+            <View style={styles.actions}>
+              <Pressable
+                onPress={() => openEdit(m)}
+                hitSlop={10}
+                accessibilityLabel="Edit meal"
+                style={[styles.iconBtn, { backgroundColor: t.surface2 }]}>
+                <Ionicons name="pencil" size={13} color={t.muted} />
+              </Pressable>
+              <Pressable
+                onPress={handleDelete}
+                hitSlop={10}
+                accessibilityLabel="Delete meal"
+                style={[styles.iconBtn, { backgroundColor: t.surface2 }]}>
+                <Ionicons name="trash-outline" size={13} color={t.danger} />
+              </Pressable>
             </View>
-          </View>
-        </Pressable>
-      ))}
+          </Pressable>
+        );
+      })}
 
       <MealDetailModal
         meal={editing}
@@ -133,4 +179,12 @@ const styles = StyleSheet.create({
   time: { fontSize: 11 },
   macros: { flexDirection: 'row', gap: 12, marginTop: 2 },
   macroTag: { fontSize: 11, fontWeight: '700' },
+  actions: { flexDirection: 'column', gap: 6, marginLeft: 4 },
+  iconBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

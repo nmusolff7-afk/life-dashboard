@@ -118,6 +118,13 @@ export default function NutritionScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataVersion]);
 
+  // Reset sub-tab to Today whenever this tab regains focus.
+  useFocusEffect(
+    useCallback(() => {
+      setTab('today');
+    }, []),
+  );
+
   const totals = nutrition.data?.totals;
   const meals = nutrition.data?.meals ?? [];
 

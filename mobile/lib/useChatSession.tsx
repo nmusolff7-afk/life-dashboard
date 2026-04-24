@@ -34,6 +34,19 @@ export interface ChatTurn {
   createdAt: number;
 }
 
+/** Measured screen position of the FAB. The FAB button reports its
+ *  origin via onLayout so the ChatOverlay can anchor its shortcut rail
+ *  and chat input pill exactly relative to it, regardless of screen
+ *  size or safe-area inset. */
+export interface FabAnchor {
+  /** FAB top-left x in root coordinates. */
+  x: number;
+  /** FAB top-left y in root coordinates. */
+  y: number;
+  /** FAB width (square — height equals width). */
+  size: number;
+}
+
 interface SessionValue {
   visible: boolean;
   surface: Surface;
@@ -44,6 +57,7 @@ interface SessionValue {
    *  watch this to refetch their own data slices — the QuickLogHost is
    *  mounted above the tabs so its hooks are separate from theirs. */
   dataVersion: number;
+  fabAnchor: FabAnchor | null;
   open: (surface?: Surface) => void;
   close: () => void;
   send: (text: string) => Promise<void>;
@@ -51,6 +65,7 @@ interface SessionValue {
   openQuickLog: (kind: QuickLog) => void;
   closeQuickLog: () => void;
   bumpDataVersion: () => void;
+  setFabAnchor: (a: FabAnchor | null) => void;
   sessionId: string;
 }
 
@@ -69,6 +84,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const [sessionId, setSessionId] = useState<string>(newId());
   const [quickLog, setQuickLog] = useState<QuickLog | null>(null);
   const [dataVersion, setDataVersion] = useState(0);
+  const [fabAnchor, setFabAnchor] = useState<FabAnchor | null>(null);
 
   // End the session after 30min of background per §4.7.7.
   const backgroundedAt = useRef<number | null>(null);
@@ -207,6 +223,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       sending,
       quickLog,
       dataVersion,
+      fabAnchor,
       open,
       close,
       send,
@@ -214,6 +231,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       openQuickLog,
       closeQuickLog,
       bumpDataVersion,
+      setFabAnchor,
       sessionId,
     }),
     [
@@ -223,6 +241,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       sending,
       quickLog,
       dataVersion,
+      fabAnchor,
       open,
       close,
       send,

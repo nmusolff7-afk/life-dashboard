@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
+  Dimensions,
   Easing,
   KeyboardAvoidingView,
   Platform,
@@ -19,21 +20,22 @@ import { ChatInput } from './ChatInput';
 import { ChatShortcutRail, type Shortcut } from './ChatShortcutRail';
 import { universalShortcuts } from './surfaceShortcuts';
 
-/** FAB layout math: FAB is at `bottom: 14`, `right: 18`, size 52. Overlay
- *  content must sit directly around that fixed button:
- *    - Chat input pill: aligned bottom-left, its bottom at FAB bottom
- *    - Shortcut rail: stacked vertically in a column whose bottom edge
- *      sits flush with the TOP of the FAB (so the lowest pill is right
- *      above the button).
- *  No translateY on open — content fades in place while the FAB itself
- *  rotates. */
-const FAB_SIZE = 52;
-const FAB_BOTTOM = 14;
-const FAB_RIGHT = 18;
-// Shortcut column is sized to roughly match the FAB's own footprint so
-// pills stack directly over the button. 80pt is wide enough for the
-// compact "icon over tiny label" pill without looking crammed.
+/** Overlay anchored around the measured FAB position. The FAB reports
+ *  its onscreen origin via chat.setFabAnchor; we read that here and
+ *  position every child (shortcut rail, conversation, chat input) in
+ *  coordinates relative to it. This way the layout is identical on SE
+ *  through Pro Max without hardcoded per-device tweaks.
+ *
+ *  A dim backdrop sits below the shortcut rail / input / FAB in z-order
+ *  so those three remain visually "lit" while the rest of the screen
+ *  fades — matches the founder spec (everything dims except the FAB,
+ *  text input box, and action buttons). */
 const SHORTCUT_COL_WIDTH = 80;
+const CLEARANCE_ABOVE_FAB = 16;
+/** Extra lift for the chat input so it sits above the FAB by ~10pt more
+ *  than the shortcut rail alignment would imply. Founder noted the input
+ *  previously sat too low. */
+const INPUT_EXTRA_LIFT = 10;
 
 export function ChatOverlay() {
   const t = useTokens();
@@ -70,53 +72,65 @@ export function ChatOverlay() {
 
   const hasTurns = chat.turns.length > 0;
 
-  // Universal shortcuts — identical across every surface per founder.
-  // All leaves fire openQuickLog, which dismisses the overlay and pops
-  // the matching entry modal (see QuickLogHost).
   const shortcuts: Shortcut[] = universalShortcuts({
     expandedKey,
     setExpandedKey,
     openQuickLog: chat.openQuickLog,
   });
 
-  // Content sits well above the FAB so the rotating + stays visible and
-  // the shortcut pills / input pill never visually graze the button.
-  // CONTENT_LIFT: raises the shortcut rail / input higher than the
-  // previous 20pt clearance — the founder flagged content still sat too
-  // low obscuring the FAB shadow.
-  const CONTENT_LIFT = 72;
-  const fabTopOffset = FAB_BOTTOM + FAB_SIZE + insets.bottom + CONTENT_LIFT;
-  const inputBottomOffset = FAB_BOTTOM + insets.bottom + CONTENT_LIFT;
+  // Anchor math. If the FAB has reported its measured position, position
+  // relative to that. Fall back to the spec'd defaults if we don't have
+  // a measurement yet (first frame before onLayout fires).
+  const screen = Dimensions.get('window');
+  const fab = chat.fabAnchor;
+  const FAB_SIZE_FALLBACK = 52;
+  const fabSize = fab?.size ?? FAB_SIZE_FALLBACK;
+  // In root-coords: FAB top-left (fabX, fabY).
+  const fabX = fab ? fab.x : screen.width - 18 - FAB_SIZE_FALLBACK;
+  const fabY = fab ? fab.y : screen.height - insets.bottom - 14 - FAB_SIZE_FALLBACK;
+  const fabCenterX = fabX + fabSize / 2;
+
+  // Shortcut rail bottom sits CLEARANCE_ABOVE_FAB above the FAB's top
+  // edge. Column centered horizontally on the FAB's center.
+  const railBottomFromScreenBottom = screen.height - fabY + CLEARANCE_ABOVE_FAB;
+  const railLeft = fabCenterX - SHORTCUT_COL_WIDTH / 2;
+
+  // Chat input sits to the LEFT of the FAB, with its bottom edge at the
+  // FAB's top edge minus an extra lift so the pill never grazes the
+  // rotating +. Right edge reserves the FAB column + a small gap.
+  const inputRight = screen.width - fabX + 10;
+  const inputBottomFromScreenBottom = railBottomFromScreenBottom + INPUT_EXTRA_LIFT;
 
   return (
     <View pointerEvents={chat.visible ? 'auto' : 'none'} style={StyleSheet.absoluteFill}>
-      {/* Transparent tap-to-close catcher. No dim — the founder wants the
-          underlying screen (and the FAB itself) to stay visible when the
-          overlay is open. */}
-      <Pressable
+      {/* Dim backdrop. Sits BELOW the shortcut rail / input / FAB in the
+          z-stack so they stay visually lit while the rest of the screen
+          fades. Tapping it dismisses. */}
+      <Animated.View
         pointerEvents={chat.visible ? 'auto' : 'none'}
-        style={StyleSheet.absoluteFill}
-        onPress={chat.close}
-      />
+        style={[
+          StyleSheet.absoluteFill,
+          {
+            backgroundColor: '#000',
+            opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.5] }),
+          },
+        ]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={chat.close} />
+      </Animated.View>
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={StyleSheet.absoluteFill}
         pointerEvents="box-none">
         <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { opacity: anim }]}>
-          {/* Shortcut rail — anchored horizontally centered over the
-              FAB so pills stack directly above the rotating +. Width
-              matches FAB footprint (~80pt) per founder spec. */}
           {!hasTurns ? (
             <View
               pointerEvents="box-none"
               style={[
                 styles.railAnchor,
                 {
-                  // Center column over FAB: FAB left edge = right:18 + 26 (half of 52)
-                  // so the column's center aligns with the FAB's center.
-                  right: FAB_RIGHT + FAB_SIZE / 2 - SHORTCUT_COL_WIDTH / 2,
-                  bottom: fabTopOffset + 10,
+                  left: railLeft,
+                  bottom: railBottomFromScreenBottom,
                   width: SHORTCUT_COL_WIDTH,
                 },
               ]}>
@@ -124,8 +138,6 @@ export function ChatOverlay() {
             </View>
           ) : null}
 
-          {/* Conversation — rises up on the LEFT when turns exist. Reserves
-              right-side column for the shortcut rail / FAB. */}
           {hasTurns ? (
             <View
               pointerEvents="box-none"
@@ -133,8 +145,8 @@ export function ChatOverlay() {
                 styles.conversationAnchor,
                 {
                   left: 12,
-                  right: FAB_RIGHT + FAB_SIZE + 10,
-                  bottom: fabTopOffset + 10,
+                  right: inputRight,
+                  bottom: railBottomFromScreenBottom,
                 },
               ]}>
               <View
@@ -162,15 +174,14 @@ export function ChatOverlay() {
             </View>
           ) : null}
 
-          {/* Chat input — bottom-left, its bottom flush with FAB bottom. */}
           <View
             pointerEvents="box-none"
             style={[
               styles.inputAnchor,
               {
                 left: 12,
-                right: FAB_RIGHT + FAB_SIZE + 10,
-                bottom: inputBottomOffset,
+                right: inputRight,
+                bottom: inputBottomFromScreenBottom,
               },
             ]}>
             <ChatInput sending={chat.sending} onSend={chat.send} />
@@ -182,17 +193,9 @@ export function ChatOverlay() {
 }
 
 const styles = StyleSheet.create({
-  railAnchor: {
-    position: 'absolute',
-    alignItems: 'stretch',
-  },
-  inputAnchor: {
-    position: 'absolute',
-  },
-  conversationAnchor: {
-    position: 'absolute',
-    maxHeight: 420,
-  },
+  railAnchor: { position: 'absolute', alignItems: 'stretch' },
+  inputAnchor: { position: 'absolute' },
+  conversationAnchor: { position: 'absolute', maxHeight: 420 },
   conversation: {
     borderRadius: 16,
     borderWidth: 1,

@@ -1,8 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Workout } from '../../../shared/src/types/home';
+import { deleteWorkout } from '../../lib/api/fitness';
+import { useHaptics } from '../../lib/useHaptics';
 import { useTokens } from '../../lib/theme';
 import { classifyWorkout, formatWorkoutTime, iconForWorkoutType } from '../../lib/workout';
 import { WorkoutEditSheet } from './WorkoutEditSheet';
@@ -15,7 +17,12 @@ interface Props {
 
 export function TodayWorkoutsList({ workouts, onChanged }: Props) {
   const t = useTokens();
+  const haptics = useHaptics();
   const [editing, setEditing] = useState<Workout | null>(null);
+  const openEdit = (w: Workout) => {
+    haptics.fire('tap');
+    setEditing(w);
+  };
 
   if (workouts.length === 0) {
     return (
@@ -39,10 +46,31 @@ export function TodayWorkoutsList({ workouts, onChanged }: Props) {
 
       {workouts.map((w) => {
         const type = classifyWorkout(w.description);
+        const handleDelete = () => {
+          Alert.alert(
+            'Delete workout?',
+            'This removes the logged workout and any parsed sets.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Delete',
+                style: 'destructive',
+                onPress: async () => {
+                  try {
+                    await deleteWorkout(w.id);
+                    onChanged();
+                  } catch (e) {
+                    Alert.alert('Delete failed', e instanceof Error ? e.message : String(e));
+                  }
+                },
+              },
+            ],
+          );
+        };
         return (
           <Pressable
             key={w.id}
-            onPress={() => setEditing(w)}
+            onPress={() => openEdit(w)}
             style={({ pressed }) => [
               styles.row,
               { borderBottomColor: t.border, opacity: pressed ? 0.6 : 1 },
@@ -59,6 +87,22 @@ export function TodayWorkoutsList({ workouts, onChanged }: Props) {
             <Text style={[styles.rowBurn, { color: t.cal }]}>
               {w.calories_burned} <Text style={styles.rowBurnUnit}>kcal</Text>
             </Text>
+            <View style={styles.actions}>
+              <Pressable
+                onPress={() => openEdit(w)}
+                hitSlop={10}
+                accessibilityLabel="Edit workout"
+                style={[styles.iconBtn, { backgroundColor: t.surface2 }]}>
+                <Ionicons name="pencil" size={13} color={t.muted} />
+              </Pressable>
+              <Pressable
+                onPress={handleDelete}
+                hitSlop={10}
+                accessibilityLabel="Delete workout"
+                style={[styles.iconBtn, { backgroundColor: t.surface2 }]}>
+                <Ionicons name="trash-outline" size={13} color={t.danger} />
+              </Pressable>
+            </View>
           </Pressable>
         );
       })}
@@ -106,4 +150,12 @@ const styles = StyleSheet.create({
   rowTime: { fontSize: 11, marginTop: 2 },
   rowBurn: { fontSize: 15, fontWeight: '700' },
   rowBurnUnit: { fontSize: 10, fontWeight: '500' },
+  actions: { flexDirection: 'column', gap: 6, marginLeft: 4 },
+  iconBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

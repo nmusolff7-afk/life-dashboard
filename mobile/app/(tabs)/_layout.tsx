@@ -5,16 +5,12 @@ import { Redirect, Tabs } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ScreenHeader, StrengthTrackerModal, WorkoutActiveBanner } from '../../components/apex';
-import { ChatOverlay } from '../../components/chat/ChatOverlay';
-import { QuickLogHost } from '../../components/chat/QuickLogHost';
-import { useProfile, useTodayWorkouts } from '../../lib/hooks/useHomeData';
+import { ScreenHeader, WorkoutActiveBanner } from '../../components/apex';
+import { useProfile } from '../../lib/hooks/useHomeData';
 import { useTokens } from '../../lib/theme';
-import { ChatSessionProvider } from '../../lib/useChatSession';
 import { useClerkBridge } from '../../lib/useClerkBridge';
 import { useHaptics } from '../../lib/useHaptics';
 import { useOnboardingStatus } from '../../lib/useOnboardingStatus';
-import { StrengthSessionProvider } from '../../lib/useStrengthSession';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -108,35 +104,24 @@ export default function TabLayout() {
   const firstName = profile.data?.first_name?.trim();
   const headerTitle = firstName ? `${firstName}'s Dashboard` : 'Your Dashboard';
 
+  // Providers + chat/strength/quick-log modal hosts live at root now so
+  // subsystem detail screens can call useStrengthSession / useChatSession
+  // without crashing. This layout just renders the tab UI.
   return (
-    <StrengthSessionProvider>
-      <ChatSessionProvider>
-        <View style={{ flex: 1, backgroundColor: t.bg }}>
-          <ScreenHeader title={headerTitle} />
-          <WorkoutActiveBanner />
-          <Tabs
-            screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: t.bg } }}
-            tabBar={(props) => <FlaskTabBar {...props} />}>
-            <Tabs.Screen name="index" options={{ title: 'Home' }} />
-            <Tabs.Screen name="fitness" options={{ title: 'Fitness' }} />
-            <Tabs.Screen name="nutrition" options={{ title: 'Nutrition' }} />
-            <Tabs.Screen name="finance" options={{ title: 'Finance' }} />
-            <Tabs.Screen name="time" options={{ title: 'Time' }} />
-          </Tabs>
-          <TabsStrengthTrackerHost />
-          <ChatOverlay />
-          <QuickLogHost />
-        </View>
-      </ChatSessionProvider>
-    </StrengthSessionProvider>
+    <View style={{ flex: 1, backgroundColor: t.bg }}>
+      <ScreenHeader title={headerTitle} />
+      <WorkoutActiveBanner />
+      <Tabs
+        screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: t.bg } }}
+        tabBar={(props) => <FlaskTabBar {...props} />}>
+        <Tabs.Screen name="index" options={{ title: 'Home' }} />
+        <Tabs.Screen name="fitness" options={{ title: 'Fitness' }} />
+        <Tabs.Screen name="nutrition" options={{ title: 'Nutrition' }} />
+        <Tabs.Screen name="finance" options={{ title: 'Finance' }} />
+        <Tabs.Screen name="time" options={{ title: 'Time' }} />
+      </Tabs>
+    </View>
   );
-}
-
-/** Renders the full-screen tracker modal and refetches today's workouts on
- *  successful save. Lives inside the provider so it can read session state. */
-function TabsStrengthTrackerHost() {
-  const todayWorkouts = useTodayWorkouts();
-  return <StrengthTrackerModal onLogged={() => todayWorkouts.refetch()} />;
 }
 
 const styles = StyleSheet.create({

@@ -36,7 +36,11 @@ export function useUnits(): UnitFormatters {
   const formatWeight = (lbs: number | null | undefined, opts?: { round?: boolean }) => {
     if (lbs == null || !Number.isFinite(lbs)) return '—';
     const value = units === 'metric' ? lbs * LB_TO_KG : lbs;
-    return opts?.round === false ? value.toFixed(1) : String(Math.round(value));
+    // Default: round to one decimal (e.g. "148.5") — whole-lb rounding
+    // erased user-entered decimals on re-display. opts.round === true
+    // still forces integer for cards that are space-constrained.
+    if (opts?.round === true) return String(Math.round(value));
+    return (Math.round(value * 10) / 10).toFixed(1);
   };
 
   const toCanonicalWeightLbs = (display: number) =>
