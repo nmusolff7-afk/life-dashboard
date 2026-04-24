@@ -1862,6 +1862,69 @@ def api_momentum_summary():
         return jsonify({"error": _AI_ERR}), 500
 
 
+# ── Nightly score snapshot cron ────────────────────────
+# Minimal in-process cron: sleep until 03:30 UTC, snapshot yesterday's
+# scores for every onboarding-complete user, then sleep 24h. No leader
+# election — with multiple gunicorn workers the job runs redundantly,
+# but scoring.snapshot_scores is idempotent (upsert) so extra runs are
+# wasteful but harmless. Good enough for v1 single-replica Railway.
+# Replace with SQS + Lambda (PRD §11.5) when we migrate off Railway.
+
+def _score_snapshot_worker():
+    import time as _t
+    import scoring as _scoring
+    from datetime import datetime as _dt, date as _d, timedelta as _td
+
+    # On startup, do one pass for each completed user so fresh Railway
+    # deploys don't wait until 03:30 UTC for the first snapshot.
+    try:
+        _snapshot_all_users(_d.today().isoformat(), _scoring)
+    except Exception as _e:
+        _log.warning("initial score snapshot pass failed: %s", _e)
+
+    while True:
+        now = _dt.utcnow()
+        next_run = now.replace(hour=3, minute=30, second=0, microsecond=0)
+        if next_run <= now:
+            next_run += _td(days=1)
+        sleep_s = max(60.0, (next_run - now).total_seconds())
+        _t.sleep(sleep_s)
+        try:
+            yesterday = (_d.today() - _td(days=1)).isoformat()
+            _snapshot_all_users(yesterday, _scoring)
+            _log.info("nightly snapshot complete for %s", yesterday)
+        except Exception as e:
+            _log.warning("nightly snapshot failed: %s", e)
+
+
+def _snapshot_all_users(target_date: str, scoring_module):
+    from db import get_conn as _conn
+    with _conn() as conn:
+        user_ids = [
+            r["user_id"]
+            for r in conn.execute(
+                "SELECT user_id FROM user_onboarding WHERE completed = 1"
+            ).fetchall()
+        ]
+    for uid_ in user_ids:
+        try:
+            scoring_module.snapshot_scores(uid_, target_date)
+        except Exception as e:
+            _log.warning("snapshot user %s date %s failed: %s", uid_, target_date, e)
+
+
+def _start_score_cron():
+    """Start the snapshot worker thread (idempotent)."""
+    if getattr(_start_score_cron, "_started", False):
+        return
+    t = threading.Thread(target=_score_snapshot_worker, name="score-snapshot-cron", daemon=True)
+    t.start()
+    _start_score_cron._started = True
+
+
+_start_score_cron()
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
