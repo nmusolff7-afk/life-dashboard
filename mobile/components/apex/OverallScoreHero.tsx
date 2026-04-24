@@ -3,6 +3,7 @@ import Svg, { Path } from 'react-native-svg';
 
 import type { OverallScoreResponse } from '../../../shared/src/types/score';
 import { useTokens } from '../../lib/theme';
+import { ScoreArc } from './ScoreArc';
 
 interface Props {
   data: OverallScoreResponse | null;
@@ -41,9 +42,12 @@ export function OverallScoreHero({ data, loading }: Props) {
           <Text style={[styles.score, { color: t.text }]}>
             {hasScore ? String(data!.score) : '—'}
           </Text>
-          {hasScore ? (
-            <View style={[styles.bandDot, { backgroundColor: bandColor }]} />
-          ) : null}
+          <ScoreArc
+            score={hasScore ? data!.score : null}
+            band={data?.band ?? 'grey'}
+            size={28}
+            stroke={3}
+          />
         </View>
 
         <Text style={[styles.label, { color: t.muted }]}>
@@ -123,12 +127,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 58,
     letterSpacing: -1.2,
-  },
-  bandDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginTop: 18,
   },
   label: {
     fontSize: 11,

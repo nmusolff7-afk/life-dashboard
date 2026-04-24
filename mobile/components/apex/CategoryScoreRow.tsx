@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { CategoryKey, CategoryScoreResponse } from '../../../shared/src/types/score';
 import { useHaptics } from '../../lib/useHaptics';
 import { useTokens } from '../../lib/theme';
+import { ScoreArc } from './ScoreArc';
 
 interface Props {
   category: CategoryKey;
@@ -104,9 +105,12 @@ export function CategoryScoreRow({
           <Text style={[styles.score, { color: t.text }]}>
             {hasScore ? String(data!.score) : '—'}
           </Text>
-          {hasScore ? (
-            <View style={[styles.bandDot, { backgroundColor: bandColor }]} />
-          ) : null}
+          <ScoreArc
+            score={hasScore ? data!.score : null}
+            band={data?.band ?? 'grey'}
+            size={20}
+            stroke={2.5}
+          />
         </View>
       </View>
 
@@ -123,13 +127,19 @@ export function CategoryScoreRow({
               haptics.fire('tap');
               setExpanded((v) => !v);
             }}
-            hitSlop={8}
+            hitSlop={10}
             accessibilityRole="button"
-            accessibilityLabel={expanded ? 'Collapse' : 'Expand'}
-            style={[styles.expandTab, { borderTopColor: t.border }]}>
+            accessibilityLabel={expanded ? 'Hide details' : 'Show details'}
+            style={({ pressed }) => [
+              styles.expandTab,
+              { borderTopColor: t.border, backgroundColor: pressed ? t.surface2 : 'transparent' },
+            ]}>
+            <Text style={[styles.expandLabel, { color: t.muted }]}>
+              {expanded ? 'Hide details' : 'Tap to expand'}
+            </Text>
             <Ionicons
               name={expanded ? 'chevron-up' : 'chevron-down'}
-              size={14}
+              size={20}
               color={t.muted}
             />
           </Pressable>
@@ -160,9 +170,19 @@ const styles = StyleSheet.create({
   },
   expandTab: {
     marginTop: 6,
-    paddingVertical: 6,
+    paddingVertical: 10,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     borderTopWidth: 1,
+    borderRadius: 8,
+  },
+  expandLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   leftCol: {
     flex: 1,
@@ -193,11 +213,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 32,
     letterSpacing: -0.8,
-  },
-  bandDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginTop: 12,
   },
 });

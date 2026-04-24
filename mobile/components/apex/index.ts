@@ -6,6 +6,7 @@ export { SubTabs } from './SubTabs';
 export { TabHeader } from './TabHeader';
 export { SettingsRow } from './SettingsRow';
 export { StatCard } from './StatCard';
+export { ScoreArc } from './ScoreArc';
 export { StreakBar } from './StreakBar';
 export { TodayBalanceCard } from './TodayBalanceCard';
 export { CategoryScoreCard } from './CategoryScoreCard';

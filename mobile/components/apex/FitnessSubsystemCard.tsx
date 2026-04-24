@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { SubsystemScore } from '../../../shared/src/types/score';
 import { useHaptics } from '../../lib/useHaptics';
 import { useTokens } from '../../lib/theme';
+import { ScoreArc } from './ScoreArc';
 
 interface Props {
   subsystem: SubsystemScore;
@@ -17,21 +18,13 @@ interface Props {
   icon?: React.ComponentProps<typeof Ionicons>['name'];
 }
 
-const BAND_COLORS = (t: ReturnType<typeof useTokens>) => ({
-  green: t.green,
-  amber: t.amber,
-  red: t.danger,
-  grey: t.muted,
-});
-
 /** Two-line card for each Fitness subsystem on the Today tab. Shows
- *  subsystem score + band dot on the right, name + hint on the left.
- *  Tap drills into the subsystem detail screen. */
+ *  subsystem score + filled score arc on the right, name + hint on the
+ *  left. Tap drills into the subsystem detail screen. */
 export function FitnessSubsystemCard({ subsystem, href, hint, icon = 'ellipse-outline' }: Props) {
   const t = useTokens();
   const haptics = useHaptics();
   const router = useRouter();
-  const bandColor = BAND_COLORS(t)[subsystem.band];
   const hasScore = subsystem.score != null;
 
   return (
@@ -65,7 +58,12 @@ export function FitnessSubsystemCard({ subsystem, href, hint, icon = 'ellipse-ou
         <Text style={[styles.score, { color: hasScore ? t.text : t.muted }]}>
           {hasScore ? String(subsystem.score) : '—'}
         </Text>
-        <View style={[styles.bandDot, { backgroundColor: bandColor }]} />
+        <ScoreArc
+          score={hasScore ? subsystem.score : null}
+          band={subsystem.band}
+          size={18}
+          stroke={2.5}
+        />
       </View>
       <Ionicons name="chevron-forward" size={16} color={t.subtle} />
     </Pressable>
@@ -94,5 +92,4 @@ const styles = StyleSheet.create({
   hint: { fontSize: 11 },
   right: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   score: { fontSize: 20, fontWeight: '700', letterSpacing: -0.4 },
-  bandDot: { width: 8, height: 8, borderRadius: 4, marginTop: 8 },
 });
