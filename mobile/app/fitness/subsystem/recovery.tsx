@@ -2,11 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { useHealthConnection } from '../../../lib/useHealthConnection';
 import { useTokens } from '../../../lib/theme';
 
 export default function RecoveryDetail() {
   const t = useTokens();
   const router = useRouter();
+  const health = useHealthConnection();
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
@@ -19,34 +21,66 @@ export default function RecoveryDetail() {
         }}
       />
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={[styles.emptyCard, { backgroundColor: t.surface, borderColor: t.border }]}>
-          <View style={[styles.iconWrap, { backgroundColor: t.surface2 }]}>
-            <Ionicons name="heart-circle-outline" size={32} color={t.fitness} />
-          </View>
-          <Text style={[styles.title, { color: t.text }]}>Connect Apple Health to activate Recovery</Text>
-          <Text style={[styles.body, { color: t.muted }]}>
-            Once HRV data flows in, Life Dashboard will show:
-          </Text>
-          <View style={styles.bullets}>
-            <Bullet text="HRV trend vs your 14-day exponential moving average" />
-            <Bullet text="Readiness signal combining HRV + sleep + training load" />
-            <Bullet text="Rest-day balance — too many hard sessions back-to-back gets flagged" />
-          </View>
-          <Pressable
-            onPress={() => router.push('/settings/connections')}
-            style={({ pressed }) => [
-              styles.cta,
-              { backgroundColor: t.accent, opacity: pressed ? 0.85 : 1 },
-            ]}>
-            <Text style={styles.ctaLabel}>Go to connections</Text>
-          </Pressable>
-        </View>
+        {health.connected ? <SyncingState platform={health.platform} /> : <DisconnectedState onConnect={() => router.push('/settings/connections')} />}
 
         <Text style={[styles.note, { color: t.subtle }]}>
           Recovery requires a wearable that reports HRV. Until it's connected,
           your Fitness score weight is redistributed to the other subsystems.
         </Text>
       </ScrollView>
+    </View>
+  );
+}
+
+function SyncingState({ platform }: { platform: string | null }) {
+  const t = useTokens();
+  const label = platform === 'health-connect' ? 'Health Connect' : 'Apple Health';
+  return (
+    <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.fitness, borderWidth: 1.5 }]}>
+      <View style={[styles.iconWrap, { backgroundColor: t.surface2 }]}>
+        <Ionicons name="heart-circle-outline" size={28} color={t.fitness} />
+      </View>
+      <Text style={[styles.title, { color: t.text }]}>{label} connected</Text>
+      <Text style={[styles.body, { color: t.muted }]}>
+        HRV + recovery pipes go live in a coming build. Expect to see:
+      </Text>
+      <View style={styles.bullets}>
+        <Bullet text="HRV trend vs your 14-day EMA" />
+        <Bullet text="Readiness blending HRV + sleep + training load" />
+        <Bullet text="Rest-day balance alerts" />
+      </View>
+      <View style={[styles.statusChip, { backgroundColor: t.surface2 }]}>
+        <Ionicons name="sync-outline" size={12} color={t.fitness} />
+        <Text style={[styles.statusLabel, { color: t.fitness }]}>Syncing — data pending</Text>
+      </View>
+    </View>
+  );
+}
+
+function DisconnectedState({ onConnect }: { onConnect: () => void }) {
+  const t = useTokens();
+  return (
+    <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
+      <View style={[styles.iconWrap, { backgroundColor: t.surface2 }]}>
+        <Ionicons name="heart-circle-outline" size={32} color={t.fitness} />
+      </View>
+      <Text style={[styles.title, { color: t.text }]}>Connect Apple Health to activate Recovery</Text>
+      <Text style={[styles.body, { color: t.muted }]}>
+        Once HRV data flows in, Life Dashboard will show:
+      </Text>
+      <View style={styles.bullets}>
+        <Bullet text="HRV trend vs your 14-day exponential moving average" />
+        <Bullet text="Readiness signal combining HRV + sleep + training load" />
+        <Bullet text="Rest-day balance — too many hard sessions back-to-back gets flagged" />
+      </View>
+      <Pressable
+        onPress={onConnect}
+        style={({ pressed }) => [
+          styles.cta,
+          { backgroundColor: t.accent, opacity: pressed ? 0.85 : 1 },
+        ]}>
+        <Text style={styles.ctaLabel}>Go to connections</Text>
+      </Pressable>
     </View>
   );
 }
@@ -63,7 +97,7 @@ function Bullet({ text }: { text: string }) {
 
 const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 40, gap: 14 },
-  emptyCard: {
+  card: {
     borderRadius: 16,
     borderWidth: 1,
     padding: 20,
@@ -79,5 +113,15 @@ const styles = StyleSheet.create({
   bulletText: { fontSize: 12, flex: 1, lineHeight: 18 },
   cta: { borderRadius: 14, paddingHorizontal: 22, paddingVertical: 12, marginTop: 8 },
   ctaLabel: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 100,
+    marginTop: 6,
+  },
+  statusLabel: { fontSize: 11, fontWeight: '600' },
   note: { fontSize: 11, fontStyle: 'italic', lineHeight: 16, textAlign: 'center' },
 });
