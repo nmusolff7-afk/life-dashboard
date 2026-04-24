@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
+  BackHandler,
   Dimensions,
   Easing,
   Keyboard,
@@ -106,6 +107,27 @@ export function ChatOverlay() {
       setExpanded(false);
     }
   }, [chat.visible, setExpanded]);
+
+  // Android hardware/gesture back button handling while the chat is
+  // open. Priority:
+  //   1. Expanded chat → collapse back to FAB-inline state (don't
+  //      close overlay, don't pop the route).
+  //   2. Collapsed overlay → close the overlay.
+  //   3. Otherwise let the system handle (route pop / app exit).
+  // Returning true from the handler signals "we consumed it".
+  useEffect(() => {
+    if (!chat.visible) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (expanded) {
+        setExpanded(false);
+        Keyboard.dismiss();
+        return true;
+      }
+      chat.close();
+      return true;
+    });
+    return () => sub.remove();
+  }, [chat.visible, expanded, setExpanded, chat]);
 
   useEffect(() => {
     if (chat.turns.length > 0) {
