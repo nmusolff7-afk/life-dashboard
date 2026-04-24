@@ -1406,6 +1406,69 @@ def api_gmail_label():
     return jsonify({"ok": True})
 
 
+# ── Scoring (PRD §9) ────────────────────────────────────
+# Deterministic category + overall scoring. Replaces the legacy momentum
+# system for mobile clients. /api/momentum/* below stays live for the
+# Flask PWA until that surface is decommissioned.
+
+@app.route("/api/score/overall")
+@login_required
+def api_score_overall():
+    import scoring as _scoring
+    as_of = request.args.get("date") or client_today()
+    try:
+        data = _scoring.compute_overall_score(uid(), as_of)
+        # Cache today's row in daily_scores (fire-and-forget; non-fatal on error)
+        try:
+            _scoring.snapshot_scores(uid(), as_of)
+        except Exception as snap_err:
+            _log.warning("snapshot_scores failed for user %s: %s", uid(), snap_err)
+        return jsonify(data)
+    except Exception as e:
+        _log.exception("score/overall failed for user %s", uid())
+        return jsonify({"error": "Score computation failed", "detail": str(e)}), 500
+
+
+@app.route("/api/score/fitness")
+@login_required
+def api_score_fitness():
+    import scoring as _scoring
+    as_of = request.args.get("date") or client_today()
+    try:
+        return jsonify(_scoring.compute_fitness_score(uid(), as_of).as_dict())
+    except Exception:
+        _log.exception("score/fitness failed for user %s", uid())
+        return jsonify({"error": "Score computation failed"}), 500
+
+
+@app.route("/api/score/nutrition")
+@login_required
+def api_score_nutrition():
+    import scoring as _scoring
+    as_of = request.args.get("date") or client_today()
+    try:
+        return jsonify(_scoring.compute_nutrition_score(uid(), as_of).as_dict())
+    except Exception:
+        _log.exception("score/nutrition failed for user %s", uid())
+        return jsonify({"error": "Score computation failed"}), 500
+
+
+@app.route("/api/score/finance")
+@login_required
+def api_score_finance():
+    import scoring as _scoring
+    as_of = request.args.get("date") or client_today()
+    return jsonify(_scoring.compute_finance_score(uid(), as_of).as_dict())
+
+
+@app.route("/api/score/time")
+@login_required
+def api_score_time():
+    import scoring as _scoring
+    as_of = request.args.get("date") or client_today()
+    return jsonify(_scoring.compute_time_score(uid(), as_of).as_dict())
+
+
 # ── Momentum ─────────────────────────────────────────────
 
 @app.route("/api/momentum/today", methods=["GET", "POST"])
