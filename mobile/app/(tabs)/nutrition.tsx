@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
@@ -7,6 +8,7 @@ import {
   CalorieRingCard,
   CaloriesConsumedChart,
   FAB,
+  HydrationCard,
   LogMealCard,
   MacroTrendsCard,
   MealHistoryList,
@@ -19,6 +21,8 @@ import {
   TabHeader,
   TodayMealsList,
 } from '../../components/apex';
+import { DEFAULT_PREFERENCES, loadPreferences, type Preferences } from '../../lib/preferences';
+import { useNutritionScore } from '../../lib/hooks/useScores';
 import {
   useMealHistory,
   useProfile,
@@ -35,6 +39,8 @@ type Tab = 'today' | 'progress' | 'history';
 
 export default function NutritionScreen() {
   const t = useTokens();
+  const router = useRouter();
+  const params = useLocalSearchParams<{ open?: string }>();
   const [tab, setTab] = useState<Tab>('today');
   const { ref: scrollRef, resetScroll } = useResetScrollOnFocus();
 
@@ -44,6 +50,33 @@ export default function NutritionScreen() {
   const savedMeals = useSavedMeals();
   const history = useMealHistory(90);
   const balance = useLiveCalorieBalance();
+  const nutritionScore = useNutritionScore();
+
+  // Hydration opt-in pref — re-hydrates (heh) from AsyncStorage on mount
+  // AND every time the Nutrition tab regains focus, so toggling in
+  // Settings → Preferences takes effect immediately on navigation back.
+  const [prefs, setPrefs] = useState<Preferences>(DEFAULT_PREFERENCES);
+  useFocusEffect(
+    useCallback(() => {
+      loadPreferences().then(setPrefs).catch(() => {});
+    }, []),
+  );
+
+  // Respond to ?open=manual|scan|barcode|saved query param fired from the
+  // chat overlay's Log Meal sub-shortcuts. Clears the param after opening
+  // so re-navigating to the tab doesn't re-open.
+  useEffect(() => {
+    const open = params.open;
+    if (!open) return;
+    setTab('today');
+    if (open === 'scan') setPhotoOpen(true);
+    else if (open === 'barcode') setBarcodeOpen(true);
+    else if (open === 'saved') setSavedOpen(true);
+    else if (open === 'pantry') setPantryOpen(true);
+    // Clear the param so subsequent navigations don't re-trigger.
+    router.setParams({ open: undefined });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.open]);
 
   const [refreshing, setRefreshing] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
@@ -59,6 +92,7 @@ export default function NutritionScreen() {
         profile.refetch(),
         savedMeals.refetch(),
         history.refetch(),
+        nutritionScore.refetch(),
       ]);
     } finally {
       setRefreshing(false);
@@ -105,18 +139,23 @@ export default function NutritionScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <TabHeader title="Nutrition" />
-      <SubTabs<Tab>
-        tabs={[
-          { value: 'today', label: 'Today' },
-          { value: 'progress', label: 'Progress' },
-          { value: 'history', label: 'History' },
-        ]}
-        value={tab}
-        onChange={(next) => {
-          setTab(next);
-          resetScroll();
-        }}
+      <TabHeader
+        title="Nutrition"
+        right={
+          <SubTabs<Tab>
+            tabs={[
+              { value: 'today', label: 'Today' },
+              { value: 'progress', label: 'Progress' },
+              { value: 'history', label: 'History' },
+            ]}
+            value={tab}
+            onChange={(next) => {
+              setTab(next);
+              resetScroll();
+            }}
+            compact
+          />
+        }
       />
       <ScrollView
         ref={scrollRef}
@@ -126,18 +165,15 @@ export default function NutritionScreen() {
         }>
         {tab === 'today' ? (
           <>
-            <View style={styles.scoreBlock}>
-              <Text style={[styles.scoreBig, { color: t.subtle }]}>—</Text>
-              <Text style={[styles.scoreLabel, { color: t.nutrition }]}>Nutrition score</Text>
-              <Text style={[styles.scoreHint, { color: t.muted }]}>
-                Score calculated once you have enough data.
-              </Text>
-            </View>
-
+            {/* Score pill lives inside the Calorie Ring card (top-right)
+                instead of a separate hero — keeps the ring as the single
+                dominant visual and avoids stacking two big numbers. */}
             <CalorieRingCard
               totalIntake={totalIntake}
               totalBurn={totalBurn}
               goalIntake={goalIntake}
+              score={nutritionScore.data?.score ?? null}
+              scoreBand={nutritionScore.data?.band}
             />
 
             <NutritionMacrosCard
@@ -145,6 +181,10 @@ export default function NutritionScreen() {
               targets={macroTargets}
               empty={meals.length === 0}
             />
+
+            {prefs.hydrationActive ? (
+              <HydrationCard goalOz={prefs.hydrationGoalOz} />
+            ) : null}
 
             <RecentMealsChips
               saved={savedMeals.data ?? []}
@@ -208,9 +248,4 @@ export default function NutritionScreen() {
 
 const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 96, gap: 16 },
-
-  scoreBlock: { alignItems: 'center', paddingVertical: 8, gap: 2 },
-  scoreBig: { fontSize: 56, fontWeight: '700', lineHeight: 58, letterSpacing: -1.2 },
-  scoreLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 4 },
-  scoreHint: { fontSize: 12, textAlign: 'center', marginTop: 2 },
 });

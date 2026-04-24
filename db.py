@@ -258,6 +258,13 @@ def init_db():
         except sqlite3.OperationalError:
             pass  # column already exists
 
+        # Migrate: add hydration_oz for the opt-in hydration tracking (PRD §4.4.12).
+        try:
+            conn.execute("ALTER TABLE daily_activity ADD COLUMN hydration_oz REAL DEFAULT 0")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
         # Migrate: ensure (user_id, log_date) uniqueness on daily_activity.
         # Older databases were created with PRIMARY KEY(log_date) and had user_id
         # bolted on via ALTER TABLE. Without a matching unique constraint,
@@ -994,6 +1001,45 @@ def save_daily_weight(user_id: int, date_str: str, weight_lbs: float):
             VALUES (?, ?, ?)
             ON CONFLICT(user_id, log_date) DO UPDATE SET weight_lbs = excluded.weight_lbs
         """, (user_id, date_str, weight_lbs))
+        conn.commit()
+
+
+def add_hydration_oz(user_id: int, date_str: str, oz: float):
+    """Upsert today's hydration total, adding `oz` to any existing value.
+    Uses the same (user_id, log_date) constraint the weight upsert relies on."""
+    with get_conn() as conn:
+        # Upsert — on conflict add to existing
+        conn.execute(
+            """
+            INSERT INTO daily_activity (user_id, log_date, hydration_oz)
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_id, log_date) DO UPDATE SET
+              hydration_oz = COALESCE(hydration_oz, 0) + excluded.hydration_oz
+            """,
+            (user_id, date_str, oz),
+        )
+        conn.commit()
+
+
+def get_hydration_oz(user_id: int, date_str: str) -> float:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT hydration_oz FROM daily_activity WHERE user_id = ? AND log_date = ?",
+            (user_id, date_str),
+        ).fetchone()
+    return float(row["hydration_oz"] or 0) if row else 0.0
+
+
+def reset_hydration(user_id: int, date_str: str):
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO daily_activity (user_id, log_date, hydration_oz)
+            VALUES (?, ?, 0)
+            ON CONFLICT(user_id, log_date) DO UPDATE SET hydration_oz = 0
+            """,
+            (user_id, date_str),
+        )
         conn.commit()
 
 

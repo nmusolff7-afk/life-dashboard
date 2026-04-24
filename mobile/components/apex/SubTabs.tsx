@@ -6,18 +6,34 @@ interface Props<T extends string> {
   tabs: { value: T; label: string }[];
   value: T;
   onChange: (v: T) => void;
+  /** Compact mode — smaller type + tighter spacing for inline rendering
+   *  in the TabHeader `right` slot. Default: standalone strip. */
+  compact?: boolean;
 }
 
-/** Inline segmented control for category sub-tabs (Today / Progress / History). */
-export function SubTabs<T extends string>({ tabs, value, onChange }: Props<T>) {
+/** Inline segmented control for category sub-tabs (Today / Progress /
+ *  History). Renders as a standalone strip by default; pass compact
+ *  to shrink for nesting inside TabHeader. */
+export function SubTabs<T extends string>({ tabs, value, onChange, compact }: Props<T>) {
   const t = useTokens();
   return (
-    <View style={[styles.wrap, { borderBottomColor: t.border }]}>
+    <View
+      style={[
+        compact ? styles.wrapCompact : styles.wrap,
+        compact ? null : { borderBottomColor: t.border },
+      ]}>
       {tabs.map((tab) => {
         const active = tab.value === value;
         return (
-          <Pressable key={tab.value} onPress={() => onChange(tab.value)} style={styles.tab}>
-            <Text style={[styles.label, { color: active ? t.accent : t.muted, fontWeight: active ? '700' : '500' }]}>
+          <Pressable
+            key={tab.value}
+            onPress={() => onChange(tab.value)}
+            style={compact ? styles.tabCompact : styles.tab}>
+            <Text
+              style={[
+                compact ? styles.labelCompact : styles.label,
+                { color: active ? t.accent : t.muted, fontWeight: active ? '700' : '500' },
+              ]}>
               {tab.label}
             </Text>
             {active ? <View style={[styles.underline, { backgroundColor: t.accent }]} /> : null}
@@ -33,4 +49,8 @@ const styles = StyleSheet.create({
   tab: { paddingVertical: 12, marginRight: 18, alignItems: 'center' },
   label: { fontSize: 14 },
   underline: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, borderRadius: 1 },
+
+  wrapCompact: { flexDirection: 'row', gap: 12, alignItems: 'center' },
+  tabCompact: { paddingVertical: 6 },
+  labelCompact: { fontSize: 13 },
 });
