@@ -2275,6 +2275,158 @@ def api_finance_bill_delete(bill_id: int):
     return jsonify({"ok": True})
 
 
+# ── Connector foundation (PRD §4.8.6 + BUILD_PLAN_v2 §2) ─────────────────
+# Per-provider state lives in users_connectors. This cycle ships the
+# catalog + CRUD + disconnect; actual OAuth flows land in Phase C1.
+
+@app.route("/api/connectors", methods=["GET"])
+@login_required
+def api_connectors_list():
+    """Return the full catalog + user-specific state for each entry.
+
+    Shape: [{ provider, display_name, description, category, kind, icon,
+              ships_in_phase, note, platforms,
+              status, last_sync_at, last_error, external_user_id, scopes }]
+
+    Mobile renders Settings → Connections + the onboarding connections
+    screen directly from this.
+    """
+    import connectors as _conn
+    rows = {r['provider']: r for r in _conn.list_connectors(uid())}
+    out = []
+    for meta in _conn.catalog():
+        row = rows.get(meta['provider'], {})
+        out.append({
+            **meta,
+            'status': row.get('status') or _conn.STATUS_DISCONNECTED,
+            'last_sync_at': row.get('last_sync_at'),
+            'last_error': row.get('last_error'),
+            'external_user_id': row.get('external_user_id'),
+            'scopes': row.get('scopes'),
+        })
+    return jsonify({"ok": True, "connectors": out})
+
+
+@app.route("/api/connectors/<provider>", methods=["GET"])
+@login_required
+def api_connectors_detail(provider: str):
+    """Single-provider detail — never exposes tokens."""
+    import connectors as _conn
+    from api_errors import err, CONNECTOR_NOT_FOUND
+    meta = _conn.get_meta(provider)
+    if not meta:
+        return err(CONNECTOR_NOT_FOUND, f"Unknown provider: {provider}", 404)
+    row = _conn.get_connector(uid(), provider) or {}
+    return jsonify({"ok": True, "connector": _conn.serialize_for_client(row, meta)})
+
+
+@app.route("/api/connectors/<provider>/disconnect", methods=["POST"])
+@login_required
+def api_connectors_disconnect(provider: str):
+    """Drop tokens + flip status to revoked. Provider-specific revoke
+    calls (e.g. Google token revocation) happen in Phase C1 when the
+    per-provider module lives."""
+    import connectors as _conn
+    from api_errors import err, CONNECTOR_NOT_FOUND
+    meta = _conn.get_meta(provider)
+    if not meta:
+        return err(CONNECTOR_NOT_FOUND, f"Unknown provider: {provider}", 404)
+    _conn.save_connector(
+        uid(), provider,
+        access_token=None, refresh_token=None, expires_at=None, scopes=None,
+        status=_conn.STATUS_REVOKED,
+        last_error=None, last_error_detail=None,
+    )
+    return jsonify({"ok": True})
+
+
+# Privacy / AI consent (PRD §4.8.7) — backend is source of truth so the
+# chatbot prompt filter can enforce it server-side (vs A3's client-only
+# AsyncStorage model).
+
+@app.route("/api/privacy/consent", methods=["GET", "PUT"])
+@login_required
+def api_privacy_consent():
+    import connectors as _conn
+    if request.method == "GET":
+        return jsonify({"ok": True, "consent": _conn.get_consent_map(uid())})
+    data = request.get_json(silent=True) or {}
+    source = (data.get("source") or "").strip()
+    if not source:
+        return jsonify({"ok": False, "error": "source required",
+                        "error_code": "validation_failed"}), 400
+    allowed = bool(data.get("allowed", True))
+    _conn.set_consent(uid(), source, allowed)
+    return jsonify({"ok": True})
+
+
+# Webhook receiver — generic stub (BUILD_PLAN_v2 §2.3). Actual signature
+# verification + per-provider dispatch lives in Phase C1; for now this
+# logs + dedupes so it's safe to point providers at it early.
+
+@app.route("/api/webhooks/<provider>", methods=["POST"])
+def api_webhook_receive(provider: str):
+    """Stateless: no login_required. Providers send unauthenticated
+    payloads; each provider-specific handler in C1 does its own signature
+    verification inside the dispatched branch.
+
+    Responsibilities here in B1:
+      - reject unknown providers
+      - dedupe by (provider, external_event_id) via webhook_events table
+      - store payload (truncated) for audit
+      - return 202 Accepted quickly so the provider doesn't retry
+
+    Processing (actually doing anything with the event) is a Phase C1
+    concern. For now we record-and-acknowledge.
+    """
+    import connectors as _conn
+    import json as _json
+    meta = _conn.get_meta(provider)
+    if not meta:
+        # Don't leak "this endpoint exists for some providers but not others" —
+        # return generic 404. Security: also rate-limited by limiter below.
+        return jsonify({"ok": False, "error": "not found",
+                        "error_code": "not_found"}), 404
+
+    raw = request.get_data(cache=True, as_text=True) or ''
+    # Most providers put their event id in a top-level field; we accept a
+    # few common shapes. Missing id → we synthesize one from payload hash
+    # so dedupe still works (defensive — dedupe is the most important
+    # guarantee here).
+    event_id = None
+    try:
+        body = _json.loads(raw) if raw else {}
+        event_id = str(body.get('event_id') or body.get('id') or body.get('webhook_code') or '')
+    except Exception:
+        event_id = None
+    if not event_id:
+        import hashlib
+        event_id = 'synthetic:' + hashlib.sha256(raw.encode('utf-8', errors='ignore')).hexdigest()[:32]
+
+    import time as _time_mod
+    now = int(_time_mod.time())
+    with get_conn() as conn:
+        existing = conn.execute(
+            "SELECT id FROM webhook_events WHERE provider = ? AND external_event_id = ?",
+            (provider, event_id),
+        ).fetchone()
+        if existing:
+            # Already received; acknowledge without re-processing.
+            return jsonify({"ok": True, "deduped": True}), 202
+        # Truncate payload for audit — full payload won't fit in logs
+        truncated = raw[:8000] if raw else None
+        conn.execute("""
+            INSERT INTO webhook_events (provider, external_event_id, received_at, status, payload_json)
+            VALUES (?, ?, ?, 'pending', ?)
+        """, (provider, event_id, now, truncated))
+        conn.commit()
+
+    _log.info("webhook received: provider=%s event_id=%s bytes=%d",
+              provider, event_id, len(raw or ''))
+    # No processing yet — Phase C1 per-provider handlers will dispatch.
+    return jsonify({"ok": True}), 202
+
+
 # ── Momentum ─────────────────────────────────────────────
 
 @app.route("/api/momentum/today", methods=["GET", "POST"])

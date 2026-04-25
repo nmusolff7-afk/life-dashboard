@@ -1,5 +1,6 @@
 export { ScreenHeader } from './ScreenHeader';
 export { GoalRow } from './GoalRow';
+export { ConnectorTile } from './ConnectorTile';
 export { EmptyState } from './EmptyState';
 export { FAB } from './FAB';
 export { HydrationCard } from './HydrationCard';

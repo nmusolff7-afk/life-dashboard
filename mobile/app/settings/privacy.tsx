@@ -3,44 +3,52 @@ import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
-import {
-  DEFAULT_PRIVACY,
-  loadPrivacyPrefs,
-  type PrivacyPrefs,
-  savePrivacyPrefs,
-} from '../../lib/settingsPrefs';
+import type { ConsentMap } from '../../../shared/src/types/connectors';
+import { setConsent, useConsent } from '../../lib/hooks/useConnectors';
 import { useTokens } from '../../lib/theme';
 
-const SOURCES: { key: keyof PrivacyPrefs; label: string }[] = [
-  { key: 'healthkit',     label: 'HealthKit (iOS)' },
-  { key: 'healthConnect', label: 'Health Connect (Android)' },
-  { key: 'plaid',         label: 'Plaid transactions' },
-  { key: 'gmail',         label: 'Gmail' },
-  { key: 'outlook',       label: 'Outlook' },
-  { key: 'calendar',      label: 'Calendar events' },
-  { key: 'screenTime',    label: 'Screen Time' },
-  { key: 'location',      label: 'Location' },
-  { key: 'strava',        label: 'Strava' },
-  { key: 'weather',       label: 'Weather' },
+// Sources the chatbot may see. Matches the connector catalog. The opt-out
+// model (absence of a row = allowed) means defaults look like "everything
+// on" until the user toggles something off.
+const SOURCES: { key: string; label: string }[] = [
+  { key: 'healthkit',             label: 'Apple Health' },
+  { key: 'health_connect',        label: 'Health Connect (Android)' },
+  { key: 'plaid',                 label: 'Plaid transactions' },
+  { key: 'gmail',                 label: 'Gmail' },
+  { key: 'outlook',               label: 'Outlook' },
+  { key: 'gcal',                  label: 'Google Calendar' },
+  { key: 'apple_family_controls', label: 'Screen Time' },
+  { key: 'location',              label: 'Location' },
+  { key: 'strava',                label: 'Strava' },
+  { key: 'garmin',                label: 'Garmin' },
 ];
 
 export default function Privacy() {
   const t = useTokens();
   const router = useRouter();
-  const [prefs, setPrefs] = useState<PrivacyPrefs>(DEFAULT_PRIVACY);
-  const [loading, setLoading] = useState(true);
+  const consent = useConsent();
+  const [local, setLocal] = useState<ConsentMap>({});
 
   useEffect(() => {
-    loadPrivacyPrefs().then((p) => {
-      setPrefs(p);
-      setLoading(false);
-    });
-  }, []);
+    if (consent.data?.consent) {
+      setLocal({ ...consent.data.consent });
+    }
+  }, [consent.data]);
 
-  const update = async (key: keyof PrivacyPrefs, value: boolean) => {
-    const next = { ...prefs, [key]: value };
-    setPrefs(next);
-    await savePrivacyPrefs(next);
+  const getAllowed = (key: string) => {
+    // Opt-out model: absent rows are true.
+    const v = local[key];
+    return v === undefined ? true : v;
+  };
+
+  const onToggle = async (key: string, next: boolean) => {
+    setLocal((prev) => ({ ...prev, [key]: next }));
+    try {
+      await setConsent(key, next);
+    } catch (e) {
+      // Roll back on failure so the UI stays consistent with server.
+      setLocal((prev) => ({ ...prev, [key]: !next }));
+    }
   };
 
   return (
@@ -78,7 +86,7 @@ export default function Privacy() {
           <Ionicons name="chevron-forward" size={18} color={t.muted} />
         </Pressable>
 
-        {loading ? (
+        {consent.loading && !consent.data ? (
           <ActivityIndicator color={t.accent} />
         ) : (
           <>
@@ -88,16 +96,15 @@ export default function Privacy() {
                 style={[styles.row, { backgroundColor: t.surface, borderColor: t.border }]}>
                 <Text style={[styles.name, { color: t.text }]}>{s.label}</Text>
                 <Switch
-                  value={prefs[s.key]}
-                  onValueChange={(v) => update(s.key, v)}
+                  value={getAllowed(s.key)}
+                  onValueChange={(v) => onToggle(s.key, v)}
                   trackColor={{ true: t.accent, false: t.surface2 }}
                   thumbColor="#fff"
                 />
               </View>
             ))}
             <Text style={[styles.hint, { color: t.subtle }]}>
-              Settings saved locally. Chatbot prompt-filter reads these toggles on every call so
-              data from sources you've disabled never reaches the model.
+              Preferences saved to the server. The chatbot prompt filter reads these toggles on every call so data from sources you've disabled never reaches the model.
             </Text>
           </>
         )}

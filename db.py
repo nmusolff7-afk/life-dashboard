@@ -366,6 +366,74 @@ def init_db():
                 updated_at      TIMESTAMP NOT NULL
             )
         """)
+        # ── Connector foundation (PRD §4.8.6 + BUILD_PLAN_v2 §2) ─────────────
+        # Unified per-user / per-provider state for every integration (OAuth
+        # AND native-device). Device-native rows (healthkit / health_connect)
+        # carry no tokens — just status. OAuth rows carry tokens + scopes +
+        # expires_at + external_user_id for webhook matching.
+        # last_error is a short user-safe message; last_error_detail is the
+        # full server-side trace for debugging (never shown to user).
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS users_connectors (
+                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                provider          TEXT NOT NULL,
+                external_user_id  TEXT,
+                access_token      TEXT,
+                refresh_token     TEXT,
+                expires_at        INTEGER,
+                scopes            TEXT,
+                status            TEXT NOT NULL DEFAULT 'disconnected',
+                last_sync_at      INTEGER,
+                last_error        TEXT,
+                last_error_detail TEXT,
+                created_at        INTEGER NOT NULL,
+                updated_at        INTEGER NOT NULL,
+                UNIQUE(user_id, provider)
+            )
+        """)
+        # Short-lived OAuth state (CSRF + PKCE). TTL enforced by consumer.
+        # Replaces the Flask-session-based state used by Gmail today, which
+        # loses state across Flask restarts.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS oauth_states (
+                state           TEXT PRIMARY KEY,
+                user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                provider        TEXT NOT NULL,
+                code_verifier   TEXT,
+                redirect_after  TEXT,
+                created_at      INTEGER NOT NULL
+            )
+        """)
+        # Webhook dedupe + audit. We dedupe by (provider, external_event_id)
+        # so provider retries are no-ops. processed_at is set by the worker
+        # when it finishes handling the event.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS webhook_events (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider            TEXT NOT NULL,
+                external_event_id   TEXT NOT NULL,
+                received_at         INTEGER NOT NULL,
+                processed_at        INTEGER,
+                status              TEXT NOT NULL DEFAULT 'pending',
+                error               TEXT,
+                payload_json        TEXT,
+                UNIQUE(provider, external_event_id)
+            )
+        """)
+        # Per-source AI consent. Each row = (user, source) + allowed flag.
+        # Absence of a row means "consent not yet recorded" → defaults to
+        # true for v1 (opt-out model), per PRD §4.8.7. Backend-of-record
+        # so the chatbot prompt filter can enforce consent server-side.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_ai_consent (
+                user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                source     TEXT NOT NULL,
+                allowed    INTEGER NOT NULL DEFAULT 1,
+                updated_at INTEGER NOT NULL,
+                PRIMARY KEY (user_id, source)
+            )
+        """)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS daily_momentum (
                 user_id         INTEGER REFERENCES users(id),
@@ -673,6 +741,11 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_finance_txn_user_date    ON finance_transactions(user_id, txn_date DESC)",
             "CREATE INDEX IF NOT EXISTS idx_finance_txn_user_cat     ON finance_transactions(user_id, category)",
             "CREATE INDEX IF NOT EXISTS idx_finance_bills_user_due   ON finance_bills(user_id, status, due_date)",
+            "CREATE INDEX IF NOT EXISTS idx_users_connectors_user    ON users_connectors(user_id, status)",
+            "CREATE INDEX IF NOT EXISTS idx_users_connectors_ext     ON users_connectors(provider, external_user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_oauth_states_created     ON oauth_states(created_at)",
+            "CREATE INDEX IF NOT EXISTS idx_webhook_events_status    ON webhook_events(status, received_at)",
+            "CREATE INDEX IF NOT EXISTS idx_user_ai_consent_user     ON user_ai_consent(user_id)",
         ]:
             conn.execute(idx_sql)
 
@@ -691,6 +764,16 @@ def init_db():
     except Exception as _bf_err:
         import logging as _log_mod
         _log_mod.getLogger(__name__).warning("strength_sets backfill skipped: %s", _bf_err)
+
+    # One-shot backfill: migrate legacy gmail_tokens rows into
+    # users_connectors. Idempotent — subsequent deploys are a no-op once
+    # every gmail_tokens row has a corresponding users_connectors row.
+    try:
+        from connectors import backfill_gmail_tokens
+        backfill_gmail_tokens()
+    except Exception as _bf_err:
+        import logging as _log_mod
+        _log_mod.getLogger(__name__).warning("gmail_tokens backfill skipped: %s", _bf_err)
 
 
 def _backfill_all_strength_sets():
@@ -888,6 +971,8 @@ def delete_account(user_id):
         # Finance — transactions reference accounts + bills reference
         # accounts; clear children before parents.
         "finance_transactions", "finance_bills", "finance_budgets", "finance_accounts",
+        # Connector foundation (B1).
+        "oauth_states", "user_ai_consent", "users_connectors",
     ]
     with get_conn() as conn:
         failures = []
