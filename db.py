@@ -285,6 +285,77 @@ def init_db():
                 PRIMARY KEY (goal_id, log_date)
             )
         """)
+        # ── Finance (PRD §4.5) ─────────────────────────────────────────────
+        # The four finance tables ship with v1 so the Finance tab is coherent
+        # without Plaid. Every row carries a `source` column ('manual' by
+        # default, 'plaid' once Plaid lands) so the Plaid sync path can
+        # drop data in without overwriting user-entered rows.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS finance_accounts (
+                id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id            INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                source             TEXT NOT NULL DEFAULT 'manual',
+                plaid_account_id   TEXT,
+                plaid_item_id      TEXT,
+                name               TEXT NOT NULL,
+                mask               TEXT,
+                account_type       TEXT,
+                subtype            TEXT,
+                current_balance    REAL,
+                available_balance  REAL,
+                iso_currency       TEXT DEFAULT 'USD',
+                created_at         TIMESTAMP NOT NULL,
+                updated_at         TIMESTAMP NOT NULL
+            )
+        """)
+        # amount convention: positive = expense, negative = income. Matches
+        # Plaid's transaction sign convention so the Plaid sync doesn't need
+        # a translation layer when it lands.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS finance_transactions (
+                id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id               INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                account_id            INTEGER REFERENCES finance_accounts(id) ON DELETE SET NULL,
+                source                TEXT NOT NULL DEFAULT 'manual',
+                plaid_transaction_id  TEXT UNIQUE,
+                amount                REAL NOT NULL,
+                iso_currency          TEXT DEFAULT 'USD',
+                txn_date              DATE NOT NULL,
+                merchant_name         TEXT,
+                category              TEXT,
+                category_override     TEXT,
+                pending               INTEGER NOT NULL DEFAULT 0,
+                note                  TEXT,
+                created_at            TIMESTAMP NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS finance_budgets (
+                user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                category     TEXT NOT NULL,
+                monthly_cap  REAL NOT NULL,
+                period       TEXT NOT NULL DEFAULT 'monthly',
+                updated_at   TIMESTAMP NOT NULL,
+                PRIMARY KEY (user_id, category)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS finance_bills (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                source          TEXT NOT NULL DEFAULT 'manual',
+                name            TEXT NOT NULL,
+                amount          REAL,
+                due_date        DATE NOT NULL,
+                frequency       TEXT NOT NULL DEFAULT 'monthly',
+                account_id      INTEGER REFERENCES finance_accounts(id) ON DELETE SET NULL,
+                status          TEXT NOT NULL DEFAULT 'upcoming',
+                last_paid_date  DATE,
+                note            TEXT,
+                created_at      TIMESTAMP NOT NULL,
+                updated_at      TIMESTAMP NOT NULL
+            )
+        """)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS daily_momentum (
                 user_id         INTEGER REFERENCES users(id),
@@ -588,6 +659,10 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_goals_user_status        ON goals(user_id, status)",
             "CREATE INDEX IF NOT EXISTS idx_goals_user_primary       ON goals(user_id, is_primary) WHERE is_primary = 1",
             "CREATE INDEX IF NOT EXISTS idx_goal_progress_goal_date  ON goal_progress_log(goal_id, log_date DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_finance_accounts_user    ON finance_accounts(user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_finance_txn_user_date    ON finance_transactions(user_id, txn_date DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_finance_txn_user_cat     ON finance_transactions(user_id, category)",
+            "CREATE INDEX IF NOT EXISTS idx_finance_bills_user_due   ON finance_bills(user_id, status, due_date)",
         ]:
             conn.execute(idx_sql)
 
@@ -800,6 +875,9 @@ def delete_account(user_id):
         # Unified goals — delete order matters: progress log references
         # goals via goal_id, so clear it first via join.
         "goals",
+        # Finance — transactions reference accounts + bills reference
+        # accounts; clear children before parents.
+        "finance_transactions", "finance_bills", "finance_budgets", "finance_accounts",
     ]
     with get_conn() as conn:
         failures = []

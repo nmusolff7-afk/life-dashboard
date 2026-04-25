@@ -313,6 +313,79 @@ def _progress_protein_avg(goal: dict, user_id: int) -> dict:
 
 # --- Dispatch table ---
 
+def _progress_monthly_spending_limit(goal: dict, user_id: int) -> dict:
+    """FIN-04 — cap monthly spend below a target. progress = 1 when user
+    is under pace; decays to 0 at 2× pace. Period resets automatically
+    with finance_transactions.txn_date (not via goal.period_end like
+    other period_count goals — monthly spend limit is a rolling month)."""
+    import finance as _fin
+    target = goal.get("target_count") or goal.get("target_value")
+    if not target:
+        return _paused_handler(goal, user_id)
+    # Does the user have finance data at all? If zero txns AND no budget,
+    # we're not "active" — return paused so the UI shows reconnect hint.
+    with get_conn() as conn:
+        n = conn.execute(
+            "SELECT COUNT(*) AS n FROM finance_transactions WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()["n"]
+    if n == 0:
+        return _paused_handler(goal, user_id)
+
+    spent = _fin.monthly_spend_to_date(user_id)
+    from datetime import date as _d
+    today = _d.today()
+    elapsed = today.day
+    days_in_month = 30
+    expected = float(target) * (elapsed / days_in_month)
+    # progress_pct for the pace bar: fraction of monthly cap used.
+    cap_usage = min(1.0, spent / float(target)) if target else None
+    completed_failed = spent >= float(target)
+    # completed here means "full calendar month finished without exceeding cap".
+    # We don't auto-complete mid-month; the scheduler / month-end job
+    # would flip it. For v1, completion is manual.
+    return {
+        "current_fields": {"current_count": round(spent, 2)},
+        "progress_pct": cap_usage,
+        "snapshot_value": spent,
+        "paused": False,
+        "completed": False,  # don't auto-complete on overspend
+    }
+
+
+def _progress_budget_streak(goal: dict, user_id: int) -> dict:
+    """FIN-05 — consecutive weeks at/under budget. Needs a budget set."""
+    import finance as _fin
+    from datetime import date as _d, timedelta as _td
+    budgets = _fin.get_budgets(user_id)
+    if not budgets:
+        return _paused_handler(goal, user_id)
+    target = goal.get("target_streak_length") or 0
+    # Walk back from last complete week.
+    today = _d.today()
+    last_sun = today - _td(days=(today.weekday() + 1) % 7 or 7)
+    if last_sun >= today:
+        last_sun = today - _td(days=7)
+    streak = 0
+    week_end = last_sun
+    for _ in range(260):
+        week_start = week_end - _td(days=6)
+        if _fin.had_budget_adherent_week(user_id, week_start, budgets=budgets):
+            streak += 1
+            week_end = week_start - _td(days=1)
+            continue
+        break
+    pct = min(1.0, streak / target) if target else None
+    completed = target > 0 and streak >= target
+    return {
+        "current_fields": {"current_streak_length": streak},
+        "progress_pct": pct,
+        "snapshot_value": float(streak),
+        "paused": False,
+        "completed": completed,
+    }
+
+
 _PROGRESS_HANDLERS = {
     "FIT-01": _progress_weight,
     "FIT-02": _progress_strength_pr("squat"),
@@ -324,7 +397,11 @@ _PROGRESS_HANDLERS = {
     "NUT-02": _progress_daily_streak(_qualifies_calorie),
     "NUT-03": _progress_daily_streak(_qualifies_three_meals),
     "NUT-04": _progress_protein_avg,
-    # NUT-05, FIN-*, TIME-*: default _paused_handler.
+    "FIN-04": _progress_monthly_spending_limit,
+    "FIN-05": _progress_budget_streak,
+    # NUT-05, FIN-01/02/03, TIME-*: default _paused_handler.
+    # FIN-01/02/03 (cumulative savings/debt) need account balances which
+    # need Plaid — stay paused until Plaid lands.
 }
 
 

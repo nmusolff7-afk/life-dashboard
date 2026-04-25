@@ -810,16 +810,165 @@ def compute_fitness_score(user_id: int, as_of: str) -> CategoryResult:
 
 
 def compute_finance_score(user_id: int, as_of: str) -> CategoryResult:
+    """Degrades gracefully across three states:
+
+    - No transactions + no budget → score=None, CTA = "Connect your bank
+      or log your first transaction." Doesn't drag Overall (B2
+      redistribution in compute_overall_score).
+    - Some data but not enough to score (< 14 days of transactions OR no
+      budget set) → score=None, reason='insufficient_data', calibrating=True.
+      Tab still renders real numbers; score just won't show.
+    - Enough data → real score from 2 deterministic signals:
+        * budget adherence (monthly spent vs total cap, or sum of caps)
+        * bill on-time rate (past-due ratio over bills due in last 60d)
+      More signals (savings rate, spending consistency) land when Plaid
+      + income detection ship.
+    """
+    import finance as _fin
+    from datetime import date as _d
+
+    try:
+        as_of_d = _d.fromisoformat(as_of[:10])
+    except ValueError:
+        as_of_d = _d.today()
+
+    # Fast path: zero state.
+    with get_conn() as conn:
+        txn_count = conn.execute(
+            "SELECT COUNT(*) AS n FROM finance_transactions WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()["n"]
+        bill_count = conn.execute(
+            "SELECT COUNT(*) AS n FROM finance_bills WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()["n"]
+    budgets = _fin.get_budgets(user_id)
+
+    if txn_count == 0 and bill_count == 0 and not budgets:
+        return CategoryResult(
+            category="finance",
+            score=None,
+            band="grey",
+            reason="not_connected",
+            calibrating=False,
+            signals=[],
+            data_completeness_overall=0.0,
+            sparkline_7d=[None] * 7,
+            cta="Connect your bank, or log your first transaction to start.",
+        )
+
+    signals: list[Signal] = []
+
+    # Signal 1 — budget adherence (month-to-date).
+    # score = 1 when spent <= cap, linearly decays to 0 at spent = 1.5 × cap.
+    total_cap = budgets.get(_fin.TOTAL_BUDGET_KEY)
+    if total_cap is None and budgets:
+        total_cap = sum(v for k, v in budgets.items() if k != _fin.TOTAL_BUDGET_KEY)
+    if total_cap and total_cap > 0:
+        spent = _fin.monthly_spend_to_date(user_id, as_of_d)
+        # Expected progress — if we're 1/3 through the month, expected spend is
+        # 1/3 of the cap. Adherence = (expected - actual) normalized into [0,1].
+        days_in_month = 30  # good enough for scoring purposes
+        first = as_of_d.replace(day=1)
+        elapsed = (as_of_d - first).days + 1
+        expected = total_cap * (elapsed / days_in_month)
+        # Adherence: 1.0 at spent <= expected, linear decay to 0 at spent = 1.5 * cap.
+        overshoot_cap = total_cap * 1.5
+        if spent <= expected:
+            adherence = 1.0
+        elif spent >= overshoot_cap:
+            adherence = 0.0
+        else:
+            adherence = max(0.0, 1.0 - (spent - expected) / max(overshoot_cap - expected, 1.0))
+        signals.append(Signal(
+            name="budget_adherence",
+            label="Budget adherence",
+            weight=0.6,
+            score=round(adherence, 3),
+            data_completeness=1.0,
+        ))
+
+    # Signal 2 — bills on-time rate (last 60 days of bills with a last_paid_date).
+    lookback = (as_of_d - timedelta(days=60)).isoformat()
+    with get_conn() as conn:
+        past_bills = conn.execute(
+            "SELECT status, due_date, last_paid_date FROM finance_bills "
+            "WHERE user_id = ? AND due_date >= ?",
+            (user_id, lookback),
+        ).fetchall()
+    past_bills = [dict(b) for b in past_bills]
+    settled = [b for b in past_bills if b["last_paid_date"]]
+    on_time = 0
+    for b in settled:
+        try:
+            due = _d.fromisoformat(b["due_date"])
+            paid = _d.fromisoformat(b["last_paid_date"])
+            if paid <= due + timedelta(days=2):  # 2-day grace
+                on_time += 1
+        except (ValueError, TypeError):
+            pass
+    overdue_live = sum(1 for b in past_bills if b["status"] == "overdue")
+    total_bills_seen = len(settled) + overdue_live
+    if total_bills_seen >= 3:
+        rate = (on_time / total_bills_seen) if total_bills_seen else None
+        signals.append(Signal(
+            name="bill_on_time_rate",
+            label="Bills on-time rate",
+            weight=0.4,
+            score=round(rate, 3) if rate is not None else None,
+            data_completeness=min(1.0, total_bills_seen / 5),
+        ))
+
+    # Minimum viable scoring: must have budget adherence signal AND at least
+    # 14 days of transactions OR an explicit budget set. Otherwise report
+    # calibrating.
+    has_budget = bool(budgets)
+    has_14d = False
+    if txn_count > 0:
+        with get_conn() as conn:
+            first = conn.execute(
+                "SELECT MIN(txn_date) AS f FROM finance_transactions WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()["f"]
+        try:
+            has_14d = (as_of_d - _d.fromisoformat(first)).days >= 14 if first else False
+        except ValueError:
+            has_14d = False
+
+    scoreable = signals and (has_budget or has_14d) and any(s.score is not None for s in signals)
+    if not scoreable:
+        return CategoryResult(
+            category="finance",
+            score=None,
+            band="grey",
+            reason="insufficient_data",
+            calibrating=True,
+            signals=signals,
+            data_completeness_overall=0.5 if (txn_count or has_budget) else 0.2,
+            sparkline_7d=[None] * 7,
+            cta=(
+                "Set a budget in Finance to start scoring."
+                if not has_budget
+                else "Keep logging — scores unlock after 14 days of data."
+            ),
+        )
+
+    # Weighted score — renormalize weights across signals that have a score.
+    total_w = sum(s.weight for s in signals if s.score is not None) or 1.0
+    weighted = sum((s.score or 0) * s.weight for s in signals if s.score is not None) / total_w
+    score_int = round(weighted * 100)
+    for s in signals:
+        s.contribution = (s.score or 0) * (s.weight / total_w) * 100 if s.score is not None else 0.0
+
     return CategoryResult(
         category="finance",
-        score=None,
-        band="grey",
-        reason="not_connected",
+        score=score_int,
+        band=band_for_score(score_int),
+        reason="ok",
         calibrating=False,
-        signals=[],
-        data_completeness_overall=0.0,
+        signals=signals,
+        data_completeness_overall=min(1.0, (txn_count / 20 + (1.0 if has_budget else 0.0)) / 2),
         sparkline_7d=[None] * 7,
-        cta="Connect your bank to activate Finance.",
     )
 
 

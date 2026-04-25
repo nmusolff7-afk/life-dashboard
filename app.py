@@ -1985,6 +1985,215 @@ def api_score_time():
     return jsonify(_scoring.compute_time_score(uid(), as_of).as_dict())
 
 
+# ── Finance (PRD §4.5) ────────────────────────────────────────────────────
+# Manual-first: user types transactions, sets budgets, tracks bills. Every
+# route tolerates "no Plaid" as a first-class state. When Plaid lands,
+# its sync path just INSERTs into the same tables with source='plaid'.
+
+@app.route("/api/finance/summary", methods=["GET"])
+@login_required
+def api_finance_summary():
+    """Hot-path read for the Finance tab — every number on the Today view
+    comes from here so the client doesn't do N+1 fetches."""
+    import finance as _fin
+    return jsonify({"ok": True, **_fin.finance_summary(uid())})
+
+
+@app.route("/api/finance/accounts", methods=["GET", "POST"])
+@login_required
+def api_finance_accounts():
+    import finance as _fin
+    if request.method == "GET":
+        return jsonify({"ok": True, "accounts": _fin.list_accounts(uid())})
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    if not name:
+        return jsonify({"ok": False, "error": "name required",
+                        "error_code": "validation_failed"}), 400
+    account_type = data.get("account_type", "cash")
+    current_balance = data.get("current_balance")
+    try:
+        acct_id = _fin.create_manual_account(
+            uid(), name=name, account_type=account_type,
+            current_balance=(float(current_balance) if current_balance is not None else None),
+        )
+    except Exception:
+        _log.exception("finance/accounts POST failed")
+        return jsonify({"ok": False, "error": "Could not create account",
+                        "error_code": "db_error"}), 500
+    return jsonify({"ok": True, "account_id": acct_id}), 201
+
+
+@app.route("/api/finance/accounts/<int:account_id>/balance", methods=["PUT"])
+@login_required
+def api_finance_account_balance(account_id: int):
+    import finance as _fin
+    data = request.get_json(silent=True) or {}
+    bal = data.get("current_balance")
+    if bal is None:
+        return jsonify({"ok": False, "error": "current_balance required",
+                        "error_code": "validation_failed"}), 400
+    try:
+        ok = _fin.update_account_balance(account_id, uid(), float(bal))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Invalid balance",
+                        "error_code": "validation_failed"}), 400
+    if not ok:
+        return jsonify({"ok": False, "error": "Account not found",
+                        "error_code": "not_found"}), 404
+    return jsonify({"ok": True})
+
+
+@app.route("/api/finance/transactions", methods=["GET", "POST"])
+@login_required
+def api_finance_transactions():
+    import finance as _fin
+    if request.method == "GET":
+        try:
+            limit = int(request.args.get("limit", 50))
+        except (TypeError, ValueError):
+            limit = 50
+        limit = max(1, min(limit, 200))
+        since = request.args.get("since")
+        category = request.args.get("category")
+        rows = _fin.list_transactions(uid(), limit=limit, since=since, category=category)
+        return jsonify({"ok": True, "transactions": rows})
+
+    data = request.get_json(silent=True) or {}
+    try:
+        amount = float(data.get("amount"))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "amount required (numeric)",
+                        "error_code": "validation_failed"}), 400
+    if amount == 0:
+        return jsonify({"ok": False, "error": "amount cannot be zero",
+                        "error_code": "validation_failed"}), 400
+    txn_date = data.get("txn_date") or client_today()
+    category = data.get("category", "other")
+    try:
+        txn_id = _fin.create_transaction(
+            uid(),
+            amount=amount,
+            txn_date=txn_date,
+            merchant_name=data.get("merchant_name"),
+            category=category,
+            account_id=data.get("account_id"),
+            note=data.get("note"),
+        )
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e),
+                        "error_code": "validation_failed"}), 400
+    except Exception:
+        _log.exception("finance/transactions POST failed")
+        return jsonify({"ok": False, "error": "Could not save transaction",
+                        "error_code": "db_error"}), 500
+    return jsonify({"ok": True, "transaction_id": txn_id}), 201
+
+
+@app.route("/api/finance/transactions/<int:txn_id>", methods=["PATCH", "DELETE"])
+@login_required
+def api_finance_transaction(txn_id: int):
+    import finance as _fin
+    if request.method == "DELETE":
+        ok = _fin.delete_transaction(txn_id, uid())
+        if not ok:
+            return jsonify({"ok": False, "error": "Transaction not found",
+                            "error_code": "not_found"}), 404
+        return jsonify({"ok": True})
+    data = request.get_json(silent=True) or {}
+    try:
+        ok = _fin.update_transaction(txn_id, uid(), data)
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e),
+                        "error_code": "validation_failed"}), 400
+    if not ok:
+        return jsonify({"ok": False, "error": "Nothing updated",
+                        "error_code": "validation_failed"}), 400
+    return jsonify({"ok": True})
+
+
+@app.route("/api/finance/budget", methods=["GET", "PUT", "DELETE"])
+@login_required
+def api_finance_budget():
+    """GET: return all categories' caps. PUT: upsert one category. DELETE:
+    remove one category (query param ?category=)."""
+    import finance as _fin
+    if request.method == "GET":
+        return jsonify({"ok": True, "budgets": _fin.get_budgets(uid())})
+    if request.method == "PUT":
+        data = request.get_json(silent=True) or {}
+        category = (data.get("category") or "").strip()
+        cap = data.get("monthly_cap")
+        try:
+            _fin.set_budget(uid(), category, float(cap))
+        except (TypeError, ValueError) as e:
+            return jsonify({"ok": False, "error": str(e),
+                            "error_code": "validation_failed"}), 400
+        return jsonify({"ok": True})
+    # DELETE
+    category = (request.args.get("category") or "").strip()
+    if not category:
+        return jsonify({"ok": False, "error": "category required",
+                        "error_code": "validation_failed"}), 400
+    _fin.delete_budget(uid(), category)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/finance/bills", methods=["GET", "POST"])
+@login_required
+def api_finance_bills():
+    import finance as _fin
+    if request.method == "GET":
+        include_paid = request.args.get("include_paid", "1") != "0"
+        return jsonify({"ok": True, "bills": _fin.list_bills(uid(), include_paid=include_paid)})
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    due_date = (data.get("due_date") or "").strip()
+    if not name or not due_date:
+        return jsonify({"ok": False, "error": "name and due_date required",
+                        "error_code": "validation_failed"}), 400
+    try:
+        amount = data.get("amount")
+        amount_f = float(amount) if amount is not None else None
+        bill_id = _fin.create_bill(
+            uid(), name=name, amount=amount_f, due_date=due_date,
+            frequency=data.get("frequency", "monthly"),
+            account_id=data.get("account_id"),
+            note=data.get("note"),
+        )
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e),
+                        "error_code": "validation_failed"}), 400
+    except Exception:
+        _log.exception("finance/bills POST failed")
+        return jsonify({"ok": False, "error": "Could not create bill",
+                        "error_code": "db_error"}), 500
+    return jsonify({"ok": True, "bill_id": bill_id}), 201
+
+
+@app.route("/api/finance/bills/<int:bill_id>/mark-paid", methods=["POST"])
+@login_required
+def api_finance_bill_mark_paid(bill_id: int):
+    import finance as _fin
+    data = request.get_json(silent=True) or {}
+    result = _fin.mark_bill_paid(bill_id, uid(), paid_date=data.get("paid_date"))
+    if not result:
+        return jsonify({"ok": False, "error": "Bill not found",
+                        "error_code": "not_found"}), 404
+    return jsonify({"ok": True, "bill": result})
+
+
+@app.route("/api/finance/bills/<int:bill_id>", methods=["DELETE"])
+@login_required
+def api_finance_bill_delete(bill_id: int):
+    import finance as _fin
+    ok = _fin.delete_bill(bill_id, uid())
+    if not ok:
+        return jsonify({"ok": False, "error": "Bill not found",
+                        "error_code": "not_found"}), 404
+    return jsonify({"ok": True})
+
+
 # ── Momentum ─────────────────────────────────────────────
 
 @app.route("/api/momentum/today", methods=["GET", "POST"])
