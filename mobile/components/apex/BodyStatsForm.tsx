@@ -1,8 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,12 +17,12 @@ import { computeRmr } from '../../../shared/src/logic/rmr';
 import { logWeight } from '../../lib/api/fitness';
 import { saveOnboardingInputs } from '../../lib/api/profile';
 import { useTokens } from '../../lib/theme';
-import { useHaptics } from '../../lib/useHaptics';
+import { autoSaveLabel, useDebouncedAutoSave } from '../../lib/useDebouncedAutoSave';
 
 interface Props {
   onboarding: OnboardingDataResponse | null;
   profile: ProfileResponse | null;
-  /** Refetch both on save. */
+  /** Called once after each successful auto-save. */
   onSaved: () => void | Promise<void>;
 }
 
@@ -43,30 +41,54 @@ function ageFromBirthday(iso: string | undefined): number | null {
   return age >= 0 && age < 130 ? age : null;
 }
 
-const BIRTHDAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+/** Combine MM/DD/YYYY parts into the canonical YYYY-MM-DD when complete. */
+function composeBirthday(month: string, day: string, year: string): string | null {
+  const m = parseInt(month, 10);
+  const d = parseInt(day, 10);
+  const y = parseInt(year, 10);
+  if (!Number.isFinite(m) || m < 1 || m > 12) return null;
+  if (!Number.isFinite(d) || d < 1 || d > 31) return null;
+  if (!Number.isFinite(y) || y < 1900 || y > new Date().getFullYear()) return null;
+  return `${y.toString().padStart(4, '0')}-${m.toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`;
+}
+
+/** Reverse — split a stored YYYY-MM-DD into 3 strings for the inputs. */
+function splitBirthday(iso: string): { month: string; day: string; year: string } {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return { month: '', day: '', year: '' };
+  return { year: m[1], month: m[2].replace(/^0/, ''), day: m[3].replace(/^0/, '') };
+}
 
 export function BodyStatsForm({ onboarding, profile, onSaved }: Props) {
   const t = useTokens();
-  const haptics = useHaptics();
 
   // Pre-fill source of truth: onboarding raw_inputs first, then profile fallback.
   const saved = onboarding?.saved ?? null;
 
   const [firstName, setFirstName] = useState('');
-  const [birthday, setBirthday] = useState('');
+  const [bMonth, setBMonth] = useState('');
+  const [bDay, setBDay] = useState('');
+  const [bYear, setBYear] = useState('');
   const [gender, setGender] = useState<Gender>('male');
   const [heightFt, setHeightFt] = useState('');
   const [heightIn, setHeightIn] = useState('');
   const [weight, setWeight] = useState('');
   const [targetWeight, setTargetWeight] = useState('');
   const [bodyFat, setBodyFat] = useState('');
-  const [saving, setSaving] = useState(false);
+
+  // Track "what was last saved" so we can compute `dirty` for the
+  // auto-save hook. Updated on initial seed + after each successful save.
+  const lastSavedRef = useRef<string>('');
 
   // Seed when onboarding/profile data arrives.
   useEffect(() => {
     if (saved) {
       setFirstName((saved.first_name as string | undefined) ?? profile?.first_name ?? '');
-      setBirthday((saved.birthday as string | undefined) ?? '');
+      const birthday = (saved.birthday as string | undefined) ?? '';
+      const parts = splitBirthday(birthday);
+      setBMonth(parts.month);
+      setBDay(parts.day);
+      setBYear(parts.year);
       const g = saved.gender as Gender | undefined;
       if (g === 'male' || g === 'female') setGender(g);
       setHeightFt(saved.height_ft != null ? String(saved.height_ft) : '');
@@ -81,7 +103,6 @@ export function BodyStatsForm({ onboarding, profile, onSaved }: Props) {
       setTargetWeight(saved.target_weight_lbs != null ? String(saved.target_weight_lbs) : '');
       setBodyFat(saved.body_fat_pct != null ? String(saved.body_fat_pct) : '');
     } else if (profile) {
-      // Fallback to profile if onboarding data hasn't loaded.
       setFirstName(profile.first_name ?? '');
       if (profile.gender === 'male' || profile.gender === 'female') setGender(profile.gender);
       setHeightFt(profile.height_ft != null ? String(profile.height_ft) : '');
@@ -90,20 +111,46 @@ export function BodyStatsForm({ onboarding, profile, onSaved }: Props) {
       setTargetWeight(profile.target_weight_lbs != null ? String(profile.target_weight_lbs) : '');
       setBodyFat(profile.body_fat_pct != null ? String(profile.body_fat_pct) : '');
     }
+    // Capture the freshly-seeded snapshot so the first edit makes
+    // `dirty` flip true.
+    lastSavedRef.current = '__seed__';
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saved, profile]);
 
-  // ── Live RMR computation ────────────────────────────────────────────────
+  // ── Validation ──────────────────────────────────────────────────────────
+
+  const birthday = composeBirthday(bMonth, bDay, bYear); // null if incomplete/invalid
+  const wRaw = parseFloat(weight);
+  const wLbs = Number.isFinite(wRaw) ? Math.round(wRaw * 10) / 10 : NaN;
+  const hFt = parseInt(heightFt, 10);
+  const hIn = parseInt(heightIn, 10);
+  const tgtRaw = parseFloat(targetWeight);
+  const tgt = Number.isFinite(tgtRaw) ? Math.round(tgtRaw * 10) / 10 : NaN;
+  const bf = parseFloat(bodyFat);
+
+  const weightOk = Number.isFinite(wLbs) && wLbs >= 30 && wLbs <= 800;
+  const heightFtOk = Number.isFinite(hFt) && hFt >= 3 && hFt <= 8;
+  const heightInOk = Number.isFinite(hIn) && hIn >= 0 && hIn <= 11;
+  const birthdayOk = !!birthday || (!bMonth && !bDay && !bYear);  // empty also ok
+  const targetOk = !targetWeight || (Number.isFinite(tgt) && tgt > 0);
+  const bodyFatOk = !bodyFat || (Number.isFinite(bf) && bf >= 3 && bf <= 70);
+
+  const validation: { ok: boolean; messages: string[] } = useMemo(() => {
+    const messages: string[] = [];
+    if (!weightOk && weight) messages.push('Weight 30–800 lbs');
+    if (!heightFtOk && heightFt) messages.push('Height feet 3–8');
+    if (!heightInOk && heightIn) messages.push('Height inches 0–11');
+    if (!birthdayOk) messages.push('Birthday: month 1–12, day 1–31, year ≥ 1900');
+    if (!targetOk) messages.push('Target weight must be positive');
+    if (!bodyFatOk) messages.push('Body fat 3–70%');
+    return { ok: weightOk && heightFtOk && heightInOk && birthdayOk && targetOk && bodyFatOk, messages };
+  }, [weight, heightFt, heightIn, weightOk, heightFtOk, heightInOk, birthdayOk, targetOk, bodyFatOk]);
+
+  // ── Live RMR preview ────────────────────────────────────────────────────
 
   const rmrPreview = useMemo(() => {
-    const wLbs = parseFloat(weight);
-    const hFt = parseInt(heightFt, 10);
-    const hIn = parseInt(heightIn, 10);
-    const bf = parseFloat(bodyFat);
-    const age = ageFromBirthday(birthday);
-    if (!Number.isFinite(wLbs) || wLbs < 30) return null;
-    if (!Number.isFinite(hFt) || hFt < 3 || hFt > 8) return null;
-    if (!Number.isFinite(hIn) || hIn < 0 || hIn > 11) return null;
-    if (age == null) return null;
+    const age = ageFromBirthday(birthday ?? undefined);
+    if (!weightOk || !heightFtOk || !heightInOk || age == null) return null;
     const weightKg = wLbs * 0.453592;
     const heightCm = (hFt * 12 + hIn) * 2.54;
     return computeRmr({
@@ -111,91 +158,78 @@ export function BodyStatsForm({ onboarding, profile, onSaved }: Props) {
       heightCm,
       ageYears: age,
       sex: gender,
-      bodyFatPct: Number.isFinite(bf) && bf > 0 ? bf : undefined,
+      bodyFatPct: bodyFatOk && Number.isFinite(bf) && bf > 0 ? bf : undefined,
     });
-  }, [weight, heightFt, heightIn, bodyFat, birthday, gender]);
+  }, [birthday, weightOk, heightFtOk, heightInOk, wLbs, hFt, hIn, gender, bf, bodyFatOk]);
 
-  const age = ageFromBirthday(birthday);
+  const age = ageFromBirthday(birthday ?? undefined);
   const bmi = useMemo(() => {
-    const wLbs = parseFloat(weight);
-    const hFt = parseInt(heightFt, 10);
-    const hIn = parseInt(heightIn, 10);
-    if (!Number.isFinite(wLbs) || !Number.isFinite(hFt) || !Number.isFinite(hIn)) return null;
+    if (!weightOk || !heightFtOk || !heightInOk) return null;
     const heightIn2 = hFt * 12 + hIn;
     if (heightIn2 <= 0) return null;
     return +((wLbs * 703) / (heightIn2 * heightIn2)).toFixed(1);
-  }, [weight, heightFt, heightIn]);
+  }, [weightOk, heightFtOk, heightInOk, wLbs, hFt, hIn]);
 
-  // ── Save ────────────────────────────────────────────────────────────────
+  // ── Auto-save ───────────────────────────────────────────────────────────
 
-  const handleSave = async () => {
-    // Round weight inputs to nearest 0.1 before persisting. Older paths
-    // stored long decimals from slider-driven edits which then redisplayed
-    // as integers via whole-lb rounding, confusing users.
-    const wRaw = parseFloat(weight);
-    const wLbs = Number.isFinite(wRaw) ? Math.round(wRaw * 10) / 10 : NaN;
-    const hFt = parseInt(heightFt, 10);
-    const hIn = parseInt(heightIn, 10);
-    const tgtRaw = parseFloat(targetWeight);
-    const tgt = Number.isFinite(tgtRaw) ? Math.round(tgtRaw * 10) / 10 : NaN;
-    const bf = parseFloat(bodyFat);
-    const computedAge = ageFromBirthday(birthday);
+  // Build the payload that would actually be persisted. Auto-save only
+  // fires when validation passes AND the payload differs from what was
+  // last saved (so re-renders don't trigger no-op writes).
+  const payload = useMemo(
+    () => ({
+      first_name: firstName.trim() || undefined,
+      birthday: birthday ?? undefined,
+      age: age ?? undefined,
+      gender,
+      height_ft: heightFtOk ? hFt : undefined,
+      height_in: heightInOk ? hIn : undefined,
+      current_weight_lbs: weightOk ? wLbs : undefined,
+      target_weight_lbs: targetOk && Number.isFinite(tgt) && tgt > 0 ? tgt : undefined,
+      body_fat_pct: bodyFatOk && Number.isFinite(bf) && bf > 0 ? bf : undefined,
+    }),
+    [firstName, birthday, age, gender, hFt, hIn, wLbs, tgt, bf,
+      heightFtOk, heightInOk, weightOk, targetOk, bodyFatOk],
+  );
+  const payloadJson = JSON.stringify(payload);
+  const dirty = payloadJson !== lastSavedRef.current && lastSavedRef.current !== '';
+  const enabled = validation.ok && weightOk;  // weight is the only required field
 
-    if (birthday && !BIRTHDAY_PATTERN.test(birthday)) {
-      Alert.alert('Birthday format', 'Use YYYY-MM-DD (e.g. 1990-04-23).');
-      return;
-    }
-    if (!Number.isFinite(wLbs) || wLbs < 30 || wLbs > 800) {
-      Alert.alert('Check weight', 'Enter a valid weight in lbs.');
-      return;
-    }
-    if (!Number.isFinite(hFt) || hFt < 3 || hFt > 8) {
-      Alert.alert('Check height', 'Enter a valid height in feet.');
-      return;
-    }
-    if (!Number.isFinite(hIn) || hIn < 0 || hIn > 11) {
-      Alert.alert('Check height', 'Inches must be 0–11.');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      // Merge patch into raw_inputs. /api/onboarding/save strips nulls.
-      await saveOnboardingInputs({
-        first_name: firstName.trim() || undefined,
-        birthday: birthday || undefined,
-        age: computedAge ?? undefined,
-        gender,
-        height_ft: hFt,
-        height_in: hIn,
-        current_weight_lbs: wLbs,
-        target_weight_lbs: Number.isFinite(tgt) && tgt > 0 ? tgt : undefined,
-        body_fat_pct: Number.isFinite(bf) && bf > 0 ? bf : undefined,
-      });
-      // Also persist weight to daily_activity so today's balance ring /
-      // weight trend chart pick it up immediately.
-      await logWeight(wLbs).catch(() => {
-        // Non-fatal — onboarding save already captured the value.
-      });
-      await onSaved();
-      haptics.fire('success');
-      Alert.alert('Saved', 'Your body stats are updated. Targets recompute from your macros page.');
-    } catch (e) {
-      haptics.fire('error');
-      Alert.alert('Save failed', e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
-  };
+  const { status, error, lastSavedAt } = useDebouncedAutoSave({
+    payload, enabled, dirty, delayMs: 800,
+    save: async (p) => {
+      await saveOnboardingInputs(p);
+      // Persist weight to daily_activity so the trend chart picks it up.
+      if (p.current_weight_lbs) {
+        await logWeight(p.current_weight_lbs).catch(() => { /* non-fatal */ });
+      }
+      lastSavedRef.current = payloadJson;
+    },
+    onSaved,
+  });
 
   // ── Render ──────────────────────────────────────────────────────────────
 
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Text style={[styles.lead, { color: t.muted }]}>
-        Updating these recomputes your RMR. Save the macros page afterward to apply the new calorie
-        target.
-      </Text>
+      <View style={styles.headerRow}>
+        <Text style={[styles.lead, { color: t.muted, flex: 1 }]}>
+          Updates auto-save. Recomputes your RMR live; macros refresh next time you visit Macros.
+        </Text>
+        <StatusPill status={status} lastSavedAt={lastSavedAt} />
+      </View>
+
+      {error ? (
+        <Text style={[styles.errorBanner, { color: t.danger }]}>
+          Auto-save error: {error} — change a field to retry.
+        </Text>
+      ) : null}
+      {validation.messages.length > 0 ? (
+        <View style={styles.validationList}>
+          {validation.messages.map((m) => (
+            <Text key={m} style={[styles.validation, { color: t.subtle }]}>• {m}</Text>
+          ))}
+        </View>
+      ) : null}
 
       <Field label="First name">
         <TextInput
@@ -207,16 +241,38 @@ export function BodyStatsForm({ onboarding, profile, onSaved }: Props) {
         />
       </Field>
 
-      <Field label="Birthday (YYYY-MM-DD)" helper={age != null ? `Age ${age}` : undefined}>
-        <TextInput
-          value={birthday}
-          onChangeText={setBirthday}
-          placeholder="1990-04-23"
-          placeholderTextColor={t.subtle}
-          autoCapitalize="none"
-          keyboardType="numbers-and-punctuation"
-          style={[styles.input, { color: t.text, backgroundColor: t.surface2, borderColor: t.border }]}
-        />
+      <Field label="Birthday" helper={age != null ? `Age ${age}` : 'Month / Day / Year'}>
+        <View style={styles.birthdayRow}>
+          <TextInput
+            value={bMonth}
+            onChangeText={(v) => setBMonth(v.replace(/[^0-9]/g, '').slice(0, 2))}
+            placeholder="MM"
+            placeholderTextColor={t.subtle}
+            keyboardType="number-pad"
+            maxLength={2}
+            style={[styles.input, styles.bdShort, { color: t.text, backgroundColor: t.surface2, borderColor: t.border }]}
+          />
+          <Text style={[styles.bdSep, { color: t.subtle }]}>/</Text>
+          <TextInput
+            value={bDay}
+            onChangeText={(v) => setBDay(v.replace(/[^0-9]/g, '').slice(0, 2))}
+            placeholder="DD"
+            placeholderTextColor={t.subtle}
+            keyboardType="number-pad"
+            maxLength={2}
+            style={[styles.input, styles.bdShort, { color: t.text, backgroundColor: t.surface2, borderColor: t.border }]}
+          />
+          <Text style={[styles.bdSep, { color: t.subtle }]}>/</Text>
+          <TextInput
+            value={bYear}
+            onChangeText={(v) => setBYear(v.replace(/[^0-9]/g, '').slice(0, 4))}
+            placeholder="YYYY"
+            placeholderTextColor={t.subtle}
+            keyboardType="number-pad"
+            maxLength={4}
+            style={[styles.input, styles.bdYear, { color: t.text, backgroundColor: t.surface2, borderColor: t.border }]}
+          />
+        </View>
       </Field>
 
       <Field label="Sex">
@@ -276,7 +332,7 @@ export function BodyStatsForm({ onboarding, profile, onSaved }: Props) {
         </Field>
       </View>
 
-      <Field label="Body fat % (optional)" helper="Enables Katch-McArdle RMR (5–60% valid range)">
+      <Field label="Body fat % (optional)" helper="Enables Katch-McArdle RMR (3–70% valid range)">
         <TextInput
           value={bodyFat}
           onChangeText={setBodyFat}
@@ -305,25 +361,27 @@ export function BodyStatsForm({ onboarding, profile, onSaved }: Props) {
           </Text>
         ) : null}
       </View>
-
-      <Pressable
-        onPress={handleSave}
-        disabled={saving}
-        style={({ pressed }) => [
-          styles.saveBtn,
-          { backgroundColor: t.accent, opacity: saving || pressed ? 0.85 : 1 },
-        ]}>
-        {saving ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.saveLabel}>Save body stats</Text>
-        )}
-      </Pressable>
     </ScrollView>
   );
 }
 
 // ── Subcomponents ────────────────────────────────────────────────────────
+
+function StatusPill({ status, lastSavedAt }: { status: ReturnType<typeof useDebouncedAutoSave>['status']; lastSavedAt: number | null }) {
+  const t = useTokens();
+  const label = autoSaveLabel(status, lastSavedAt);
+  if (!label) return null;
+  const color =
+    status === 'error' ? t.danger :
+    status === 'saving' ? t.accent :
+    status === 'dirty' ? t.amber :
+    t.subtle;
+  return (
+    <View style={[styles.pill, { borderColor: color }]}>
+      <Text style={[styles.pillText, { color }]}>{label}</Text>
+    </View>
+  );
+}
 
 function Field({
   label,
@@ -393,7 +451,18 @@ function PreviewCell({ label, value, unit }: { label: string; value: string; uni
 
 const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 60, gap: 14 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   lead: { fontSize: 13, lineHeight: 18 },
+  pill: {
+    borderWidth: 1,
+    borderRadius: 100,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  pillText: { fontSize: 11, fontWeight: '600' },
+  errorBanner: { fontSize: 12, fontStyle: 'italic' },
+  validationList: { gap: 2 },
+  validation: { fontSize: 11 },
 
   field: { gap: 6 },
   fieldLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8 },
@@ -406,6 +475,10 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     fontSize: 15,
   },
+  birthdayRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  bdShort: { width: 64, textAlign: 'center', paddingHorizontal: 6 },
+  bdYear: { width: 96, textAlign: 'center', paddingHorizontal: 6 },
+  bdSep: { fontSize: 18, fontWeight: '600' },
 
   row: { flexDirection: 'row', gap: 10 },
 
@@ -435,13 +508,4 @@ const styles = StyleSheet.create({
   previewValue: { fontSize: 18, fontWeight: '700', marginTop: 2 },
   previewUnit: { fontSize: 11, fontWeight: '500' },
   previewFooter: { fontSize: 11, lineHeight: 15 },
-
-  saveBtn: {
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 10,
-  },
-  saveLabel: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });

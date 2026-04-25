@@ -1,7 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +11,7 @@ import {
 import type { OnboardingDataResponse } from '../../../shared/src/types/home';
 import { saveOnboardingInputs } from '../../lib/api/profile';
 import { useTokens } from '../../lib/theme';
+import { autoSaveLabel, useDebouncedAutoSave } from '../../lib/useDebouncedAutoSave';
 
 interface Props {
   onboarding: OnboardingDataResponse | null;
@@ -36,40 +35,56 @@ export function DietForm({ onboarding, onSaved }: Props) {
 
   const [dietType, setDietType] = useState('');
   const [restrictions, setRestrictions] = useState('');
-  const [saving, setSaving] = useState(false);
+  const lastSavedRef = useRef<string>('');
 
   useEffect(() => {
     if (saved) {
       setDietType((saved.diet_type as string | undefined) ?? '');
       setRestrictions((saved.dietary_restrictions as string | undefined) ?? '');
     }
+    lastSavedRef.current = '__seed__';
   }, [saved]);
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await saveOnboardingInputs({
-        diet_type: dietType.trim() || undefined,
-        dietary_restrictions: restrictions.trim() || undefined,
-      });
-      await onSaved();
-      Alert.alert(
-        'Saved',
-        'Diet preferences updated. They flow into meal suggestions and AI burn/nutrition estimates.',
-      );
-    } catch (e) {
-      Alert.alert('Save failed', e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
-  };
+  // ── Auto-save ───────────────────────────────────────────────────────────
+
+  const trimmedDiet = dietType.trim();
+  const trimmedRestrictions = restrictions.trim();
+  const payload = useMemo(
+    () => ({
+      diet_type: trimmedDiet || undefined,
+      dietary_restrictions: trimmedRestrictions || undefined,
+    }),
+    [trimmedDiet, trimmedRestrictions],
+  );
+  const payloadJson = JSON.stringify(payload);
+  const dirty = payloadJson !== lastSavedRef.current && lastSavedRef.current !== '';
+  // Diet preferences allow blank — saves whenever the form changes.
+  const enabled = true;
+
+  const { status, error, lastSavedAt } = useDebouncedAutoSave({
+    payload, enabled, dirty, delayMs: 800,
+    save: async (p) => {
+      await saveOnboardingInputs(p);
+      lastSavedRef.current = payloadJson;
+    },
+    onSaved,
+  });
 
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Text style={[styles.lead, { color: t.muted }]}>
-        Used by the meal-log AI estimator and Pantry suggestions to respect what you'll actually
-        eat. Leave blank if you don't care to filter.
-      </Text>
+      <View style={styles.headerRow}>
+        <Text style={[styles.lead, { color: t.muted, flex: 1 }]}>
+          Used by the meal-log AI estimator and Pantry suggestions. Edits auto-save.
+          Changing diet flags your AI profile as out-of-sync — regenerate it from the Profile screen when ready.
+        </Text>
+        <StatusPill status={status} lastSavedAt={lastSavedAt} />
+      </View>
+
+      {error ? (
+        <Text style={[styles.errorBanner, { color: t.danger }]}>
+          Auto-save error: {error} — change a field to retry.
+        </Text>
+      ) : null}
 
       <Section title="Diet type">
         <TextInput
@@ -120,21 +135,28 @@ export function DietForm({ onboarding, onSaved }: Props) {
           Free-text — Claude parses it on meal estimates to skip restricted ingredients.
         </Text>
       </Section>
-
-      <Pressable
-        onPress={handleSave}
-        disabled={saving}
-        style={({ pressed }) => [
-          styles.saveBtn,
-          { backgroundColor: t.accent, opacity: saving || pressed ? 0.85 : 1 },
-        ]}>
-        {saving ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.saveLabel}>Save diet preferences</Text>
-        )}
-      </Pressable>
     </ScrollView>
+  );
+}
+
+// ── Subcomponents ────────────────────────────────────────────────────────
+
+function StatusPill({ status, lastSavedAt }: {
+  status: ReturnType<typeof useDebouncedAutoSave>['status'];
+  lastSavedAt: number | null;
+}) {
+  const t = useTokens();
+  const label = autoSaveLabel(status, lastSavedAt);
+  if (!label) return null;
+  const color =
+    status === 'error' ? t.danger :
+    status === 'saving' ? t.accent :
+    status === 'dirty' ? t.amber :
+    t.subtle;
+  return (
+    <View style={[styles.pill, { borderColor: color }]}>
+      <Text style={[styles.pillText, { color }]}>{label}</Text>
+    </View>
   );
 }
 
@@ -150,7 +172,16 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 60, gap: 16 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   lead: { fontSize: 13, lineHeight: 18 },
+  pill: {
+    borderWidth: 1,
+    borderRadius: 100,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  pillText: { fontSize: 11, fontWeight: '600' },
+  errorBanner: { fontSize: 12, fontStyle: 'italic' },
 
   section: { gap: 10 },
   sectionTitle: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 },
@@ -174,13 +205,4 @@ const styles = StyleSheet.create({
   presetText: { fontSize: 13 },
 
   helper: { fontSize: 11 },
-
-  saveBtn: {
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 6,
-  },
-  saveLabel: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });

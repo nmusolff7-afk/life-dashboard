@@ -1,7 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,6 +15,7 @@ import type {
 import type { Occupation } from '../../../shared/src/logic/neat';
 import { saveOnboardingInputs } from '../../lib/api/profile';
 import { useTokens } from '../../lib/theme';
+import { autoSaveLabel, useDebouncedAutoSave } from '../../lib/useDebouncedAutoSave';
 import { SliderRow } from './SliderRow';
 
 interface Props {
@@ -38,7 +37,7 @@ export function DailyLifeForm({ onboarding, profile, onSaved }: Props) {
   const [occupation, setOccupation] = useState('');
   const [workStyle, setWorkStyle] = useState<Occupation>('sedentary');
   const [stress, setStress] = useState<number>(5);
-  const [saving, setSaving] = useState(false);
+  const lastSavedRef = useRef<string>('');
 
   useEffect(() => {
     if (saved) {
@@ -48,39 +47,50 @@ export function DailyLifeForm({ onboarding, profile, onSaved }: Props) {
       const s = saved.stress_level_1_10 as number | undefined;
       if (s != null && s >= 1 && s <= 10) setStress(s);
     }
+    lastSavedRef.current = '__seed__';
   }, [saved]);
 
-  // ── Save ─────────────────────────────────────────────────────────────────
+  // ── Auto-save ───────────────────────────────────────────────────────────
 
-  const handleSave = async () => {
-    if (!occupation.trim()) {
-      Alert.alert('Occupation', 'What do you do for work?');
-      return;
-    }
-    setSaving(true);
-    try {
-      await saveOnboardingInputs({
-        occupation_description: occupation.trim(),
-        work_style: workStyle,
-        stress_level_1_10: stress,
-      });
-      await onSaved();
-      Alert.alert('Saved', 'Daily-life inputs updated. Regenerate your AI profile or open Macros to apply the new TDEE.');
-    } catch (e) {
-      Alert.alert('Save failed', e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
-  };
+  const trimmedOcc = occupation.trim();
+  const payload = useMemo(
+    () => ({
+      occupation_description: trimmedOcc || undefined,
+      work_style: workStyle,
+      stress_level_1_10: stress,
+    }),
+    [trimmedOcc, workStyle, stress],
+  );
+  const payloadJson = JSON.stringify(payload);
+  const dirty = payloadJson !== lastSavedRef.current && lastSavedRef.current !== '';
+  // We allow saving even with empty occupation (the field is informational
+  // and the original Save button blocked on it via Alert; auto-save just
+  // skips persisting an empty string and waits for the user to type).
+  const enabled = trimmedOcc.length >= 2;
 
-  // ── Render ───────────────────────────────────────────────────────────────
+  const { status, error, lastSavedAt } = useDebouncedAutoSave({
+    payload, enabled, dirty, delayMs: 800,
+    save: async (p) => {
+      await saveOnboardingInputs(p);
+      lastSavedRef.current = payloadJson;
+    },
+    onSaved,
+  });
 
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Text style={[styles.lead, { color: t.muted }]}>
-        How you work + your stress level drive NEAT (non-exercise activity) and TDEE. These update
-        calorie targets on regenerate.
-      </Text>
+      <View style={styles.headerRow}>
+        <Text style={[styles.lead, { color: t.muted, flex: 1 }]}>
+          How you work + your stress level drive NEAT and TDEE. Updates auto-save.
+        </Text>
+        <StatusPill status={status} lastSavedAt={lastSavedAt} />
+      </View>
+
+      {error ? (
+        <Text style={[styles.errorBanner, { color: t.danger }]}>
+          Auto-save error: {error} — change a field to retry.
+        </Text>
+      ) : null}
 
       <Section title="Occupation">
         <TextInput
@@ -138,25 +148,30 @@ export function DailyLifeForm({ onboarding, profile, onSaved }: Props) {
           step={1}
         />
       </Section>
-
-      <Pressable
-        onPress={handleSave}
-        disabled={saving}
-        style={({ pressed }) => [
-          styles.saveBtn,
-          { backgroundColor: t.accent, opacity: saving || pressed ? 0.85 : 1 },
-        ]}>
-        {saving ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.saveLabel}>Save daily life</Text>
-        )}
-      </Pressable>
     </ScrollView>
   );
 }
 
 // ── Subcomponents ────────────────────────────────────────────────────────
+
+function StatusPill({ status, lastSavedAt }: {
+  status: ReturnType<typeof useDebouncedAutoSave>['status'];
+  lastSavedAt: number | null;
+}) {
+  const t = useTokens();
+  const label = autoSaveLabel(status, lastSavedAt);
+  if (!label) return null;
+  const color =
+    status === 'error' ? t.danger :
+    status === 'saving' ? t.accent :
+    status === 'dirty' ? t.amber :
+    t.subtle;
+  return (
+    <View style={[styles.pill, { borderColor: color }]}>
+      <Text style={[styles.pillText, { color }]}>{label}</Text>
+    </View>
+  );
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   const t = useTokens();
@@ -170,7 +185,16 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 60, gap: 16 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   lead: { fontSize: 13, lineHeight: 18 },
+  pill: {
+    borderWidth: 1,
+    borderRadius: 100,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  pillText: { fontSize: 11, fontWeight: '600' },
+  errorBanner: { fontSize: 12, fontStyle: 'italic' },
 
   section: { gap: 10 },
   sectionTitle: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 },
@@ -192,13 +216,4 @@ const styles = StyleSheet.create({
   },
   workLabel: { fontSize: 14 },
   workHint: { fontSize: 11, marginTop: 3 },
-
-  saveBtn: {
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 6,
-  },
-  saveLabel: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });

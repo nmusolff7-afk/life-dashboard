@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { WorkoutSessionType } from '../../../shared/src/types/home';
@@ -178,6 +178,7 @@ export function LogActivityCard({
           onLog={handleSave}
           onRedo={handleEstimate}
           onSaveTemplate={handleSaveTemplate}
+          onKcalEdit={(v) => setCalories(v)}
           saving={saving}
           redoing={estimating}
         />
@@ -196,6 +197,7 @@ function EstimatedBreakdown({
   onLog,
   onRedo,
   onSaveTemplate,
+  onKcalEdit,
   saving,
   redoing,
 }: {
@@ -206,15 +208,51 @@ function EstimatedBreakdown({
   onLog: () => void;
   onRedo: () => void;
   onSaveTemplate: () => void;
+  onKcalEdit: (v: number) => void;
   saving: boolean;
   redoing: boolean;
 }) {
   const t = useTokens();
+  // Make the AI's kcal estimate inline-editable. Tap the number → text
+  // input opens. Saves are confirm-before-commit (the primary button
+  // shows the number you're about to log so there's no surprise).
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(String(kcal));
+  // Keep draft in sync if a fresh re-estimate arrives.
+  useEffect(() => { if (!editing) setDraft(String(kcal)); }, [kcal, editing]);
+  const commitEdit = () => {
+    const v = parseInt(draft.replace(/[^0-9]/g, ''), 10);
+    if (Number.isFinite(v) && v >= 0) onKcalEdit(v);
+    setEditing(false);
+  };
+
   return (
     <View style={breakdown.wrap}>
-      <Text style={[breakdown.kcal, { color: t.cal }]}>
-        {kcal.toLocaleString()} <Text style={[breakdown.kcalUnit, { color: t.muted }]}>kcal</Text>
-      </Text>
+      <Text style={[breakdown.headerLabel, { color: t.muted }]}>AI ESTIMATE — TAP TO EDIT</Text>
+      {editing ? (
+        <View style={breakdown.editRow}>
+          <TextInput
+            value={draft}
+            onChangeText={(v) => setDraft(v.replace(/[^0-9]/g, ''))}
+            keyboardType="number-pad"
+            autoFocus
+            onBlur={commitEdit}
+            onSubmitEditing={commitEdit}
+            style={[breakdown.kcalInput, { color: t.cal, borderColor: t.border, backgroundColor: t.surface2 }]}
+          />
+          <Text style={[breakdown.kcalUnit, { color: t.muted }]}>kcal</Text>
+          <Pressable onPress={commitEdit} hitSlop={10} style={breakdown.editDoneBtn}>
+            <Text style={[breakdown.editDoneText, { color: t.accent }]}>Done</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <Pressable onPress={() => setEditing(true)} accessibilityLabel="Edit calorie estimate">
+          <Text style={[breakdown.kcal, { color: t.cal }]}>
+            {kcal.toLocaleString()} <Text style={[breakdown.kcalUnit, { color: t.muted }]}>kcal</Text>
+            <Text style={[breakdown.kcalEditHint, { color: t.subtle }]}>  ✎</Text>
+          </Text>
+        </Pressable>
+      )}
 
       {sessionType ? (
         <View style={breakdown.typeRow}>
@@ -238,13 +276,20 @@ function EstimatedBreakdown({
         </Text>
       ) : null}
 
+      {/* Transparency note: tell the user this is a model estimate, not a
+          measured number. They can edit the kcal value above; pressing
+          "Log" commits whatever's currently shown. */}
+      <Text style={[breakdown.transparencyNote, { color: t.subtle }]}>
+        AI estimates are usually within ~15% but can be off — especially for cardio without HR data. Tap the number above to override before logging.
+      </Text>
+
       <View style={breakdown.actions}>
         <Pressable
           onPress={onSaveTemplate}
           style={({ pressed }) => [breakdown.templateBtn, { opacity: pressed ? 0.6 : 1 }]}
-          accessibilityLabel="Save workout">
+          accessibilityLabel="Save as template">
           <Ionicons name="bookmark-outline" size={14} color={t.muted} />
-          <Text style={[breakdown.templateLabel, { color: t.muted }]}>Save workout</Text>
+          <Text style={[breakdown.templateLabel, { color: t.muted }]}>Save as template</Text>
         </Pressable>
 
         <Pressable
@@ -268,7 +313,7 @@ function EstimatedBreakdown({
           {saving ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={breakdown.primaryLabel}>Log workout</Text>
+            <Text style={breakdown.primaryLabel}>Log {kcal.toLocaleString()} kcal</Text>
           )}
         </Pressable>
       </View>
@@ -367,8 +412,20 @@ const styles = StyleSheet.create({
 
 const breakdown = StyleSheet.create({
   wrap: { gap: 12 },
+  headerLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.0, marginBottom: -4 },
   kcal: { fontSize: 28, fontWeight: '700' },
+  kcalEditHint: { fontSize: 14, fontWeight: '400' },
   kcalUnit: { fontSize: 12, fontWeight: '500' },
+  editRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  kcalInput: {
+    fontSize: 28, fontWeight: '700',
+    borderWidth: 1, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 6,
+    minWidth: 110, textAlign: 'center',
+  },
+  editDoneBtn: { paddingVertical: 6, paddingHorizontal: 10 },
+  editDoneText: { fontSize: 13, fontWeight: '700' },
+  transparencyNote: { fontSize: 11, lineHeight: 15, fontStyle: 'italic' },
 
   typeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   typeChip: {
