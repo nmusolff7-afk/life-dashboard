@@ -55,9 +55,7 @@ export default function Privacy() {
       />
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={[styles.intro, { color: t.muted }]}>
-          Per-source AI consent. You granted consent at the time you connected each source — these
-          toggles let you revoke it without disconnecting. Data still syncs for scoring and
-          display; turning a toggle off just stops the chatbot from seeing it in prompts.
+          Per-source AI consent. Turning a toggle off means the chatbot never sees data from that source in its prompts. Scoring and your own dashboard views still read the data. Sources you haven't connected yet are listed for forward compatibility — the toggle takes effect the moment you connect them.
         </Text>
 
         <Pressable

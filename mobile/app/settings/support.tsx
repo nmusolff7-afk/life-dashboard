@@ -1,8 +1,7 @@
 import { Stack, useRouter } from 'expo-router';
 import Constants from 'expo-constants';
-import * as Linking from 'expo-linking';
 import * as MailComposer from 'expo-mail-composer';
-import { Alert, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { SettingsRow } from '../../components/apex';
 import { useTokens } from '../../lib/theme';
@@ -63,26 +62,21 @@ export default function Support() {
         <Text style={[styles.section, { color: t.muted }]}>Product</Text>
         <SettingsRow
           title="Rate Life Dashboard"
-          hint="Review in the App Store / Play Store"
-          onPress={() => {
-            const url = Platform.OS === 'ios'
-              ? 'itms-apps://itunes.apple.com/app/idYOUR_APP_ID'
-              : 'market://details?id=com.lifedashboard';
-            Linking.openURL(url).catch(() => {
-              Alert.alert(
-                'Store not available',
-                'The app-store rating flow will wire up once Life Dashboard is published.',
-              );
-            });
-          }}
+          hint="Active once Life Dashboard is published to the App Store and Play Store."
+          onPress={() =>
+            Alert.alert(
+              'Not yet published',
+              'The rating flow activates once Life Dashboard is live in the App Store and Play Store. We\'ll enable this row automatically then.',
+            )
+          }
         />
         <SettingsRow
           title="What's new"
-          hint={`v${Constants.expoConfig?.version ?? '—'}`}
+          hint={`v${Constants.expoConfig?.version ?? '—'} — release notes ship in a later update.`}
           onPress={() =>
             Alert.alert(
-              'What\'s new',
-              'Release notes will appear here as we ship updates. For now, follow the changelog in your pull-request feed.',
+              "What's new",
+              'Per-release notes ship in a later cycle. For now, check the commit log on the engineering side.',
             )
           }
         />
@@ -90,32 +84,30 @@ export default function Support() {
         <Text style={[styles.section, { color: t.muted }]}>Legal</Text>
         <SettingsRow
           title="Terms of Service"
-          onPress={() => {
-            Linking.openURL('https://lifedashboard.app/terms').catch(() => {
-              Alert.alert(
-                'Coming soon',
-                'Terms of Service will be hosted at lifedashboard.app/terms before TestFlight.',
-              );
-            });
-          }}
+          hint="Published alongside the public launch."
+          onPress={() =>
+            Alert.alert(
+              'Not hosted yet',
+              'Terms of Service will be hosted at launch. Until then, by using this beta build you agree to test feedback and no warranty on the pre-release experience.',
+            )
+          }
         />
         <SettingsRow
           title="Privacy Policy"
-          onPress={() => {
-            Linking.openURL('https://lifedashboard.app/privacy').catch(() => {
-              Alert.alert(
-                'Coming soon',
-                'Privacy Policy will be hosted at lifedashboard.app/privacy before TestFlight.',
-              );
-            });
-          }}
+          hint="Published alongside the public launch."
+          onPress={() =>
+            Alert.alert(
+              'Not hosted yet',
+              'Privacy Policy will be hosted at launch. In this beta: your data stays on our infrastructure, is never sold, and you can permanently delete it from Data & account → Delete account.',
+            )
+          }
         />
         <SettingsRow
           title="Open-source licenses"
           onPress={() =>
             Alert.alert(
               'Open-source licenses',
-              'Full license list ships in the next build. Built on React Native, Expo, TypeScript, Flask, and many more — thanks to all the open-source maintainers who make this possible.',
+              'Full license list ships in a later build. Built on React Native, Expo, TypeScript, Flask, and many more — thanks to all the open-source maintainers who make this possible.',
             )
           }
         />

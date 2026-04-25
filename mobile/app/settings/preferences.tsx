@@ -1,15 +1,17 @@
 import { Stack } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { SegmentedControl } from '../../components/ui';
 import {
   DEFAULT_PREFERENCES,
   loadPreferences,
+  resolveTimezone,
   savePreferences,
   type HapticsLevel,
   type LanguageCode,
   type Preferences,
+  type TimezoneMode,
   type UnitSystem,
 } from '../../lib/preferences';
 import { useTheme, useTokens } from '../../lib/theme';
@@ -145,6 +147,12 @@ export default function PreferencesScreen() {
                 quick-add buttons (+8 / +16 / +24 oz). Daily goal: {prefs.hydrationGoalOz} oz.
               </Text>
             </Section>
+
+            <TimezoneSection prefs={prefs} onChange={update} />
+
+            <Text style={[styles.fineprint, { color: t.subtle }]}>
+              Preferences are stored on this device. They'll roam to other devices once server-side preferences sync ships (tracked for a later phase).
+            </Text>
           </>
         )}
       </ScrollView>
@@ -159,6 +167,60 @@ function Section({ label, children }: { label: string; children: React.ReactNode
       <Text style={[styles.sectionLabel, { color: t.muted }]}>{label}</Text>
       {children}
     </View>
+  );
+}
+
+function TimezoneSection({
+  prefs,
+  onChange,
+}: {
+  prefs: Preferences;
+  onChange: <K extends keyof Preferences>(key: K, value: Preferences[K]) => void | Promise<void>;
+}) {
+  const t = useTokens();
+  const resolved = useMemo(() => resolveTimezone(prefs), [prefs]);
+  const deviceTz = useMemo(() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    } catch {
+      return 'UTC';
+    }
+  }, []);
+
+  return (
+    <Section label="Timezone">
+      <SegmentedControl<TimezoneMode>
+        value={prefs.timezoneMode}
+        onChange={(v) => onChange('timezoneMode', v)}
+        options={[
+          { value: 'automatic', label: 'Automatic' },
+          { value: 'manual', label: 'Manual' },
+        ]}
+      />
+      {prefs.timezoneMode === 'manual' ? (
+        <>
+          <TextInput
+            value={prefs.timezoneManual}
+            onChangeText={(v) => onChange('timezoneManual', v)}
+            placeholder="e.g. America/Los_Angeles"
+            placeholderTextColor={t.subtle}
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={[styles.input, { color: t.text, borderColor: t.border, backgroundColor: t.surface }]}
+          />
+          <Text style={[styles.hint, { color: t.subtle }]}>
+            Use an IANA zone identifier. Blank falls back to your device timezone ({deviceTz}).
+          </Text>
+        </>
+      ) : (
+        <Text style={[styles.hint, { color: t.subtle }]}>
+          Following your device timezone: {deviceTz}.
+        </Text>
+      )}
+      <Text style={[styles.hint, { color: t.subtle }]}>
+        "Today" rolls over at {resolved} midnight.
+      </Text>
+    </Section>
   );
 }
 
@@ -189,4 +251,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   rowLabel: { fontSize: 14, fontWeight: '500' },
+  input: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    marginTop: 8,
+  },
+  fineprint: { fontSize: 11, lineHeight: 15, marginTop: 12, fontStyle: 'italic' },
 });
