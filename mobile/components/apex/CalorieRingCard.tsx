@@ -44,11 +44,20 @@ export function CalorieRingCard({ totalIntake, totalBurn, goalIntake, score, sco
   const mainDash = hasGoal ? CIRC * Math.min(1, intake / goal) : 0;
   const overflowDash = over ? CIRC * Math.min(1, (intake - goal) / goal) : 0;
 
-  const big = !hasGoal
-    ? '—'
-    : `${Math.round(Math.abs(distanceToGoal)).toLocaleString()}`;
+  // Center reads as a clean "consumed of goal" — the absolute consumed
+  // count goes on top so the user sees their actual intake first, with
+  // the goal as context underneath. Distance-to-goal lives in a single
+  // line below. Previously we showed "1951 cals left / of 1951 goal" at
+  // the start of day, which felt redundant (subtraction is implied).
+  const big = !hasGoal ? '—' : Math.round(intake).toLocaleString();
   const bigColor = !hasGoal ? t.muted : over ? t.danger : t.text;
-  const topLabel = !hasGoal ? 'log meals' : over ? 'over goal' : 'cals left';
+  const topLabel = !hasGoal ? 'log meals to start' : 'consumed';
+  const remainingValue = hasGoal
+    ? over
+      ? `${Math.round(Math.abs(distanceToGoal)).toLocaleString()} over goal`
+      : `${Math.round(distanceToGoal).toLocaleString()} cals left to goal`
+    : null;
+  const remainingColor = !hasGoal ? t.muted : over ? t.danger : t.subtle;
 
   const actualNet = totalBurn != null ? burn - intake : null; // + = current deficit
 
@@ -98,9 +107,16 @@ export function CalorieRingCard({ totalIntake, totalBurn, goalIntake, score, sco
           <Text style={[styles.bigValue, { color: bigColor }]}>{big}</Text>
           <Text style={[styles.bigLabel, { color: t.muted }]}>{topLabel.toUpperCase()}</Text>
           {hasGoal ? (
-            <Text style={[styles.bigTarget, { color: t.subtle }]}>
-              of {goal.toLocaleString()} goal
-            </Text>
+            <>
+              <Text style={[styles.bigTarget, { color: t.subtle }]}>
+                of {goal.toLocaleString()} goal
+              </Text>
+              {remainingValue ? (
+                <Text style={[styles.remaining, { color: remainingColor }]}>
+                  {remainingValue}
+                </Text>
+              ) : null}
+            </>
           ) : null}
         </View>
       </View>
@@ -194,6 +210,7 @@ const styles = StyleSheet.create({
   bigValue: { fontSize: 42, fontWeight: '700', lineHeight: 44, letterSpacing: -1 },
   bigLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 1.2, marginTop: 2 },
   bigTarget: { fontSize: 11, marginTop: 4 },
+  remaining: { fontSize: 11, marginTop: 4, fontWeight: '600' },
 
   miniRow: {
     flexDirection: 'row',

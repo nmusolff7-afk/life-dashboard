@@ -115,16 +115,19 @@ export default function HomeScreen() {
     return shortDesc ? `${burnText} · last: ${shortDesc}` : burnText;
   }, [workouts.data, totalBurn]);
 
+  // Two clearly-named numbers: how much consumed, and how much room is
+  // left before crossing today's deficit-adjusted goal. The previous
+  // "0 of 1951 cal · 1951 cals left" format showed the same number
+  // twice because subtracting from goal at the start of day = the goal.
   const nutritionBlurb = useMemo(() => {
     const meals = nutrition.data?.meals ?? [];
-    if (meals.length === 0) return 'No meals logged yet today';
-    if (goalIntake != null && distanceToGoal != null) {
-      const tail = distanceToGoal >= 0
-        ? `${distanceToGoal} cals left`
-        : `${Math.abs(distanceToGoal)} over`;
-      return `${totalIntake} of ${goalIntake} cal · ${tail}`;
-    }
-    return `${totalIntake} cal consumed`;
+    if (meals.length === 0 && goalIntake == null) return 'No meals logged yet today';
+    const consumed = `${totalIntake.toLocaleString()} cal consumed`;
+    if (goalIntake == null || distanceToGoal == null) return consumed;
+    const room = distanceToGoal >= 0
+      ? `${distanceToGoal.toLocaleString()} left to goal`
+      : `${Math.abs(distanceToGoal).toLocaleString()} over goal`;
+    return `${consumed} · ${room}`;
   }, [nutrition.data, totalIntake, goalIntake, distanceToGoal]);
 
   // Fitness rich content — small stat trio (weight / steps / workout) per

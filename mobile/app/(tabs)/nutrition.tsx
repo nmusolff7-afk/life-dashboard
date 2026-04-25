@@ -182,7 +182,12 @@ export default function NutritionScreen() {
         }>
         {tab === 'today' ? (
           <>
-            {/* Big score hero — matches Fitness tab's top-of-page pattern. */}
+            {/* Big score hero — matches Fitness tab's top-of-page pattern.
+             *  Sparkline is intentionally suppressed here (passing []) — on
+             *  a single-category page the trend is visually redundant with
+             *  the score and was bleeding to the right of the number on
+             *  smaller screens. Keep the sparkline on the Home OverallScore
+             *  where it represents the cross-category pulse. */}
             <OverallScoreHero
               data={
                 nutritionScore.data
@@ -194,7 +199,7 @@ export default function NutritionScreen() {
                       contributing: ['nutrition'],
                       effective_weights: { fitness: 0, nutrition: 100, finance: 0, time: 0 },
                       data_completeness_overall: nutritionScore.data.data_completeness_overall,
-                      sparkline_7d: nutritionScore.data.sparkline_7d ?? [],
+                      sparkline_7d: [],
                       cta: nutritionScore.data.cta,
                     }
                   : null
