@@ -28,6 +28,17 @@ def init_db():
                 created_at TIMESTAMP NOT NULL
             )
         """)
+        # Additive migration: users.email. Pre-existing deploys created
+        # the table without this column; new deploys include it from the
+        # CREATE above on fresh DBs, so the ALTER is guarded by column
+        # detection. Email was previously inside user_onboarding.profile_map
+        # JSON, which made user-lookup-by-email O(n) scan. Moving it to a
+        # first-class indexed column unblocks GDPR export, account-deletion
+        # UX ("we'll email you at X"), and future Postgres migration
+        # (BUILD_PLAN_v2 §13.10).
+        cols = {row["name"] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
+        if "email" not in cols:
+            conn.execute("ALTER TABLE users ADD COLUMN email TEXT")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS meal_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -484,6 +495,9 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_saved_meals_user         ON saved_meals(user_id)",
             "CREATE INDEX IF NOT EXISTS idx_saved_workouts_user      ON saved_workouts(user_id)",
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_clerk_id    ON users(clerk_user_id) WHERE clerk_user_id IS NOT NULL",
+            # Partial UNIQUE index so empty/NULL emails (legacy rows) don't
+            # collide, but real emails are enforced unique.
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email        ON users(email)        WHERE email IS NOT NULL AND email != ''",
             "CREATE INDEX IF NOT EXISTS idx_strength_sets_workout    ON strength_sets(workout_log_id)",
             "CREATE INDEX IF NOT EXISTS idx_daily_scores_user_date   ON daily_scores(user_id, score_date)",
             "CREATE INDEX IF NOT EXISTS idx_chatbot_audit_user_time  ON chatbot_audit(user_id, created_at DESC)",
@@ -585,18 +599,44 @@ def verify_user(username, password):
 
 def get_user(user_id):
     with get_conn() as conn:
-        row = conn.execute("SELECT id, username FROM users WHERE id = ?", (user_id,)).fetchone()
+        row = conn.execute("SELECT id, username, email FROM users WHERE id = ?", (user_id,)).fetchone()
     return dict(row) if row else None
 
 
 def get_user_by_clerk_id(clerk_user_id):
-    """Return user row (id, username, clerk_user_id) for a linked Clerk identity, or None."""
+    """Return user row (id, username, email, clerk_user_id) for a linked Clerk identity, or None."""
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, username, clerk_user_id FROM users WHERE clerk_user_id = ?",
+            "SELECT id, username, email, clerk_user_id FROM users WHERE clerk_user_id = ?",
             (clerk_user_id,),
         ).fetchone()
     return dict(row) if row else None
+
+
+def set_user_email_if_empty(user_id: int, email: str) -> None:
+    """Backfill users.email for a row that has NULL or empty email.
+
+    Called from the clerk-verify returning-user path: every returning user
+    gets their email populated on next sign-in, so over time the column
+    reaches full coverage without a one-shot migration.
+
+    Guarded by `email IS NULL OR email = ''` so we never overwrite a value
+    the user deliberately changed. Silent no-op if email is empty.
+    """
+    if not email:
+        return
+    with get_conn() as conn:
+        try:
+            conn.execute(
+                "UPDATE users SET email = ? WHERE id = ? AND (email IS NULL OR email = '')",
+                (email.strip().lower(), user_id),
+            )
+            conn.commit()
+        except sqlite3.IntegrityError:
+            # Someone else owns this email (partial unique index). Very
+            # unusual — Clerk enforces one-account-per-email — but don't
+            # crash the sign-in flow over it.
+            pass
 
 
 def create_user_from_clerk(clerk_user_id: str, email: str, username: str) -> int:
@@ -618,12 +658,13 @@ def create_user_from_clerk(clerk_user_id: str, email: str, username: str) -> int
     base_username = (username or "").strip().lower() or f"user{clerk_user_id[-8:].lower()}"
     attempt = base_username
     placeholder_hash = f"clerk:{clerk_user_id}"
+    normalized_email = (email or "").strip().lower() or None
     with get_conn() as conn:
         for _ in range(10):
             try:
                 cur = conn.execute(
-                    "INSERT INTO users (username, password_hash, clerk_user_id, created_at) VALUES (?, ?, ?, ?)",
-                    (attempt, placeholder_hash, clerk_user_id, datetime.now().isoformat()),
+                    "INSERT INTO users (username, password_hash, clerk_user_id, email, created_at) VALUES (?, ?, ?, ?, ?)",
+                    (attempt, placeholder_hash, clerk_user_id, normalized_email, datetime.now().isoformat()),
                 )
                 conn.commit()
                 return cur.lastrowid
@@ -639,6 +680,15 @@ def create_user_from_clerk(clerk_user_id: str, email: str, username: str) -> int
                         return int(row["id"])
                     # Shouldn't happen; re-raise for visibility.
                     raise
+                if "users.email" in msg or "idx_users_email" in msg:
+                    # Email collides with another row (Clerk normally prevents
+                    # this at the account level; can happen if two Clerk
+                    # accounts were linked to the same email in different
+                    # environments). Drop the email and retry — the user row
+                    # can be created without it; set_user_email_if_empty
+                    # will try again on next sign-in.
+                    normalized_email = None
+                    continue
                 # Username collision — append random digits and retry.
                 attempt = f"{base_username}{random.randint(1000, 9999)}"
         raise RuntimeError(f"Could not create unique username for Clerk user {clerk_user_id}")

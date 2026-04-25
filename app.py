@@ -36,7 +36,7 @@ from db import (
     get_insight_bundle,
     save_meal, get_saved_meals, delete_saved_meal,
     save_workout, get_saved_workouts, delete_saved_workout,
-    get_user_by_clerk_id, create_user_from_clerk,
+    get_user_by_clerk_id, create_user_from_clerk, set_user_email_if_empty,
 )
 from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, generate_workout_plan, generate_comprehensive_plan, generate_plan_understanding, revise_plan, shorten_label, scan_meal_image, generate_momentum_insight, generate_scale_summary, suggest_meal, identify_ingredients, estimate_from_barcode
 from claude_profile import generate_profile_map
@@ -411,7 +411,30 @@ def api_auth_clerk_verify():
     if existing:
         user_id = existing["id"]
         username = existing["username"]
-        _log.info("clerk-verify: returning existing user_id=%s clerk=%s", user_id, clerk_user_id)
+        email = (existing.get("email") or "").strip()
+        # Backfill path: existing user without stored email (legacy row
+        # created before users.email landed). Try to populate from Clerk
+        # on this sign-in so the column converges to full coverage
+        # without a one-shot migration. Failure here is non-fatal — the
+        # user still signs in, we just try again next time.
+        if not email:
+            secret_key = os.environ.get("CLERK_SECRET_KEY", "")
+            if secret_key:
+                clerk_user = _fetch_clerk_user_with_retry(clerk_user_id, secret_key)
+                if clerk_user:
+                    primary_id = clerk_user.get("primary_email_address_id")
+                    for ea in clerk_user.get("email_addresses", []):
+                        if ea.get("id") == primary_id:
+                            email = ea.get("email_address", "") or ""
+                            break
+                    if not email and clerk_user.get("email_addresses"):
+                        email = clerk_user["email_addresses"][0].get("email_address", "") or ""
+                    if email:
+                        set_user_email_if_empty(user_id, email)
+        _log.info(
+            "clerk-verify: returning existing user_id=%s clerk=%s email_present=%s",
+            user_id, clerk_user_id, bool(email),
+        )
     else:
         secret_key = os.environ.get("CLERK_SECRET_KEY", "")
         if not secret_key:
@@ -450,6 +473,12 @@ def api_auth_clerk_verify():
             }), 500
         linked = get_user_by_clerk_id(clerk_user_id)
         username = linked["username"] if linked else base_username
+        # Email-collision path in create_user_from_clerk drops email
+        # and retries, so the stored row may have NULL even though we
+        # have one in hand. Backfill-on-next-signin will retry, but try
+        # once here so the client response has a value.
+        if linked and not (linked.get("email") or "").strip() and email:
+            set_user_email_if_empty(user_id, email)
         # is_new_user is true when this request went through the
         # creation branch. A concurrent request that lost the race will
         # also see is_new_user=true here, but the mobile onboarding
