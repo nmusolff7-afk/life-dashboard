@@ -27,22 +27,30 @@ export default function TimeScreen() {
   const goals = useGoals();
   const [refreshing, setRefreshing] = useState(false);
 
+  // Deps MUST be stable .refetch refs, not the hook-return objects.
+  // Those objects are fresh each render, which made useFocusEffect's
+  // callback identity change every render, which made the effect
+  // re-fire every render, which called refetch, which flipped
+  // loading=true, which re-rendered — infinite loop.
+  const focusRefetch = focus.refetch;
+  const tasksRefetch = tasks.refetch;
+  const goalsRefetch = goals.refetch;
   useFocusEffect(
     useCallback(() => {
-      focus.refetch();
-      tasks.refetch();
-      goals.refetch();
-    }, [focus, tasks, goals]),
+      focusRefetch();
+      tasksRefetch();
+      goalsRefetch();
+    }, [focusRefetch, tasksRefetch, goalsRefetch]),
   );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([focus.refetch(), tasks.refetch(), goals.refetch()]);
+      await Promise.all([focusRefetch(), tasksRefetch(), goalsRefetch()]);
     } finally {
       setRefreshing(false);
     }
-  }, [focus, tasks, goals]);
+  }, [focusRefetch, tasksRefetch, goalsRefetch]);
 
   const timeGoals = useMemo(
     () => (goals.data?.goals ?? []).filter((g) => g.category === 'time'),

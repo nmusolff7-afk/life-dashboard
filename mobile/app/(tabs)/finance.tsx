@@ -37,23 +37,32 @@ export default function FinanceScreen() {
   const goals = useGoals();
   const [refreshing, setRefreshing] = useState(false);
 
+  // useCallback deps MUST be the stable .refetch refs, NOT the whole
+  // hook-return objects. Those objects are new refs on every render, so
+  // including them here made the callback identity change every render,
+  // which made useFocusEffect re-fire every render, which called refetch,
+  // which flipped loading=true, which re-rendered — infinite loop.
+  const summaryRefetch = summary.refetch;
+  const txnsRefetch = txns.refetch;
+  const billsRefetch = bills.refetch;
+  const goalsRefetch = goals.refetch;
   useFocusEffect(
     useCallback(() => {
-      summary.refetch();
-      txns.refetch();
-      bills.refetch();
-      goals.refetch();
-    }, [summary, txns, bills, goals]),
+      summaryRefetch();
+      txnsRefetch();
+      billsRefetch();
+      goalsRefetch();
+    }, [summaryRefetch, txnsRefetch, billsRefetch, goalsRefetch]),
   );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([summary.refetch(), txns.refetch(), bills.refetch(), goals.refetch()]);
+      await Promise.all([summaryRefetch(), txnsRefetch(), billsRefetch(), goalsRefetch()]);
     } finally {
       setRefreshing(false);
     }
-  }, [summary, txns, bills, goals]);
+  }, [summaryRefetch, txnsRefetch, billsRefetch, goalsRefetch]);
 
   const financeGoals = useMemo(
     () => (goals.data?.goals ?? []).filter((g) => g.category === 'finance'),

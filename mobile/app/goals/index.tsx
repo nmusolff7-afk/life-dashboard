@@ -14,12 +14,18 @@ export default function GoalsScreen() {
   const completed = useCompletedGoals();
   const archived = useArchivedGoals();
 
+  // Deps MUST be stable .refetch refs, not the hook-return objects
+  // (which are fresh each render — see Finance/Time tabs for the full
+  // render-loop explanation).
+  const activeRefetch = active.refetch;
+  const completedRefetch = completed.refetch;
+  const archivedRefetch = archived.refetch;
   useFocusEffect(
     useCallback(() => {
-      active.refetch();
-      completed.refetch();
-      archived.refetch();
-    }, [active, completed, archived]),
+      activeRefetch();
+      completedRefetch();
+      archivedRefetch();
+    }, [activeRefetch, completedRefetch, archivedRefetch]),
   );
 
   const activeGoals = active.data?.goals ?? [];
