@@ -2803,11 +2803,17 @@ def _sync_calorie_driver_from_primary_fitness(user_id: int) -> None:
     """Rewrite user_goals (the single-row calorie-driver table) from the
     user's current primary fitness goal.
 
-    If the primary fitness goal is archived / completed / removed, the
-    driver row is left as-is (don't nuke calorie targets mid-day). Future:
-    fall back to maintenance calories (PRD §4.10.12 archival rule) — this
-    requires a body-stats snapshot we don't yet capture cleanly. Logging
-    this TODO so the gap is visible."""
+    Called whenever a FIT-01 is created / edited / archived / completed.
+    Pulls body stats from user_onboarding.raw_inputs (or profile_map as
+    fallback) + the primary goal's target_value, then runs compute_targets
+    and upserts user_goals — same code path as /api/goal/update and
+    /api/onboarding/complete so calorie math is deterministic across
+    entry points.
+
+    No primary fitness goal → driver row left as-is (don't nuke mid-day).
+    Missing body stats → driver row left as-is with a log warning; the
+    user can fix it by re-entering body stats in Settings → Profile.
+    """
     primary = get_primary_fitness_goal(user_id)
     if not primary:
         _log.info(
@@ -2816,39 +2822,96 @@ def _sync_calorie_driver_from_primary_fitness(user_id: int) -> None:
             user_id,
         )
         return
-    # For FIT-01 specifically we only have target_value (goal weight). Full
-    # calorie recompute needs body stats (height/age/sex/bf%) which live
-    # in user_onboarding.profile_map. Rather than re-derive from scratch
-    # here (the onboarding save path already does this), we mirror the
-    # primary goal's target_weight_lbs into user_goals.config_json for
-    # provenance. The next /api/goal/update call from the client will
-    # rewrite calorie_target + macros deterministically using the new
-    # target_weight. This keeps the calorie-math code path identical
-    # regardless of entry point (settings slider vs goal create/edit).
     existing = get_user_goal(user_id)
     if not existing:
+        # No legacy calorie driver row yet — unusual (onboarding always
+        # creates one), but don't crash if it's missing.
+        _log.warning("sync calorie driver: user_goals row missing for user=%s", user_id)
         return
+
+    # Pull body stats — raw_inputs is the source of truth; profile_map is
+    # a fallback in case raw_inputs has gaps.
+    raw = {}
+    profile_map = {}
+    ob = get_onboarding(user_id)
+    if ob:
+        try:
+            raw = json.loads(ob.get("raw_inputs") or "{}")
+        except Exception:
+            raw = {}
+        try:
+            profile_map = json.loads(ob.get("profile_map") or "{}")
+        except Exception:
+            profile_map = {}
+
+    def _pick(key):
+        return raw.get(key) if raw.get(key) not in (None, "") else profile_map.get(key)
+
+    try:
+        cur_wt = float(_pick("current_weight_lbs") or 0)
+        h_ft = int(_pick("height_ft") or 0)
+        h_in = int(_pick("height_in") or 0)
+        age = int(_pick("age") or 0)
+        sex = _pick("gender") or _pick("sex") or "male"
+        bf_pct = float(_pick("body_fat_pct") or 0)
+    except (TypeError, ValueError):
+        _log.warning(
+            "sync calorie driver: body stats unparseable for user=%s; driver row left intact",
+            user_id,
+        )
+        return
+    if not (cur_wt > 0 and h_ft > 0 and age > 0):
+        _log.info(
+            "sync calorie driver: incomplete body stats for user=%s "
+            "(weight=%s height_ft=%s age=%s); driver row left intact",
+            user_id, cur_wt, h_ft, age,
+        )
+        return
+
+    tgt_raw = primary.get("target_value")
+    tgt_wt = float(tgt_raw) if tgt_raw not in (None, "") else cur_wt
+
+    try:
+        targets = compute_targets(
+            goal_key=existing["goal_key"],
+            weight_lbs=cur_wt,
+            target_weight_lbs=tgt_wt,
+            height_ft=h_ft, height_in=h_in,
+            age=age, sex=sex, bf_pct=bf_pct,
+        )
+    except Exception:
+        _log.exception("sync calorie driver: compute_targets failed for user=%s", user_id)
+        return
+
+    # Preserve existing sources_json + mark provenance so the chatbot and
+    # debug tooling can trace why targets changed.
     import json as _json
     cfg = {}
     try:
-        cfg = _json.loads(existing.get("config_json") or "{}")
+        cfg = _json.loads(targets.get("rationale") or "{}") if isinstance(targets.get("rationale"), str) else (targets.get("rationale") or {})
     except Exception:
         cfg = {}
     cfg["primary_fitness_goal_id"] = primary["goal_id"]
-    cfg["primary_fitness_goal_target_value"] = primary.get("target_value")
+    cfg["primary_fitness_goal_target_value"] = tgt_wt
+    cfg["recomputed_from"] = "primary_fitness_goal"
+
     upsert_user_goal(
         user_id=user_id,
-        goal_key=existing["goal_key"],
-        calorie_target=existing["calorie_target"],
-        protein_g=existing["protein_g"],
-        fat_g=existing["fat_g"],
-        carbs_g=existing["carbs_g"],
-        deficit_surplus=existing["deficit_surplus"],
-        rmr=existing["rmr"],
-        rmr_method=existing["rmr_method"],
-        tdee_used=existing["tdee_used"],
+        goal_key=targets["goal_key"],
+        calorie_target=targets["calorie_target"],
+        protein_g=targets["protein_g"],
+        fat_g=targets["fat_g"],
+        carbs_g=targets["carbs_g"],
+        deficit_surplus=targets["deficit_surplus"],
+        rmr=targets["rmr"],
+        rmr_method=targets["rmr_method"],
+        tdee_used=targets["tdee_used"],
         config_json=_json.dumps(cfg),
-        sources_json=existing["sources_json"],
+        sources_json=_json.dumps(targets.get("sources") or []),
+    )
+    _log.info(
+        "goals: calorie driver recomputed for user=%s (target_wt=%s -> cal=%s protein=%s)",
+        user_id, tgt_wt, targets["calorie_target"], targets["protein_g"],
     )
 
 
