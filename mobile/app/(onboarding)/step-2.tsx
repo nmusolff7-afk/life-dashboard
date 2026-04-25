@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { computeTargets, type GoalKey } from '../../../shared/src/logic/targets';
 import { Button, Card, ProgressDots, TextField } from '../../components/ui';
 import { apiFetch } from '../../lib/api';
+import { useOnboardingData } from '../../lib/hooks/useHomeData';
 import { useTokens } from '../../lib/theme';
 
 interface GoalOption {
@@ -20,31 +21,51 @@ const GOALS: GoalOption[] = [
   { key: 'maintain', label: 'Stay Where I Am', description: 'Maintain my current weight and body composition' },
 ];
 
-// Skeleton: we don't yet fetch step-1's saved values, so preview uses placeholder body stats.
-// Founder confirmation needed on whether to extend the onboarding save/read API to support cross-step preview.
-const PREVIEW_STATS = { weightLbs: 170, heightFt: 5, heightIn: 10, ageYears: 30, sex: 'male' as const };
+// Fallback stats when step-1 hasn't been saved yet (e.g. user navigated
+// straight to step-2 via back button). Preview is clearly labeled as
+// sample when this kicks in so the user isn't surprised.
+const FALLBACK_STATS = { weightLbs: 170, heightFt: 5, heightIn: 10, ageYears: 30, sex: 'male' as const };
 
 export default function Step2Screen() {
   const t = useTokens();
   const router = useRouter();
+  const onboarding = useOnboardingData();
   const [goal, setGoal] = useState<GoalKey | null>(null);
   const [targetWeight, setTargetWeight] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const saved = onboarding.data?.saved ?? null;
+  // Use the user's real step-1 body stats when they've been saved;
+  // otherwise fall back so the preview still renders. Flag controls the
+  // disclaimer copy so we never silently lie about which numbers drove
+  // the preview.
+  const hasRealStats = !!(
+    saved && saved.current_weight_lbs && saved.height_ft != null && saved.age
+  );
+  const previewStats = hasRealStats
+    ? {
+        weightLbs: Number(saved!.current_weight_lbs ?? FALLBACK_STATS.weightLbs),
+        heightFt: Number(saved!.height_ft ?? FALLBACK_STATS.heightFt),
+        heightIn: Number(saved!.height_in ?? FALLBACK_STATS.heightIn),
+        ageYears: Number(saved!.age ?? FALLBACK_STATS.ageYears),
+        sex: ((saved!.gender ?? FALLBACK_STATS.sex) as 'male' | 'female'),
+      }
+    : FALLBACK_STATS;
 
   const preview = useMemo(() => {
     if (!goal) return null;
     const twLbs = targetWeight ? parseFloat(targetWeight) : undefined;
     return computeTargets({
       goal,
-      weightLbs: PREVIEW_STATS.weightLbs,
+      weightLbs: previewStats.weightLbs,
       targetWeightLbs: twLbs,
-      heightFt: PREVIEW_STATS.heightFt,
-      heightIn: PREVIEW_STATS.heightIn,
-      ageYears: PREVIEW_STATS.ageYears,
-      sex: PREVIEW_STATS.sex,
+      heightFt: previewStats.heightFt,
+      heightIn: previewStats.heightIn,
+      ageYears: previewStats.ageYears,
+      sex: previewStats.sex,
     });
-  }, [goal, targetWeight]);
+  }, [goal, targetWeight, previewStats]);
 
   const needsTargetWeight = goal === 'lose_weight' || goal === 'build_muscle';
 
@@ -122,7 +143,9 @@ export default function Step2Screen() {
             </View>
           </View>
           <Text style={[styles.previewNote, { color: t.subtle }]}>
-            Preview based on sample stats. Actual target recomputes from your body stats.
+            {hasRealStats
+              ? 'Live preview from your step-1 stats. Final targets are saved when you finish onboarding.'
+              : 'Sample preview (step-1 not saved yet). Final targets use your actual body stats.'}
           </Text>
         </Card>
       ) : null}

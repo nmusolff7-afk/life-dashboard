@@ -797,12 +797,23 @@ def delete_account(user_id):
         "momentum_summaries", "user_goals", "user_onboarding",
         "gmail_tokens", "gmail_cache", "gmail_summaries", "gmail_importance",
         "saved_meals", "saved_workouts",
-        # Unified goals (goal_progress_log cascades via FK, but delete
-        # explicitly for the same atomic-or-nothing semantic).
-        "goal_progress_log", "goals",
+        # Unified goals — delete order matters: progress log references
+        # goals via goal_id, so clear it first via join.
+        "goals",
     ]
     with get_conn() as conn:
         failures = []
+        # goal_progress_log is goal_id-keyed, not user_id-keyed. Delete
+        # via correlated subquery so it happens atomically with the user's
+        # goals. (SQLite's FK cascade is off by default; don't rely on it.)
+        try:
+            conn.execute(
+                "DELETE FROM goal_progress_log WHERE goal_id IN "
+                "(SELECT goal_id FROM goals WHERE user_id = ?)",
+                (user_id,),
+            )
+        except sqlite3.OperationalError as e:
+            failures.append(f"goal_progress_log: {e}")
         for table in tables:
             try:
                 conn.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))

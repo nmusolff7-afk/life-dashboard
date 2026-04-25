@@ -896,6 +896,45 @@ def _run_profile_generation(user_id: int, raw: dict):
             except Exception as seed_err:
                 _log.warning("weight seed for user %s failed: %s", user_id, seed_err)
 
+            # Auto-create FIT-01 "Reach goal weight" as a unified goal so the
+            # user's first Home open has a populated goal strip + Goals tab
+            # that agrees with the calorie driver. Only creates it for
+            # body-composition presets (lose_weight / build_muscle / recomp)
+            # where the user actually has a distinct target weight — the
+            # maintain preset has no target to track. Skips silently if the
+            # user already has a FIT-01 (e.g., rerun of onboarding).
+            # PRD §4.10.2: primary body-comp fitness goal drives calorie math.
+            try:
+                if goal_key in ("lose_weight", "build_muscle", "recomp") and abs(tgt_wt - cur_wt) > 0.5:
+                    existing_fit01 = next(
+                        (g for g in list_user_goals(user_id, statuses=["active"])
+                         if g.get("library_id") == "FIT-01"),
+                        None,
+                    )
+                    if not existing_fit01:
+                        direction = "decrease" if tgt_wt < cur_wt else "increase"
+                        new_goal_id = create_goal_from_library(
+                            user_id=user_id,
+                            library_id="FIT-01",
+                            target_value=tgt_wt,
+                            start_value=cur_wt,
+                            direction=direction,
+                            is_primary=True,
+                        )
+                        _log.info(
+                            "Auto-created FIT-01 unified goal for user=%s goal_id=%s "
+                            "(start=%.1f target=%.1f direction=%s)",
+                            user_id, new_goal_id, cur_wt, tgt_wt, direction,
+                        )
+            except Exception as goal_err:
+                # Never block onboarding completion on goal auto-creation —
+                # the legacy user_goals row is the source of truth for
+                # calorie math; the unified goal is a nice-to-have on the
+                # Goals tab. User can add it manually later.
+                _log.warning(
+                    "FIT-01 auto-create for user %s skipped: %s", user_id, goal_err,
+                )
+
         with _ob_lock:
             _ob_jobs[user_id] = {"status": "done", "profile": profile, "targets": targets}
     except Exception as e:
