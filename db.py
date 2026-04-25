@@ -434,6 +434,29 @@ def init_db():
                 PRIMARY KEY (user_id, source)
             )
         """)
+        # Health samples ingestion (PRD §4.6.15 Sleep Regularity; §4.4 Fitness).
+        # Mobile POSTs samples from HealthKit / Health Connect into this
+        # table. sample_type names match HealthKit quantity types where
+        # possible (sleep_hours, steps, heart_rate_bpm, hrv_ms, resting_hr,
+        # active_energy_kcal, weight_lbs, workout_minutes).
+        # Dedupe via (user_id, source, source_sample_id) when a source
+        # provides a stable ID; fall back to (user_id, sample_type,
+        # effective_time) otherwise.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS health_samples (
+                id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id            INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                source             TEXT NOT NULL,
+                source_sample_id   TEXT,
+                sample_type        TEXT NOT NULL,
+                value              REAL NOT NULL,
+                unit               TEXT,
+                effective_start    INTEGER NOT NULL,
+                effective_end      INTEGER,
+                metadata_json      TEXT,
+                ingested_at        INTEGER NOT NULL
+            )
+        """)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS daily_momentum (
                 user_id         INTEGER REFERENCES users(id),
@@ -746,6 +769,10 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_oauth_states_created     ON oauth_states(created_at)",
             "CREATE INDEX IF NOT EXISTS idx_webhook_events_status    ON webhook_events(status, received_at)",
             "CREATE INDEX IF NOT EXISTS idx_user_ai_consent_user     ON user_ai_consent(user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_health_samples_user_type ON health_samples(user_id, sample_type, effective_start DESC)",
+            # Dedupe on source-provided ID where available. Partial index
+            # so rows without a stable source ID don't collide.
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_health_samples_source_id ON health_samples(user_id, source, source_sample_id) WHERE source_sample_id IS NOT NULL",
         ]:
             conn.execute(idx_sql)
 
@@ -973,6 +1000,8 @@ def delete_account(user_id):
         "finance_transactions", "finance_bills", "finance_budgets", "finance_accounts",
         # Connector foundation (B1).
         "oauth_states", "user_ai_consent", "users_connectors",
+        # HealthKit / Health Connect samples (C1).
+        "health_samples",
     ]
     with get_conn() as conn:
         failures = []

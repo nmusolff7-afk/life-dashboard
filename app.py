@@ -2340,6 +2340,80 @@ def api_connectors_disconnect(provider: str):
     return jsonify({"ok": True})
 
 
+@app.route("/api/connectors/<provider>/mark-connected", methods=["POST"])
+@login_required
+def api_connectors_mark_connected(provider: str):
+    """Device-native providers (HealthKit / Health Connect) use this to
+    record their connection state after the native permission flow
+    succeeds. OAuth providers never hit this route — they set
+    connected via their /callback handlers instead."""
+    import connectors as _conn
+    from api_errors import err, CONNECTOR_NOT_FOUND, VALIDATION_FAILED
+    meta = _conn.get_meta(provider)
+    if not meta:
+        return err(CONNECTOR_NOT_FOUND, f"Unknown provider: {provider}", 404)
+    if meta.kind != 'device_native':
+        return err(
+            VALIDATION_FAILED,
+            "mark-connected is only for device-native connectors; "
+            "OAuth providers set connected via their /callback handler.",
+            400,
+        )
+    _conn.mark_connector_connected(uid(), provider)
+    return jsonify({"ok": True})
+
+
+# ── Health samples (PRD §4.6.15 + §4.4) ─────────────────────────────────
+# Mobile HealthKit / Health Connect posts samples here. Accepts a batch;
+# dedupes on (user_id, source, source_sample_id); returns counts.
+
+@app.route("/api/health/samples", methods=["POST"])
+@login_required
+def api_health_samples_ingest():
+    import health_samples as _hs
+    import connectors as _conn
+    from api_errors import err, VALIDATION_FAILED
+    data = request.get_json(silent=True) or {}
+    source = (data.get("source") or "").strip()
+    samples = data.get("samples") or []
+    if not source or source not in ("healthkit", "health_connect"):
+        return err(VALIDATION_FAILED, "source must be 'healthkit' or 'health_connect'", 400)
+    if not isinstance(samples, list):
+        return err(VALIDATION_FAILED, "samples must be a list", 400)
+    try:
+        result = _hs.ingest_samples(uid(), source, samples)
+    except ValueError as e:
+        return err(VALIDATION_FAILED, str(e), 400)
+    # Stamp last_sync on the connector row so the Connections UI shows
+    # "just synced". Creates the row if the user didn't connect via
+    # Settings first (e.g., onboarding-only connect).
+    try:
+        _conn.save_connector(
+            uid(), source,
+            status=_conn.STATUS_CONNECTED,
+            last_sync_at=int(time.time()),
+            last_error=None,
+        )
+    except Exception:
+        _log.exception("health/samples: connector mark-synced failed (non-fatal)")
+    return jsonify({"ok": True, **result})
+
+
+@app.route("/api/health/samples/latest", methods=["GET"])
+@login_required
+def api_health_samples_latest():
+    """Most-recent sample for a given type. Mobile uses this to surface
+    "last weight" or "last sleep" in the Fitness / Time tabs without
+    pulling the whole series."""
+    import health_samples as _hs
+    from api_errors import err, VALIDATION_FAILED
+    sample_type = (request.args.get("type") or "").strip()
+    if sample_type not in _hs.VALID_SAMPLE_TYPES:
+        return err(VALIDATION_FAILED, f"invalid type; must be one of {sorted(_hs.VALID_SAMPLE_TYPES)}", 400)
+    row = _hs.latest_sample(uid(), sample_type)
+    return jsonify({"ok": True, "sample": row})
+
+
 # Privacy / AI consent (PRD §4.8.7) — backend is source of truth so the
 # chatbot prompt filter can enforce it server-side (vs A3's client-only
 # AsyncStorage model).

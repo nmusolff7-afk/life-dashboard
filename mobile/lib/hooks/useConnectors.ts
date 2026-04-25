@@ -31,6 +31,15 @@ export async function disconnectConnector(provider: string): Promise<void> {
   if (!res.ok || !json.ok) throw new Error(json.error || 'disconnect failed');
 }
 
+/** Record a device-native connector as connected after the native
+ *  permission flow succeeds. OAuth providers set connected via their
+ *  /callback handler instead. */
+export async function markConnectorConnected(provider: string): Promise<void> {
+  const res = await apiFetch(`/api/connectors/${provider}/mark-connected`, { method: 'POST' });
+  const json = await res.json();
+  if (!res.ok || !json.ok) throw new Error(json.error || 'mark-connected failed');
+}
+
 /** Helper: resolve consent for a source with sensible default (true when
  *  the backend hasn't recorded a value yet — matches the opt-out model). */
 export function sourceAllowed(map: ConsentMap | undefined, source: string): boolean {

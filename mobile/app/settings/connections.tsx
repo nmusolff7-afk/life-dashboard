@@ -4,7 +4,7 @@ import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, View 
 
 import { ConnectorTile } from '../../components/apex';
 import type { ConnectorEntry } from '../../../shared/src/types/connectors';
-import { useConnectors, disconnectConnector } from '../../lib/hooks/useConnectors';
+import { useConnectors, disconnectConnector, markConnectorConnected } from '../../lib/hooks/useConnectors';
 import { useHealthConnection } from '../../lib/useHealthConnection';
 import { useHaptics } from '../../lib/useHaptics';
 import { useTokens } from '../../lib/theme';
@@ -67,6 +67,11 @@ export default function Connections() {
               text: 'Connect',
               onPress: async () => {
                 await health.connect();
+                // Persist the connection state server-side so the
+                // backend knows the user has granted device-native
+                // access. Non-fatal if it fails (user can retry from
+                // refresh).
+                try { await markConnectorConnected(entry.provider); } catch { /* noop */ }
                 await refresh();
                 haptics.fire('success');
               },

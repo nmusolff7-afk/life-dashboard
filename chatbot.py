@@ -392,6 +392,78 @@ def _life_context() -> dict:
     return {"status": "not_connected", "note": "User has not connected calendar or email. No life data available."}
 
 
+# ── Consent filter (PRD §4.8.7) ──────────────────────────────────────────
+# The user's Settings → Privacy toggles live in user_ai_consent. Before
+# shipping containers to Claude we strip any field whose backing source
+# the user has opted out of. Today most of our context is internal data
+# (meals, workouts, tasks) which isn't gated; the filter is wired for
+# forward-compat so Gmail / Plaid / Calendar data can't leak through
+# when those land.
+
+# Mapping: container-key-path → source it depends on. Dot-path walks into
+# nested dicts so we can strip sub-trees without clobbering the whole
+# container. The value list is the set of sources; if ALL are disallowed,
+# the key is removed.
+_CONTAINER_SOURCE_GATES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    # LifeContext subtrees
+    ('LifeContext.gmail', ('gmail',)),
+    ('LifeContext.outlook_mail', ('outlook',)),
+    ('LifeContext.gcal_events', ('gcal',)),
+    ('LifeContext.outlook_events', ('outlook',)),
+    ('LifeContext.screen_time', ('apple_family_controls',)),
+    ('LifeContext.location', ('location',)),
+    # FinanceContext subtrees
+    ('FinanceContext.plaid_transactions', ('plaid',)),
+    ('FinanceContext.plaid_accounts', ('plaid',)),
+    # FitnessContext subtrees
+    ('FitnessContext.strava', ('strava',)),
+    ('FitnessContext.garmin', ('garmin',)),
+    # HealthKit-sourced fields live inside several containers; the helper
+    # below strips them when both healthkit and health_connect are off.
+)
+
+
+def _apply_consent_filter(user_id: int, containers: dict) -> dict:
+    """Strip subtrees whose backing source is opted-out. Returns a new
+    dict; never mutates the input."""
+    try:
+        from connectors import is_source_allowed
+    except Exception:
+        return containers  # fail open if the helper isn't available
+    out = json.loads(json.dumps(containers))  # cheap deep-copy
+    for path, sources in _CONTAINER_SOURCE_GATES:
+        if all(not is_source_allowed(user_id, s) for s in sources):
+            _drop_path(out, path)
+    return out
+
+
+def _drop_path(obj: dict, dotted: str) -> None:
+    parts = dotted.split('.')
+    cur = obj
+    for p in parts[:-1]:
+        nxt = cur.get(p) if isinstance(cur, dict) else None
+        if not isinstance(nxt, dict):
+            return
+        cur = nxt
+    if isinstance(cur, dict):
+        cur.pop(parts[-1], None)
+
+
+def _consent_summary(user_id: int) -> dict:
+    """Snapshot of consent state injected into the prompt so Claude knows
+    which sources it CAN'T reference. Useful even when filtered data is
+    already stripped (Claude can say "I can't see your Gmail right now"
+    instead of hallucinating)."""
+    try:
+        from connectors import get_consent_map
+        m = get_consent_map(user_id)
+    except Exception:
+        m = {}
+    return {
+        'disabled_sources': sorted([k for k, v in m.items() if v is False]),
+    }
+
+
 # ── Query orchestration ────────────────────────────────────────────────
 
 def answer_query(
@@ -446,6 +518,15 @@ def answer_query(
     containers_skipped.append("FinanceContext")
     containers_json["LifeContext"] = _life_context()
     containers_skipped.append("LifeContext")
+
+    # Per-source AI consent filter (PRD §4.8.7). Strips any subtree
+    # whose backing source the user has opted out of. In v1 the
+    # containers above don't yet carry integration-sourced data, so
+    # this is forward-compat scaffolding — but the filter runs on every
+    # request so Gmail/Plaid/Calendar data can never leak into Claude
+    # prompts once those land.
+    containers_json = _apply_consent_filter(user_id, containers_json)
+    containers_json["_consent"] = _consent_summary(user_id)
 
     # Sanitize + fence user input so jailbreak payloads can't escape the
     # <user_input> region and hijack the system prompt. Sanitized history
