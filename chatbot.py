@@ -177,29 +177,61 @@ def _profile_context(user_id: int) -> dict:
 
 
 def _goals_context(user_id: int) -> dict:
+    """Return ALL of the user's active goals (unified library + calorie
+    driver). The LLM gets the full slate so it can answer questions about
+    any goal, not just the calorie-driving one.
+
+    Schema per active goal mirrors the `goals` table plus engine-derived
+    fields (progress_pct, pace indicator). Calorie driver row from
+    user_goals is also surfaced separately under `calorie_targets` so the
+    LLM can reason about nutrition adherence without re-deriving."""
+    import goals_engine as _ge
+    active = _ge.recompute_all_active_goals(user_id)
     with get_conn() as conn:
-        goal = conn.execute(
-            "SELECT goal_key, calorie_target, deficit_surplus FROM user_goals WHERE user_id = ?",
+        cal_row = conn.execute(
+            "SELECT goal_key, calorie_target, protein_g, deficit_surplus FROM user_goals WHERE user_id = ?",
             (user_id,),
         ).fetchone()
-    if not goal:
-        return {"active_goals": []}
-    label = {
-        "lose_weight": "Lose weight",
-        "build_muscle": "Build muscle",
-        "recomp": "Recomp",
-        "maintain": "Maintain",
-    }.get(goal["goal_key"] or "", goal["goal_key"])
+    calorie_targets = None
+    if cal_row:
+        label = {
+            "lose_weight": "Lose weight",
+            "build_muscle": "Build muscle",
+            "recomp": "Recomp",
+            "maintain": "Maintain",
+        }.get(cal_row["goal_key"] or "", cal_row["goal_key"])
+        calorie_targets = {
+            "calorie_preset": cal_row["goal_key"],
+            "calorie_preset_label": label,
+            "calorie_target": cal_row["calorie_target"],
+            "protein_g_target": cal_row["protein_g"],
+            "deficit_surplus": cal_row["deficit_surplus"],
+        }
+    slimmed = [
+        {
+            "goal_id": g.get("goal_id"),
+            "library_id": g.get("library_id"),
+            "category": g.get("category"),
+            "goal_type": g.get("goal_type"),
+            "display_name": g.get("display_name"),
+            "is_primary": bool(g.get("is_primary")),
+            "status": g.get("status"),
+            "target_value": g.get("target_value"),
+            "current_value": g.get("current_value"),
+            "current_streak_length": g.get("current_streak_length"),
+            "best_attempt_value": g.get("best_attempt_value"),
+            "current_rate": g.get("current_rate"),
+            "current_count": g.get("current_count"),
+            "deadline": g.get("deadline"),
+            "progress_pct": g.get("progress_pct"),
+            "paused": g.get("paused", False),
+            "pace": (g.get("pace") or {}).get("indicator"),
+        }
+        for g in active
+    ]
     return {
-        "active_goals": [
-            {
-                "category": "fitness",
-                "goal_type": goal["goal_key"],
-                "goal_label": label,
-                "calorie_target": goal["calorie_target"],
-                "deficit_surplus": goal["deficit_surplus"],
-            }
-        ]
+        "active_goals": slimmed,
+        "calorie_targets": calorie_targets,
     }
 
 

@@ -182,7 +182,12 @@ def init_db():
         except sqlite3.OperationalError:
             pass
 
-        # User goals — stores the active goal and computed targets
+        # Legacy user_goals — stores the calorie/macro result for the user's
+        # current primary fitness goal (the one goal allowed to drive calorie
+        # math per PRD §4.10.2). Kept as the materialized calorie-driver row
+        # so compute_momentum / chatbot / PWA can read a single shape. The
+        # unified multi-goal library lives in `goals` below; when a user's
+        # primary fitness goal changes, we rewrite this row as a side effect.
         conn.execute("""
             CREATE TABLE IF NOT EXISTS user_goals (
                 user_id         INTEGER PRIMARY KEY REFERENCES users(id),
@@ -199,6 +204,85 @@ def init_db():
                 sources_json    TEXT DEFAULT '[]',
                 created_at      TIMESTAMP NOT NULL,
                 updated_at      TIMESTAMP NOT NULL
+            )
+        """)
+        # ── Unified goals (PRD §4.10) ──────────────────────────────────────
+        # Goal library catalog: 22 v1 goals across 4 categories. Seeded
+        # below in _seed_goal_library(). Server-side config table so we
+        # can tweak defaults without an app update.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS goal_library (
+                library_id          TEXT PRIMARY KEY,
+                category            TEXT NOT NULL,
+                goal_type           TEXT NOT NULL,
+                display_name        TEXT NOT NULL,
+                description         TEXT,
+                metric_name         TEXT,
+                data_source         TEXT,
+                default_target      REAL,
+                default_deadline_days INTEGER,
+                default_direction   TEXT,
+                default_period      TEXT,
+                default_window_size INTEGER,
+                default_aggregation TEXT,
+                qualifying_condition TEXT,
+                affects_calorie_math INTEGER NOT NULL DEFAULT 0,
+                status              TEXT NOT NULL DEFAULT 'active',
+                sort_order          INTEGER DEFAULT 0
+            )
+        """)
+        # Per-user instantiated goals. All type-specific fields are nullable;
+        # only the ones matching the goal_type are populated.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS goals (
+                goal_id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id               INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                library_id            TEXT NOT NULL,
+                goal_type             TEXT NOT NULL,
+                category              TEXT NOT NULL,
+                display_name          TEXT NOT NULL,
+                is_primary            INTEGER NOT NULL DEFAULT 0,
+                status                TEXT NOT NULL DEFAULT 'active',
+                affects_calorie_math  INTEGER NOT NULL DEFAULT 0,
+                start_value           REAL,
+                target_value          REAL,
+                current_value         REAL,
+                direction             TEXT,
+                deadline              DATE,
+                original_duration_days INTEGER,
+                auto_restart_enabled  INTEGER DEFAULT 1,
+                extension_count       INTEGER DEFAULT 0,
+                target_streak_length  INTEGER,
+                current_streak_length INTEGER DEFAULT 0,
+                period_unit           TEXT,
+                best_attempt_value    REAL,
+                baseline_value        REAL,
+                target_rate           REAL,
+                current_rate          REAL,
+                window_size           INTEGER,
+                aggregation           TEXT,
+                target_count          INTEGER,
+                current_count         INTEGER DEFAULT 0,
+                period                TEXT,
+                period_start          DATE,
+                period_end            DATE,
+                config_json           TEXT DEFAULT '{}',
+                created_at            TIMESTAMP NOT NULL,
+                updated_at            TIMESTAMP NOT NULL,
+                completed_at          TIMESTAMP,
+                archived_at           TIMESTAMP
+            )
+        """)
+        # Daily progress snapshots for charts / pace trend / export.
+        # Not an authoritative source — recomputed from goals + underlying
+        # data tables. One row per goal per day.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS goal_progress_log (
+                goal_id        INTEGER NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
+                log_date       DATE NOT NULL,
+                progress_pct   REAL,
+                snapshot_value REAL,
+                PRIMARY KEY (goal_id, log_date)
             )
         """)
         conn.execute("""
@@ -501,10 +585,16 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_strength_sets_workout    ON strength_sets(workout_log_id)",
             "CREATE INDEX IF NOT EXISTS idx_daily_scores_user_date   ON daily_scores(user_id, score_date)",
             "CREATE INDEX IF NOT EXISTS idx_chatbot_audit_user_time  ON chatbot_audit(user_id, created_at DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_goals_user_status        ON goals(user_id, status)",
+            "CREATE INDEX IF NOT EXISTS idx_goals_user_primary       ON goals(user_id, is_primary) WHERE is_primary = 1",
+            "CREATE INDEX IF NOT EXISTS idx_goal_progress_goal_date  ON goal_progress_log(goal_id, log_date DESC)",
         ]:
             conn.execute(idx_sql)
 
         conn.commit()
+
+        # Seed the 22-goal library (idempotent: INSERT OR IGNORE).
+        _seed_goal_library()
 
     # One-shot backfill of strength_sets from existing workout_logs.
     # Only touches rows with parse_status IS NULL, so it's idempotent and
@@ -538,6 +628,165 @@ def _backfill_all_strength_sets():
             conn.commit()
 
 
+# Goal library v1 — 22 goals per PRD §4.10.3. Server-seeded, idempotent on
+# re-run (INSERT OR IGNORE on library_id). Updating a seeded row requires
+# a targeted UPDATE migration; the seed itself never overwrites.
+_GOAL_LIBRARY_V1 = [
+    # Fitness (6)
+    dict(library_id="FIT-01", category="fitness", goal_type="cumulative_numeric",
+         display_name="Reach goal weight",
+         description="Hit a target body weight by a deadline. Drives your calorie and macro targets.",
+         metric_name="weight_lbs", data_source="health_connect",
+         default_target=None, default_deadline_days=90, default_direction=None,
+         affects_calorie_math=1, sort_order=1),
+    dict(library_id="FIT-02", category="fitness", goal_type="best_attempt",
+         display_name="Hit new squat PR",
+         description="Lift a target weight for your one-rep squat max.",
+         metric_name="squat_1rm_lbs", data_source="strength_logs",
+         default_direction="increase", sort_order=2),
+    dict(library_id="FIT-03", category="fitness", goal_type="best_attempt",
+         display_name="Hit new bench PR",
+         description="Lift a target weight for your one-rep bench max.",
+         metric_name="bench_1rm_lbs", data_source="strength_logs",
+         default_direction="increase", sort_order=3),
+    dict(library_id="FIT-04", category="fitness", goal_type="best_attempt",
+         display_name="Hit new deadlift PR",
+         description="Lift a target weight for your one-rep deadlift max.",
+         metric_name="deadlift_1rm_lbs", data_source="strength_logs",
+         default_direction="increase", sort_order=4),
+    dict(library_id="FIT-05", category="fitness", goal_type="period_count",
+         display_name="Complete N workouts this month",
+         description="Log a target number of workouts in the current month.",
+         metric_name="workouts", data_source="workout_logs",
+         default_target=16, default_period="month", sort_order=5),
+    dict(library_id="FIT-06", category="fitness", goal_type="streak",
+         display_name="N-week workout consistency",
+         description="Hit at least 3 workouts per week, N weeks in a row.",
+         metric_name="weeks_with_3plus_workouts", data_source="workout_logs",
+         default_target=4, qualifying_condition="workouts_per_week>=3",
+         sort_order=6),
+    # Nutrition (5)
+    dict(library_id="NUT-01", category="nutrition", goal_type="streak",
+         display_name="Protein streak",
+         description="Hit your protein target, N days in a row.",
+         metric_name="days_protein_met", data_source="meal_logs",
+         default_target=14, qualifying_condition="protein_g>=target",
+         sort_order=7),
+    dict(library_id="NUT-02", category="nutrition", goal_type="streak",
+         display_name="Calorie target streak",
+         description="Stay within ±5% of your calorie target, N days in a row.",
+         metric_name="days_calorie_met", data_source="meal_logs",
+         default_target=14, qualifying_condition="calories_within_5pct",
+         sort_order=8),
+    dict(library_id="NUT-03", category="nutrition", goal_type="streak",
+         display_name="Log every meal streak",
+         description="Log at least 3 meals per day, N days in a row.",
+         metric_name="days_three_meals", data_source="meal_logs",
+         default_target=30, qualifying_condition="meals_per_day>=3",
+         sort_order=9),
+    dict(library_id="NUT-04", category="nutrition", goal_type="rate",
+         display_name="30-day protein average",
+         description="Average protein over the last 30 days at or above your target.",
+         metric_name="avg_protein_g_30d", data_source="meal_logs",
+         default_window_size=30, default_aggregation="average",
+         default_direction="increase", sort_order=10),
+    dict(library_id="NUT-05", category="nutrition", goal_type="streak",
+         display_name="Alcohol-free streak",
+         description="No alcohol logged, N days in a row.",
+         metric_name="days_no_alcohol", data_source="meal_logs",
+         default_target=30, qualifying_condition="no_alcohol_logged",
+         sort_order=11),
+    # Finance (5) — all require Plaid; land in app as library entries, but
+    # progress stays null / paused until Plaid connector ships.
+    dict(library_id="FIN-01", category="finance", goal_type="cumulative_numeric",
+         display_name="Emergency fund",
+         description="Grow a designated savings account to a target balance.",
+         metric_name="savings_balance_usd", data_source="plaid",
+         default_deadline_days=365, default_direction="increase",
+         sort_order=12),
+    dict(library_id="FIN-02", category="finance", goal_type="cumulative_numeric",
+         display_name="Pay off credit card",
+         description="Reduce a credit card balance to zero.",
+         metric_name="cc_balance_usd", data_source="plaid",
+         default_target=0, default_deadline_days=365,
+         default_direction="decrease", sort_order=13),
+    dict(library_id="FIN-03", category="finance", goal_type="cumulative_numeric",
+         display_name="Save for specific target",
+         description="Save toward a named goal (vacation, down payment, etc).",
+         metric_name="savings_balance_usd", data_source="plaid",
+         default_deadline_days=180, default_direction="increase",
+         sort_order=14),
+    dict(library_id="FIN-04", category="finance", goal_type="period_count",
+         display_name="Monthly spending limit",
+         description="Keep monthly spending under a target amount.",
+         metric_name="monthly_spend_usd", data_source="plaid",
+         default_period="month", default_direction="decrease",
+         sort_order=15),
+    dict(library_id="FIN-05", category="finance", goal_type="streak",
+         display_name="Budget streak",
+         description="Finish the week under budget, N weeks in a row.",
+         metric_name="weeks_under_budget", data_source="plaid",
+         default_target=4, qualifying_condition="weekly_spend<=budget",
+         sort_order=16),
+    # Time (6) — mostly require Screen Time + Location + Calendar + Tasks.
+    # Library entries ship; progress paused until integrations land.
+    dict(library_id="TIME-01", category="time", goal_type="streak",
+         display_name="Task completion streak",
+         description="Finish every priority task, N days in a row.",
+         metric_name="days_all_tasks_done", data_source="mind_tasks",
+         default_target=14, qualifying_condition="priority_tasks_complete",
+         sort_order=17),
+    dict(library_id="TIME-02", category="time", goal_type="streak",
+         display_name="Screen time target",
+         description="Stay under a daily screen time limit, N days in a row.",
+         metric_name="days_under_screentime", data_source="screen_time",
+         default_target=14, qualifying_condition="screen_time<=target",
+         sort_order=18),
+    dict(library_id="TIME-03", category="time", goal_type="streak",
+         display_name="Social media cap",
+         description="Keep social apps under a daily cap, N days in a row.",
+         metric_name="days_under_social_cap", data_source="screen_time",
+         default_target=14, qualifying_condition="social_minutes<=target",
+         sort_order=19),
+    dict(library_id="TIME-04", category="time", goal_type="streak",
+         display_name="Phone-down after cutoff",
+         description="No phone use after a cutoff time, N days in a row.",
+         metric_name="days_phone_down_after_cutoff", data_source="screen_time",
+         default_target=14, qualifying_condition="no_phone_after_cutoff",
+         sort_order=20),
+    dict(library_id="TIME-05", category="time", goal_type="period_count",
+         display_name="Focus time per week",
+         description="Log a target number of focus hours per week.",
+         metric_name="focus_hours", data_source="calendar",
+         default_target=10, default_period="week", sort_order=21),
+    dict(library_id="TIME-06", category="time", goal_type="streak",
+         display_name="Location visit target",
+         description="Visit a tagged location a target number of times per week, N weeks in a row.",
+         metric_name="weeks_location_visits_met", data_source="location",
+         default_target=4, qualifying_condition="weekly_visits>=target",
+         sort_order=22),
+]
+
+
+def _seed_goal_library():
+    """Idempotent seed of the v1 goal library. Safe to call on every boot."""
+    cols = [
+        "library_id", "category", "goal_type", "display_name", "description",
+        "metric_name", "data_source", "default_target", "default_deadline_days",
+        "default_direction", "default_period", "default_window_size",
+        "default_aggregation", "qualifying_condition", "affects_calorie_math",
+        "status", "sort_order",
+    ]
+    rows = []
+    for g in _GOAL_LIBRARY_V1:
+        rows.append(tuple(g.get(c, "active" if c == "status" else (0 if c in ("affects_calorie_math", "sort_order") else None)) for c in cols))
+    placeholders = ", ".join(["?"] * len(cols))
+    sql = f"INSERT OR IGNORE INTO goal_library ({', '.join(cols)}) VALUES ({placeholders})"
+    with get_conn() as conn:
+        conn.executemany(sql, rows)
+        conn.commit()
+
+
 # ── Auth ────────────────────────────────────────────────
 
 def delete_account(user_id):
@@ -548,6 +797,9 @@ def delete_account(user_id):
         "momentum_summaries", "user_goals", "user_onboarding",
         "gmail_tokens", "gmail_cache", "gmail_summaries", "gmail_importance",
         "saved_meals", "saved_workouts",
+        # Unified goals (goal_progress_log cascades via FK, but delete
+        # explicitly for the same atomic-or-nothing semantic).
+        "goal_progress_log", "goals",
     ]
     with get_conn() as conn:
         failures = []
@@ -2033,5 +2285,322 @@ def get_user_goal(user_id: int):
             "SELECT * FROM user_goals WHERE user_id = ?", (user_id,)
         ).fetchone()
     return dict(row) if row else None
+
+
+# ── Unified goals (PRD §4.10) ─────────────────────────────────────────────
+# CRUD for the multi-goal library. Progress/pace calculation lives in
+# goals_engine.py (depends on per-data-source queries); here we only
+# shape goal rows.
+#
+# Slot limits are enforced at the API layer, not here — the helper just
+# stores what it's told. Frontend tier-awareness (Core=3 / Pro=6) lives
+# in the route handler.
+
+def list_goal_library(include_deprecated: bool = False):
+    """Return the goal library rows (v1: 22 goals)."""
+    where = "" if include_deprecated else "WHERE status = 'active'"
+    with get_conn() as conn:
+        rows = conn.execute(
+            f"SELECT * FROM goal_library {where} ORDER BY sort_order, library_id"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_library_entry(library_id: str):
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM goal_library WHERE library_id = ?", (library_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def list_user_goals(user_id: int, statuses: list[str] | None = None):
+    """List a user's goals, optionally filtered by status(es). Newest first."""
+    if statuses:
+        placeholders = ",".join(["?"] * len(statuses))
+        sql = (
+            f"SELECT * FROM goals WHERE user_id = ? AND status IN ({placeholders}) "
+            "ORDER BY is_primary DESC, created_at DESC"
+        )
+        params: tuple = (user_id, *statuses)
+    else:
+        sql = "SELECT * FROM goals WHERE user_id = ? ORDER BY is_primary DESC, created_at DESC"
+        params = (user_id,)
+    with get_conn() as conn:
+        rows = conn.execute(sql, params).fetchall()
+    return [dict(r) for r in rows]
+
+
+def count_active_goals(user_id: int) -> int:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM goals WHERE user_id = ? AND status = 'active'",
+            (user_id,),
+        ).fetchone()
+    return int(row["n"]) if row else 0
+
+
+def get_goal(goal_id: int, user_id: int):
+    """Scoped fetch — returns None if goal doesn't exist OR doesn't belong to user."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM goals WHERE goal_id = ? AND user_id = ?",
+            (goal_id, user_id),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def get_primary_fitness_goal(user_id: int):
+    """The single fitness goal flagged is_primary=1. Used by the calorie-math
+    driver path to decide whether to upsert user_goals."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM goals WHERE user_id = ? AND category = 'fitness' "
+            "AND is_primary = 1 AND status = 'active' LIMIT 1",
+            (user_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def _unset_primary_for_category(conn, user_id: int, category: str, except_goal_id: int | None = None):
+    """Internal helper: clear is_primary for all goals in `category` except
+    `except_goal_id`. Used to enforce 'only one primary per category' when
+    the user flips the flag on a new goal."""
+    if except_goal_id is None:
+        conn.execute(
+            "UPDATE goals SET is_primary = 0, updated_at = ? "
+            "WHERE user_id = ? AND category = ? AND is_primary = 1",
+            (datetime.now().isoformat(), user_id, category),
+        )
+    else:
+        conn.execute(
+            "UPDATE goals SET is_primary = 0, updated_at = ? "
+            "WHERE user_id = ? AND category = ? AND is_primary = 1 AND goal_id != ?",
+            (datetime.now().isoformat(), user_id, category, except_goal_id),
+        )
+
+
+def create_goal_from_library(user_id: int, library_id: str, *,
+                             target_value: float | None = None,
+                             target_streak_length: int | None = None,
+                             target_count: int | None = None,
+                             target_rate: float | None = None,
+                             start_value: float | None = None,
+                             baseline_value: float | None = None,
+                             deadline: str | None = None,
+                             display_name: str | None = None,
+                             direction: str | None = None,
+                             is_primary: bool = False,
+                             period: str | None = None,
+                             window_size: int | None = None,
+                             aggregation: str | None = None,
+                             period_unit: str | None = None) -> int:
+    """Instantiate a goal from a library entry. Type-specific fields are
+    required only when the library type uses them; the caller is expected
+    to have validated required fields against the library's goal_type.
+
+    Returns new goal_id. Raises ValueError for unknown library_id."""
+    lib = get_library_entry(library_id)
+    if not lib:
+        raise ValueError(f"Unknown library_id: {library_id}")
+
+    now = datetime.now().isoformat()
+    goal_type = lib["goal_type"]
+    category = lib["category"]
+    name = (display_name or lib["display_name"]).strip()
+    direction = direction or lib.get("default_direction")
+    affects_cal = int(bool(lib.get("affects_calorie_math")))
+
+    # Compute auto-fields per type
+    deadline_val = deadline
+    original_duration = None
+    if goal_type == "cumulative_numeric":
+        if not deadline_val and lib.get("default_deadline_days"):
+            deadline_val = (date.today() + timedelta(days=int(lib["default_deadline_days"]))).isoformat()
+        if deadline_val:
+            try:
+                d = date.fromisoformat(deadline_val)
+                original_duration = (d - date.today()).days
+            except Exception:
+                pass
+
+    period_start_val = None
+    period_end_val = None
+    period_val = period or lib.get("default_period")
+    if goal_type == "period_count" and period_val:
+        today = date.today()
+        if period_val == "month":
+            period_start_val = today.replace(day=1).isoformat()
+            # next month start - 1
+            if today.month == 12:
+                nxt = today.replace(year=today.year + 1, month=1, day=1)
+            else:
+                nxt = today.replace(month=today.month + 1, day=1)
+            period_end_val = (nxt - timedelta(days=1)).isoformat()
+        elif period_val == "week":
+            week_start = today - timedelta(days=today.weekday())
+            period_start_val = week_start.isoformat()
+            period_end_val = (week_start + timedelta(days=6)).isoformat()
+
+    window_size_val = window_size or lib.get("default_window_size")
+    aggregation_val = aggregation or lib.get("default_aggregation")
+    period_unit_val = period_unit or ("week" if lib.get("qualifying_condition", "").startswith("workouts_per_week") or lib.get("qualifying_condition", "").startswith("weekly_") else "day") if goal_type == "streak" else period_unit
+
+    with get_conn() as conn:
+        if is_primary:
+            _unset_primary_for_category(conn, user_id, category)
+
+        cur = conn.execute("""
+            INSERT INTO goals (
+                user_id, library_id, goal_type, category, display_name,
+                is_primary, status, affects_calorie_math,
+                start_value, target_value, current_value, direction,
+                deadline, original_duration_days, auto_restart_enabled, extension_count,
+                target_streak_length, current_streak_length, period_unit,
+                best_attempt_value, baseline_value,
+                target_rate, current_rate, window_size, aggregation,
+                target_count, current_count, period, period_start, period_end,
+                config_json, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?,
+                      ?, 'active', ?,
+                      ?, ?, ?, ?,
+                      ?, ?, 1, 0,
+                      ?, 0, ?,
+                      NULL, ?,
+                      ?, NULL, ?, ?,
+                      ?, 0, ?, ?, ?,
+                      '{}', ?, ?)
+        """, (
+            user_id, library_id, goal_type, category, name,
+            int(is_primary), affects_cal,
+            start_value, target_value, start_value, direction,
+            deadline_val, original_duration,
+            target_streak_length, period_unit_val,
+            baseline_value,
+            target_rate, window_size_val, aggregation_val,
+            target_count, period_val, period_start_val, period_end_val,
+            now, now,
+        ))
+        conn.commit()
+        return int(cur.lastrowid)
+
+
+def update_goal_fields(goal_id: int, user_id: int, fields: dict) -> bool:
+    """Apply a whitelisted subset of user-editable fields to a goal.
+
+    Per PRD §4.10.12, editable: target_value, target_streak_length,
+    target_count, target_rate, deadline, display_name, is_primary.
+    NOT editable: library_id, goal_type, category, start_value.
+
+    Returns True if a row was updated."""
+    allowed = {
+        "target_value", "target_streak_length", "target_count", "target_rate",
+        "deadline", "display_name", "is_primary", "auto_restart_enabled",
+    }
+    safe = {k: v for k, v in fields.items() if k in allowed}
+    if not safe:
+        return False
+    existing = get_goal(goal_id, user_id)
+    if not existing:
+        return False
+    set_clauses = [f"{k} = ?" for k in safe]
+    set_clauses.append("updated_at = ?")
+    params = list(safe.values()) + [datetime.now().isoformat(), goal_id, user_id]
+
+    with get_conn() as conn:
+        # If the user is setting is_primary=1, unset any other primary in
+        # the same category first.
+        if safe.get("is_primary"):
+            _unset_primary_for_category(conn, user_id, existing["category"], except_goal_id=goal_id)
+        conn.execute(
+            f"UPDATE goals SET {', '.join(set_clauses)} WHERE goal_id = ? AND user_id = ?",
+            params,
+        )
+        conn.commit()
+    return True
+
+
+def archive_goal(goal_id: int, user_id: int) -> bool:
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        cur = conn.execute(
+            "UPDATE goals SET status = 'archived', archived_at = ?, updated_at = ?, is_primary = 0 "
+            "WHERE goal_id = ? AND user_id = ? AND status IN ('active', 'paused')",
+            (now, now, goal_id, user_id),
+        )
+        conn.commit()
+    return cur.rowcount > 0
+
+
+def unarchive_goal(goal_id: int, user_id: int) -> bool:
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        cur = conn.execute(
+            "UPDATE goals SET status = 'active', archived_at = NULL, updated_at = ? "
+            "WHERE goal_id = ? AND user_id = ? AND status = 'archived'",
+            (now, goal_id, user_id),
+        )
+        conn.commit()
+    return cur.rowcount > 0
+
+
+def mark_goal_completed(goal_id: int, user_id: int) -> bool:
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        cur = conn.execute(
+            "UPDATE goals SET status = 'completed', completed_at = ?, updated_at = ?, is_primary = 0 "
+            "WHERE goal_id = ? AND user_id = ? AND status = 'active'",
+            (now, now, goal_id, user_id),
+        )
+        conn.commit()
+    return cur.rowcount > 0
+
+
+def update_goal_progress(goal_id: int, fields: dict):
+    """Write computed progress fields back to a goal row.
+
+    Accepts: current_value, current_streak_length, best_attempt_value,
+    current_rate, current_count. Caller (goals_engine) passes only what
+    applies to the goal's type."""
+    allowed = {
+        "current_value", "current_streak_length", "best_attempt_value",
+        "current_rate", "current_count",
+    }
+    safe = {k: v for k, v in fields.items() if k in allowed}
+    if not safe:
+        return
+    set_clauses = [f"{k} = ?" for k in safe] + ["updated_at = ?"]
+    params = list(safe.values()) + [datetime.now().isoformat(), goal_id]
+    with get_conn() as conn:
+        conn.execute(
+            f"UPDATE goals SET {', '.join(set_clauses)} WHERE goal_id = ?",
+            params,
+        )
+        conn.commit()
+
+
+def save_goal_progress_snapshot(goal_id: int, log_date: str,
+                                progress_pct: float | None,
+                                snapshot_value: float | None):
+    """Upsert one-row-per-day progress log for charts / pace trend."""
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO goal_progress_log (goal_id, log_date, progress_pct, snapshot_value)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(goal_id, log_date) DO UPDATE SET
+                progress_pct = excluded.progress_pct,
+                snapshot_value = excluded.snapshot_value
+        """, (goal_id, log_date, progress_pct, snapshot_value))
+        conn.commit()
+
+
+def get_goal_progress_history(goal_id: int, days: int = 90):
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT log_date, progress_pct, snapshot_value FROM goal_progress_log "
+            "WHERE goal_id = ? ORDER BY log_date DESC LIMIT ?",
+            (goal_id, days),
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 

@@ -37,7 +37,12 @@ from db import (
     save_meal, get_saved_meals, delete_saved_meal,
     save_workout, get_saved_workouts, delete_saved_workout,
     get_user_by_clerk_id, create_user_from_clerk, set_user_email_if_empty,
+    list_goal_library, get_library_entry, list_user_goals, get_goal,
+    count_active_goals, create_goal_from_library, update_goal_fields,
+    archive_goal, unarchive_goal, mark_goal_completed,
+    get_primary_fitness_goal, get_goal_progress_history,
 )
+import goals_engine
 from claude_nutrition import estimate_nutrition, estimate_burn, parse_workout_plan, generate_workout_plan, generate_comprehensive_plan, generate_plan_understanding, revise_plan, shorten_label, scan_meal_image, generate_momentum_insight, generate_scale_summary, suggest_meal, identify_ingredients, estimate_from_barcode
 from claude_profile import generate_profile_map
 import gmail_sync
@@ -629,6 +634,23 @@ def api_log_weight():
 # ── Main app ────────────────────────────────────────────
 
 @app.route("/")
+def home():
+    if "user_id" in session:
+        return redirect(url_for("index"))
+    return render_template("home.html")
+
+
+@app.route("/privacy")
+def privacy():
+    return render_template("privacy.html")
+
+
+@app.route("/terms")
+def terms():
+    return render_template("terms.html")
+
+
+@app.route("/app")
 @login_required
 def index():
     if not is_onboarding_complete(uid()):
@@ -2215,6 +2237,290 @@ def api_momentum_insight():
     except Exception as e:
         _log.exception("momentum-insight failed")
         return jsonify({"error": _AI_ERR}), 500
+
+
+# ── Unified Goals (PRD §4.10) ────────────────────────────────────────────
+# Slot ceiling. Per founder direction for this cycle: treat all users as Pro
+# → 6 active goals. When paywall lands, read this from users.tier instead.
+_GOAL_SLOT_LIMIT_PRO = 6
+
+
+def _user_goal_slot_limit(user_id: int) -> int:
+    return _GOAL_SLOT_LIMIT_PRO
+
+
+def _serialize_goal(goal: dict) -> dict:
+    """Trim internal-only fields and pass pace/progress through cleanly."""
+    if not goal:
+        return goal
+    # Nothing needs removing for v1 — keep the dict as-is. Placeholder in case
+    # we later strip config_json etc.
+    return goal
+
+
+@app.route("/api/goal-library", methods=["GET"])
+@login_required
+def api_goal_library():
+    """Return the v1 22-goal library for the picker UI. Client caches on
+    cold-start (PRD §4.10.3). Static within a session."""
+    return jsonify({"ok": True, "library": list_goal_library()})
+
+
+@app.route("/api/goals", methods=["GET"])
+@login_required
+def api_goals_list():
+    """List the user's goals, optionally filtered by status.
+    Default: active + paused (the 'current' bucket)."""
+    status_filter = request.args.get("status")
+    if status_filter == "all":
+        statuses = None
+    elif status_filter == "active":
+        statuses = ["active"]
+    elif status_filter == "archived":
+        statuses = ["archived"]
+    elif status_filter == "completed":
+        statuses = ["completed"]
+    else:
+        statuses = ["active", "paused"]
+
+    # Hot-path recompute: for active goals, refresh progress+pace on read.
+    # Post-v1 this moves to a nightly snapshot; for v1 the extra work is
+    # cheap (at most 6 rows per user).
+    if statuses and "active" in statuses:
+        recomputed = {g["goal_id"]: g for g in goals_engine.recompute_all_active_goals(uid())}
+        goals_out = []
+        for g in list_user_goals(uid(), statuses=statuses):
+            goals_out.append(_serialize_goal(recomputed.get(g["goal_id"], g)))
+    else:
+        goals_out = [_serialize_goal(g) for g in list_user_goals(uid(), statuses=statuses)]
+
+    return jsonify({
+        "ok": True,
+        "goals": goals_out,
+        "slot_limit": _user_goal_slot_limit(uid()),
+        "active_count": count_active_goals(uid()),
+    })
+
+
+@app.route("/api/goals/<int:goal_id>", methods=["GET"])
+@login_required
+def api_goals_detail(goal_id: int):
+    goal = get_goal(goal_id, uid())
+    if not goal:
+        return jsonify({"ok": False, "error": "Goal not found", "error_code": "not_found"}), 404
+    if goal["status"] == "active":
+        goal = goals_engine.recompute_and_persist_goal(goal_id, uid(), goal)
+    history = get_goal_progress_history(goal_id, days=90)
+    return jsonify({"ok": True, "goal": _serialize_goal(goal), "history": history})
+
+
+@app.route("/api/goals", methods=["POST"])
+@login_required
+def api_goals_create():
+    """Create a new goal from a library entry.
+
+    Body: { library_id, target_value?, target_streak_length?, target_count?,
+            target_rate?, start_value?, baseline_value?, deadline?,
+            display_name?, direction?, is_primary? }
+
+    Slot-limit enforced here: 402-style response with error_code
+    'slot_limit_reached' if user already has max active goals. (Per founder
+    direction for this cycle, all users are Pro limit = 6.)"""
+    data = request.get_json(silent=True) or {}
+    library_id = (data.get("library_id") or "").strip()
+    if not library_id:
+        return jsonify({"ok": False, "error": "library_id required",
+                        "error_code": "validation_failed"}), 400
+    lib = get_library_entry(library_id)
+    if not lib:
+        return jsonify({"ok": False, "error": "Unknown library_id",
+                        "error_code": "not_found"}), 404
+    if count_active_goals(uid()) >= _user_goal_slot_limit(uid()):
+        return jsonify({
+            "ok": False,
+            "error": "You've hit your active goal limit. Archive one to add another.",
+            "error_code": "slot_limit_reached",
+            "slot_limit": _user_goal_slot_limit(uid()),
+        }), 409
+
+    # Per PRD §4.10.2: only fitness body-composition goals can be primary
+    # AND drive calorie math. For v1, that's FIT-01 only. Validate.
+    is_primary = bool(data.get("is_primary", False))
+    if is_primary and not (lib["category"] == "fitness" and lib.get("affects_calorie_math")):
+        return jsonify({
+            "ok": False,
+            "error": "Only a body-composition fitness goal can be primary",
+            "error_code": "validation_failed",
+        }), 400
+
+    try:
+        goal_id = create_goal_from_library(
+            user_id=uid(),
+            library_id=library_id,
+            target_value=data.get("target_value"),
+            target_streak_length=data.get("target_streak_length"),
+            target_count=data.get("target_count"),
+            target_rate=data.get("target_rate"),
+            start_value=data.get("start_value"),
+            baseline_value=data.get("baseline_value"),
+            deadline=data.get("deadline"),
+            display_name=data.get("display_name"),
+            direction=data.get("direction"),
+            is_primary=is_primary,
+            period=data.get("period"),
+            window_size=data.get("window_size"),
+            aggregation=data.get("aggregation"),
+            period_unit=data.get("period_unit"),
+        )
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e), "error_code": "validation_failed"}), 400
+    except Exception:
+        _log.exception("goals/create failed")
+        return jsonify({"ok": False, "error": "Could not create goal", "error_code": "db_error"}), 500
+
+    # If this is the new primary fitness goal, sync the calorie driver row.
+    if is_primary and lib.get("affects_calorie_math"):
+        _sync_calorie_driver_from_primary_fitness(uid())
+
+    goal = goals_engine.recompute_and_persist_goal(goal_id, uid())
+    return jsonify({"ok": True, "goal": _serialize_goal(goal)}), 201
+
+
+@app.route("/api/goals/<int:goal_id>", methods=["PATCH"])
+@login_required
+def api_goals_update(goal_id: int):
+    """Edit a goal (PRD §4.10.12). Editable: target_value, target_streak_length,
+    target_count, target_rate, deadline, display_name, is_primary,
+    auto_restart_enabled. Library_id / goal_type / category / start_value
+    are immutable."""
+    data = request.get_json(silent=True) or {}
+    existing = get_goal(goal_id, uid())
+    if not existing:
+        return jsonify({"ok": False, "error": "Goal not found", "error_code": "not_found"}), 404
+
+    # Validate is_primary flip
+    if data.get("is_primary"):
+        if not (existing["category"] == "fitness" and existing.get("affects_calorie_math")):
+            return jsonify({
+                "ok": False,
+                "error": "Only a body-composition fitness goal can be primary",
+                "error_code": "validation_failed",
+            }), 400
+
+    ok = update_goal_fields(goal_id, uid(), data)
+    if not ok:
+        return jsonify({"ok": False, "error": "Nothing updated",
+                        "error_code": "validation_failed"}), 400
+
+    if "is_primary" in data and existing.get("affects_calorie_math"):
+        _sync_calorie_driver_from_primary_fitness(uid())
+
+    goal = goals_engine.recompute_and_persist_goal(goal_id, uid())
+    return jsonify({"ok": True, "goal": _serialize_goal(goal)})
+
+
+@app.route("/api/goals/<int:goal_id>/archive", methods=["POST"])
+@login_required
+def api_goals_archive(goal_id: int):
+    existing = get_goal(goal_id, uid())
+    if not existing:
+        return jsonify({"ok": False, "error": "Goal not found", "error_code": "not_found"}), 404
+    was_primary_fit = bool(existing.get("is_primary") and existing.get("affects_calorie_math"))
+    ok = archive_goal(goal_id, uid())
+    if not ok:
+        return jsonify({"ok": False, "error": "Could not archive",
+                        "error_code": "validation_failed"}), 400
+    if was_primary_fit:
+        _sync_calorie_driver_from_primary_fitness(uid())
+    return jsonify({"ok": True})
+
+
+@app.route("/api/goals/<int:goal_id>/unarchive", methods=["POST"])
+@login_required
+def api_goals_unarchive(goal_id: int):
+    if count_active_goals(uid()) >= _user_goal_slot_limit(uid()):
+        return jsonify({
+            "ok": False,
+            "error": "Slot limit reached — archive another goal first.",
+            "error_code": "slot_limit_reached",
+        }), 409
+    ok = unarchive_goal(goal_id, uid())
+    if not ok:
+        return jsonify({"ok": False, "error": "Goal not archived or not found",
+                        "error_code": "not_found"}), 404
+    return jsonify({"ok": True})
+
+
+@app.route("/api/goals/<int:goal_id>/complete", methods=["POST"])
+@login_required
+def api_goals_complete(goal_id: int):
+    """Manually mark a goal complete. Auto-completion happens inside
+    goals_engine when progress hits 100%; this route is for user-initiated
+    completion (e.g. best-attempt goals where the user self-reports)."""
+    existing = get_goal(goal_id, uid())
+    if not existing:
+        return jsonify({"ok": False, "error": "Goal not found", "error_code": "not_found"}), 404
+    was_primary_fit = bool(existing.get("is_primary") and existing.get("affects_calorie_math"))
+    ok = mark_goal_completed(goal_id, uid())
+    if not ok:
+        return jsonify({"ok": False, "error": "Could not complete (not active?)",
+                        "error_code": "validation_failed"}), 400
+    if was_primary_fit:
+        _sync_calorie_driver_from_primary_fitness(uid())
+    return jsonify({"ok": True})
+
+
+def _sync_calorie_driver_from_primary_fitness(user_id: int) -> None:
+    """Rewrite user_goals (the single-row calorie-driver table) from the
+    user's current primary fitness goal.
+
+    If the primary fitness goal is archived / completed / removed, the
+    driver row is left as-is (don't nuke calorie targets mid-day). Future:
+    fall back to maintenance calories (PRD §4.10.12 archival rule) — this
+    requires a body-stats snapshot we don't yet capture cleanly. Logging
+    this TODO so the gap is visible."""
+    primary = get_primary_fitness_goal(user_id)
+    if not primary:
+        _log.info(
+            "goals: primary fitness goal cleared for user=%s; calorie driver "
+            "row left intact (no auto-maintenance fallback in v1).",
+            user_id,
+        )
+        return
+    # For FIT-01 specifically we only have target_value (goal weight). Full
+    # calorie recompute needs body stats (height/age/sex/bf%) which live
+    # in user_onboarding.profile_map. Rather than re-derive from scratch
+    # here (the onboarding save path already does this), we mirror the
+    # primary goal's target_weight_lbs into user_goals.config_json for
+    # provenance. The next /api/goal/update call from the client will
+    # rewrite calorie_target + macros deterministically using the new
+    # target_weight. This keeps the calorie-math code path identical
+    # regardless of entry point (settings slider vs goal create/edit).
+    existing = get_user_goal(user_id)
+    if not existing:
+        return
+    import json as _json
+    cfg = {}
+    try:
+        cfg = _json.loads(existing.get("config_json") or "{}")
+    except Exception:
+        cfg = {}
+    cfg["primary_fitness_goal_id"] = primary["goal_id"]
+    cfg["primary_fitness_goal_target_value"] = primary.get("target_value")
+    upsert_user_goal(
+        user_id=user_id,
+        goal_key=existing["goal_key"],
+        calorie_target=existing["calorie_target"],
+        protein_g=existing["protein_g"],
+        fat_g=existing["fat_g"],
+        carbs_g=existing["carbs_g"],
+        deficit_surplus=existing["deficit_surplus"],
+        rmr=existing["rmr"],
+        rmr_method=existing["rmr_method"],
+        tdee_used=existing["tdee_used"],
+        config_json=_json.dumps(cfg),
+        sources_json=existing["sources_json"],
+    )
 
 
 @app.route("/api/goal/update", methods=["POST"])

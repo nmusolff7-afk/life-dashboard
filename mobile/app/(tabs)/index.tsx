@@ -4,11 +4,13 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 
 import {
   CategoryScoreRow,
+  GoalRow,
   OverallScoreHero,
   ProgressRow,
   StreakBar,
   TabHeader,
 } from '../../components/apex';
+import { useGoals } from '../../lib/hooks/useGoals';
 import {
   useLoggedDates,
   useProfile,
@@ -133,8 +135,12 @@ export default function HomeScreen() {
   // Backend-error detection: if core calls fail together, surface a single banner.
   const backendError = nutrition.error && workouts.error && profile.error;
 
-  // Active-goals strip — single-card variant until the 22-goal library
-  // (PRD §4.10) ships. Renders the user's primary calorie goal if set.
+  // Active goals strip — reads from the unified /api/goals endpoint
+  // (PRD §4.10). Shows up to 3 active goals sorted primary-first.
+  // Falls back to the legacy single-goal card if the user hasn't
+  // created any unified goals yet.
+  const goalsState = useGoals();
+  const activeGoals = goalsState.data?.goals ?? [];
   const activeGoal = profile.data?.goal_targets;
 
   return (
@@ -275,11 +281,23 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* Active goals strip. Founder moved this to the bottom of the
-            card stack so the category rows sit directly under the
-            Overall Score hero. Single card until PRD §4.10 goal
-            library lands. */}
-        {activeGoal ? (
+        {/* Active goals strip — up to 3 goals sorted primary-first, each
+            tappable to the detail view. Empty fallback uses the old
+            single-goal legacy card so a user with only a calorie goal
+            keeps the familiar surface until they add a unified goal. */}
+        {activeGoals.length > 0 ? (
+          <View style={[styles.horizPad, { gap: 8 }]}>
+            <View style={styles.goalStripHeader}>
+              <Text style={[styles.goalStripLabel, { color: t.muted }]}>Active goals</Text>
+              <Pressable onPress={() => router.push('/goals')}>
+                <Text style={[styles.goalStripLink, { color: t.accent }]}>View all</Text>
+              </Pressable>
+            </View>
+            {activeGoals.slice(0, 3).map((g) => (
+              <GoalRow key={g.goal_id} goal={g} onPress={() => router.push(`/goals/${g.goal_id}` as never)} />
+            ))}
+          </View>
+        ) : activeGoal ? (
           <View style={styles.horizPad}>
             <Pressable
               onPress={() => router.push('/goals')}
@@ -306,7 +324,21 @@ export default function HomeScreen() {
               </Text>
             </Pressable>
           </View>
-        ) : null}
+        ) : (
+          <View style={styles.horizPad}>
+            <Pressable
+              onPress={() => router.push('/goals/library' as never)}
+              style={({ pressed }) => [
+                styles.goalCard,
+                { backgroundColor: t.surface, borderColor: t.border, opacity: pressed ? 0.85 : 1 },
+              ]}>
+              <Text style={[styles.goalTitle, { color: t.text }]}>Pick your first goal →</Text>
+              <Text style={[styles.goalSub, { color: t.muted }]}>
+                Fitness body-comp goals drive calorie targets; others just track.
+              </Text>
+            </Pressable>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -358,6 +390,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     gap: 8,
   },
+  goalStripHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 2 },
+  goalStripLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6 },
+  goalStripLink: { fontSize: 12, fontWeight: '600' },
   goalHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   goalCategoryDot: { width: 8, height: 8, borderRadius: 4 },
   goalTitle: { fontSize: 14, fontWeight: '600', flex: 1 },
