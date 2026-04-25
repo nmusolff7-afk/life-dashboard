@@ -3,6 +3,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from '@rea
 import { Stack, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -138,13 +139,21 @@ export default function RootLayout() {
 
   if (!hydrated) return null;
 
+  // GestureHandlerRootView must wrap every GestureDetector descendant.
+  // (tabs)/_layout.tsx uses Gesture.Pan() for the swipe-between-tabs
+  // feature; without this wrapper, entering the tabs group throws
+  // "GestureDetector must be used as a descendant of
+  // GestureHandlerRootView". Keep it at the very top of the tree so
+  // every route is a descendant.
   return (
-    <SafeAreaProvider>
-      <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-        <ThemeProvider>
-          <ThemedStack />
-        </ThemeProvider>
-      </ClerkProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
+          <ThemeProvider>
+            <ThemedStack />
+          </ThemeProvider>
+        </ClerkProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
