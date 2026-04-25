@@ -386,6 +386,36 @@ def _progress_budget_streak(goal: dict, user_id: int) -> dict:
     }
 
 
+def _qualifies_all_priority_tasks_done(user_id: int, d: date) -> bool:
+    """True if the user had at least one priority task due on/before day `d`
+    AND all of them were completed (priority=1 rows either completed on
+    that day, or completed already and weren't outstanding)."""
+    day = d.isoformat()
+    with get_conn() as conn:
+        # All priority tasks that should have been done by EOD of `d`:
+        rows = conn.execute(
+            """
+            SELECT id, completed, completed_at, due_date, task_date
+            FROM mind_tasks
+            WHERE user_id = ?
+              AND priority = 1
+              AND ((due_date IS NOT NULL AND due_date <= ?) OR (due_date IS NULL AND task_date <= ?))
+            """,
+            (user_id, day, day),
+        ).fetchall()
+    rows = [dict(r) for r in rows]
+    if not rows:
+        return False  # no priority tasks = nothing to qualify on
+    for r in rows:
+        if not r.get("completed"):
+            return False
+        # If the row was completed but after `d`, it wasn't "done by EOD of d".
+        ca = (r.get("completed_at") or "")[:10]
+        if ca and ca > day:
+            return False
+    return True
+
+
 _PROGRESS_HANDLERS = {
     "FIT-01": _progress_weight,
     "FIT-02": _progress_strength_pr("squat"),
@@ -399,9 +429,11 @@ _PROGRESS_HANDLERS = {
     "NUT-04": _progress_protein_avg,
     "FIN-04": _progress_monthly_spending_limit,
     "FIN-05": _progress_budget_streak,
-    # NUT-05, FIN-01/02/03, TIME-*: default _paused_handler.
-    # FIN-01/02/03 (cumulative savings/debt) need account balances which
-    # need Plaid — stay paused until Plaid lands.
+    "TIME-01": _progress_daily_streak(_qualifies_all_priority_tasks_done),
+    # NUT-05, FIN-01/02/03, TIME-02/03/04/05/06: default _paused_handler.
+    # FIN-01/02/03 (cumulative savings/debt) need account balances (Plaid).
+    # TIME-02/03/04 need Screen Time. TIME-05 needs Focus/Calendar.
+    # TIME-06 needs Location.
 }
 
 

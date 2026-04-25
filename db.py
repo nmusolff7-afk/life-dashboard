@@ -121,6 +121,16 @@ def init_db():
                 created_at TIMESTAMP NOT NULL
             )
         """)
+        # Additive: due_date + priority (PRD §4.6.9). due_date is the task's
+        # deadline (nullable) vs. task_date which is "created for this day".
+        # priority=1 rows feed the "priority tasks complete" streak (TIME-01).
+        mt_cols = {r["name"] for r in conn.execute("PRAGMA table_info(mind_tasks)").fetchall()}
+        if "due_date" not in mt_cols:
+            conn.execute("ALTER TABLE mind_tasks ADD COLUMN due_date DATE")
+        if "priority" not in mt_cols:
+            conn.execute("ALTER TABLE mind_tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0")
+        if "completed_at" not in mt_cols:
+            conn.execute("ALTER TABLE mind_tasks ADD COLUMN completed_at TIMESTAMP")
         # Gmail OAuth tokens — one row per user
         conn.execute("""
             CREATE TABLE IF NOT EXISTS gmail_tokens (
@@ -1726,19 +1736,24 @@ def get_daily_weight(user_id: int, date_str: str):
 
 # ── Mind tasks ──────────────────────────────────────
 
-def insert_mind_task(user_id, description, source='manual', task_date=None):
+def insert_mind_task(user_id, description, source='manual', task_date=None,
+                     due_date=None, priority=False):
     td = task_date or date.today().isoformat()
     now = datetime.now().isoformat()
     with get_conn() as conn:
         cur = conn.execute("""
-            INSERT INTO mind_tasks (user_id, task_date, description, completed, source, created_at)
-            VALUES (?, ?, ?, 0, ?, ?)
-        """, (user_id, td, description, source, now))
+            INSERT INTO mind_tasks (user_id, task_date, description, completed, source,
+                                    due_date, priority, created_at)
+            VALUES (?, ?, ?, 0, ?, ?, ?, ?)
+        """, (user_id, td, description, source, due_date, 1 if priority else 0, now))
         conn.commit()
         return cur.lastrowid
 
 
 def get_mind_tasks(user_id, task_date=None):
+    """Scoring-facing fetch: incomplete + today's completed. Leaves future
+    tasks out because this feeds "things due by now". Kept stable so
+    scoring/ momentum don't need to change."""
     td = task_date or date.today().isoformat()
     with get_conn() as conn:
         rows = conn.execute(
@@ -1751,13 +1766,91 @@ def get_mind_tasks(user_id, task_date=None):
     return [dict(r) for r in rows]
 
 
-def toggle_mind_task(task_id, user_id):
+def list_user_tasks(user_id: int, *, include_completed: bool = True,
+                    days_ahead: int = 60, days_back: int = 30):
+    """Mobile-facing list: future tasks, overdue, today, recent completed.
+
+    Covers the full range the Time tab needs. Ordering: incomplete first
+    (by due_date asc, then task_date), then completed (most recent first).
+    """
+    today = date.today().isoformat()
+    back = (date.today() - timedelta(days=days_back)).isoformat()
+    ahead = (date.today() + timedelta(days=days_ahead)).isoformat()
     with get_conn() as conn:
-        conn.execute(
-            "UPDATE mind_tasks SET completed = 1 - completed WHERE id = ? AND user_id = ?",
-            (task_id, user_id)
+        if include_completed:
+            rows = conn.execute(
+                """SELECT * FROM mind_tasks
+                   WHERE user_id = ?
+                   AND (
+                     completed = 0 AND (due_date IS NULL OR due_date <= ?)
+                     OR (completed = 1 AND (completed_at IS NOT NULL AND completed_at >= ?))
+                     OR (completed = 1 AND completed_at IS NULL AND task_date >= ?)
+                   )
+                   ORDER BY completed,
+                            CASE WHEN due_date IS NULL THEN 1 ELSE 0 END,
+                            due_date,
+                            priority DESC,
+                            task_date,
+                            created_at""",
+                (user_id, ahead, back, back),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT * FROM mind_tasks
+                   WHERE user_id = ? AND completed = 0
+                     AND (due_date IS NULL OR due_date <= ?)
+                   ORDER BY
+                     CASE WHEN due_date IS NULL THEN 1 ELSE 0 END,
+                     due_date, priority DESC, task_date, created_at""",
+                (user_id, ahead),
+            ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def toggle_mind_task(task_id, user_id):
+    """Toggle completed flag. Also writes completed_at timestamp on the
+    complete→done transition and clears it on undo, so streak calculations
+    have an authoritative completion date independent of task_date."""
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT completed FROM mind_tasks WHERE id = ? AND user_id = ?",
+            (task_id, user_id),
+        ).fetchone()
+        if not row:
+            return False
+        is_completing = row["completed"] == 0
+        if is_completing:
+            conn.execute(
+                "UPDATE mind_tasks SET completed = 1, completed_at = ? WHERE id = ? AND user_id = ?",
+                (now, task_id, user_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE mind_tasks SET completed = 0, completed_at = NULL WHERE id = ? AND user_id = ?",
+                (task_id, user_id),
+            )
+        conn.commit()
+    return True
+
+
+def update_mind_task(task_id: int, user_id: int, fields: dict) -> bool:
+    """Whitelisted edit. Allowed: description, due_date, priority, task_date."""
+    allowed = {"description", "due_date", "priority", "task_date"}
+    safe = {k: v for k, v in fields.items() if k in allowed}
+    if not safe:
+        return False
+    if "priority" in safe:
+        safe["priority"] = 1 if safe["priority"] else 0
+    set_clauses = ", ".join(f"{k} = ?" for k in safe)
+    params = list(safe.values()) + [task_id, user_id]
+    with get_conn() as conn:
+        cur = conn.execute(
+            f"UPDATE mind_tasks SET {set_clauses} WHERE id = ? AND user_id = ?",
+            params,
         )
         conn.commit()
+    return cur.rowcount > 0
 
 
 def delete_mind_task(task_id, user_id):

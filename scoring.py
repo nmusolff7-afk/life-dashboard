@@ -973,16 +973,57 @@ def compute_finance_score(user_id: int, as_of: str) -> CategoryResult:
 
 
 def compute_time_score(user_id: int, as_of: str) -> CategoryResult:
+    """PRD §4.6.15 locks the five Time Score signals to passive platform
+    data (sleep regularity, attention fragmentation, location intentionality,
+    schedule density balance, rhythm adherence). Task-completion does NOT
+    count (user-gameable).
+
+    In v1 none of the five integrations are wired on the mobile side yet.
+    Result: score stays None. But we degrade across three tiers so the
+    tab's CTA is accurate:
+
+    - zero state (no tasks, no integrations) → 'not_connected',
+      cta="Connect calendar + email to activate Time, or start by adding
+      a task in Time."
+    - tasks-active (user has tasks) → still 'insufficient_data', but cta
+      switches to "Connect a data source to unlock Time Score — tasks
+      alone don't score."  Clarifies that tasks exist + work but aren't
+      part of the scoring math.
+    - any of the five signals wired → real score (deferred until a
+      signal lands in a later phase).
+    """
+    with get_conn() as conn:
+        # We use mind_tasks as the "has any time-domain activity" signal.
+        n_tasks = conn.execute(
+            "SELECT COUNT(*) AS n FROM mind_tasks WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()["n"]
+
+    if n_tasks == 0:
+        return CategoryResult(
+            category="time",
+            score=None,
+            band="grey",
+            reason="not_connected",
+            calibrating=False,
+            signals=[],
+            data_completeness_overall=0.0,
+            sparkline_7d=[None] * 7,
+            cta="Add a task or connect calendar / email to activate Time.",
+        )
+
+    # Tasks exist, but per PRD §4.6.15 they don't feed the score. Connect
+    # at least one passive data source to score.
     return CategoryResult(
         category="time",
         score=None,
         band="grey",
-        reason="not_connected",
-        calibrating=False,
+        reason="insufficient_data",
+        calibrating=True,
         signals=[],
-        data_completeness_overall=0.0,
+        data_completeness_overall=0.1,
         sparkline_7d=[None] * 7,
-        cta="Connect calendar + email to activate Time.",
+        cta="Connect calendar, email, or screen-time to unlock a score — tasks alone don't feed it.",
     )
 
 

@@ -24,6 +24,7 @@ from db import (
     get_onboarding, upsert_onboarding_inputs, complete_onboarding,
     get_profile_map, is_onboarding_complete,
     insert_mind_task, get_mind_tasks, toggle_mind_task, delete_mind_task,
+    list_user_tasks, update_mind_task,
     save_daily_weight, get_daily_weight,
     add_hydration_oz, get_hydration_oz, reset_hydration,
     get_ai_daily_count, incr_ai_daily_count,
@@ -1019,21 +1020,67 @@ def api_mind_today():
 
 
 
+@app.route("/api/mind/tasks", methods=["GET"])
+@login_required
+def api_mind_list_tasks():
+    """Mobile-facing task list. Returns future + overdue + today's items +
+    recently-completed. Scope:
+      ?include_completed=0  — only incomplete
+      ?days_ahead=N         — how far into the future to include (default 60)
+    """
+    include_completed = request.args.get("include_completed", "1") != "0"
+    try:
+        days_ahead = int(request.args.get("days_ahead", 60))
+    except (TypeError, ValueError):
+        days_ahead = 60
+    tasks = list_user_tasks(uid(), include_completed=include_completed,
+                            days_ahead=max(0, min(days_ahead, 365)))
+    return jsonify({"ok": True, "tasks": tasks})
+
+
 @app.route("/api/mind/task", methods=["POST"])
 @login_required
 def api_mind_add_task():
-    data = request.get_json()
+    data = request.get_json() or {}
     desc = (data.get("description") or "").strip()
     if not desc:
-        return jsonify({"error": "description required"}), 400
-    tid = insert_mind_task(uid(), desc, task_date=client_today())
-    return jsonify({"id": tid, "description": desc, "completed": 0, "source": "manual"})
+        return jsonify({"ok": False, "error": "description required",
+                        "error_code": "validation_failed"}), 400
+    tid = insert_mind_task(
+        uid(), desc,
+        task_date=client_today(),
+        due_date=(data.get("due_date") or None),
+        priority=bool(data.get("priority", False)),
+    )
+    return jsonify({
+        "ok": True,
+        "task": {
+            "id": tid,
+            "description": desc,
+            "completed": 0,
+            "source": "manual",
+            "due_date": data.get("due_date"),
+            "priority": 1 if data.get("priority") else 0,
+        },
+    })
 
 
 @app.route("/api/mind/task/<int:task_id>", methods=["PATCH"])
 @login_required
-def api_mind_toggle_task(task_id):
-    toggle_mind_task(task_id, uid())
+def api_mind_patch_task(task_id):
+    """Dual behavior: body={} → toggle; body={...fields} → edit.
+    Keeps old single-argument toggle contract working for existing callers."""
+    data = request.get_json(silent=True) or {}
+    if not data or ("toggle" in data and data.get("toggle")):
+        ok = toggle_mind_task(task_id, uid())
+        if not ok:
+            return jsonify({"ok": False, "error": "Task not found",
+                            "error_code": "not_found"}), 404
+        return jsonify({"ok": True})
+    ok = update_mind_task(task_id, uid(), data)
+    if not ok:
+        return jsonify({"ok": False, "error": "Nothing updated",
+                        "error_code": "validation_failed"}), 400
     return jsonify({"ok": True})
 
 
@@ -1042,6 +1089,40 @@ def api_mind_toggle_task(task_id):
 def api_mind_delete_task(task_id):
     delete_mind_task(task_id, uid())
     return jsonify({"ok": True})
+
+
+# Today's Focus — deterministic ranking per PRD §4.6.4.
+# No AI; stable ordering. For v1 we rank from three sources we own today:
+#   1. Overdue priority tasks (priority=1, due_date < today, incomplete)
+#   2. Today-priority tasks (priority=1, due_date <= today, incomplete)
+#   3. Overdue tasks (any, incomplete, due_date < today)
+#   4. Today tasks (any, due_date == today OR task_date == today, incomplete)
+# Caps at 5 items. When Gmail / Calendar land, they plug in as higher-rank
+# candidates (unreplied-important, meeting-prep-needed).
+@app.route("/api/time/focus", methods=["GET"])
+@login_required
+def api_time_focus():
+    from datetime import date as _d
+    today = _d.today().isoformat()
+    tasks = list_user_tasks(uid(), include_completed=False, days_ahead=0)
+    ranked: list[dict] = []
+    def tag(t: dict, priority_level: str, reason: str):
+        return {**t, "_focus_priority": priority_level, "_focus_reason": reason}
+    for t in tasks:
+        if t.get("completed"):
+            continue
+        due = t.get("due_date")
+        is_priority = bool(t.get("priority"))
+        if due and due < today and is_priority:
+            ranked.append(tag(t, "critical", "overdue priority task"))
+        elif due == today and is_priority:
+            ranked.append(tag(t, "high", "due today (priority)"))
+        elif due and due < today:
+            ranked.append(tag(t, "medium", "overdue"))
+        elif due == today or t.get("task_date") == today:
+            ranked.append(tag(t, "normal", "due today"))
+    ranked.sort(key=lambda r: {"critical": 0, "high": 1, "medium": 2, "normal": 3}[r["_focus_priority"]])
+    return jsonify({"ok": True, "focus": ranked[:5], "total_candidates": len(ranked)})
 
 
 # ── Meals ───────────────────────────────────────────────

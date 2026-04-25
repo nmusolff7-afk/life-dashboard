@@ -4,3 +4,4 @@ export * from './types/home';
 export * from './types/score';
 export * from './types/goals';
 export * from './types/finance';
+export * from './types/tasks';
