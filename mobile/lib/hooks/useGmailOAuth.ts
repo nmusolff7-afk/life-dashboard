@@ -1,86 +1,156 @@
-import * as Linking from 'expo-linking';
+import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
+import { Platform } from 'react-native';
+import { useEffect, useRef } from 'react';
 
 import { apiFetch } from '../api';
 
+// Required so Google's OAuth WebBrowser session resolves cleanly
+// when the user switches back to the app.
+WebBrowser.maybeCompleteAuthSession();
+
+const ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID;
+const IOS_CLIENT_ID     = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS;
+const GMAIL_SCOPES      = ['https://www.googleapis.com/auth/gmail.readonly'];
+
 /**
- * Gmail OAuth flow for the mobile client.
+ * Gmail OAuth via expo-auth-session/providers/google with the
+ * platform-specific native client IDs. Native clients use PKCE
+ * (code_verifier) instead of a client secret per RFC 8252; the verifier
+ * gets passed to the backend so it can complete the token exchange.
  *
- * Sequence:
- *   1. POST /api/gmail/oauth/init  with our deep-link redirect URI →
- *      returns { auth_url, state }
- *   2. WebBrowser.openAuthSessionAsync(auth_url, redirect_uri) opens
- *      the Google consent screen in an in-app browser. Google redirects
- *      back to our deep link (lifedashboard://oauth/gmail?code=...&state=...).
- *      WebBrowser intercepts the deep link and returns a result.
- *   3. POST /api/gmail/oauth/exchange with { code, state, redirect_uri }
- *      → backend exchanges, persists tokens, marks connector connected.
- *
- * Returns the connected email address on success, or throws.
- *
- * NB: the redirect_uri MUST be registered in Google Cloud Console as an
- * authorized redirect URI for our OAuth client. For the deep-link
- * scheme to work, register the literal string `lifedashboard://oauth/gmail`
- * (Google accepts custom schemes for "Web application" client types).
+ * Flow:
+ *   1. useAuthRequest builds a request with PKCE + the right per-platform
+ *      client ID. Redirect URI is auto-derived from the bundle ID
+ *      (com.lifedashboard) — Google's iOS/Android OAuth clients accept
+ *      that scheme natively, no Cloud Console URL registration needed.
+ *   2. promptAsync() opens the consent screen in an in-app browser.
+ *   3. On success the response carries `code` (the auth code) plus
+ *      `request.codeVerifier` (the PKCE verifier).
+ *   4. We POST { code, code_verifier, platform, redirect_uri } to
+ *      /api/gmail/oauth/exchange. Backend uses the matching native
+ *      client_id (no secret) + verifier to complete the exchange with
+ *      Google, persists tokens, marks the connector connected, and
+ *      returns { ok, email }.
  */
-
-const REDIRECT_PATH = 'oauth/gmail';
-
-function buildRedirectUri(): string {
-  // Linking.createURL adds the app's scheme prefix. In a managed Expo
-  // dev build it'll be the scheme from app.json ("lifedashboard").
-  // In Expo Go it'll be exp://... which won't match Google Console;
-  // testing via dev client / built app is required.
-  return Linking.createURL(REDIRECT_PATH);
+export interface GmailOAuthState {
+  /** Kick off the consent flow. Returns connected email on success. */
+  connect: () => Promise<string>;
+  /** Disconnect Gmail (clears tokens + flips connector to revoked). */
+  disconnect: () => Promise<void>;
+  /** True while the auth request is being prepared by expo-auth-session
+   *  (it generates PKCE async). connect() is safe to call before this
+   *  flips true; it'll await the request internally. */
+  ready: boolean;
 }
 
+export function useGmailOAuth(): GmailOAuthState {
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    androidClientId: ANDROID_CLIENT_ID,
+    iosClientId: IOS_CLIENT_ID,
+    scopes: GMAIL_SCOPES,
+    // Code flow with PKCE — we exchange server-side so refresh_token
+    // lives on the backend and gmail_sync can refresh without bothering
+    // the client. The default `responseType` for this provider is
+    // already 'code'; explicit here for clarity.
+    responseType: 'code',
+  });
+
+  // Buffer the latest response so connect() can await it across renders.
+  const latestResponseRef = useRef(response);
+  latestResponseRef.current = response;
+
+  // Promise resolver that connect() awaits — fulfilled by the response
+  // observer below.
+  const pendingRef = useRef<{
+    resolve: (email: string) => void;
+    reject: (e: Error) => void;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!response || !pendingRef.current) return;
+    const pending = pendingRef.current;
+    pendingRef.current = null;
+
+    if (response.type === 'cancel' || response.type === 'dismiss') {
+      pending.reject(new Error('Gmail connect was cancelled.'));
+      return;
+    }
+    if (response.type === 'error') {
+      pending.reject(new Error(response.error?.message || 'Gmail OAuth failed'));
+      return;
+    }
+    if (response.type !== 'success') {
+      pending.reject(new Error(`Unexpected OAuth result: ${response.type}`));
+      return;
+    }
+    const code = response.params.code;
+    const verifier = request?.codeVerifier;
+    const redirectUri = request?.redirectUri;
+    if (!code) { pending.reject(new Error('No authorization code in callback.')); return; }
+    if (!verifier) { pending.reject(new Error('PKCE verifier missing — auth request not ready.')); return; }
+    if (!redirectUri) { pending.reject(new Error('Redirect URI missing — auth request not ready.')); return; }
+
+    // Exchange via backend.
+    (async () => {
+      try {
+        const platform = Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'web';
+        const res = await apiFetch('/api/gmail/oauth/exchange', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code,
+            code_verifier: verifier,
+            redirect_uri: redirectUri,
+            platform,
+            // expo-auth-session manages its own state; pass it through
+            // for backend logging but the backend won't have a row to
+            // verify against (state-validation only fires when /init
+            // issued the state).
+            state: response.params.state || '',
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.ok) {
+          throw new Error(json.error || 'Token exchange failed');
+        }
+        pending.resolve(json.email as string);
+      } catch (e) {
+        pending.reject(e instanceof Error ? e : new Error(String(e)));
+      }
+    })();
+  }, [response, request]);
+
+  const connect = async (): Promise<string> => {
+    if (!request) {
+      // Auth request still being prepared — wait one tick. In practice
+      // useAuthRequest resolves synchronously after the first render so
+      // this almost never blocks.
+      await new Promise<void>((r) => setTimeout(r, 50));
+    }
+    return new Promise<string>((resolve, reject) => {
+      pendingRef.current = { resolve, reject };
+      promptAsync().catch((e) => {
+        pendingRef.current = null;
+        reject(e instanceof Error ? e : new Error(String(e)));
+      });
+    });
+  };
+
+  const disconnect = async (): Promise<void> => {
+    const res = await apiFetch('/api/gmail/disconnect', { method: 'POST' });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      throw new Error((j as { error?: string }).error || 'Gmail disconnect failed');
+    }
+  };
+
+  return { connect, disconnect, ready: !!request };
+}
+
+/** For backward compat with the old hook signature — single-shot call. */
 export async function connectGmail(): Promise<string> {
-  const redirectUri = buildRedirectUri();
-
-  // Step 1: ask backend for auth URL + state
-  const initRes = await apiFetch('/api/gmail/oauth/init', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ redirect_uri: redirectUri }),
-  });
-  const initJson = await initRes.json();
-  if (!initRes.ok || !initJson.ok) {
-    throw new Error(initJson.error || 'OAuth init failed');
-  }
-  const { auth_url, state } = initJson as { auth_url: string; state: string };
-
-  // Step 2: open Google consent
-  const result = await WebBrowser.openAuthSessionAsync(auth_url, redirectUri);
-  if (result.type === 'cancel' || result.type === 'dismiss') {
-    throw new Error('Gmail connect was cancelled.');
-  }
-  if (result.type !== 'success' || !result.url) {
-    throw new Error('Gmail connect did not complete.');
-  }
-
-  // Parse the deep link Google redirected us to
-  const url = result.url;
-  const queryStart = url.indexOf('?');
-  if (queryStart < 0) throw new Error('No callback parameters returned.');
-  const params = new URLSearchParams(url.slice(queryStart + 1));
-  const code = params.get('code');
-  const returnedState = params.get('state');
-  const oauthError = params.get('error');
-  if (oauthError) throw new Error(`Google denied access: ${oauthError}`);
-  if (!code) throw new Error('No authorization code in callback.');
-  if (returnedState !== state) throw new Error('OAuth state mismatch (possible CSRF).');
-
-  // Step 3: exchange code for tokens server-side
-  const xchgRes = await apiFetch('/api/gmail/oauth/exchange', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code, state: returnedState, redirect_uri: redirectUri }),
-  });
-  const xchgJson = await xchgRes.json();
-  if (!xchgRes.ok || !xchgJson.ok) {
-    throw new Error(xchgJson.error || 'Token exchange failed');
-  }
-  return xchgJson.email as string;
+  throw new Error('connectGmail() is deprecated. Use the useGmailOAuth() hook from a component.');
 }
 
 export async function disconnectGmail(): Promise<void> {
@@ -89,12 +159,4 @@ export async function disconnectGmail(): Promise<void> {
     const j = await res.json().catch(() => ({}));
     throw new Error((j as { error?: string }).error || 'Gmail disconnect failed');
   }
-}
-
-/** Returns the deep-link redirect URI the app will hand to Google. The
- *  user must register this exact string in Google Cloud Console as an
- *  authorized redirect URI. Surface in a debug screen so the user can
- *  copy/paste it without guessing. */
-export function gmailRedirectUriForRegistration(): string {
-  return buildRedirectUri();
 }

@@ -5,7 +5,7 @@ import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, View 
 import { ConnectorTile } from '../../components/apex';
 import type { ConnectorEntry } from '../../../shared/src/types/connectors';
 import { useConnectors, disconnectConnector, markConnectorConnected } from '../../lib/hooks/useConnectors';
-import { connectGmail, disconnectGmail, gmailRedirectUriForRegistration } from '../../lib/hooks/useGmailOAuth';
+import { useGmailOAuth } from '../../lib/hooks/useGmailOAuth';
 import { useHealthConnection } from '../../lib/useHealthConnection';
 import { useHaptics } from '../../lib/useHaptics';
 import { useTokens } from '../../lib/theme';
@@ -20,6 +20,7 @@ export default function Connections() {
   const haptics = useHaptics();
   const list = useConnectors();
   const health = useHealthConnection();
+  const gmailOAuth = useGmailOAuth();
 
   const refresh = useCallback(async () => {
     await list.refetch();
@@ -40,7 +41,10 @@ export default function Connections() {
     }
     haptics.fire('tap');
 
-    // Gmail — OAuth via expo-web-browser, deep-link callback.
+    // Gmail — native OAuth via expo-auth-session/providers/google with
+    // platform-specific client IDs + PKCE. No URL registration needed:
+    // Google's iOS/Android OAuth clients auto-derive the redirect URI
+    // from the bundle ID (com.lifedashboard).
     if (entry.provider === 'gmail') {
       if (entry.status === 'connected') {
         Alert.alert(
@@ -52,7 +56,7 @@ export default function Connections() {
               text: 'Disconnect', style: 'destructive',
               onPress: async () => {
                 setBusy('gmail');
-                try { await disconnectGmail(); await refresh(); haptics.fire('success'); }
+                try { await gmailOAuth.disconnect(); await refresh(); haptics.fire('success'); }
                 catch (e) { Alert.alert('Disconnect failed', (e as Error).message); }
                 finally { setBusy(null); }
               },
@@ -61,10 +65,13 @@ export default function Connections() {
         );
         return;
       }
-      // Not connected — kick off OAuth
+      // Not connected — kick off OAuth.
+      // NB: Expo Go won't work for this (its bundle ID is host.exp.exponent
+      // — Google's Android client expects com.lifedashboard). User must
+      // be running a dev-client build (eas build --profile development).
       Alert.alert(
         'Connect Gmail',
-        `Read-only access for inbox triage in the Time tab. You'll see Google's permission screen next.\n\nIf this fails with redirect_uri_mismatch, register this URI in Google Cloud Console:\n\n${gmailRedirectUriForRegistration()}`,
+        `Google's permission screen will open next. Read-only access for inbox triage in the Time tab.`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -72,7 +79,7 @@ export default function Connections() {
             onPress: async () => {
               setBusy('gmail');
               try {
-                const email = await connectGmail();
+                const email = await gmailOAuth.connect();
                 await refresh();
                 haptics.fire('success');
                 Alert.alert('Connected', `Gmail connected as ${email}.`);

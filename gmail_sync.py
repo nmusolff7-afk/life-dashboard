@@ -18,8 +18,10 @@ logger = logging.getLogger(__name__)
 
 # ── OAuth config (from env / Google Cloud Console) ──────────────────────────
 
-GOOGLE_CLIENT_ID     = os.environ.get("GOOGLE_CLIENT_ID", "")
-GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_CLIENT_ID         = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET     = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_CLIENT_ID_IOS     = os.environ.get("GOOGLE_CLIENT_ID_IOS", "")
+GOOGLE_CLIENT_ID_ANDROID = os.environ.get("GOOGLE_CLIENT_ID_ANDROID", "")
 GMAIL_SCOPES         = "https://www.googleapis.com/auth/gmail.readonly"
 GOOGLE_AUTH_URL      = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL     = "https://oauth2.googleapis.com/token"
@@ -27,14 +29,36 @@ GMAIL_API_BASE       = "https://gmail.googleapis.com/gmail/v1/users/me"
 
 
 def is_configured() -> bool:
-    """True if Google OAuth client credentials are set."""
+    """True if Google OAuth client credentials are set (web client at minimum
+    — required for the desktop test path. Native client IDs are checked
+    separately by the platform-aware exchange_code path)."""
     return bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)
+
+
+def _client_id_for_platform(platform: str | None) -> tuple[str, str | None]:
+    """Pick the right (client_id, client_secret) pair for the platform.
+
+    Native clients (iOS/Android) have NO client secret — Google enforces
+    integrity via bundle ID + SHA-1 (Android) or bundle ID alone (iOS),
+    plus PKCE on the auth flow. Web client uses the secret as before.
+
+    Returns (client_id, client_secret_or_None). Caller passes
+    client_secret only when non-None.
+    """
+    p = (platform or '').lower()
+    if p == 'ios' and GOOGLE_CLIENT_ID_IOS:
+        return GOOGLE_CLIENT_ID_IOS, None
+    if p == 'android' and GOOGLE_CLIENT_ID_ANDROID:
+        return GOOGLE_CLIENT_ID_ANDROID, None
+    return GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET or None
 
 
 # ── OAuth helpers ───────────────────────────────────────────────────────────
 
 def get_auth_url(redirect_uri: str, state: str = "") -> str:
-    """Build the Google OAuth consent URL."""
+    """Build the Google OAuth consent URL for the WEB client (used by the
+    desktop test path through Flask's /api/gmail/connect). Native clients
+    build their own auth URL via expo-auth-session/providers/google."""
     params = {
         "client_id":     GOOGLE_CLIENT_ID,
         "redirect_uri":  redirect_uri,
@@ -47,33 +71,50 @@ def get_auth_url(redirect_uri: str, state: str = "") -> str:
     return f"{GOOGLE_AUTH_URL}?{urlencode(params)}"
 
 
-def exchange_code(code: str, redirect_uri: str) -> dict:
+def exchange_code(code: str, redirect_uri: str, *,
+                  platform: str | None = None,
+                  code_verifier: str | None = None) -> dict:
     """Exchange authorization code for access + refresh tokens.
+
+    Web flow: pass `platform=None`, no `code_verifier` — Flask uses the
+    web client_id + secret.
+    Native flow (iOS/Android): pass `platform` and `code_verifier` (PKCE).
+    Flask uses the native client_id with NO secret; the verifier replaces
+    it as the security factor per the OAuth 2.0 native-app spec (RFC 8252).
 
     Returns: {access_token, refresh_token, expires_in, token_type}
     """
-    resp = requests.post(GOOGLE_TOKEN_URL, data={
-        "code":          code,
-        "client_id":     GOOGLE_CLIENT_ID,
-        "client_secret": GOOGLE_CLIENT_SECRET,
-        "redirect_uri":  redirect_uri,
-        "grant_type":    "authorization_code",
-    }, timeout=15)
+    cid, csec = _client_id_for_platform(platform)
+    payload: dict = {
+        "code":         code,
+        "client_id":    cid,
+        "redirect_uri": redirect_uri,
+        "grant_type":   "authorization_code",
+    }
+    if csec:
+        payload["client_secret"] = csec
+    if code_verifier:
+        payload["code_verifier"] = code_verifier
+    resp = requests.post(GOOGLE_TOKEN_URL, data=payload, timeout=15)
     resp.raise_for_status()
     return resp.json()
 
 
-def refresh_access_token(refresh_token: str) -> dict:
-    """Refresh an expired access token.
+def refresh_access_token(refresh_token: str, *, platform: str | None = None) -> dict:
+    """Refresh an expired access token. Same platform-aware client_id/secret
+    selection as exchange_code — native refresh has no client_secret.
 
     Returns: {access_token, expires_in, token_type}
     """
-    resp = requests.post(GOOGLE_TOKEN_URL, data={
+    cid, csec = _client_id_for_platform(platform)
+    payload: dict = {
         "refresh_token": refresh_token,
-        "client_id":     GOOGLE_CLIENT_ID,
-        "client_secret": GOOGLE_CLIENT_SECRET,
+        "client_id":     cid,
         "grant_type":    "refresh_token",
-    }, timeout=15)
+    }
+    if csec:
+        payload["client_secret"] = csec
+    resp = requests.post(GOOGLE_TOKEN_URL, data=payload, timeout=15)
     resp.raise_for_status()
     return resp.json()
 

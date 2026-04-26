@@ -1919,14 +1919,24 @@ def api_gmail_oauth_init():
 @app.route("/api/gmail/oauth/exchange", methods=["POST"])
 @login_required
 def api_gmail_oauth_exchange():
-    """Exchange the auth code for tokens. Mobile calls this after
-    expo-web-browser returns control with code + state in the deep
-    link.
+    """Exchange the auth code for tokens. Two flows supported:
 
-    Body: { code, state, redirect_uri }
+    Web/desktop (legacy session path): Body: { code, state, redirect_uri }.
+      Uses GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET. State stored in
+      Flask session (the older /api/gmail/connect path) — this route
+      doesn't read session state; web callers should use
+      /api/gmail/callback instead.
+
+    Native (iOS/Android via expo-auth-session/providers/google):
+      Body: { code, redirect_uri, platform: 'ios'|'android',
+              code_verifier, state? }.
+      Uses GOOGLE_CLIENT_ID_{IOS,ANDROID} (no secret) + the PKCE
+      verifier per RFC 8252. State is verified against B1 oauth_states
+      ONLY IF the mobile flow used /api/gmail/oauth/init to issue one.
+      For expo-auth-session's own state (it manages its own), pass it
+      through as state and we'll skip the consume_state lookup.
+
     Returns: { ok, email } on success, or structured error_code.
-    Same redirect_uri must be passed as in the original /init — Google
-    requires it for the token exchange.
     """
     import oauth_state_store as _oss
     import connectors as _conn
@@ -1935,13 +1945,30 @@ def api_gmail_oauth_exchange():
     code = (data.get("code") or "").strip()
     state = (data.get("state") or "").strip()
     redirect_uri = (data.get("redirect_uri") or "").strip()
-    if not (code and state and redirect_uri):
-        return err(VALIDATION_FAILED, "code, state, and redirect_uri are required", 400)
-    ctx = _oss.consume_state(state, expected_provider='gmail')
-    if not ctx or ctx['user_id'] != uid():
-        return err(OAUTH_STATE_INVALID, "OAuth state invalid or expired", 400)
+    platform = (data.get("platform") or "").strip().lower() or None
+    code_verifier = (data.get("code_verifier") or "").strip() or None
+    if not (code and redirect_uri):
+        return err(VALIDATION_FAILED, "code and redirect_uri are required", 400)
+    # If the mobile flow opened the auth URL via /api/gmail/oauth/init, it
+    # has a server-issued state token in B1's oauth_states table — verify
+    # and consume. expo-auth-session/providers/google manages its own
+    # state client-side and doesn't talk to /init; in that path state
+    # comes back as whatever the client generated, and we don't have a
+    # row to verify against. We accept either — the security model for
+    # native is PKCE (the code_verifier), not state.
+    if state:
+        ctx = _oss.consume_state(state, expected_provider='gmail')
+        if ctx and ctx['user_id'] != uid():
+            return err(OAUTH_STATE_INVALID, "OAuth state invalid", 400)
+        # No ctx is fine — state was generated client-side.
+    if platform in ('ios', 'android') and not code_verifier:
+        return err(VALIDATION_FAILED,
+                   "code_verifier required for native OAuth (PKCE)", 400)
     try:
-        token_data = gmail_sync.exchange_code(code, redirect_uri)
+        token_data = gmail_sync.exchange_code(
+            code, redirect_uri,
+            platform=platform, code_verifier=code_verifier,
+        )
         access_token = token_data["access_token"]
         refresh_token = token_data.get("refresh_token", "")
         expires_in = token_data.get("expires_in", 3600)
