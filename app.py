@@ -1869,7 +1869,108 @@ def api_gmail_callback():
 def api_gmail_disconnect():
     """Disconnect Gmail — delete tokens and cached data."""
     delete_gmail_tokens(uid())
+    # Also flip the unified connector row to revoked so the new
+    # Settings → Connections UI reflects the disconnect immediately
+    # (not just after the next /init call).
+    try:
+        import connectors as _conn
+        _conn.save_connector(
+            uid(), 'gmail',
+            access_token=None, refresh_token=None, expires_at=None, scopes=None,
+            status=_conn.STATUS_REVOKED,
+            last_error=None, last_error_detail=None,
+        )
+    except Exception:
+        _log.exception("gmail/disconnect: connector mark-revoked failed (non-fatal)")
     return jsonify({"ok": True})
+
+
+# ── Mobile Gmail OAuth flow (PKCE-style state via oauth_states table) ────
+# Bearer-authed counterparts to /api/gmail/connect and /callback so the
+# mobile app can drive the OAuth flow via expo-web-browser without
+# relying on Flask session cookies (which don't survive a redirect to a
+# third-party domain and back into a deep link).
+
+@app.route("/api/gmail/oauth/init", methods=["POST"])
+@login_required
+def api_gmail_oauth_init():
+    """Issue a state token + the auth URL the mobile client opens.
+
+    Body: { redirect_uri }  — e.g. "lifedashboard://oauth/gmail"
+    Returns: { auth_url, state }
+    The redirect_uri must be one the user has registered in Google Cloud
+    Console (the mobile flow uses a custom-scheme URI like
+    lifedashboard://oauth/gmail). Flask doesn't itself validate it
+    against an allowlist — Google does on the redirect.
+    """
+    import oauth_state_store as _oss
+    from api_errors import err, SERVER_CONFIG, VALIDATION_FAILED
+    if not gmail_sync.is_configured():
+        return err(SERVER_CONFIG, "Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.", 400)
+    data = request.get_json(silent=True) or {}
+    redirect_uri = (data.get("redirect_uri") or "").strip()
+    if not redirect_uri:
+        return err(VALIDATION_FAILED, "redirect_uri required", 400)
+    state = _oss.create_state(uid(), 'gmail', redirect_after=redirect_uri)
+    auth_url = gmail_sync.get_auth_url(redirect_uri, state=state)
+    return jsonify({"ok": True, "auth_url": auth_url, "state": state})
+
+
+@app.route("/api/gmail/oauth/exchange", methods=["POST"])
+@login_required
+def api_gmail_oauth_exchange():
+    """Exchange the auth code for tokens. Mobile calls this after
+    expo-web-browser returns control with code + state in the deep
+    link.
+
+    Body: { code, state, redirect_uri }
+    Returns: { ok, email } on success, or structured error_code.
+    Same redirect_uri must be passed as in the original /init — Google
+    requires it for the token exchange.
+    """
+    import oauth_state_store as _oss
+    import connectors as _conn
+    from api_errors import err, OAUTH_STATE_INVALID, OAUTH_EXCHANGE_FAILED, VALIDATION_FAILED
+    data = request.get_json(silent=True) or {}
+    code = (data.get("code") or "").strip()
+    state = (data.get("state") or "").strip()
+    redirect_uri = (data.get("redirect_uri") or "").strip()
+    if not (code and state and redirect_uri):
+        return err(VALIDATION_FAILED, "code, state, and redirect_uri are required", 400)
+    ctx = _oss.consume_state(state, expected_provider='gmail')
+    if not ctx or ctx['user_id'] != uid():
+        return err(OAUTH_STATE_INVALID, "OAuth state invalid or expired", 400)
+    try:
+        token_data = gmail_sync.exchange_code(code, redirect_uri)
+        access_token = token_data["access_token"]
+        refresh_token = token_data.get("refresh_token", "")
+        expires_in = token_data.get("expires_in", 3600)
+        token_expiry = gmail_sync.compute_expiry(expires_in)
+        email_address = gmail_sync.get_user_email(access_token)
+        # Persist to BOTH the legacy gmail_tokens table (gmail_sync.py
+        # still reads it) AND the unified users_connectors row (so the
+        # Connections UI reflects status immediately).
+        save_gmail_tokens(uid(), access_token, refresh_token, token_expiry, email_address)
+        try:
+            import time as _t
+            _conn.save_connector(
+                uid(), 'gmail',
+                access_token=access_token,
+                refresh_token=refresh_token,
+                expires_at=int(_t.time()) + int(expires_in),
+                scopes='https://www.googleapis.com/auth/gmail.readonly',
+                external_user_id=email_address,
+                status=_conn.STATUS_CONNECTED,
+                last_sync_at=int(_t.time()),
+                last_error=None, last_error_detail=None,
+            )
+        except Exception:
+            _log.exception("gmail/oauth/exchange: users_connectors write failed (non-fatal)")
+        _log.info("Gmail (mobile OAuth): connected user_id=%s email=%s", uid(), email_address)
+        return jsonify({"ok": True, "email": email_address})
+    except Exception as e:
+        _log.exception("Gmail mobile OAuth exchange failed")
+        return err(OAUTH_EXCHANGE_FAILED, "Token exchange failed", 502, detail=str(e)[:200])
 
 
 @app.route("/api/gmail/sync", methods=["POST"])

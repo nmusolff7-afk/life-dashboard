@@ -1,20 +1,19 @@
 import { Stack } from 'expo-router';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ConnectorTile } from '../../components/apex';
 import type { ConnectorEntry } from '../../../shared/src/types/connectors';
 import { useConnectors, disconnectConnector, markConnectorConnected } from '../../lib/hooks/useConnectors';
+import { connectGmail, disconnectGmail, gmailRedirectUriForRegistration } from '../../lib/hooks/useGmailOAuth';
 import { useHealthConnection } from '../../lib/useHealthConnection';
 import { useHaptics } from '../../lib/useHaptics';
 import { useTokens } from '../../lib/theme';
 
-// Providers that have a working mobile connect/disconnect flow in THIS
-// build. Everything else renders as "coming soon" with the honest note
-// from the backend catalog. When Phase C1 wires Gmail/Calendar/etc., add
-// them here (or switch to reading `ships_in_phase === 'a0' | 'b1' | 'c1'
-// as shipped once we start shipping C1).
-const SHIPPED_PROVIDERS = new Set<string>(['healthkit', 'health_connect']);
+// Providers with a working mobile connect/disconnect flow in THIS build.
+// Anything else renders as "coming soon" with the honest note from the
+// backend catalog.
+const SHIPPED_PROVIDERS = new Set<string>(['healthkit', 'health_connect', 'gmail']);
 
 export default function Connections() {
   const t = useTokens();
@@ -31,6 +30,8 @@ export default function Connections() {
     return e.platforms.includes(Platform.OS);
   });
 
+  const [busy, setBusy] = useState<string | null>(null);
+
   const handlePress = async (entry: ConnectorEntry) => {
     const shipped = SHIPPED_PROVIDERS.has(entry.provider);
     if (!shipped) {
@@ -38,6 +39,55 @@ export default function Connections() {
       return;
     }
     haptics.fire('tap');
+
+    // Gmail — OAuth via expo-web-browser, deep-link callback.
+    if (entry.provider === 'gmail') {
+      if (entry.status === 'connected') {
+        Alert.alert(
+          'Disconnect Gmail?',
+          `Stops syncing email. Existing summaries stay until pruned.\nConnected as: ${entry.external_user_id ?? 'unknown'}`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Disconnect', style: 'destructive',
+              onPress: async () => {
+                setBusy('gmail');
+                try { await disconnectGmail(); await refresh(); haptics.fire('success'); }
+                catch (e) { Alert.alert('Disconnect failed', (e as Error).message); }
+                finally { setBusy(null); }
+              },
+            },
+          ],
+        );
+        return;
+      }
+      // Not connected — kick off OAuth
+      Alert.alert(
+        'Connect Gmail',
+        `Read-only access for inbox triage in the Time tab. You'll see Google's permission screen next.\n\nIf this fails with redirect_uri_mismatch, register this URI in Google Cloud Console:\n\n${gmailRedirectUriForRegistration()}`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Continue',
+            onPress: async () => {
+              setBusy('gmail');
+              try {
+                const email = await connectGmail();
+                await refresh();
+                haptics.fire('success');
+                Alert.alert('Connected', `Gmail connected as ${email}.`);
+              } catch (e) {
+                Alert.alert('Connect failed', (e as Error).message);
+              } finally {
+                setBusy(null);
+              }
+            },
+          },
+        ],
+      );
+      return;
+    }
+
     const isHealth = entry.provider === 'healthkit' || entry.provider === 'health_connect';
     if (isHealth) {
       if (health.connected) {
@@ -102,6 +152,7 @@ export default function Connections() {
               key={entry.provider}
               entry={entry}
               shipped={SHIPPED_PROVIDERS.has(entry.provider)}
+              disabled={busy === entry.provider}
               onPress={() => handlePress(entry)}
             />
           ))

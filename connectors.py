@@ -68,7 +68,7 @@ _CATALOG: tuple[ConnectorMeta, ...] = (
         description='Read-only email triage for the Time tab',
         category='time', kind='oauth', icon='📧',
         ships_in_phase='c1',
-        note='Backend OAuth is wired; mobile connect flow ships next phase.',
+        note='Connect via Google OAuth. The deep-link redirect URI must be registered in Google Cloud Console.',
     ),
     ConnectorMeta(
         provider='gcal',
