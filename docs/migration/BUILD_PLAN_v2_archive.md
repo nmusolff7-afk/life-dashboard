@@ -1,4 +1,14 @@
-# APEX Life Dashboard — Build Plan v2
+# APEX Life Dashboard — Build Plan v2 (ARCHIVED 2026-04-28)
+
+> **This document has been archived.** Active project status lives in
+> [`docs/BUILD_PLAN.md`](../BUILD_PLAN.md). This file is preserved only
+> for historical reference — original §1-13 v1 scope estimates,
+> §14 v1.5 vision long-form, and Phase Log entries 2026-04-26 through
+> 2026-04-28. Don't update this file going forward.
+
+---
+
+**Original header:**
 
 **Path from current state to v1 release.**
 
