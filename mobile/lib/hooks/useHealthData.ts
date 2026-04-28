@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { apiFetch } from '../api';
 import { localToday } from '../localTime';
@@ -49,6 +49,47 @@ export function useHealthToday(): {
  *  permission. */
 export function healthHubLabel(): string {
   return Platform.OS === 'android' ? 'Health Connect' : 'Apple Health';
+}
+
+// ── Auto-sync ───────────────────────────────────────────────────────
+//
+// Module-scope last-sync timestamp shared across the whole app. The
+// HC sync path goes: native module read → POST /api/health/sync →
+// `health_daily` row updated → `useHealthToday()` next read sees it.
+// Sync only happens on explicit `useHealthData().sync()` call —
+// before this hook landed, that meant the user had to manually tap
+// "Sync now" in HealthConnectCard before any data could appear on
+// sleep / recovery / movement subsystem screens. Founder flagged
+// 2026-04-28 that those screens stayed empty even with HC connected.
+let _hcLastSync = 0;
+const HC_THROTTLE_MS = 90 * 1000;
+
+/** Fire HC sync on mount when permitted, throttled to once per 90s
+ *  per app instance. Used on Today tab, Fitness tab, and HC-backed
+ *  subsystem screens (sleep, recovery, movement, body) so the
+ *  backend gets fresh data without the user manually tapping
+ *  "Sync now" every time. Failures are swallowed — connector
+ *  may not be permitted yet, which is fine.
+ *
+ *  Pass `onSynced` to refetch backend-derived data after the sync
+ *  completes — `useHealthToday()` returns its own `refetch` for
+ *  this purpose. */
+export function useAutoSyncHealthOnFocus(onSynced?: () => void): void {
+  const hc = useHealthData();
+  const onSyncedRef = useRef(onSynced);
+  onSyncedRef.current = onSynced;
+  useEffect(() => {
+    if (!hc.permitted) return;
+    const now = Date.now();
+    if (now - _hcLastSync < HC_THROTTLE_MS) return;
+    _hcLastSync = now;
+    void hc.sync().then(() => {
+      onSyncedRef.current?.();
+    });
+  // Intentionally only on mount + when permitted flips; tab-focus
+  // remount will re-fire if needed. Deps frozen by design.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hc.permitted]);
 }
 
 // Local Expo module — see mobile/modules/health-connect/. Lazy-required

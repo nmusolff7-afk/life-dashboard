@@ -289,21 +289,6 @@ the project will become.
     with toggle. Decision (a vs b) deferred until the work
     starts; (a) is the cheap path.
 
-- **Auto-sync cadence tightening** (~2h) — INBOX 2026-04-28
-  - **Founder symptom:** "Things need to be syncing more often,
-    feels like I'm looking at old data most of the time."
-  - **Scope:** Auto-sync hook (`useAutoSyncOnFocus`) currently
-    throttles to 5min/provider. For founder's testing pace this
-    is too slow. Either (a) tighten throttle to 60-90s, (b) add
-    pull-to-refresh on every tab that fetches synced data, or
-    (c) both. Also surface "last synced X ago" labels so the
-    founder knows the staleness.
-  - **Files:** `mobile/lib/hooks/useTimeData.ts`,
-    `mobile/lib/hooks/useHomeData.ts`,
-    `mobile/lib/hooks/useHealthConnection.ts`, tab screens.
-  - **Done when:** No tab shows data older than 90s during
-    active use; staleness is visible.
-
 - **Calorie chart in Nutrition Progress is wrong** (~2h) — INBOX 2026-04-28
   - **Founder symptom:** "Calories consumed chart in nutrition
     progress is wrong completely, not sure what it's showing."

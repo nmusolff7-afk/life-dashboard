@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { NumberPromptModal } from '../../../components/apex';
 import { useState } from 'react';
 import { OCC_BASE, computeNeat, type Occupation } from '../../../../shared/src/logic/neat';
-import { healthHubLabel, useHealthData, useHealthToday } from '../../../lib/hooks/useHealthData';
+import { healthHubLabel, useAutoSyncHealthOnFocus, useHealthData, useHealthToday } from '../../../lib/hooks/useHealthData';
 import { useProfile, useTodaySteps, useTodayWorkouts } from '../../../lib/hooks/useHomeData';
 import { useTokens } from '../../../lib/theme';
 
@@ -18,7 +18,9 @@ export default function MovementDetail() {
   const profile = useProfile();
   const workouts = useTodayWorkouts();
   const hc = useHealthData();
-  const { today: hcToday } = useHealthToday();
+  const { today: hcToday, refetch: refetchHc } = useHealthToday();
+  // Auto-sync HC on mount when permitted (90s app-wide throttle).
+  useAutoSyncHealthOnFocus(refetchHc);
   const [stepsModal, setStepsModal] = useState(false);
   // Prefer HC's active_kcal when available; otherwise show empty-state
   // copy that points the user at Health Connect on Android (or Apple

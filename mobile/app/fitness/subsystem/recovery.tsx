@@ -3,7 +3,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { healthHubLabel, useHealthData, useHealthToday, type HealthDay } from '../../../lib/hooks/useHealthData';
+import { healthHubLabel, useAutoSyncHealthOnFocus, useHealthData, useHealthToday, type HealthDay } from '../../../lib/hooks/useHealthData';
 import { useTokens } from '../../../lib/theme';
 
 /** Recovery subsystem detail. Reads `health_daily.hrv_ms` and
@@ -14,7 +14,11 @@ export default function RecoveryDetail() {
   const t = useTokens();
   const router = useRouter();
   const hc = useHealthData();
-  const { today, history, loading } = useHealthToday();
+  const { today, history, loading, refetch } = useHealthToday();
+  // Auto-sync HC on screen mount when permitted (90s app-wide
+  // throttle). Same fix as sleep.tsx — last phase the screen sat
+  // empty because the device hadn't synced yet.
+  useAutoSyncHealthOnFocus(refetch);
 
   const hasHrvData = today?.hrv_ms != null
     || history.some((h) => h.hrv_ms != null);

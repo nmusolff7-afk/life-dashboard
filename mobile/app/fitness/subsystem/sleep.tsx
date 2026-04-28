@@ -3,7 +3,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { healthHubLabel, useHealthData, useHealthToday, type HealthDay } from '../../../lib/hooks/useHealthData';
+import { healthHubLabel, useAutoSyncHealthOnFocus, useHealthData, useHealthToday, type HealthDay } from '../../../lib/hooks/useHealthData';
 import { useTokens } from '../../../lib/theme';
 
 /** Sleep subsystem detail. Reads `health_daily.sleep_minutes` from the
@@ -15,7 +15,13 @@ export default function SleepDetail() {
   const t = useTokens();
   const router = useRouter();
   const hc = useHealthData();
-  const { today, history, loading } = useHealthToday();
+  const { today, history, loading, refetch } = useHealthToday();
+  // Auto-sync HC on screen mount when permitted — without this, the
+  // screen sat empty until the user manually tapped "Sync now" in
+  // HealthConnectCard. Founder-flagged 2026-04-28: HC had data but
+  // sleep/recovery cards stayed blank because backend `health_daily`
+  // had no row written yet. Throttled 90s app-wide.
+  useAutoSyncHealthOnFocus(refetch);
 
   const hasAnySleepRow = today?.sleep_minutes != null
     || history.some((h) => h.sleep_minutes != null);

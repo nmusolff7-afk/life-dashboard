@@ -20,7 +20,7 @@ import {
 } from '../../components/apex';
 import { logWeight, logWorkout } from '../../lib/api/fitness';
 import { classifyAsStrength } from '../../lib/strengthHelpers';
-import { healthHubLabel, useHealthData, useHealthToday } from '../../lib/hooks/useHealthData';
+import { healthHubLabel, useAutoSyncHealthOnFocus, useHealthData, useHealthToday } from '../../lib/hooks/useHealthData';
 import {
   useProfile,
   useSavedWorkouts,
@@ -126,6 +126,11 @@ export default function FitnessScreen() {
   // and recovery still say connect Apple Health" symptoms (INBOX
   // 2026-04-28). HC steps override manual entry when permitted +
   // present.
+  // Auto-sync HC on Fitness tab mount/focus when permitted —
+  // pushes fresh `health_daily` row to backend so the subsystem
+  // hints (sleep / recovery / movement) have data to read on
+  // first open. Throttled to 90s app-wide.
+  useAutoSyncHealthOnFocus();
   const hc = useHealthData();
   const { today: hcToday } = useHealthToday();
   const hcSteps = (hc.permitted && hcToday?.steps != null) ? hcToday.steps : null;

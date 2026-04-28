@@ -104,7 +104,11 @@ export async function syncGmailNow(): Promise<void> {
 
 // ── Auto-sync on tab focus ────────────────────────────────────────────────
 
-const SYNC_THROTTLE_MS = 5 * 60 * 1000;  // 5 min between auto-syncs per provider
+// 90s between auto-syncs per provider. Tightened 2026-04-28 from
+// 5min — founder flagged data feeling stale during testing. 90s
+// is a balance: live enough for a working session, throttled enough
+// to not hammer Gmail / Calendar / Outlook rate limits.
+const SYNC_THROTTLE_MS = 90 * 1000;
 
 /** Module-scoped per-provider throttle. Persists across renders + tab
  *  switches within a session so we don't re-fire sync every time the

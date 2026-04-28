@@ -1150,3 +1150,98 @@ after adding `GOOGLE_MAPS_API_KEY` to `.env`. Resolved.
     one screen.
   - **Plan switching:** Same screen — three chips (AI quiz,
     AI import, Manual) all reachable.
+
+### 23:00 — Auto-sync trust pass v3 + re-onboarding option
+- **Prompt:** "continue" — pick the next phase.
+- **Did:**
+  1. **Triaged INBOX.** Founder confirmed in Other Thoughts
+     that yesterday's HC display fix is still broken (sleep/
+     recovery show nothing) — so it's NOT a stale Metro bundle.
+     Movement card outside / day detail / workout builder all
+     verified working. New feature request: re-onboarding
+     option (founder said yes to my offer last turn).
+  2. **Real diagnosis of HC display gap.** The previous
+     fix made sleep.tsx/recovery.tsx read `health_daily`
+     correctly — but `health_daily` was empty because the
+     device had never synced. `useHealthData.sync()` only
+     fires on manual "Sync now" tap from HealthConnectCard.
+     Subsystem screens never triggered a sync, so the
+     backend table stayed empty regardless of how many
+     records HC had.
+  3. **Shipped: `useAutoSyncHealthOnFocus(refetch?)` hook**
+     in `useHealthData.ts`. Fires `hc.sync()` on mount when
+     permitted, throttled module-wide to 90s. Optional
+     `refetch` callback runs after sync completes —
+     `useHealthToday().refetch` is the natural pair so the
+     screen's data updates without a tab-switch.
+  4. **Wired into 4 surfaces:** Fitness tab (`(tabs)/fitness.tsx`),
+     Sleep subsystem (`subsystem/sleep.tsx`), Recovery
+     subsystem (`subsystem/recovery.tsx`), Movement subsystem
+     (`subsystem/movement.tsx`). All call
+     `useAutoSyncHealthOnFocus(refetch)` so opening any of
+     them triggers an HC sync (90s-throttled), then refetches
+     the displayed `health_daily` row.
+  5. **Tightened auto-sync for Time-tab connectors.**
+     `useAutoSyncOnFocus` throttle in `useTimeData.ts`
+     dropped from 5min → 90s. Same number as the new HC
+     hook — keeps things consistent across all auto-syncing
+     connectors. Founder flagged "feels like old data" and
+     this is the sledgehammer.
+  6. **Re-onboarding option.** Settings → Account → "Re-run
+     onboarding" SettingsRow, routes to
+     `/(onboarding)/step-1`. The wizard's `/api/onboarding/save`
+     + `/complete` endpoints are idempotent UPDATE-style
+     calls — re-running just edits the existing profile +
+     re-runs AI profile generation. No data loss.
+- **Files:** `mobile/lib/hooks/useHealthData.ts` (new
+  `useAutoSyncHealthOnFocus` hook + useRef import),
+  `mobile/lib/hooks/useTimeData.ts` (throttle 5min → 90s),
+  `mobile/app/(tabs)/fitness.tsx`,
+  `mobile/app/fitness/subsystem/sleep.tsx`,
+  `mobile/app/fitness/subsystem/recovery.tsx`,
+  `mobile/app/fitness/subsystem/movement.tsx`,
+  `mobile/app/settings/account.tsx`,
+  `docs/BUILD_PLAN.md`, `docs/INBOX.md` (cleared).
+- **Decisions:**
+  - **90s throttle** for both HC + Time connectors — same
+    cadence everywhere keeps mental model simple. Tight
+    enough to feel live; loose enough to not hammer
+    Gmail/Calendar/Outlook rate limits.
+  - **App-instance throttle** (module-level `_hcLastSync`)
+    not per-screen. Once HC syncs from one surface, the
+    other surfaces in the same session don't re-sync —
+    they just re-fetch the now-fresh backend row.
+  - **`useAutoSyncHealthOnFocus` accepts a refetch
+    callback.** `useHealthToday()` does its own one-shot
+    fetch — the only way to re-fetch after sync completes
+    is for the caller to pass its `refetch`. Could
+    consolidate into one hook later but the boundary is
+    intentional: sync vs read are different concerns.
+  - **Re-onboarding routes to `step-1`** (not `biometric`)
+    — biometric is just a pref-opt-in screen that the user
+    has presumably already chosen on first onboarding. If
+    they want to revisit it, it's at Settings → Security.
+  - **Skipped "last synced X ago" labels** for this turn —
+    the throttle change should solve the trust complaint
+    without surfacing the cadence to users. Add labels later
+    if founder still feels staleness after the throttle drop.
+- **Outcome:** Shipping. TS clean (only pre-existing
+  finance.tsx:114). All JS — no rebuild.
+- **Manual checks (pending):**
+  - **HC display real fix:** Reload Metro. Open Fitness →
+    Sleep. Watch for either:
+      (a) hero "Xh Ym" + 7-night trend (data flowed).
+      (b) "Health Connect connected — no sleep data yet"
+          (HC has perms but no source — still fine, the
+          diagnostic state is correct).
+    What you should NOT see anymore: "Connect Apple Health"
+    (we replaced that copy two phases ago) AND no
+    indefinite "data pending — coming build" stub.
+  - **Auto-sync cadence:** Switch tabs and come back. Data
+    should refresh within 90s of the previous sync, not 5
+    minutes.
+  - **Re-onboarding:** Settings → Account → "Re-run
+    onboarding". Should route to step-1 of the wizard.
+    Walk through; on completion, your existing meals /
+    workouts / weight log are still there, but the profile
+    fields you edited reflect the new entries.

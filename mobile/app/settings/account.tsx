@@ -75,6 +75,11 @@ export default function AccountSettings() {
             )
           }
         />
+        <SettingsRow
+          title="Re-run onboarding"
+          hint="Walk through the wizard again — body stats, diet, goal. Your meals / workouts / history are preserved."
+          onPress={() => router.push('/(onboarding)/step-1' as never)}
+        />
         <SettingsRow title="Sign out" onPress={handleSignOut} />
         <SettingsRow
           title={deleting ? 'Deleting…' : 'Delete account'}
