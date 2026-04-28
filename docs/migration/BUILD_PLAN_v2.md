@@ -1011,4 +1011,590 @@ dependencies.
 
 ---
 
+## Section 14 — Vision v1.5: AI-Assisted Timeline + Deep Connectors
+
+**Added 2026-04-28** after the C1 OAuth integrations (Gmail, Calendar,
+Outlook, Strava, Health Connect, Location, Screen Time) shipped end-to-end.
+This section captures the *post-C1* horizon: what to build with the data
+we now have, plus the architectural pivots the founder approved that
+override earlier PRD decisions.
+
+The thrust: **stop pretending the Day Timeline can be entirely
+deterministic, stop pre-summarizing for the chatbot, and go deep on
+each connector instead of skimming.** The category-defining angle is
+the *combination* — every wellness app has 3 connectors; the
+differentiator is fusing 10 signals into a queryable life log.
+
+---
+
+### 14.1 PRD overrides (approved 2026-04-28)
+
+The following PRD §4.6 / §4.7 statements are **superseded** by this
+section. Update the PRD in the same revision that ships these features.
+
+| PRD location | Old statement | New direction |
+|---|---|---|
+| §4.6.5 (timeline) | "Entirely deterministic aggregation. No AI insights." | Two-tier blocks: deterministic *hard* blocks + AI-labeled *soft* blocks for gaps |
+| §4.6.13 (patterns) | "All patterns are computed deterministically by templated strings, NOT AI." | Hybrid: templated strings for known metrics; Haiku synthesis for cross-domain insights |
+| §4.7.10 (chatbot context) | "9 typed containers, ~3.9K target / ~5.9K cap tokens" | Three tiers (always-on / day-stream / historical), max ~18K tokens. Containers stay as the schema, but we send full event-log JSON not lossy summaries |
+| §4.6.5 (no Strava map) | "v1.1 — show list only" | v1.5 — render route polyline as map view. Same for elevation/HR/pace charts. |
+
+---
+
+### 14.2 Day Timeline — the architectural pivot (~22h)
+
+**The problem:** Without AI, the timeline is full of unlabeled gaps.
+A 9–11am Tuesday with no calendar event, no movement, no transaction
+shows blank. Users perceive that as "broken" not "your app doesn't know."
+
+**Two-tier solution:**
+
+#### 14.2.1 Hard blocks — deterministic (~6h)
+- Build `day_timeline_events` table: `(user_id, date, start_iso,
+  end_iso, kind, source, title, metadata_json, confidence)`
+- **Sources collected:** calendar events (Gmail+Outlook), workouts
+  (workout_logs + Strava + Health Connect sessions), transactions
+  (finance_transactions), email send/receive timestamps (gmail_cache +
+  outlook_emails received_at), task completions (mind_tasks
+  completed_at), location samples (location_samples), screen-time
+  high-engagement intervals (>10 min single-app from screen_time_daily
+  + future event-level UsageStats data), sleep sessions (health_daily +
+  Strava sleep)
+- **Block-priority rules:** Sleep > Workout > Meeting > Meal >
+  Screen-time > Location > Email/Task. When two hard blocks overlap,
+  higher-priority wins; lower becomes nested annotation.
+- **Confidence**: 1.0 for hard blocks (we have a real event with real
+  timestamps).
+
+#### 14.2.2 Soft blocks — AI-labeled gap inference (~10h)
+- For every gap ≥ 30 min between hard blocks during the user's awake
+  window: spawn a Haiku call with a structured prompt:
+  ```
+  Window: 09:23–11:15 (1h52m)
+  Surrounding context:
+    - Last hard block ended 09:23: "Email reply to client (3 msgs)"
+    - Next hard block starts 11:15: "Meeting: Standup"
+    - Screen-time during gap: VS Code 47min, Slack 12min, Chrome 8min
+    - Location: home (lat/lon cluster matches "home" centroid)
+    - HR samples avg 62 bpm (resting band)
+  Label this block as one of:
+    deep_work | shallow_work | break | commute | errand |
+    social | meal | exercise | rest | unknown
+  Return: { label, confidence_0_to_1, reason }
+  ```
+- Cache results — keyed on `(user_id, date, start_iso, end_iso, sources_hash)`
+  so re-runs return cached labels until source data changes.
+- Confidence floor: < 0.5 → display as "unlabeled" not the AI's guess.
+- User long-press → reclassify menu (writes manual override; AI
+  respects override on next recompute).
+
+#### 14.2.3 Computation infrastructure (~4h)
+- Extend the existing `_score_snapshot_worker` cron in
+  [app.py:4215](app.py:4215) to spawn a sibling `_timeline_worker`
+  thread.
+- Nightly at 03:00 user-local: rebuild full previous-day timeline.
+- Every 15 min during user's awake window: incremental update for today.
+- Migrate to RQ + Redis when production traffic grows (separate v1.6
+  task per §2.6).
+
+#### 14.2.4 Mobile UI (~2h)
+- Extend [time.tsx Timeline sub-tab](mobile/app/(tabs)/time.tsx) from
+  EmptyState to a vertical block list. Each block: time range, kind
+  icon, title, metadata pill row, tap → bottom sheet with raw events.
+- Compact "now strip" on Today sub-tab: most recent + next block.
+
+---
+
+### 14.3 Patterns view — hybrid deterministic + AI synthesis (~14h)
+
+PRD §4.6.13 said "templated strings, NOT AI." Override: combine.
+
+#### 14.3.1 Deterministic patterns (~6h)
+Implement the templates the PRD specified — purely statistical:
+- Wake-time variance (std dev of sleep end times)
+- Top-3 apps by week (from screen_time_daily.top_apps_json)
+- Workout adherence (% of days with workout_logs entry)
+- Spending category trends (current month vs. 3-month avg)
+- Sleep-vs-rest-day correlation (avg sleep_minutes on workout vs. non-workout days)
+- Meeting density (avg meetings/day weekday vs. weekend)
+- Location consistency (% of nights at home cluster)
+- Email response time trend (avg unreplied-duration over 30d)
+
+Each renders as a one-line card with sparkline.
+
+#### 14.3.2 AI synthesis (~6h)
+Once per week (Sunday night cron), pass the deterministic patterns +
+the user's profile to Haiku with prompt:
+```
+You are looking at a week of patterns for the user. Find ONE
+non-obvious cross-domain insight. Examples:
+- "You sleep 38 min more on workout days"
+- "Your email response time slows by 2h on Mondays"
+- "Days you spend > 3h in code editors, you log fewer meals"
+Return: { insight_text, sources_used, confidence }
+Don't fabricate — only state what the data supports. If nothing
+notable, return null.
+```
+Display as "Insight of the week" card at top of Patterns view.
+
+#### 14.3.3 Storage + UI (~2h)
+- `life_patterns` table per PRD spec
+- Patterns view (mobile/app/(tabs)/time.tsx PatternsView component)
+  renders deterministic cards + AI insight card. Refresh weekly via cron.
+
+---
+
+### 14.4 Chatbot context overhaul — three-tier loading (~10h)
+
+#### 14.4.1 Architecture
+Replace the current 9-container assembly in
+[chatbot.py:_life_context](chatbot.py:391) with three explicit tiers:
+
+| Tier | When loaded | Contents | Token budget |
+|---|---|---|---|
+| Always-on | Every query | Profile, goals, today's scores | ~2K |
+| Day-stream | Every query | Full structured event log of TODAY (every email subject/sender/time, every event title/start/end, every transaction merchant/amount, every workout, every location sample, screen-time bucket per hour, every task), plus YESTERDAY's labeled timeline JSON | ~5–8K |
+| Historical | When chatbot detects "trend / week / month / pattern / how have I been" intent | Last 7 / 30 / 90 days of timelines + patterns | ~10K |
+
+Total max: ~18K. Haiku handles 200K. The PRD's 8K cap was over-cautious.
+
+#### 14.4.2 Implementation (~6h)
+- Extend `_life_context()` to return raw event lists, not summaries
+- Add `_day_stream_context(user_id, day)` that produces the
+  per-second event log with metadata
+- Add `_historical_context(user_id, intent)` triggered only by intent
+  classification (cheap Haiku call: "is this a historical query?")
+- Update consent filter to walk the new richer tree
+
+#### 14.4.3 Cost guardrails (~2h)
+- Per-user per-day Haiku token cap (default: 100K input tokens/day)
+- Tier-2/3 loading throttled if user is over their cap
+- Track in `chatbot_audit` table
+
+#### 14.4.4 Privacy (~2h)
+- The day-stream tier carries raw email subjects + senders. Privacy
+  filter must aggressively redact based on user's consent toggles.
+- Add per-source redaction depth: "block contents" / "block subjects" /
+  "block both"
+
+---
+
+### 14.5 Connector depth — go from skim to deep (~30h)
+
+Current state: we extract 6/30 Strava fields, daily aggregates only
+from Health Connect, basic event metadata from calendars. Each
+connector is 10× richer than what we surface.
+
+#### 14.5.1 Strava deep dive (~10h)
+- **Polyline → map view**: render route on react-native-maps with
+  start/finish markers. Tap a workout in history → fullscreen map.
+  Single biggest perceived-quality jump in the app.
+- **Splits / laps**: per-mile or per-km pace breakdown
+- **HR zones**: chart % of activity in zones 1–5
+- **Elevation profile**: line chart with cumulative gain
+- **Power data** (cycling): if available
+- **Weather context**: pull from openweather API given start coords
+- New `strava_activity_detail` table for the rich fields
+
+#### 14.5.2 Health Connect granular pulls (~8h)
+- **Sleep stages** (REM / deep / light / awake) — currently storing
+  only total sleep_minutes
+- **Per-hour heart rate** for HRV trend graphs
+- **Step count by hour** — drives Day Timeline movement blocks
+- **Body weight history** — replaces manual weight logging when
+  connected
+- **Blood oxygen, body temperature** — opt-in granularity for users
+  with newer Wear OS / Pixel devices
+- New `health_samples` table (already declared in PRD §4.6.15) for
+  granular series
+
+#### 14.5.2b Health Connect — write a custom Expo Module (~8h, BLOCKING)
+
+**Background:** We tried integrating `react-native-health-connect` (the
+matinzd library, the only viable RN Health Connect lib at this time).
+After 4 hours of debugging across two EAS rebuilds, multiple version
+pins (`^3.0.0` → `^3.4.0`), and a settings-redirect workaround, we hit
+a wall: **the app doesn't appear in Health Connect's app list at all**,
+which means HC's PermissionController has never seen us.
+
+**Three failure modes stacked:**
+1. `requestPermission()` crashes with
+   `kotlin.UninitializedPropertyAccessException: lateinit property
+   requestPermission has not been initialized` — the library's
+   `HealthConnectPermissionDelegate.launchPermissionsDialog` tries to
+   use an `ActivityResultLauncher` that's never bound under Expo's new
+   architecture.
+2. `openHealthConnectDataManagement()` workaround failed — wrong arg
+   shape (expects string, got an array of perms; even with right shape,
+   only opens HC's general data management, not our app's perm page).
+3. `openHealthConnectSettings()` workaround opens HC fine, but we
+   don't appear in HC's app list because step (1) never successfully
+   triggered the registration intent.
+
+**Conclusion:** The matinzd library's permission flow is fundamentally
+incompatible with Expo SDK 54 + new architecture in our setup. No JS
+or config-plugin tweaking gets it working.
+
+**The fix:** Replace it with our own custom Expo Module, following the
+exact pattern of [`mobile/modules/usage-stats/`](mobile/modules/usage-stats/)
+which we shipped successfully in the same session.
+
+**Module scope (~8h):**
+1. **Scaffold** `mobile/modules/health-connect/` (~1h):
+   - `expo-module.config.json` declaring our `HealthConnectModule`
+   - `package.json` (local file dep)
+   - `android/build.gradle` using `expo-module-gradle-plugin`
+   - `index.ts` TypeScript binding via `requireNativeModule`
+2. **Kotlin module** `HealthConnectModule.kt` (~4h):
+   - `getSdkStatus(): Int` — wraps `HealthConnectClient.getSdkStatus()`
+   - `requestPermissions(perms: List<String>): Promise<List<String>>` —
+     uses `PermissionController.createRequestPermissionResultContract()`
+     wired to our own ActivityResultLauncher (registered properly in
+     `Module.OnActivityCreates` lifecycle hook)
+   - `getGrantedPermissions(): Promise<List<String>>` — direct read
+   - `readRecords(recordType, range): Promise<RawRecords>` — generic
+     reader, returns JSON map
+   - `openHealthConnectSettings()` — fires the system intent
+3. **AndroidManifest entries** (~1h):
+   - `<activity-alias>` for `android.intent.action.VIEW_PERMISSION_USAGE`
+     pointing at our MainActivity
+   - All HC `<uses-permission>` declarations (already in app.json but
+     verify they merge correctly)
+4. **TypeScript wrapper + hook update** (~1h):
+   - Strip `react-native-health-connect` from package.json
+   - Rewrite [useHealthData.ts](mobile/lib/hooks/useHealthData.ts) to
+     point at our local module
+5. **Test on device** (~1h): verify app appears in HC's list, perms
+   grant, data reads work for all 5 record types we care about.
+
+**Why we own this layer:** Health Connect is foundational data —
+sleep, HR, HRV, steps, active calories. It feeds Day Timeline, Patterns,
+half the Fitness subsystem cards, and chatbot LifeContext. We cannot
+afford a third-party library that breaks on every Expo SDK upgrade or
+new-arch change. Owning the wrapper costs 8h once; saves 4h every time
+the library breaks again.
+
+**Status as of 2026-04-28 (later that morning):** ✅ DONE. Custom Expo
+Module shipped at [`mobile/modules/health-connect/`](mobile/modules/health-connect/).
+Same template as `usage-stats`. Highlights:
+
+- **`activityResultRegistry.register(key, contract)` instead of
+  `registerForActivityResult(...)`** — this is the architectural pivot
+  that fixes the lateinit issue. The registry-based form can be
+  invoked outside `onCreate`, which is exactly what we need to launch
+  permission requests from a JS-driven Promise callback.
+- AndroidManifest declares `<activity-alias>` with the
+  `VIEW_PERMISSION_USAGE` intent filter pointing at MainActivity, so
+  HC's "more info" links route back to our app correctly.
+- `<queries>` block ensures Android 11+ can resolve the HC provider
+  package.
+- Single `readDailyAggregates(date)` Kotlin entry point that pulls
+  Steps + SleepSession + HeartRate + HRV + ActiveCalories in one
+  coroutine, returns a JS-friendly map. No per-record JNI roundtrips.
+
+Removed `react-native-health-connect` from package.json. Wired
+`health-connect` as a `file:` dep alongside `usage-stats`.
+
+User runs `npm install && npx eas-cli build --profile development
+--platform android` to ship.
+
+#### 14.5.3 Calendar enrichment (~4h)
+- **Travel-time inference**: if event has location, compute drive time
+  from previous event's location via Google Maps Distance Matrix API.
+  Surface as "leave by HH:MM" annotation.
+- **Conflict detection**: flag overlapping events
+- **Recurring vs. one-off**: surface in event metadata
+- **Free-time block detection**: gaps ≥ 1h between events tagged as
+  "available" — feeds Day Timeline soft-block inference
+
+#### 14.5.4 Email enrichment (~5h)
+- **Auto-categorization** (Haiku-labeled, cached per sender):
+  newsletters / work / personal / finance / spam-ish
+- **Calendar event extraction from email content**: parse flight
+  bookings, restaurant confirmations, package delivery times. Auto-add
+  to a "detected events" stream.
+- **Attachment metadata** (filename, size, type): adds context to
+  email summaries
+
+#### 14.5.5 Background GPS + actually-useful Location surface (~10h core, ~2h review prep)
+
+**Current state (post-this-session):** Location connects (with a
+two-tap UX hiccup) and stores foreground samples — but the data does
+**nothing** in the UI. The Location card on Time tab shows
+"N samples logged today · Last: 41.2345, -73.4567." Coordinates
+mean nothing to a human. Every other feature that should consume
+location (Day Timeline, Patterns, chatbot) ignores it because there's
+nothing usable to consume.
+
+This section is now a v1.5 P0 — Location is the most-flattering data
+source we have (constant, granular, easy to interpret) and the
+worst-surfaced.
+
+##### 14.5.5.a Background sampling (~3h)
+- Switch [useLocationConnector.ts](mobile/lib/hooks/useLocationConnector.ts)
+  from foreground-only to expo-location's background mode via
+  expo-task-manager
+- **Sample policy**: 1 sample per 15 min when foregrounded, 1 per 30
+  min when backgrounded, suppress if speed < 1 m/s for last 3 samples
+  (user is stationary, no new info)
+- **Permission prompt**: clear "always allow" justification string for
+  app.json
+- Same `location_samples` table — just more rows, with `source` field
+  distinguishing foreground / background.
+
+##### 14.5.5.b Cluster detection (home / work / known places) (~3h)
+- Backend job: every night for the past day, run DBSCAN-style
+  clustering on `location_samples` for the user. Each cluster gets a
+  `(centroid_lat, centroid_lon, sample_count, first_seen, last_seen,
+  total_dwell_minutes)`.
+- Top cluster by total_dwell_minutes → label "home" automatically
+  (highest dwell time over a 30-day window).
+- Second-highest cluster during weekday 9am–5pm → label "work" when
+  the user has work schedule signals.
+- Other clusters → "place 1, place 2, …" until user names them.
+- Store in new `location_clusters` table.
+
+##### 14.5.5.c Reverse geocoding (~2h)
+- For each cluster centroid, call Google Maps Geocoding API once
+  (cached forever). Returns nearest establishment / address — gives
+  us "Starbucks on 3rd Ave" instead of `41.234, -73.456`.
+- Free tier on Google Maps: 200 reverse-geocode calls/month plenty
+  for v1; 1 call per new cluster, ~5–10/user/month.
+- Store the geocoded place name on the cluster row.
+
+##### 14.5.5.d Location card redesign (~2h)
+Replace the current "X samples · Last lat/lon" with:
+- Tiny **map preview** (react-native-maps) showing today's path, with
+  dots at clusters and a line connecting them in time order. Tap →
+  fullscreen map.
+- "Places visited today" list: 3 rows max, each with the
+  geocoded name + dwell time + arrival time.
+- "Currently at" pill if user has a sample in the last 15 min that
+  matches a known cluster.
+
+##### 14.5.5.e Wire location into rest of app (~1h)
+- **Day Timeline (§14.2)**: location samples already feed soft-block
+  inference; cluster names now feed the labels too ("Coffee shop
+  block: 8:15–8:45 at Starbucks 3rd Ave").
+- **Chatbot context (§14.4)**: day-stream tier includes the day's
+  cluster timeline, not raw samples.
+- **Patterns (§14.3)**: deterministic templates for
+  "% nights at home cluster" and "average commute time."
+
+##### 14.5.5.f Apple/Google review prep (~2h)
+Write the App Store / Play Store reviewer notes BEFORE submission:
+> "Background location is used to reconstruct the user's daily
+> timeline at a 30-min resolution. Data is stored on the user's
+> device and our backend; never sent to third parties. Users can
+> revoke at any time from system Settings or in-app. The app
+> degrades gracefully without location — most features still work."
+
+This is the #1 cause of v1 launch rejection. Get the wording right
+before the build is submitted, not after.
+
+##### 14.5.5.g Connect-flow UX fix (~1h)
+**Bug from this session:** Location required two attempts to connect,
+and the "Sample now" button is exposed during the connect flow,
+which is confusing. The current alert-driven flow is also fragile.
+- Replace alert chain with a proper modal: permission intro →
+  request → first-sample → done. Single flow, no "Sample now"
+  branch during connect.
+- The post-connect "Sample now" is fine as a manual trigger on the
+  connected tile, but it shouldn't appear in the disconnected state.
+
+---
+
+### 14.6 New connectors to add (~26h total, prioritized)
+
+Beyond what's in §3.1–§3.13 of this build plan. Priority order based
+on cost-to-build vs. unique-signal-added:
+
+#### 14.6.1 Google Tasks (~3h, recommended next)
+Same Google OAuth project we already have. Add `tasks.readonly` scope
+to the consent screen. Surface in Time tab Tasks subsystem alongside
+mind_tasks. New user gets ALL their existing todos imported.
+
+#### 14.6.2 Photo metadata (geotags + EXIF) (~6h)
+expo-media-library + expo-image-manipulator. Pull *only* timestamp +
+GPS coords + filename — never image content. Massive privacy-friendly
+"where you were" backfill: places the user took photos of are places
+they cared about.
+- Backfill last 90 days on connect
+- New `photo_locations` table
+
+#### 14.6.3 GitHub events (~4h)
+GitHub OAuth → user's commits, PRs opened/merged, issues. For tech
+users this is a high-fidelity productivity signal — commit clusters
+== focus blocks, late-night commits == bad sleep predictor.
+
+#### 14.6.4 AI tool exports (~10h, ambitious / differentiating)
+Allow user to import ChatGPT / Claude.ai / Cursor conversation
+exports (each platform offers JSON export). Build a parser per
+platform, store as `ai_conversations` table. Surface "AI activity log"
+on Time tab — not just count, but topic clustering ("3h on coding
+questions, 1h on travel planning").
+- This is uncopied. Every wellness app ignores AI usage. We treat it
+  as a first-class productivity / focus signal.
+
+#### 14.6.5 Phone wake events (~3h)
+Extend our custom `usage-stats` Expo Module
+([modules/usage-stats](mobile/modules/usage-stats)) to also expose
+`UsageEvents` API. Phone wake-up timestamps → more accurate sleep
+onset / wake detection than Health Connect's sleep sessions for many
+users.
+
+#### 14.6.6 Deferred to v2
+- Spotify (~5h) — fun but lower utility
+- Pocket / Instapaper (~6h each) — niche
+- Notion / Obsidian (~10h+) — Notion API limited, Obsidian local-only
+- Apple Pay receipts — partial (Wallet API doesn't expose enough)
+
+---
+
+### 14.7 Workout builder rewrite — port the Flask UX (~8h)
+
+Founder feedback: current React Native workout builder feels worse
+than the Flask PWA version. Root cause analysis:
+
+**Flask version has** (per templates/index.html + claude_nutrition.py):
+- Plan caching with stored `quiz_payload` for cheap re-generation
+- `understanding` text that explains WHY the plan is what it is —
+  cached separately, not regenerated on every load
+- "Revise plan" flow: user types natural-language change ("more cardio,
+  less leg day") → AI re-runs with stored quiz + plan + change request
+- CRUD on saved plans (multiple plans, user picks active)
+
+**React Native version is missing:**
+- No revise flow on the front-end (backend route exists at
+  /api/workout-plan/revise)
+- Plan + understanding regenerated together = slower perceived
+- No "show me how you built this" expandable section linking sources
+
+**Plan:**
+1. Read Flask `templates/index.html` workout-plan section verbatim;
+   port the UX patterns into [mobile/app/settings/workout-plan.tsx](mobile/app/settings/workout-plan.tsx)
+2. Add revise flow with text input → POST /api/workout-plan/revise
+3. Cache understanding separately from plan (already supported
+   server-side; client just needs to read both)
+4. Add "How we built your plan" expandable showing the cited
+   scientific sources
+
+---
+
+### 14.8 Goals → data-binding tightening (~6h)
+
+Existing system in [goals_engine.py](goals_engine.py) already binds 11
+of 17 goal types to real data. Six are paused waiting on connectors
+that just shipped:
+
+| Goal | Was paused on | Now unblocks |
+|---|---|---|
+| TIME-02 Screen-time cap | Apple Family Controls / UsageStats | UsageStats live → wire it |
+| TIME-03 Wake-time consistency | Health Connect sleep | HC live → wire it |
+| TIME-04 Location-routine | Location samples | Location live → wire it |
+| TIME-05 Calendar-density target | Calendar | GCal + Outlook live → wire it |
+| TIME-06 Email-zero-by-N-AM | Gmail/Outlook | Both live → wire it |
+| FIN-01/02/03 | Plaid | Still paused — Plaid hasn't shipped |
+
+**Plan:**
+1. Add `_PROGRESS_HANDLERS` entries for the 5 newly-unblocked goal types
+2. Add a `data_source_status` field to goal rows: `bound` (active data
+   source) | `paused` (source missing) | `manual_only` (no source
+   binding possible). UI shows different badges / disables progress
+   bar for non-bound goals.
+3. Goal creation wizard: REQUIRE picking a data source for "tracked"
+   goals. "Self-report only" is a separate explicit checkbox.
+4. Add 3 new goal types we can now track:
+   - **Inbox-zero-streak** — Gmail/Outlook unread count = 0 by N PM
+     for X consecutive days
+   - **Sleep-regularity** — wake-time std dev < N min over 14 days
+     (Health Connect)
+   - **Movement-minutes** — daily active minutes from HC
+
+---
+
+### 14.9 Outlook multi-tenant (deferred, ~2h docs + 1 week wait)
+
+Personal Microsoft accounts work today. Work accounts in tenants the
+user doesn't admin require **Microsoft Publisher Verification**.
+
+Steps when ready:
+1. Microsoft Partner Center → "Verify my publisher" → upload
+   business documents (Apex Leadership LLC formation docs)
+2. Wait 1–5 business days
+3. App registration → Branding → mark as "Publisher verified"
+4. Now any tenant whose admin allows "verified third-party publishers"
+   can consent without per-tenant friction
+
+Not v1-blocking. Track in this section, ship in v1.5.
+
+---
+
+### 14.10 Phasing for Section 14
+
+Updated 2026-04-28 after the C1 ship surfaced two blocking issues:
+HC permission crash (§14.5.2b) and Location data being effectively
+useless without clusters/maps (§14.5.5.b–d). Both promoted to week 1.
+
+Rough order, ~125h total (~3.5 weeks at 40h/wk solo):
+
+**Week 1 — Stabilize what shipped + Day Timeline + Strava maps:**
+- ✅ §14.5.2b HC custom Expo Module (shipped 2026-04-28, working —
+  HC permission sheet appears in-app, app shows in HC app list)
+- ⏳ §14.5.5.g Location connect-flow UX fix (1h) — not yet; lower
+  priority now that Location has a meaningful surface (map + visits)
+- ✅ §14.5.5.b Cluster detection (shipped 2026-04-28 —
+  [location_engine.detect_visits](location_engine.py))
+- ✅ §14.5.5.c Reverse geocoding (shipped — Google Geocoding API
+  bounded at 5 calls/day per user)
+- ✅ §14.5.5.d Location card redesign with map + visits + recurring
+  places (shipped — [AttentionCards.tsx](mobile/components/apex/AttentionCards.tsx))
+- ✅ §14.5.5.e Wire location into chatbot LifeContext (shipped —
+  [chatbot.py](chatbot.py) `_life_context` location subtree)
+- ✅ §14.9 Outlook admin consent for founder's tenant (done 2026-04-28)
+- ⏳ §14.7 Workout builder rewrite (8h) — next up
+- ⏳ §14.5.1 Strava maps + charts (10h) — next up
+- ⏳ §14.2 Day Timeline core — hard blocks + cron (12h) — week 2
+
+**Week 2 — Day Timeline AI + Patterns + chatbot:**
+- §14.2.2 Day Timeline soft-block AI labeling (10h)
+- §14.2.4 Day Timeline mobile UI (2h)
+- §14.3 Patterns hybrid deterministic + AI (14h)
+- §14.4 Chatbot three-tier context (10h)
+
+**Week 3 — Connector depth + new connectors + goals:**
+- §14.5.2 Health Connect granular pulls (8h)
+- §14.5.5.a Background GPS sampling (3h)
+- §14.5.5.f Apple/Google review prep (2h)
+- §14.5.3 Calendar enrichment (4h)
+- §14.5.4 Email enrichment (5h)
+- §14.6.1 Google Tasks (3h)
+- §14.6.2 Photo metadata (6h)
+- §14.8 Goals data-binding (6h)
+
+**Beyond v1.5 (still queued):**
+- §14.6.3 GitHub (4h)
+- §14.6.4 AI tool exports (10h, the differentiating feature — promote
+  to flagship if user demand signals interest)
+- §14.6.5 Phone wake events (3h)
+
+---
+
+### 14.11 Why this is category-defining
+
+Single-source wellness apps lose their users in 30 days. Multi-source
+apps that pre-summarize feel useful for a week and dead by month two
+because they can't answer "but what was different last Tuesday?"
+
+The architecture in §14.4 (raw event log → AI query engine) is what
+turns a dashboard into a **personal data graph**. The architecture in
+§14.2 (hard + soft blocks with AI labels) is what turns a calendar
+clone into a **timeline that knows what you were doing**. The
+architecture in §14.6.4 (AI tool exports as a first-class signal) is
+what turns a wellness app into a **work-life truth source**.
+
+None of these are individually hard. The combination is the moat.
+
+---
+
 **End of BUILD_PLAN_v2.**

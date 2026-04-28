@@ -1,0 +1,30 @@
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+apply plugin: 'expo-module-gradle-plugin'
+
+group = 'expo.modules.healthconnect'
+version = '0.0.1'
+
+android {
+  namespace 'expo.modules.healthconnect'
+
+  defaultConfig {
+    versionCode 1
+    versionName '0.0.1'
+  }
+
+  // SDK + kotlin versions inherited from ExpoRootProject convention.
+}
+
+dependencies {
+  // Official Health Connect SDK from AndroidX. Same artifact the
+  // matinzd library was pulling transitively — we bring it in
+  // directly so we control the version and aren't gated on a
+  // third-party wrapper's release cadence.
+  implementation 'androidx.health.connect:connect-client:1.1.0-alpha11'
+
+  // For ActivityResultLauncher / activityResultRegistry. Already on
+  // the classpath via React Native's androidx.activity transitive,
+  // but explicit avoids version drift.
+  implementation 'androidx.activity:activity-ktx:1.9.0'
+}

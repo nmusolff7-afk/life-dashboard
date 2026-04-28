@@ -96,7 +96,16 @@ def exchange_code(code: str, redirect_uri: str, *,
     if code_verifier:
         payload["code_verifier"] = code_verifier
     resp = requests.post(GOOGLE_TOKEN_URL, data=payload, timeout=15)
-    resp.raise_for_status()
+    if not resp.ok:
+        # Surface Google's structured error body — without it we just see
+        # "401 Unauthorized" and can't tell whether the issue is
+        # invalid_grant, redirect_uri_mismatch, missing client_secret,
+        # or something else.
+        try:
+            err_body = resp.json()
+        except Exception:
+            err_body = {"raw": resp.text[:500]}
+        raise RuntimeError(f"Google token endpoint {resp.status_code}: {err_body}")
     return resp.json()
 
 
@@ -115,7 +124,12 @@ def refresh_access_token(refresh_token: str, *, platform: str | None = None) -> 
     if csec:
         payload["client_secret"] = csec
     resp = requests.post(GOOGLE_TOKEN_URL, data=payload, timeout=15)
-    resp.raise_for_status()
+    if not resp.ok:
+        try:
+            err_body = resp.json()
+        except Exception:
+            err_body = {"raw": resp.text[:500]}
+        raise RuntimeError(f"Google token endpoint {resp.status_code}: {err_body}")
     return resp.json()
 
 

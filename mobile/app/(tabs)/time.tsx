@@ -2,10 +2,11 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { EmptyState, GoalRow, TabHeader } from '../../components/apex';
+import { CalendarTodayCard, EmptyState, GmailSummaryCard, GoalRow, LocationCard, OutlookCard, ScreenTimeCard, TabHeader } from '../../components/apex';
 import { SegmentedControl } from '../../components/ui';
 import { useGoals } from '../../lib/hooks/useGoals';
 import { deleteTask, toggleTask, useTasks, useTimeFocus } from '../../lib/hooks/useTasks';
+import { useAutoSyncOnFocus, useGcalStatus, useGmailStatus, useOutlookStatus } from '../../lib/hooks/useTimeData';
 import { useTokens } from '../../lib/theme';
 import type { FocusItem, Task } from '../../../shared/src/types/tasks';
 
@@ -25,6 +26,9 @@ export default function TimeScreen() {
   const focus = useTimeFocus();
   const tasks = useTasks(true);
   const goals = useGoals();
+  const gmailStatus = useGmailStatus();
+  const gcalStatus = useGcalStatus();
+  const outlookStatus = useOutlookStatus();
   const [refreshing, setRefreshing] = useState(false);
 
   // Deps MUST be stable .refetch refs, not the hook-return objects.
@@ -35,22 +39,45 @@ export default function TimeScreen() {
   const focusRefetch = focus.refetch;
   const tasksRefetch = tasks.refetch;
   const goalsRefetch = goals.refetch;
+  const gmailRefetch = gmailStatus.refetch;
+  const gcalRefetch = gcalStatus.refetch;
+  const outlookRefetch = outlookStatus.refetch;
   useFocusEffect(
     useCallback(() => {
       focusRefetch();
       tasksRefetch();
       goalsRefetch();
-    }, [focusRefetch, tasksRefetch, goalsRefetch]),
+      gmailRefetch();
+      gcalRefetch();
+      outlookRefetch();
+    }, [focusRefetch, tasksRefetch, goalsRefetch, gmailRefetch, gcalRefetch, outlookRefetch]),
   );
+
+  // Background auto-sync of connected providers — fires once per
+  // 5-minute window per provider so opening this tab pulls fresh
+  // data without forcing the user to tap "Sync now". Only syncs
+  // providers we know are connected so we don't burn API calls or
+  // throw 401s for unconfigured connectors.
+  useAutoSyncOnFocus({
+    gmail:   !!gmailStatus.data?.connected,
+    gcal:    !!gcalStatus.data?.connected,
+    outlook: !!outlookStatus.data?.connected,
+    onAfterSync: () => {
+      gmailRefetch();
+      gcalRefetch();
+      outlookRefetch();
+      focusRefetch();
+    },
+  });
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([focusRefetch(), tasksRefetch(), goalsRefetch()]);
+      await Promise.all([focusRefetch(), tasksRefetch(), goalsRefetch(), gmailRefetch(), gcalRefetch(), outlookRefetch()]);
     } finally {
       setRefreshing(false);
     }
-  }, [focusRefetch, tasksRefetch, goalsRefetch]);
+  }, [focusRefetch, tasksRefetch, goalsRefetch, gmailRefetch, gcalRefetch, outlookRefetch]);
 
   const timeGoals = useMemo(
     () => (goals.data?.goals ?? []).filter((g) => g.category === 'time'),
@@ -97,6 +124,15 @@ export default function TimeScreen() {
             onDeleteTask={handleDelete}
             timeGoals={timeGoals}
             onOpenGoal={(id) => router.push(`/goals/${id}` as never)}
+            gmailStatus={gmailStatus.data}
+            gmailLoading={gmailStatus.loading && !gmailStatus.data}
+            onGmailChanged={gmailRefetch}
+            gcalStatus={gcalStatus.data}
+            gcalLoading={gcalStatus.loading && !gcalStatus.data}
+            onGcalChanged={gcalRefetch}
+            outlookStatus={outlookStatus.data}
+            outlookLoading={outlookStatus.loading && !outlookStatus.data}
+            onOutlookChanged={outlookRefetch}
           />
         ) : tab === 'patterns' ? (
           <PatternsView />
@@ -114,6 +150,9 @@ function TodayView({
   focus, focusLoading, tasks, tasksLoading,
   onAddTask, onEditTask, onToggleTask, onDeleteTask,
   timeGoals, onOpenGoal,
+  gmailStatus, gmailLoading, onGmailChanged,
+  gcalStatus, gcalLoading, onGcalChanged,
+  outlookStatus, outlookLoading, onOutlookChanged,
 }: {
   focus: FocusItem[];
   focusLoading: boolean;
@@ -125,13 +164,69 @@ function TodayView({
   onDeleteTask: (id: number) => void;
   timeGoals: NonNullable<ReturnType<typeof useGoals>['data']>['goals'];
   onOpenGoal: (id: number) => void;
+  gmailStatus: import('../../lib/hooks/useTimeData').GmailStatusResponse | null;
+  gmailLoading: boolean;
+  onGmailChanged: () => void;
+  gcalStatus: import('../../lib/hooks/useTimeData').GcalStatusResponse | null;
+  gcalLoading: boolean;
+  onGcalChanged: () => void;
+  outlookStatus: import('../../lib/hooks/useTimeData').OutlookStatusResponse | null;
+  outlookLoading: boolean;
+  onOutlookChanged: () => void;
 }) {
   const t = useTokens();
   const activeTasks = tasks.filter((x) => !x.completed);
   const completedTasks = tasks.filter((x) => !!x.completed).slice(0, 8);
 
+  // Summary metrics — pulled from the same status payloads the cards
+  // below render. Computed once per render (cheap) so the top-of-tab
+  // matches what the user sees in the cards.
+  const tasksLeft = activeTasks.length;
+
+  // Inbox = unread combining both providers, defensively (server's
+  // explicit unread_count for Outlook; computed for Gmail since the
+  // cached email rows expose is_read).
+  const gmailUnread = (gmailStatus?.emails ?? []).filter((e) => !e.is_read).length;
+  const outlookUnread = outlookStatus?.unread_count
+    ?? (outlookStatus?.emails ?? []).filter((e) => !e.is_read).length;
+  const totalUnread = gmailUnread + outlookUnread;
+
+  // Next-event detection — Google + Outlook merged, picked by start
+  // time. Returns null if nothing in the next 24 hours.
+  const allEvents = [
+    ...(gcalStatus?.events ?? []),
+    ...(outlookStatus?.events ?? []),
+  ];
+  const nextEvent = pickNextEvent(allEvents);
+  const nextLabel = nextEvent ? eventCountdown(nextEvent.start_iso) : '—';
+
   return (
     <>
+      {/* Summary row — matches the Fitness/Nutrition density pattern.
+          Three glanceable signals at the top of the tab so the user
+          knows what the day looks like before scrolling. */}
+      <View style={styles.summaryRow}>
+        <SummaryCell
+          label="Tasks"
+          value={tasksLeft.toString()}
+          unit={tasksLeft === 1 ? 'left' : 'left'}
+          color={t.text}
+        />
+        <View style={[styles.summaryDivider, { backgroundColor: t.border }]} />
+        <SummaryCell
+          label="Unread"
+          value={totalUnread.toString()}
+          unit="emails"
+          color={totalUnread > 0 ? t.accent : t.text}
+        />
+        <View style={[styles.summaryDivider, { backgroundColor: t.border }]} />
+        <SummaryCell
+          label="Next event"
+          value={nextLabel}
+          color={t.text}
+        />
+      </View>
+
       {/* Today's Focus */}
       <View style={[styles.focusCard, { backgroundColor: t.surface, borderColor: t.border }]}>
         <View style={styles.focusHeader}>
@@ -152,27 +247,34 @@ function TodayView({
             </Text>
           </>
         ) : (
-          focus.map((f) => (
-            <Pressable
-              key={f.id}
-              onPress={() => onToggleTask(f.id)}
-              onLongPress={() => onEditTask(f.id)}
-              style={[
-                styles.focusRow,
-                { borderLeftColor: FOCUS_COLORS[f._focus_priority] ?? t.accent },
-              ]}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.focusDesc, { color: t.text }]} numberOfLines={2}>
-                  {f.description}
-                </Text>
-                <Text style={[styles.focusReason, { color: t.muted }]}>
-                  {f._focus_reason}
-                  {f.due_date ? ` · due ${f.due_date}` : ''}
-                </Text>
-              </View>
-              <View style={[styles.checkbox, { borderColor: t.border }]} />
-            </Pressable>
-          ))
+          focus.map((f, idx) => {
+            const isTask = f.kind === 'task';
+            const subtitle = isTask
+              ? `${f._focus_reason}${f.due_date ? ` · due ${f.due_date}` : ''}`
+              : f._focus_reason;
+            return (
+              <Pressable
+                key={isTask ? `task-${f.id}` : `${f.kind}-${idx}`}
+                onPress={isTask ? () => onToggleTask(f.id) : undefined}
+                onLongPress={isTask ? () => onEditTask(f.id) : undefined}
+                style={[
+                  styles.focusRow,
+                  { borderLeftColor: FOCUS_COLORS[f._focus_priority] ?? t.accent },
+                ]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.focusDesc, { color: t.text }]} numberOfLines={2}>
+                    {f.description}
+                  </Text>
+                  <Text style={[styles.focusReason, { color: t.muted }]}>
+                    {subtitle}
+                  </Text>
+                </View>
+                {isTask ? (
+                  <View style={[styles.checkbox, { borderColor: t.border }]} />
+                ) : null}
+              </Pressable>
+            );
+          })
         )}
       </View>
 
@@ -223,33 +325,26 @@ function TodayView({
         ) : null}
       </View>
 
-      {/* Email — backend is wired, mobile UI not yet. */}
-      <DisconnectedSubsystem
-        name="Email"
-        description="Gmail inbox triage, unreplied important emails"
-        note="Backend OAuth is ready; mobile connect flow ships in a later cycle."
+      <GmailSummaryCard
+        status={gmailStatus}
+        loading={gmailLoading}
+        onChanged={onGmailChanged}
       />
-
-      {/* Calendar */}
-      <DisconnectedSubsystem
-        name="Calendar"
-        description="Today's events, meeting hours, next-up"
-        note="Google Calendar + Outlook integrations ship in a later cycle."
+      <CalendarTodayCard
+        status={gcalStatus}
+        loading={gcalLoading}
+        onChanged={onGcalChanged}
+      />
+      <OutlookCard
+        status={outlookStatus}
+        loading={outlookLoading}
+        onChanged={onOutlookChanged}
       />
 
       <Text style={[styles.sectionLabel, { color: t.muted }]}>Attention</Text>
 
-      <DisconnectedSubsystem
-        name="Screen Time"
-        description="Pickups, longest focus block, top apps"
-        note="Requires Apple Family Controls (iOS) or UsageStatsManager (Android). Ships after Apple approval."
-      />
-
-      <DisconnectedSubsystem
-        name="Location"
-        description="Home / work / gym visits, commute rhythm"
-        note="CoreLocation Visits + Google Places. Ships in a later cycle."
-      />
+      <ScreenTimeCard />
+      <LocationCard />
 
       {/* Time goals */}
       {timeGoals.length > 0 ? (
@@ -321,6 +416,53 @@ function TaskRow({
   );
 }
 
+function SummaryCell({ label, value, unit, color }: {
+  label: string; value: string; unit?: string; color: string;
+}) {
+  const t = useTokens();
+  return (
+    <View style={styles.summaryCell}>
+      <Text style={[styles.summaryValue, { color }]}>
+        {value}
+        {unit ? <Text style={[styles.summaryUnit, { color: t.muted }]}> {unit}</Text> : null}
+      </Text>
+      <Text style={[styles.summaryLabel, { color: t.muted }]}>{label}</Text>
+    </View>
+  );
+}
+
+// ── Summary helpers ─────────────────────────────────────────────────────
+
+interface MaybeEvent { start_iso?: string; title?: string; all_day?: number | boolean }
+
+function pickNextEvent<T extends MaybeEvent>(events: T[]): T | null {
+  const nowMs = Date.now();
+  const horizonMs = nowMs + 24 * 60 * 60 * 1000;
+  let best: T | null = null;
+  let bestStart = Infinity;
+  for (const ev of events) {
+    if (!ev.start_iso || ev.all_day) continue;
+    const ms = new Date(ev.start_iso).getTime();
+    if (isNaN(ms) || ms <= nowMs || ms > horizonMs) continue;
+    if (ms < bestStart) { bestStart = ms; best = ev; }
+  }
+  return best;
+}
+
+function eventCountdown(iso: string): string {
+  try {
+    const ms = new Date(iso).getTime();
+    if (isNaN(ms)) return '—';
+    const diffMin = Math.max(0, Math.round((ms - Date.now()) / 60000));
+    if (diffMin < 60) return `in ${diffMin}m`;
+    const h = Math.floor(diffMin / 60);
+    const m = diffMin % 60;
+    return m > 0 ? `in ${h}h ${m}m` : `in ${h}h`;
+  } catch {
+    return '—';
+  }
+}
+
 function DisconnectedSubsystem({ name, description, note }: {
   name: string; description: string; note: string;
 }) {
@@ -366,6 +508,19 @@ function TimelineView() {
 const styles = StyleSheet.create({
   tabsWrap: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8 },
   content: { paddingHorizontal: 16, paddingBottom: 60, gap: 12 },
+
+  // Summary row — top-of-Today metrics matching Fitness/Nutrition.
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    gap: 0,
+  },
+  summaryDivider: { width: 1, height: 32, alignSelf: 'center' },
+  summaryCell: { flex: 1, alignItems: 'center', gap: 2 },
+  summaryValue: { fontSize: 16, fontWeight: '700' },
+  summaryUnit: { fontSize: 10, fontWeight: '500' },
+  summaryLabel: { fontSize: 10, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8 },
 
   focusCard: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 8 },
   focusHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

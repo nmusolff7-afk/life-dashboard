@@ -174,6 +174,7 @@ export function WorkoutHistoryList({ workouts, onChanged }: Props) {
                       </Text>
                       <Text style={[styles.rowMeta, { color: t.muted }]}>
                         {formatRowDate(w.log_date)} · {formatWorkoutTime(w.logged_at)}
+                        {w.strava_activity_id ? ' · 🏃 Strava' : ''}
                       </Text>
                     </View>
                     <Text style={[styles.rowBurn, { color: t.cal }]}>

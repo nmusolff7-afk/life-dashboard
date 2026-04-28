@@ -162,13 +162,59 @@ function TodayView({
             </Text>
           </>
         ) : (
-          <>
-            <Text style={[styles.heroBig, { color: safeColor }]}>${safeToSpend.toLocaleString()}</Text>
-            <Text style={[styles.heroSub, { color: t.muted }]}>
-              Weekly slice ${data.weekly_budget_slice ?? '—'} · spent ${data.spent_week} · bills due ${data.upcoming_bills_total}
-            </Text>
-          </>
+          <Text style={[styles.heroBig, { color: safeColor }]}>${safeToSpend.toLocaleString()}</Text>
         )}
+      </View>
+
+      {/* Summary row — matches Fitness/Nutrition density. Three signals
+          right under the hero: this week's actual spend, 7-day bill
+          total, month-to-date so the user has the whole picture in one
+          glance. */}
+      <View style={styles.summaryRow}>
+        <SummaryCell
+          label="Week"
+          value={`$${data.spent_week.toLocaleString()}`}
+          color={t.text}
+        />
+        <View style={[styles.summaryDivider, { backgroundColor: t.border }]} />
+        <SummaryCell
+          label="Bills 7d"
+          value={`$${data.upcoming_bills_total.toLocaleString()}`}
+          color={data.upcoming_bills_total > 0 ? '#F59E0B' : t.text}
+        />
+        <View style={[styles.summaryDivider, { backgroundColor: t.border }]} />
+        <SummaryCell
+          label="MTD"
+          value={`$${data.spent_month.toLocaleString()}`}
+          color={t.text}
+        />
+      </View>
+
+      {/* Quick-actions row — primary inputs surfaced top-of-tab,
+          mirrors Fitness LogActivityCard / Nutrition LogMealCard.
+          Logging a transaction or adding a bill should never be
+          buried behind subsystem cards. */}
+      <View style={[styles.actionsRow, { backgroundColor: t.surface, borderColor: t.border }]}>
+        <Pressable
+          onPress={onLogTxn}
+          style={({ pressed }) => [styles.actionBtn, { opacity: pressed ? 0.7 : 1 }]}>
+          <Text style={[styles.actionEmoji]}>💸</Text>
+          <Text style={[styles.actionLabel, { color: t.text }]}>Transaction</Text>
+        </Pressable>
+        <View style={[styles.actionDivider, { backgroundColor: t.border }]} />
+        <Pressable
+          onPress={onAddBill}
+          style={({ pressed }) => [styles.actionBtn, { opacity: pressed ? 0.7 : 1 }]}>
+          <Text style={[styles.actionEmoji]}>📅</Text>
+          <Text style={[styles.actionLabel, { color: t.text }]}>Bill</Text>
+        </Pressable>
+        <View style={[styles.actionDivider, { backgroundColor: t.border }]} />
+        <Pressable
+          onPress={onSetBudget}
+          style={({ pressed }) => [styles.actionBtn, { opacity: pressed ? 0.7 : 1 }]}>
+          <Text style={[styles.actionEmoji]}>🎯</Text>
+          <Text style={[styles.actionLabel, { color: t.text }]}>Budget</Text>
+        </Pressable>
       </View>
 
       {/* Empty-state CTA */}
@@ -252,6 +298,18 @@ function TodayView({
         Bank linking via Plaid lands in a later cycle. Everything here works with manual entry today.
       </Text>
     </>
+  );
+}
+
+function SummaryCell({ label, value, color }: {
+  label: string; value: string; color: string;
+}) {
+  const t = useTokens();
+  return (
+    <View style={styles.summaryCell}>
+      <Text style={[styles.summaryValue, { color }]}>{value}</Text>
+      <Text style={[styles.summaryLabel, { color: t.muted }]}>{label}</Text>
+    </View>
   );
 }
 
@@ -431,6 +489,37 @@ const styles = StyleSheet.create({
   heroLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 },
   heroBig: { fontSize: 40, fontWeight: '800', marginTop: 6 },
   heroSub: { fontSize: 12, marginTop: 4, textAlign: 'center' },
+
+  // Summary row — three glanceable metrics under the hero, mirrors
+  // Fitness/Nutrition pattern.
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  summaryDivider: { width: 1, height: 32, alignSelf: 'center' },
+  summaryCell: { flex: 1, alignItems: 'center', gap: 2 },
+  summaryValue: { fontSize: 16, fontWeight: '700' },
+  summaryLabel: { fontSize: 10, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8 },
+
+  // Quick-actions row — primary inputs (transaction, bill, budget)
+  // surfaced top-of-tab so they're a single tap away.
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    borderWidth: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  actionBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+    gap: 4,
+  },
+  actionEmoji: { fontSize: 18 },
+  actionLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6 },
+  actionDivider: { width: 1, alignSelf: 'stretch' },
   emptyCta: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 10, alignItems: 'center' },
   emptyTitle: { fontSize: 15, fontWeight: '700' },
   emptyBody: { fontSize: 13, lineHeight: 18, textAlign: 'center' },

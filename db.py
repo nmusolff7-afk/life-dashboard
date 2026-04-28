@@ -503,6 +503,25 @@ def init_db():
         except sqlite3.OperationalError:
             pass  # column already exists
 
+        # Migrate: add strava_activity_id (Strava connector dedupe key).
+        try:
+            conn.execute("ALTER TABLE workout_logs ADD COLUMN strava_activity_id TEXT")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+        # Unique index — second sync of the same activity must update,
+        # not duplicate. Partial index so existing manual rows (NULL) are
+        # excluded from the uniqueness constraint.
+        try:
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_workout_logs_strava "
+                "ON workout_logs(user_id, strava_activity_id) "
+                "WHERE strava_activity_id IS NOT NULL"
+            )
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
         # Migrate: add user_id column to existing tables if absent
         for table in ("meal_logs", "workout_logs"):
             try:
@@ -592,6 +611,177 @@ def init_db():
                 created_at     TIMESTAMP NOT NULL
             )
         """)
+
+        # Health Connect (Android) — daily aggregates fetched from the
+        # device's HealthConnect platform. One row per (user, date) per
+        # metric type. Mobile pushes these via /api/health/sync after
+        # the user grants HC permissions.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS health_daily (
+                user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                stat_date      DATE NOT NULL,
+                steps          INTEGER,
+                sleep_minutes  INTEGER,
+                resting_hr     INTEGER,
+                hrv_ms         INTEGER,
+                active_kcal    INTEGER,
+                synced_at      TIMESTAMP NOT NULL,
+                PRIMARY KEY (user_id, stat_date)
+            )
+        """)
+
+        # Location samples — foreground-only for v1. Mobile pushes its
+        # current location on app open + every 15min when foregrounded.
+        # Background sampling is a v1.1 add (needs platform review).
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS location_samples (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                lat         REAL NOT NULL,
+                lon         REAL NOT NULL,
+                accuracy_m  REAL,
+                sampled_at  TEXT NOT NULL,
+                source      TEXT DEFAULT 'foreground'
+            )
+        """)
+        try:
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_location_samples_user_time "
+                "ON location_samples(user_id, sampled_at DESC)"
+            )
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
+        # Location clusters — recurring geographic places the user
+        # spends time at. Built incrementally from location_samples by
+        # grouping samples within ~50m of each other. Reverse-geocoded
+        # via Google Geocoding API once per new cluster (cached
+        # forever via the place_name column).
+        #
+        # `place_label` is user-overridable: "home", "work", "gym",
+        # whatever they want. Empty until they label it (or until our
+        # heuristic auto-labels home = top-dwell cluster, work =
+        # weekday-9-to-5 cluster).
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS location_clusters (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id             INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                centroid_lat        REAL NOT NULL,
+                centroid_lon        REAL NOT NULL,
+                sample_count        INTEGER NOT NULL DEFAULT 1,
+                total_dwell_minutes INTEGER NOT NULL DEFAULT 0,
+                first_seen          TEXT NOT NULL,
+                last_seen           TEXT NOT NULL,
+                place_name          TEXT,
+                place_label         TEXT,
+                geocode_attempted   INTEGER NOT NULL DEFAULT 0,
+                created_at          TEXT NOT NULL,
+                updated_at          TEXT NOT NULL
+            )
+        """)
+        try:
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_location_clusters_user "
+                "ON location_clusters(user_id, total_dwell_minutes DESC)"
+            )
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
+        # Android Screen Time — daily aggregate + JSON of top-app
+        # foreground times. Mobile pushes via /api/screen-time/sync once
+        # the user grants Usage Access in system settings.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS screen_time_daily (
+                user_id              INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                stat_date            DATE NOT NULL,
+                total_minutes        INTEGER NOT NULL DEFAULT 0,
+                pickups              INTEGER,
+                top_apps_json        TEXT,
+                longest_session_min  INTEGER,
+                synced_at            TIMESTAMP NOT NULL,
+                PRIMARY KEY (user_id, stat_date)
+            )
+        """)
+
+        # Outlook (Microsoft Graph) cache tables. Mirror the Google
+        # equivalents so the Time-tab card + chatbot LifeContext code
+        # can treat both providers symmetrically.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS outlook_emails (
+                user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                message_id   TEXT NOT NULL,
+                thread_id    TEXT,
+                sender       TEXT,
+                subject      TEXT,
+                snippet      TEXT,
+                received_at  TEXT,
+                is_read      INTEGER DEFAULT 0,
+                has_replied  INTEGER DEFAULT 0,
+                synced_at    TIMESTAMP NOT NULL,
+                PRIMARY KEY (user_id, message_id)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS outlook_events (
+                user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                event_id          TEXT NOT NULL,
+                calendar_id       TEXT,
+                title             TEXT,
+                location          TEXT,
+                start_iso         TEXT,
+                end_iso           TEXT,
+                all_day           INTEGER DEFAULT 0,
+                is_self_organizer INTEGER DEFAULT 0,
+                attendees_count   INTEGER DEFAULT 0,
+                html_link         TEXT,
+                synced_at         TIMESTAMP NOT NULL,
+                PRIMARY KEY (user_id, event_id)
+            )
+        """)
+        try:
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_outlook_events_user_start "
+                "ON outlook_events(user_id, start_iso)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_outlook_emails_user_received "
+                "ON outlook_emails(user_id, received_at)"
+            )
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
+        # Google Calendar events cache — populated by /api/gcal/sync, read
+        # by Time tab + chatbot LifeContext. Window stored is yesterday +
+        # next 7 days; rows older than that get pruned on each sync. Dedupe
+        # via (user_id, event_id) unique constraint.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS gcal_events (
+                user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                event_id          TEXT NOT NULL,
+                calendar_id       TEXT,
+                title             TEXT,
+                location          TEXT,
+                start_iso         TEXT,
+                end_iso           TEXT,
+                all_day           INTEGER DEFAULT 0,
+                is_self_organizer INTEGER DEFAULT 0,
+                attendees_count   INTEGER DEFAULT 0,
+                html_link         TEXT,
+                synced_at         TIMESTAMP NOT NULL,
+                PRIMARY KEY (user_id, event_id)
+            )
+        """)
+        try:
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_gcal_events_user_start "
+                "ON gcal_events(user_id, start_iso)"
+            )
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
 
         # Daily AI-call cap counter — supports per-user-per-day quotas on
         # Premium Scan (20/day Pro per PRD §10.3.3) and Pantry Scanner
@@ -1309,6 +1499,45 @@ def delete_workout(workout_id, user_id):
     with get_conn() as conn:
         conn.execute("DELETE FROM workout_logs WHERE id = ? AND user_id = ?", (workout_id, user_id))
         conn.commit()
+
+
+def insert_strava_activity(user_id: int, mapped: dict) -> int | None:
+    """Insert a Strava activity as a workout_logs row, deduped on
+    (user_id, strava_activity_id). Returns the new row id, or None when
+    the activity was already imported (idempotent re-sync).
+
+    `mapped` is the dict produced by strava_sync.map_activity_to_workout:
+      strava_activity_id, description, calories_burned, log_date,
+      logged_at, session_type
+    """
+    sid = mapped.get("strava_activity_id")
+    if not sid:
+        return None
+    with get_conn() as conn:
+        existing = conn.execute(
+            "SELECT id FROM workout_logs WHERE user_id = ? AND strava_activity_id = ?",
+            (user_id, sid),
+        ).fetchone()
+        if existing:
+            return None
+        cur = conn.execute(
+            "INSERT INTO workout_logs "
+            "(user_id, logged_at, log_date, description, calories_burned, "
+            " parse_status, session_type, strava_activity_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                user_id,
+                mapped.get("logged_at") or datetime.now().isoformat(),
+                mapped.get("log_date") or date.today().isoformat(),
+                mapped.get("description") or "Strava activity",
+                int(mapped.get("calories_burned") or 0),
+                "skip",  # don't try to parse Strava activity names as strength sets
+                mapped.get("session_type") or "cardio",
+                sid,
+            ),
+        )
+        conn.commit()
+        return int(cur.lastrowid)
 
 
 # ── Saved Meals ─────────────────────────────────────────
@@ -2451,6 +2680,460 @@ def clear_gmail_cache(user_id: int):
     with get_conn() as conn:
         conn.execute("DELETE FROM gmail_cache WHERE user_id = ?", (user_id,))
         conn.commit()
+
+
+# ── Google Calendar event cache ────────────────────────
+
+def upsert_gcal_events(user_id: int, events: list[dict]) -> int:
+    """Replace cached events for the user. Pattern matches gmail_cache:
+    cheaper to nuke + reinsert than diff. Returns row count inserted."""
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        conn.execute("DELETE FROM gcal_events WHERE user_id = ?", (user_id,))
+        for ev in events:
+            conn.execute("""
+                INSERT INTO gcal_events
+                  (user_id, event_id, calendar_id, title, location,
+                   start_iso, end_iso, all_day, is_self_organizer,
+                   attendees_count, html_link, synced_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                user_id, ev.get("event_id", ""), ev.get("calendar_id", ""),
+                ev.get("title", ""), ev.get("location", ""),
+                ev.get("start", ""), ev.get("end", ""),
+                1 if ev.get("all_day") else 0,
+                1 if ev.get("is_self_organizer") else 0,
+                int(ev.get("attendees_count") or 0),
+                ev.get("html_link", ""), now,
+            ))
+        conn.commit()
+    return len(events)
+
+
+def get_gcal_events(user_id: int, *,
+                    start_iso: str | None = None,
+                    end_iso: str | None = None,
+                    limit: int = 50) -> list[dict]:
+    """Fetch cached events. Optional ISO time-range filter (matches against
+    `start_iso` column — events whose START falls in [start_iso, end_iso))."""
+    sql = "SELECT * FROM gcal_events WHERE user_id = ?"
+    params: list = [user_id]
+    if start_iso:
+        sql += " AND start_iso >= ?"
+        params.append(start_iso)
+    if end_iso:
+        sql += " AND start_iso < ?"
+        params.append(end_iso)
+    sql += " ORDER BY start_iso ASC LIMIT ?"
+    params.append(limit)
+    with get_conn() as conn:
+        rows = conn.execute(sql, params).fetchall()
+    return [dict(r) for r in rows]
+
+
+def clear_gcal_events(user_id: int):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM gcal_events WHERE user_id = ?", (user_id,))
+        conn.commit()
+
+
+# ── Outlook (Microsoft Graph) caches ────────────────────
+
+def upsert_outlook_emails(user_id: int, emails: list[dict]) -> int:
+    """Replace cached Outlook emails for the user. Returns count inserted.
+    Same nuke-and-reinsert pattern as gcal_events for consistency."""
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        conn.execute("DELETE FROM outlook_emails WHERE user_id = ?", (user_id,))
+        for e in emails:
+            conn.execute("""
+                INSERT INTO outlook_emails
+                  (user_id, message_id, thread_id, sender, subject, snippet,
+                   received_at, is_read, has_replied, synced_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                user_id, e.get("message_id", ""), e.get("thread_id", ""),
+                e.get("sender", ""), e.get("subject", ""), e.get("snippet", ""),
+                e.get("received_at", ""),
+                int(e.get("is_read") or 0),
+                int(e.get("has_replied") or 0),
+                now,
+            ))
+        conn.commit()
+    return len(emails)
+
+
+def get_outlook_emails(user_id: int, limit: int = 50) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM outlook_emails WHERE user_id = ? "
+            "ORDER BY received_at DESC LIMIT ?",
+            (user_id, limit),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def clear_outlook_emails(user_id: int):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM outlook_emails WHERE user_id = ?", (user_id,))
+        conn.commit()
+
+
+def upsert_outlook_events(user_id: int, events: list[dict]) -> int:
+    """Replace cached Outlook calendar events for the user."""
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        conn.execute("DELETE FROM outlook_events WHERE user_id = ?", (user_id,))
+        for ev in events:
+            conn.execute("""
+                INSERT INTO outlook_events
+                  (user_id, event_id, calendar_id, title, location,
+                   start_iso, end_iso, all_day, is_self_organizer,
+                   attendees_count, html_link, synced_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                user_id, ev.get("event_id", ""), ev.get("calendar_id", ""),
+                ev.get("title", ""), ev.get("location", ""),
+                ev.get("start", ""), ev.get("end", ""),
+                1 if ev.get("all_day") else 0,
+                1 if ev.get("is_self_organizer") else 0,
+                int(ev.get("attendees_count") or 0),
+                ev.get("html_link", ""), now,
+            ))
+        conn.commit()
+    return len(events)
+
+
+def get_outlook_events(user_id: int, *,
+                       start_iso: str | None = None,
+                       end_iso: str | None = None,
+                       limit: int = 50) -> list[dict]:
+    sql = "SELECT * FROM outlook_events WHERE user_id = ?"
+    params: list = [user_id]
+    if start_iso:
+        sql += " AND start_iso >= ?"
+        params.append(start_iso)
+    if end_iso:
+        sql += " AND start_iso < ?"
+        params.append(end_iso)
+    sql += " ORDER BY start_iso ASC LIMIT ?"
+    params.append(limit)
+    with get_conn() as conn:
+        rows = conn.execute(sql, params).fetchall()
+    return [dict(r) for r in rows]
+
+
+def clear_outlook_events(user_id: int):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM outlook_events WHERE user_id = ?", (user_id,))
+        conn.commit()
+
+
+# ── Health Connect (Android) daily aggregates ─────────
+
+def upsert_health_daily(user_id: int, stat_date: str, *,
+                        steps: int | None = None,
+                        sleep_minutes: int | None = None,
+                        resting_hr: int | None = None,
+                        hrv_ms: int | None = None,
+                        active_kcal: int | None = None) -> None:
+    """Upsert a single (user, date) health row. Pass None for any metric
+    not available — existing values are preserved (we don't blow away
+    yesterday's HRV just because today's sync didn't have it)."""
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        existing = conn.execute(
+            "SELECT * FROM health_daily WHERE user_id = ? AND stat_date = ?",
+            (user_id, stat_date),
+        ).fetchone()
+        if existing:
+            updates = {
+                "steps":         steps if steps is not None else existing["steps"],
+                "sleep_minutes": sleep_minutes if sleep_minutes is not None else existing["sleep_minutes"],
+                "resting_hr":    resting_hr if resting_hr is not None else existing["resting_hr"],
+                "hrv_ms":        hrv_ms if hrv_ms is not None else existing["hrv_ms"],
+                "active_kcal":   active_kcal if active_kcal is not None else existing["active_kcal"],
+                "synced_at":     now,
+            }
+            conn.execute(
+                "UPDATE health_daily SET steps=?, sleep_minutes=?, resting_hr=?, "
+                "hrv_ms=?, active_kcal=?, synced_at=? WHERE user_id=? AND stat_date=?",
+                (
+                    updates["steps"], updates["sleep_minutes"], updates["resting_hr"],
+                    updates["hrv_ms"], updates["active_kcal"], now, user_id, stat_date,
+                ),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO health_daily (user_id, stat_date, steps, sleep_minutes, "
+                "resting_hr, hrv_ms, active_kcal, synced_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (user_id, stat_date, steps, sleep_minutes, resting_hr,
+                 hrv_ms, active_kcal, now),
+            )
+        conn.commit()
+
+
+def get_health_daily(user_id: int, stat_date: str) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM health_daily WHERE user_id = ? AND stat_date = ?",
+            (user_id, stat_date),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def get_health_history(user_id: int, days: int = 7) -> list[dict]:
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM health_daily WHERE user_id = ? AND stat_date >= ? "
+            "ORDER BY stat_date DESC",
+            (user_id, cutoff),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ── Location samples ──────────────────────────────────
+
+def insert_location_samples(user_id: int, samples: list[dict]) -> int:
+    """Insert one or more foreground location samples. Each sample dict:
+    { lat: float, lon: float, accuracy_m: float?, sampled_at: ISO str?, source: str? }
+    Returns count inserted."""
+    now_iso = datetime.now().isoformat()
+    inserted = 0
+    with get_conn() as conn:
+        for s in samples:
+            try:
+                lat = float(s["lat"])
+                lon = float(s["lon"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            conn.execute(
+                "INSERT INTO location_samples (user_id, lat, lon, accuracy_m, sampled_at, source) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    user_id, lat, lon,
+                    float(s.get("accuracy_m") or 0) or None,
+                    s.get("sampled_at") or now_iso,
+                    s.get("source") or "foreground",
+                ),
+            )
+            inserted += 1
+        conn.commit()
+    return inserted
+
+
+def get_recent_location_samples(user_id: int, limit: int = 50) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM location_samples WHERE user_id = ? "
+            "ORDER BY sampled_at DESC LIMIT ?",
+            (user_id, limit),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def count_location_samples_today(user_id: int, today: str) -> int:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS c FROM location_samples "
+            "WHERE user_id = ? AND substr(sampled_at, 1, 10) = ?",
+            (user_id, today),
+        ).fetchone()
+    return int(row["c"]) if row else 0
+
+
+def get_location_samples_for_day(user_id: int, day_iso: str) -> list[dict]:
+    """All location samples for one local-day, oldest first. Used by
+    the cluster/visit detector."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT lat, lon, accuracy_m, sampled_at "
+            "FROM location_samples "
+            "WHERE user_id = ? AND substr(sampled_at, 1, 10) = ? "
+            "ORDER BY sampled_at ASC",
+            (user_id, day_iso),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ── Location clusters ──────────────────────────────────
+
+def list_location_clusters(user_id: int, limit: int = 50) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM location_clusters "
+            "WHERE user_id = ? "
+            "ORDER BY total_dwell_minutes DESC "
+            "LIMIT ?",
+            (user_id, limit),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def find_or_create_cluster(user_id: int, lat: float, lon: float, *,
+                           proximity_m: float = 75.0) -> dict:
+    """Find a cluster within `proximity_m` of (lat, lon), or create one
+    fresh. Updates the cluster's centroid via running average if found.
+    Returns the cluster row as dict."""
+    from datetime import datetime as _dt
+
+    # Cheap pre-filter: get candidates within ±0.001 degrees
+    # (roughly 110m at the equator) to skip the sqrt for distant ones.
+    delta = max(proximity_m / 70_000.0, 0.001)
+    with get_conn() as conn:
+        candidates = conn.execute(
+            "SELECT * FROM location_clusters "
+            "WHERE user_id = ? "
+            "  AND centroid_lat BETWEEN ? AND ? "
+            "  AND centroid_lon BETWEEN ? AND ?",
+            (user_id, lat - delta, lat + delta, lon - delta, lon + delta),
+        ).fetchall()
+
+    best: dict | None = None
+    best_dist = float('inf')
+    for row in candidates:
+        d = _haversine_m(lat, lon, float(row['centroid_lat']), float(row['centroid_lon']))
+        if d < proximity_m and d < best_dist:
+            best = dict(row)
+            best_dist = d
+
+    now_iso = _dt.now().isoformat()
+
+    if best is not None:
+        # Update running centroid + bump sample_count.
+        new_count = int(best['sample_count']) + 1
+        new_lat = (best['centroid_lat'] * best['sample_count'] + lat) / new_count
+        new_lon = (best['centroid_lon'] * best['sample_count'] + lon) / new_count
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE location_clusters "
+                "SET centroid_lat = ?, centroid_lon = ?, sample_count = ?, "
+                "    last_seen = ?, updated_at = ? "
+                "WHERE id = ?",
+                (new_lat, new_lon, new_count, now_iso, now_iso, best['id']),
+            )
+            conn.commit()
+        best['centroid_lat'] = new_lat
+        best['centroid_lon'] = new_lon
+        best['sample_count'] = new_count
+        best['last_seen'] = now_iso
+        best['updated_at'] = now_iso
+        return best
+
+    # Create fresh
+    with get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO location_clusters "
+            "(user_id, centroid_lat, centroid_lon, sample_count, "
+            " total_dwell_minutes, first_seen, last_seen, "
+            " geocode_attempted, created_at, updated_at) "
+            "VALUES (?, ?, ?, 1, 0, ?, ?, 0, ?, ?)",
+            (user_id, lat, lon, now_iso, now_iso, now_iso, now_iso),
+        )
+        new_id = int(cur.lastrowid)
+        conn.commit()
+    return {
+        "id": new_id,
+        "user_id": user_id,
+        "centroid_lat": lat,
+        "centroid_lon": lon,
+        "sample_count": 1,
+        "total_dwell_minutes": 0,
+        "first_seen": now_iso,
+        "last_seen": now_iso,
+        "place_name": None,
+        "place_label": None,
+        "geocode_attempted": 0,
+        "created_at": now_iso,
+        "updated_at": now_iso,
+    }
+
+
+def add_dwell_to_cluster(cluster_id: int, minutes: int) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE location_clusters "
+            "SET total_dwell_minutes = total_dwell_minutes + ?, "
+            "    updated_at = ? "
+            "WHERE id = ?",
+            (max(0, int(minutes)), datetime.now().isoformat(), cluster_id),
+        )
+        conn.commit()
+
+
+def update_cluster_geocode(cluster_id: int, place_name: str | None) -> None:
+    """Stamp the reverse-geocoded place name and mark geocode_attempted=1
+    so we don't keep retrying on every sync if the API failed."""
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE location_clusters "
+            "SET place_name = ?, geocode_attempted = 1, updated_at = ? "
+            "WHERE id = ?",
+            (place_name, datetime.now().isoformat(), cluster_id),
+        )
+        conn.commit()
+
+
+def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Distance in meters between two lat/lon points. Earth radius
+    6371000m. Cheaper than full Haversine for the small distances we
+    care about — we use the equirectangular approximation, accurate to
+    within ~0.5% for sub-kilometer distances."""
+    import math
+    avg_lat_rad = math.radians((lat1 + lat2) / 2)
+    x = math.radians(lon2 - lon1) * math.cos(avg_lat_rad)
+    y = math.radians(lat2 - lat1)
+    return 6371000.0 * math.sqrt(x * x + y * y)
+
+
+# ── Android Screen Time daily aggregate ───────────────
+
+def upsert_screen_time_daily(user_id: int, stat_date: str, *,
+                             total_minutes: int,
+                             pickups: int | None = None,
+                             top_apps_json: str | None = None,
+                             longest_session_min: int | None = None) -> None:
+    """Upsert daily screen-time row. Replaces the whole row each sync —
+    mobile re-aggregates from the device's UsageStatsManager, so we
+    don't try to merge."""
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO screen_time_daily
+                (user_id, stat_date, total_minutes, pickups, top_apps_json,
+                 longest_session_min, synced_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, stat_date) DO UPDATE SET
+                total_minutes        = excluded.total_minutes,
+                pickups              = excluded.pickups,
+                top_apps_json        = excluded.top_apps_json,
+                longest_session_min  = excluded.longest_session_min,
+                synced_at            = excluded.synced_at
+        """, (user_id, stat_date, int(total_minutes),
+              pickups, top_apps_json, longest_session_min, now))
+        conn.commit()
+
+
+def get_screen_time_daily(user_id: int, stat_date: str) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM screen_time_daily WHERE user_id = ? AND stat_date = ?",
+            (user_id, stat_date),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def get_screen_time_history(user_id: int, days: int = 7) -> list[dict]:
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM screen_time_daily WHERE user_id = ? AND stat_date >= ? "
+            "ORDER BY stat_date DESC",
+            (user_id, cutoff),
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 # ── Gmail summaries ────────────────────────────────────

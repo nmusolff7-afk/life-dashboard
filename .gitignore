@@ -1,11 +1,16 @@
 .env
 *.db
 __pycache__/
-.claude/settings.local.json
+.claude/
 mobile/node_modules/
 mobile/.expo/
+mobile/.idea/
 mobile/dist/
 mobile/web-build/
+
+# Local Expo Module Gradle build artifacts
+mobile/modules/*/android/build/
+mobile/modules/*/android/.gradle/
 shared/node_modules/
 shared/dist/
 server/node_modules/

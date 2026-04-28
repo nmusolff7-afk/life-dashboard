@@ -388,8 +388,196 @@ def _finance_context() -> dict:
     return {"status": "not_connected", "note": "User has not connected a bank. No finance data available."}
 
 
-def _life_context() -> dict:
-    return {"status": "not_connected", "note": "User has not connected calendar or email. No life data available."}
+def _life_context(user_id: int | None = None) -> dict:
+    """Assemble Gmail + Calendar context. Each subtree is independent —
+    user might have one connected, the other not, or both. The consent
+    filter (`_apply_consent_filter`) strips sub-trees that the user has
+    opted out of in Settings → Privacy AFTER this returns; we don't
+    self-censor here.
+
+    Returned shape (subtree omitted when source is not connected):
+      {
+        "gmail": { "email", "summary_text", "unreplied", "important_count" }
+        "gcal_events": [ { title, start_iso, end_iso, location, all_day } ]
+      }
+    """
+    if user_id is None:
+        return {"status": "not_connected", "note": "User has not connected calendar or email. No life data available."}
+
+    out: dict = {}
+
+    # Gmail — read most-recent summary + counts.
+    try:
+        from db import get_gmail_tokens, get_gmail_summary, get_gmail_cache
+        tokens = get_gmail_tokens(user_id)
+        if tokens:
+            from datetime import date as _date
+            today = _date.today().isoformat()
+            summary = get_gmail_summary(user_id, today) or {}
+            cached = get_gmail_cache(user_id, limit=50) or []
+            unreplied = sum(1 for e in cached
+                            if not e.get("has_replied") and not e.get("is_read"))
+            out["gmail"] = {
+                "email":           tokens.get("email_address", ""),
+                "summary_text":    summary.get("summary_text", "") if summary else "",
+                "unreplied":       unreplied,
+                "cached_count":    len(cached),
+                "summary_date":    summary.get("summary_date", "") if summary else "",
+            }
+    except Exception:
+        # Non-fatal — Gmail subtree just gets omitted on errors.
+        pass
+
+    # Calendar — pull next 48h of events (Google).
+    try:
+        import connectors as _conn
+        from db import get_gcal_events
+        from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+        row = _conn.get_connector(user_id, 'gcal')
+        if row and row.get('status') == _conn.STATUS_CONNECTED:
+            now_iso = _dt.now(_tz.utc).isoformat()
+            end_iso = (_dt.now(_tz.utc) + _td(days=2)).isoformat()
+            events = get_gcal_events(user_id, start_iso=now_iso, end_iso=end_iso, limit=20)
+            # Trim to fields useful for chatbot reasoning — drop ids,
+            # html_link, etc. The point is the chatbot understanding
+            # "what's on the user's plate", not a full calendar view.
+            out["gcal_events"] = [
+                {
+                    "title":     e.get("title", ""),
+                    "start":     e.get("start_iso", ""),
+                    "end":       e.get("end_iso", ""),
+                    "location":  e.get("location", ""),
+                    "all_day":   bool(e.get("all_day")),
+                    "attendees": int(e.get("attendees_count") or 0),
+                }
+                for e in events
+            ]
+    except Exception:
+        pass
+
+    # Outlook — single connector covers both mail + calendar.
+    try:
+        import connectors as _conn
+        from db import get_outlook_emails, get_outlook_events
+        from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+        row = _conn.get_connector(user_id, 'outlook')
+        if row and row.get('status') == _conn.STATUS_CONNECTED:
+            emails = get_outlook_emails(user_id, limit=20) or []
+            unread = sum(1 for e in emails if not e.get("is_read"))
+            out["outlook_mail"] = {
+                "email":        row.get('external_user_id') or '',
+                "unread_count": unread,
+                "cached_count": len(emails),
+                # Top 5 unread for chatbot reasoning ("what important
+                # email do I have?"). Strip large fields.
+                "recent_unread": [
+                    {
+                        "sender":  e.get("sender", ""),
+                        "subject": e.get("subject", ""),
+                        "snippet": (e.get("snippet") or "")[:160],
+                    }
+                    for e in emails if not e.get("is_read")
+                ][:5],
+            }
+            now_iso = _dt.now(_tz.utc).isoformat()
+            end_iso = (_dt.now(_tz.utc) + _td(days=2)).isoformat()
+            events = get_outlook_events(user_id, start_iso=now_iso, end_iso=end_iso, limit=20) or []
+            out["outlook_events"] = [
+                {
+                    "title":     e.get("title", ""),
+                    "start":     e.get("start_iso", ""),
+                    "end":       e.get("end_iso", ""),
+                    "location":  e.get("location", ""),
+                    "all_day":   bool(e.get("all_day")),
+                    "attendees": int(e.get("attendees_count") or 0),
+                }
+                for e in events
+            ]
+    except Exception:
+        pass
+
+    # Health Connect (Android) — today's aggregate. Optional subtree:
+    # `health_today` contains whatever metrics are available, with None
+    # for any not synced yet.
+    try:
+        from db import get_health_daily
+        from datetime import date as _date
+        h = get_health_daily(user_id, _date.today().isoformat())
+        if h and any(h.get(k) is not None for k in ("steps", "sleep_minutes", "resting_hr", "hrv_ms", "active_kcal")):
+            out["health_today"] = {
+                "steps":         h.get("steps"),
+                "sleep_minutes": h.get("sleep_minutes"),
+                "resting_hr":    h.get("resting_hr"),
+                "hrv_ms":        h.get("hrv_ms"),
+                "active_kcal":   h.get("active_kcal"),
+            }
+    except Exception:
+        pass
+
+    # Android Screen Time (UsageStatsManager).
+    try:
+        from db import get_screen_time_daily
+        from datetime import date as _date
+        st = get_screen_time_daily(user_id, _date.today().isoformat())
+        if st:
+            top = []
+            try:
+                import json as _json
+                top = _json.loads(st.get('top_apps_json') or '[]')
+            except Exception:
+                pass
+            out["screen_time"] = {
+                "total_minutes":       int(st.get("total_minutes") or 0),
+                "longest_session_min": st.get("longest_session_min"),
+                "pickups":             st.get("pickups"),
+                "top_apps":            top[:5],
+            }
+    except Exception:
+        pass
+
+    # Location — visits + recurring clusters with reverse-geocoded
+    # place names. The chatbot can reason about "where were you this
+    # morning?" or "how often do you go to the gym?" using semantic
+    # place names, not raw lat/lon. Caps payload size: top 5 visits
+    # today + top 5 lifetime clusters.
+    try:
+        from db import (
+            count_location_samples_today,
+            list_location_clusters,
+        )
+        import location_engine
+        from datetime import date as _date
+        today = _date.today().isoformat()
+        samples_today = count_location_samples_today(user_id, today)
+        if samples_today > 0:
+            pipeline = location_engine.process_day(user_id, today)
+            visits = pipeline.get("visits", [])[:5]
+            clusters = list_location_clusters(user_id, limit=5)
+            out["location"] = {
+                "samples_today": samples_today,
+                "visits_today": [
+                    {
+                        "place":   v.get("place_label") or v.get("place_name") or "unknown",
+                        "start":   v.get("start_iso"),
+                        "end":     v.get("end_iso"),
+                        "dwell_min": v.get("dwell_minutes"),
+                    }
+                    for v in visits
+                ],
+                "recurring_places": [
+                    {
+                        "place":     c.get("place_label") or c.get("place_name") or "unknown",
+                        "total_h":   round((c.get("total_dwell_minutes") or 0) / 60, 1),
+                    }
+                    for c in clusters
+                ],
+            }
+    except Exception:
+        pass
+
+    if not out:
+        return {"status": "not_connected", "note": "User has not connected calendar or email. No life data available."}
+    return out
 
 
 # ── Consent filter (PRD §4.8.7) ──────────────────────────────────────────
@@ -410,16 +598,20 @@ _CONTAINER_SOURCE_GATES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ('LifeContext.outlook_mail', ('outlook',)),
     ('LifeContext.gcal_events', ('gcal',)),
     ('LifeContext.outlook_events', ('outlook',)),
-    ('LifeContext.screen_time', ('apple_family_controls',)),
+    # Screen time: gated if EITHER the iOS or Android source is
+    # opted-out. The data is mutually exclusive (one device = one
+    # source), so requiring both gates simplifies the UX — toggle
+    # "screen time" off in privacy and we strip the subtree regardless
+    # of which OS supplied it.
+    ('LifeContext.screen_time', ('apple_family_controls', 'android_usage_stats')),
     ('LifeContext.location', ('location',)),
+    ('LifeContext.health_today', ('health_connect', 'healthkit')),
     # FinanceContext subtrees
     ('FinanceContext.plaid_transactions', ('plaid',)),
     ('FinanceContext.plaid_accounts', ('plaid',)),
     # FitnessContext subtrees
     ('FitnessContext.strava', ('strava',)),
     ('FitnessContext.garmin', ('garmin',)),
-    # HealthKit-sourced fields live inside several containers; the helper
-    # below strips them when both healthkit and health_connect are off.
 )
 
 
@@ -512,12 +704,17 @@ def answer_query(
     containers_json["FitnessContext"] = fitness
     containers_loaded.append("FitnessContext")
 
-    # Finance + Life are null placeholders per Phase 4 scope. We still
-    # include them so the prompt structure is stable once they go live.
+    # Finance is still a null placeholder (Plaid not wired). Life is
+    # real now (Gmail + Calendar) when those connectors are connected;
+    # falls back to "not_connected" for users with neither.
     containers_json["FinanceContext"] = _finance_context()
     containers_skipped.append("FinanceContext")
-    containers_json["LifeContext"] = _life_context()
-    containers_skipped.append("LifeContext")
+    life_ctx = _life_context(user_id=user_id)
+    containers_json["LifeContext"] = life_ctx
+    if life_ctx.get("status") == "not_connected":
+        containers_skipped.append("LifeContext")
+    else:
+        containers_loaded.append("LifeContext")
 
     # Per-source AI consent filter (PRD §4.8.7). Strips any subtree
     # whose backing source the user has opted out of. In v1 the

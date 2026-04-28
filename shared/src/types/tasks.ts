@@ -35,11 +35,40 @@ export interface UpdateTaskInput {
   task_date?: string;
 }
 
-/** Today's Focus — deterministic ranked list of work to do now (PRD §4.6.4). */
-export interface FocusItem extends Task {
+/** Today's Focus — deterministic ranked list of work to do now (PRD §4.6.4).
+ * Items can come from tasks, unreplied important emails, or upcoming calendar
+ * events. Discriminated by `kind` so the UI can render kind-specific affordances
+ * (checkbox for tasks, no checkbox for emails/events). */
+export type FocusKind = 'task' | 'email' | 'event';
+
+export interface FocusItemBase {
+  kind: FocusKind;
   _focus_priority: FocusPriority;
   _focus_reason: string;
+  /** Display text — what the user reads as the headline of the row. */
+  description: string;
 }
+
+export interface FocusTaskItem extends FocusItemBase, Task {
+  kind: 'task';
+}
+
+export interface FocusEmailItem extends FocusItemBase {
+  kind: 'email';
+  sender: string;
+  subject: string;
+  message_id: string;
+}
+
+export interface FocusEventItem extends FocusItemBase {
+  kind: 'event';
+  start_iso: string;
+  end_iso: string;
+  location: string;
+  all_day: boolean;
+}
+
+export type FocusItem = FocusTaskItem | FocusEmailItem | FocusEventItem;
 
 export interface TimeFocusResponse {
   ok: boolean;

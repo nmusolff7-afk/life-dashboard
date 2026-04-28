@@ -1,0 +1,32 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <!-- Tells Android that we know about the Health Connect provider
+       package. Required since Android 11+ for any code that does
+       PackageManager queries against another app — including the
+       intent-resolution Health Connect uses internally. -->
+  <queries>
+    <package android:name="com.google.android.apps.healthdata" />
+    <intent>
+      <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+    </intent>
+  </queries>
+
+  <application>
+    <!-- VIEW_PERMISSION_USAGE: Health Connect's "more info" link
+         on each permission row points at this. We target the host
+         app's MainActivity so tapping it returns the user to our
+         app. ${applicationId} is replaced by the host package
+         (com.lifedashboard) at manifest-merge time. -->
+    <activity-alias
+      android:name="expo.modules.healthconnect.ViewPermissionUsageActivity"
+      android:exported="true"
+      android:targetActivity="com.lifedashboard.MainActivity"
+      android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+        <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+      </intent-filter>
+    </activity-alias>
+  </application>
+
+</manifest>

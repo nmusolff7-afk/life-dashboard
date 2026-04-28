@@ -1,0 +1,9 @@
+{
+  "name": "health-connect",
+  "version": "0.0.1",
+  "description": "Local Expo module wrapping Android Health Connect via the official androidx.health.connect SDK. Replaces the matinzd/react-native-health-connect npm package, which has a lateinit-launcher race condition incompatible with Expo SDK 54 + new architecture.",
+  "main": "index.ts",
+  "private": true,
+  "dependencies": {},
+  "devDependencies": {}
+}

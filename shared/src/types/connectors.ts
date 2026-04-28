@@ -11,6 +11,7 @@ export type ConnectorProvider =
   | 'strava'
   | 'garmin'
   | 'apple_family_controls'
+  | 'android_usage_stats'
   | 'location';
 
 export type ConnectorStatus =

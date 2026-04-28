@@ -1,0 +1,9 @@
+{
+  "name": "usage-stats",
+  "version": "0.0.1",
+  "description": "Local Expo module that wraps Android UsageStatsManager. Replaces the abandoned react-native-usage-stats-manager npm package.",
+  "main": "index.ts",
+  "private": true,
+  "dependencies": {},
+  "devDependencies": {}
+}

@@ -1102,25 +1102,135 @@ def api_mind_delete_task(task_id):
 @app.route("/api/time/focus", methods=["GET"])
 @login_required
 def api_time_focus():
-    from datetime import date as _d
+    """Today's Focus — deterministic ranked list pulled from three sources:
+      * tasks: overdue / due-today (existing logic)
+      * Gmail: unreplied + important-flagged emails
+      * Calendar: events starting in the next 4 hours
+
+    Items are discriminated by `kind` ('task' | 'email' | 'event') so the
+    mobile UI can render kind-specific affordances (checkbox for tasks,
+    different icon for emails/events). Capped at 5 items returned.
+    """
+    from datetime import date as _d, datetime as _dt, timedelta as _td, timezone as _tz
     today = _d.today().isoformat()
-    tasks = list_user_tasks(uid(), include_completed=False, days_ahead=0)
     ranked: list[dict] = []
-    def tag(t: dict, priority_level: str, reason: str):
-        return {**t, "_focus_priority": priority_level, "_focus_reason": reason}
+
+    def tag(item: dict, kind: str, priority_level: str, reason: str, description: str):
+        return {
+            **item,
+            "kind":             kind,
+            "_focus_priority":  priority_level,
+            "_focus_reason":    reason,
+            "description":      description,
+        }
+
+    # ── Tasks ─────────────────────────────────────────────────────────────
+    tasks = list_user_tasks(uid(), include_completed=False, days_ahead=0)
     for t in tasks:
         if t.get("completed"):
             continue
         due = t.get("due_date")
         is_priority = bool(t.get("priority"))
+        desc = t.get("description", "")
         if due and due < today and is_priority:
-            ranked.append(tag(t, "critical", "overdue priority task"))
+            ranked.append(tag(t, "task", "critical", "overdue priority task", desc))
         elif due == today and is_priority:
-            ranked.append(tag(t, "high", "due today (priority)"))
+            ranked.append(tag(t, "task", "high", "due today (priority)", desc))
         elif due and due < today:
-            ranked.append(tag(t, "medium", "overdue"))
+            ranked.append(tag(t, "task", "medium", "overdue", desc))
         elif due == today or t.get("task_date") == today:
-            ranked.append(tag(t, "normal", "due today"))
+            ranked.append(tag(t, "task", "normal", "due today", desc))
+
+    # ── Gmail: unreplied + important ──────────────────────────────────────
+    try:
+        from db import get_gmail_tokens, get_gmail_cache, get_importance_rules, score_email_importance
+        if get_gmail_tokens(uid()):
+            cached = get_gmail_cache(uid(), limit=100) or []
+            rules = get_importance_rules(uid()) or {}
+            for e in cached:
+                if e.get("is_read") or e.get("has_replied"):
+                    continue
+                score = score_email_importance(e.get("sender", ""), rules) if rules else 0
+                if score <= 0:
+                    continue  # Only surface emails the user has labeled important
+                desc = f"📧 Reply to {e.get('sender', 'unknown')}: {e.get('subject', '(no subject)')}"
+                ranked.append(tag({
+                    "sender":     e.get("sender", ""),
+                    "subject":    e.get("subject", ""),
+                    "message_id": e.get("message_id", ""),
+                }, "email", "high", "unreplied · important", desc))
+    except Exception:
+        _log.exception("time/focus: Gmail surface failed (non-fatal)")
+
+    # ── Calendar (Google + Outlook): events in next 4 hours ──────────────
+    def _add_event_focus(events: list[dict], source_label: str) -> None:
+        now_utc = _dt.now(_tz.utc)
+        for ev in events:
+            if ev.get("all_day"):
+                continue
+            attendees = int(ev.get("attendees_count") or 0)
+            title = ev.get("title", "(untitled event)")
+            try:
+                start_dt = _dt.fromisoformat(ev["start_iso"].replace("Z", "+00:00"))
+                delta_min = max(0, int((start_dt - now_utc).total_seconds() // 60))
+                when = f"in {delta_min} min" if delta_min < 60 else f"in {delta_min // 60}h {delta_min % 60}m"
+            except (ValueError, KeyError):
+                when = "soon"
+            priority = "high" if attendees > 1 else "normal"
+            base = "meeting" if attendees > 1 else "event"
+            reason = f"{base} {when} · {source_label}"
+            desc = f"📅 {title}"
+            ranked.append(tag({
+                "start_iso": ev.get("start_iso", ""),
+                "end_iso":   ev.get("end_iso", ""),
+                "location":  ev.get("location", ""),
+                "all_day":   bool(ev.get("all_day")),
+            }, "event", priority, reason, desc))
+
+    try:
+        import connectors as _conn
+        from db import get_gcal_events, get_outlook_events
+        now_utc = _dt.now(_tz.utc)
+        window_end = now_utc + _td(hours=4)
+        now_iso = now_utc.isoformat()
+        end_iso = window_end.isoformat()
+        gcal_row = _conn.get_connector(uid(), 'gcal')
+        if gcal_row and gcal_row.get('status') == _conn.STATUS_CONNECTED:
+            _add_event_focus(
+                get_gcal_events(uid(), start_iso=now_iso, end_iso=end_iso, limit=10) or [],
+                "Google",
+            )
+        outlook_row = _conn.get_connector(uid(), 'outlook')
+        if outlook_row and outlook_row.get('status') == _conn.STATUS_CONNECTED:
+            _add_event_focus(
+                get_outlook_events(uid(), start_iso=now_iso, end_iso=end_iso, limit=10) or [],
+                "Outlook",
+            )
+    except Exception:
+        _log.exception("time/focus: Calendar surface failed (non-fatal)")
+
+    # ── Outlook: top unread emails ────────────────────────────────────────
+    # Outlook doesn't have the importance-rules system Gmail has yet, so
+    # we surface the most-recent unread (cap 2) so it doesn't drown the
+    # focus list.
+    try:
+        import connectors as _conn
+        from db import get_outlook_emails
+        outlook_row = _conn.get_connector(uid(), 'outlook')
+        if outlook_row and outlook_row.get('status') == _conn.STATUS_CONNECTED:
+            emails = get_outlook_emails(uid(), limit=20) or []
+            unread = [e for e in emails if not e.get("is_read")][:2]
+            for e in unread:
+                desc = f"📬 {e.get('sender', 'unknown')}: {e.get('subject', '(no subject)')}"
+                ranked.append(tag({
+                    "sender":     e.get("sender", ""),
+                    "subject":    e.get("subject", ""),
+                    "message_id": e.get("message_id", ""),
+                }, "email", "normal", "unread · Outlook", desc))
+    except Exception:
+        _log.exception("time/focus: Outlook surface failed (non-fatal)")
+
+    # ── Rank + cap ────────────────────────────────────────────────────────
     ranked.sort(key=lambda r: {"critical": 0, "high": 1, "medium": 2, "normal": 3}[r["_focus_priority"]])
     return jsonify({"ok": True, "focus": ranked[:5], "total_candidates": len(ranked)})
 
@@ -2070,6 +2180,776 @@ def api_gmail_label():
     return jsonify({"ok": True})
 
 
+# ── Google Calendar (BUILD_PLAN_v2 §3.3) ────────────────
+# Mirrors the Gmail mobile OAuth flow — same Google client IDs, same PKCE
+# handling, just different scope (`calendar.readonly`) and API endpoints.
+# Tokens stored in users_connectors as a separate row from Gmail so the
+# user can connect them independently.
+
+import gcal_sync  # noqa: E402
+
+def _gcal_refresh_fn(refresh_token: str) -> dict:
+    """Adapter for connectors.get_valid_access_token. Google returns
+    expires_in (seconds-until); we compute absolute expires_at."""
+    r = gcal_sync.refresh_access_token(refresh_token)
+    expires_in = int(r.get("expires_in") or 3600)
+    return {
+        "access_token":  r.get("access_token"),
+        "refresh_token": r.get("refresh_token"),  # may be None on refresh
+        "expires_at":    int(time.time()) + expires_in,
+    }
+
+
+@app.route("/api/gcal/oauth/init", methods=["POST"])
+@login_required
+def api_gcal_oauth_init():
+    """Issue a state token + the Google authorize URL for Calendar.
+    Body: { redirect_uri }
+    Returns: { ok, auth_url, state }
+    """
+    import oauth_state_store as _oss
+    from api_errors import err, SERVER_CONFIG, VALIDATION_FAILED
+    if not gcal_sync.is_configured():
+        return err(SERVER_CONFIG,
+                   "Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
+                   400)
+    data = request.get_json(silent=True) or {}
+    redirect_uri = (data.get("redirect_uri") or "").strip()
+    if not redirect_uri:
+        return err(VALIDATION_FAILED, "redirect_uri required", 400)
+    state = _oss.create_state(uid(), 'gcal', redirect_after=redirect_uri)
+    auth_url = gcal_sync.get_auth_url(redirect_uri, state=state)
+    return jsonify({"ok": True, "auth_url": auth_url, "state": state})
+
+
+@app.route("/api/gcal/oauth/exchange", methods=["POST"])
+@login_required
+def api_gcal_oauth_exchange():
+    """Exchange auth code for tokens, persist, run an initial sync.
+    Body: { code, redirect_uri, platform?, code_verifier?, state? }
+    Returns: { ok, email, sync: {fetched} }
+    """
+    import oauth_state_store as _oss
+    import connectors as _conn
+    from api_errors import err, OAUTH_STATE_INVALID, OAUTH_EXCHANGE_FAILED, VALIDATION_FAILED
+    data = request.get_json(silent=True) or {}
+    code = (data.get("code") or "").strip()
+    state = (data.get("state") or "").strip()
+    redirect_uri = (data.get("redirect_uri") or "").strip()
+    platform = (data.get("platform") or "").strip().lower() or None
+    code_verifier = (data.get("code_verifier") or "").strip() or None
+    if not (code and redirect_uri):
+        return err(VALIDATION_FAILED, "code and redirect_uri are required", 400)
+    if state:
+        ctx = _oss.consume_state(state, expected_provider='gcal')
+        if ctx and ctx['user_id'] != uid():
+            return err(OAUTH_STATE_INVALID, "OAuth state invalid", 400)
+    if platform in ('ios', 'android') and not code_verifier:
+        return err(VALIDATION_FAILED,
+                   "code_verifier required for native OAuth (PKCE)", 400)
+
+    try:
+        tok = gcal_sync.exchange_code(
+            code, redirect_uri,
+            platform=platform, code_verifier=code_verifier,
+        )
+        access_token  = tok.get("access_token") or ""
+        refresh_token = tok.get("refresh_token") or ""
+        expires_in    = int(tok.get("expires_in") or 3600)
+        expires_at    = int(time.time()) + expires_in
+        if not access_token:
+            return err(OAUTH_EXCHANGE_FAILED, "Google returned no access_token", 502)
+
+        email = ""
+        try:
+            email = gcal_sync.get_user_email(access_token)
+        except Exception:
+            _log.exception("gcal: failed to fetch primary calendar email (non-fatal)")
+
+        _conn.save_connector(
+            uid(), 'gcal',
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_at=expires_at,
+            scopes=gcal_sync.GCAL_SCOPES,
+            external_user_id=email or None,
+            status=_conn.STATUS_CONNECTED,
+            last_sync_at=int(time.time()),
+            last_error=None, last_error_detail=None,
+        )
+
+        # Initial sync — best-effort.
+        fetched = 0
+        try:
+            events = gcal_sync.fetch_events(access_token)
+            from db import upsert_gcal_events
+            fetched = upsert_gcal_events(uid(), events)
+        except Exception:
+            _log.exception("gcal: initial sync failed (non-fatal)")
+
+        _log.info("gcal OAuth: connected user_id=%s email=%s fetched=%d",
+                  uid(), email, fetched)
+        return jsonify({"ok": True, "email": email, "sync": {"fetched": fetched}})
+    except Exception as e:
+        _log.exception("gcal OAuth exchange failed")
+        return err(OAUTH_EXCHANGE_FAILED, "Calendar token exchange failed",
+                   502, detail=str(e)[:200])
+
+
+@app.route("/api/gcal/sync", methods=["POST"])
+@login_required
+def api_gcal_sync():
+    """Manual re-sync. Pulls yesterday + next 7 days, replaces cache."""
+    import connectors as _conn
+    from api_errors import err, CONNECTOR_NOT_FOUND, CONNECTOR_EXPIRED
+    access_token = _conn.get_valid_access_token(uid(), 'gcal',
+                                                refresh_fn=_gcal_refresh_fn)
+    if not access_token:
+        row = _conn.get_connector(uid(), 'gcal')
+        if not row:
+            return err(CONNECTOR_NOT_FOUND, "Calendar not connected", 400)
+        return err(CONNECTOR_EXPIRED, "Calendar reconnect required", 401)
+    try:
+        events = gcal_sync.fetch_events(access_token)
+        from db import upsert_gcal_events
+        fetched = upsert_gcal_events(uid(), events)
+        _conn.save_connector(uid(), 'gcal', last_sync_at=int(time.time()))
+        return jsonify({"ok": True, "sync": {"fetched": fetched}})
+    except Exception as e:
+        _log.exception("gcal manual sync failed")
+        _conn.mark_connector_error(uid(), 'gcal',
+                                   "Calendar sync failed", str(e)[:200])
+        return jsonify({"ok": False, "error": "Calendar sync failed",
+                        "error_code": "upstream_unavailable"}), 502
+
+
+@app.route("/api/gcal/status")
+@login_required
+def api_gcal_status():
+    """Return cached events for today + tomorrow plus sync metadata.
+    The mobile Time tab calls this on focus to render the Calendar card.
+    """
+    import connectors as _conn
+    from db import get_gcal_events
+    row = _conn.get_connector(uid(), 'gcal')
+    connected = bool(row and row.get('status') == _conn.STATUS_CONNECTED)
+    if not connected:
+        return jsonify({"connected": False, "events": []})
+
+    # Pull events from now → +48h. The mobile UI does its own
+    # today-vs-tomorrow split using the events' start times.
+    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+    now_iso = _dt.now(_tz.utc).isoformat()
+    end_iso = (_dt.now(_tz.utc) + _td(days=2)).isoformat()
+    events = get_gcal_events(uid(), start_iso=now_iso, end_iso=end_iso, limit=30)
+    return jsonify({
+        "connected":     True,
+        "email":         row.get('external_user_id') or '',
+        "last_sync_at":  row.get('last_sync_at'),
+        "events":        events,
+    })
+
+
+@app.route("/api/gcal/disconnect", methods=["POST"])
+@login_required
+def api_gcal_disconnect():
+    """Revoke locally + clear cached events. (Google's token revoke
+    endpoint is best-effort; we don't block on it.)"""
+    import connectors as _conn
+    from db import clear_gcal_events
+    _conn.save_connector(
+        uid(), 'gcal',
+        access_token=None,
+        refresh_token=None,
+        expires_at=None,
+        status=_conn.STATUS_REVOKED,
+        last_error=None, last_error_detail=None,
+    )
+    clear_gcal_events(uid())
+    return jsonify({"ok": True})
+
+
+# ── Device-native: Health Connect (Android) ─────────────
+# Phone fetches health metrics from Android Health Connect (via
+# react-native-health-connect) and POSTs aggregates here. Backend
+# stores them in `health_daily`. Same shape used by chatbot LifeContext
+# + Fitness-tab Recovery surfaces.
+
+@app.route("/api/health/sync", methods=["POST"])
+@login_required
+def api_health_sync():
+    """Body: { date: 'YYYY-MM-DD', steps?, sleep_minutes?, resting_hr?,
+              hrv_ms?, active_kcal? }
+    Returns: { ok }
+    """
+    from db import upsert_health_daily
+    import connectors as _conn
+    data = request.get_json(silent=True) or {}
+    stat_date = (data.get("date") or "").strip()
+    if not stat_date:
+        return jsonify({"ok": False, "error": "date required",
+                        "error_code": "validation_failed"}), 400
+
+    def _to_int(v):
+        try:
+            return int(v) if v is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    upsert_health_daily(
+        uid(), stat_date,
+        steps=_to_int(data.get("steps")),
+        sleep_minutes=_to_int(data.get("sleep_minutes")),
+        resting_hr=_to_int(data.get("resting_hr")),
+        hrv_ms=_to_int(data.get("hrv_ms")),
+        active_kcal=_to_int(data.get("active_kcal")),
+    )
+    # Mark connector as connected + bump last_sync_at. Both 'healthkit'
+    # and 'health_connect' provider rows share this sync since the
+    # mobile hook abstracts which platform we're on.
+    try:
+        provider = 'health_connect' if (data.get("platform") == 'android') else 'healthkit'
+        _conn.save_connector(uid(), provider,
+                             status=_conn.STATUS_CONNECTED,
+                             last_sync_at=int(time.time()),
+                             last_error=None, last_error_detail=None)
+    except Exception:
+        _log.exception("health/sync: connector mark failed (non-fatal)")
+    return jsonify({"ok": True})
+
+
+@app.route("/api/health/today")
+@login_required
+def api_health_today():
+    """Returns today's HC aggregates + 7-day history."""
+    from db import get_health_daily, get_health_history
+    today = client_today()
+    return jsonify({
+        "today":   get_health_daily(uid(), today) or {},
+        "history": get_health_history(uid(), days=7),
+    })
+
+
+# ── Device-native: Location ─────────────────────────────
+# Foreground-only for v1. Mobile pushes a sample on app open + every
+# 15 min when the app is foregrounded. Background sampling = v1.1
+# (Apple/Google scrutinize background-location apps heavily).
+
+@app.route("/api/location/sync", methods=["POST"])
+@login_required
+def api_location_sync():
+    """Body: { samples: [ { lat, lon, accuracy_m?, sampled_at?, source? } ] }"""
+    from db import insert_location_samples
+    import connectors as _conn
+    data = request.get_json(silent=True) or {}
+    samples = data.get("samples") or []
+    if not isinstance(samples, list) or not samples:
+        return jsonify({"ok": False, "error": "samples array required",
+                        "error_code": "validation_failed"}), 400
+    inserted = insert_location_samples(uid(), samples)
+    try:
+        _conn.save_connector(uid(), 'location',
+                             status=_conn.STATUS_CONNECTED,
+                             last_sync_at=int(time.time()),
+                             last_error=None, last_error_detail=None)
+    except Exception:
+        _log.exception("location/sync: connector mark failed (non-fatal)")
+    return jsonify({"ok": True, "inserted": inserted})
+
+
+@app.route("/api/location/today")
+@login_required
+def api_location_today():
+    """Today's location summary: visits with reverse-geocoded place
+    names, top recurring clusters, sample count + last sample, plus a
+    Google Static Maps URL for the day's path.
+
+    Heavy work (visit detection + geocoding) only fires when the
+    client asks for it via this endpoint — caching on cluster rows
+    keeps repeat calls cheap.
+    """
+    from db import get_recent_location_samples, count_location_samples_today, list_location_clusters
+    import location_engine
+
+    today = client_today()
+    samples_today = count_location_samples_today(uid(), today)
+    recent = get_recent_location_samples(uid(), limit=1)
+    last = recent[0] if recent else None
+
+    # Pipeline: detect visits → update clusters → geocode pending →
+    # build map URL. Bounded geocoding cost (5 cluster reverse-lookups
+    # max per call).
+    pipeline = location_engine.process_day(uid(), today)
+
+    # Top recurring clusters (lifetime, not today-specific). Auto-label
+    # the top dwell cluster as "home" if user hasn't labeled anything
+    # yet — cheap heuristic, user can override via place_label.
+    clusters = list_location_clusters(uid(), limit=5)
+
+    # Strip private fields for the client (no need to ship sample_count
+    # and timestamps; the UI just wants names + labels + dwell).
+    cluster_summary = [
+        {
+            "id":                  int(c["id"]),
+            "place_name":          c.get("place_name"),
+            "place_label":         c.get("place_label"),
+            "total_dwell_minutes": int(c.get("total_dwell_minutes") or 0),
+            "centroid_lat":        c.get("centroid_lat"),
+            "centroid_lon":        c.get("centroid_lon"),
+        }
+        for c in clusters
+    ]
+
+    return jsonify({
+        "samples_today":  samples_today,
+        "last_sample":    last,
+        "visits":         pipeline["visits"],
+        "map_url":        pipeline["map_url"],
+        "clusters":       cluster_summary,
+        "has_maps_api_key": pipeline["has_api_key"],
+    })
+
+
+# ── Device-native: Android Screen Time ──────────────────
+# Mobile uses UsageStatsManager (requires user to grant Usage Access in
+# system Settings) and POSTs daily aggregates. Backend stores in
+# screen_time_daily. iOS counterpart (Apple Family Controls) is gated
+# on the Apple distribution entitlement and is a separate flow.
+
+@app.route("/api/screen-time/sync", methods=["POST"])
+@login_required
+def api_screen_time_sync():
+    """Body: {
+      date:                 'YYYY-MM-DD',
+      total_minutes:        int,
+      pickups?:             int,
+      longest_session_min?: int,
+      top_apps?:            [ { package, label, minutes } ]
+    }
+    """
+    from db import upsert_screen_time_daily
+    import connectors as _conn
+    data = request.get_json(silent=True) or {}
+    stat_date = (data.get("date") or "").strip()
+    total = data.get("total_minutes")
+    if not stat_date or total is None:
+        return jsonify({"ok": False, "error": "date and total_minutes required",
+                        "error_code": "validation_failed"}), 400
+    try:
+        total_int = int(total)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "total_minutes must be int",
+                        "error_code": "validation_failed"}), 400
+
+    top_apps = data.get("top_apps")
+    top_apps_json = json.dumps(top_apps[:10]) if isinstance(top_apps, list) else None
+
+    def _opt_int(v):
+        try:
+            return int(v) if v is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    upsert_screen_time_daily(
+        uid(), stat_date,
+        total_minutes=total_int,
+        pickups=_opt_int(data.get("pickups")),
+        top_apps_json=top_apps_json,
+        longest_session_min=_opt_int(data.get("longest_session_min")),
+    )
+    try:
+        _conn.save_connector(uid(), 'android_usage_stats',
+                             status=_conn.STATUS_CONNECTED,
+                             last_sync_at=int(time.time()),
+                             last_error=None, last_error_detail=None)
+    except Exception:
+        _log.exception("screen-time/sync: connector mark failed (non-fatal)")
+    return jsonify({"ok": True})
+
+
+@app.route("/api/screen-time/today")
+@login_required
+def api_screen_time_today():
+    """Today's aggregate + 7-day history. top_apps_json is parsed back to
+    a list for the client."""
+    from db import get_screen_time_daily, get_screen_time_history
+    today = client_today()
+    today_row = get_screen_time_daily(uid(), today) or {}
+    history = get_screen_time_history(uid(), days=7)
+
+    def _hydrate(row):
+        if not row:
+            return row
+        try:
+            row["top_apps"] = json.loads(row.get("top_apps_json") or "[]")
+        except Exception:
+            row["top_apps"] = []
+        row.pop("top_apps_json", None)
+        return row
+
+    return jsonify({
+        "today":   _hydrate(today_row),
+        "history": [_hydrate(dict(r)) for r in history],
+    })
+
+
+# ── Outlook (BUILD_PLAN_v2 §3.4) ────────────────────────
+# Microsoft Graph delivers BOTH mail and calendar under one token, so
+# Outlook is a single connector row (vs Google's split). Pattern mirrors
+# Gmail/Calendar otherwise — PKCE on the mobile side, client_secret on
+# the backend, tokens in users_connectors.
+
+import outlook_sync  # noqa: E402
+
+def _outlook_refresh_fn(refresh_token: str) -> dict:
+    r = outlook_sync.refresh_access_token(refresh_token)
+    expires_in = int(r.get("expires_in") or 3600)
+    return {
+        "access_token":  r.get("access_token"),
+        # Microsoft rotates refresh_tokens — always persist the new one.
+        "refresh_token": r.get("refresh_token"),
+        "expires_at":    int(time.time()) + expires_in,
+    }
+
+
+@app.route("/api/outlook/oauth/init", methods=["POST"])
+@login_required
+def api_outlook_oauth_init():
+    """Issue a state token + the Microsoft authorize URL.
+    Body: { redirect_uri }
+    """
+    import oauth_state_store as _oss
+    from api_errors import err, SERVER_CONFIG, VALIDATION_FAILED
+    if not outlook_sync.is_configured():
+        return err(SERVER_CONFIG,
+                   "Outlook OAuth not configured. Set MS_CLIENT_ID and MS_CLIENT_SECRET.",
+                   400)
+    data = request.get_json(silent=True) or {}
+    redirect_uri = (data.get("redirect_uri") or "").strip()
+    if not redirect_uri:
+        return err(VALIDATION_FAILED, "redirect_uri required", 400)
+    state = _oss.create_state(uid(), 'outlook', redirect_after=redirect_uri)
+    auth_url = outlook_sync.get_auth_url(redirect_uri, state=state)
+    return jsonify({"ok": True, "auth_url": auth_url, "state": state})
+
+
+@app.route("/api/outlook/oauth/exchange", methods=["POST"])
+@login_required
+def api_outlook_oauth_exchange():
+    """Exchange auth code for tokens, persist, run an initial sync of
+    both mail (last 7 days) and calendar (yesterday + 7 days).
+    Body: { code, redirect_uri, code_verifier?, state? }
+    """
+    import oauth_state_store as _oss
+    import connectors as _conn
+    from api_errors import err, OAUTH_STATE_INVALID, OAUTH_EXCHANGE_FAILED, VALIDATION_FAILED
+    data = request.get_json(silent=True) or {}
+    code = (data.get("code") or "").strip()
+    state = (data.get("state") or "").strip()
+    redirect_uri = (data.get("redirect_uri") or "").strip()
+    code_verifier = (data.get("code_verifier") or "").strip() or None
+    if not (code and redirect_uri):
+        return err(VALIDATION_FAILED, "code and redirect_uri are required", 400)
+    if state:
+        ctx = _oss.consume_state(state, expected_provider='outlook')
+        if ctx and ctx['user_id'] != uid():
+            return err(OAUTH_STATE_INVALID, "OAuth state invalid", 400)
+
+    try:
+        tok = outlook_sync.exchange_code(code, redirect_uri, code_verifier=code_verifier)
+        access_token  = tok.get("access_token") or ""
+        refresh_token = tok.get("refresh_token") or ""
+        expires_in    = int(tok.get("expires_in") or 3600)
+        expires_at    = int(time.time()) + expires_in
+        if not access_token:
+            return err(OAUTH_EXCHANGE_FAILED, "Microsoft returned no access_token", 502)
+
+        # Fetch profile for external_user_id (their email + display name).
+        email = ""
+        display_name = ""
+        try:
+            profile = outlook_sync.get_user_profile(access_token)
+            email = profile.get("mail") or profile.get("userPrincipalName") or ""
+            display_name = profile.get("displayName") or ""
+        except Exception:
+            _log.exception("outlook: profile fetch failed (non-fatal)")
+
+        _conn.save_connector(
+            uid(), 'outlook',
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_at=expires_at,
+            scopes=outlook_sync.OUTLOOK_SCOPES,
+            external_user_id=email or display_name or None,
+            status=_conn.STATUS_CONNECTED,
+            last_sync_at=int(time.time()),
+            last_error=None, last_error_detail=None,
+        )
+
+        # Initial sync — best effort. Failure here doesn't fail the
+        # connection; user can retry from /sync.
+        sync_result = {"emails": 0, "events": 0}
+        try:
+            from db import upsert_outlook_emails, upsert_outlook_events
+            emails = outlook_sync.fetch_recent_emails(access_token)
+            events = outlook_sync.fetch_events(access_token)
+            sync_result["emails"] = upsert_outlook_emails(uid(), emails)
+            sync_result["events"] = upsert_outlook_events(uid(), events)
+        except Exception:
+            _log.exception("outlook: initial sync failed (non-fatal)")
+
+        _log.info("Outlook OAuth: connected user_id=%s email=%s sync=%s",
+                  uid(), email, sync_result)
+        return jsonify({
+            "ok":      True,
+            "email":   email,
+            "name":    display_name,
+            "sync":    sync_result,
+        })
+    except Exception as e:
+        _log.exception("Outlook OAuth exchange failed")
+        return err(OAUTH_EXCHANGE_FAILED, "Outlook token exchange failed",
+                   502, detail=str(e)[:200])
+
+
+@app.route("/api/outlook/sync", methods=["POST"])
+@login_required
+def api_outlook_sync():
+    """Manual re-sync — refreshes both mail and calendar caches."""
+    import connectors as _conn
+    from api_errors import err, CONNECTOR_NOT_FOUND, CONNECTOR_EXPIRED
+    access_token = _conn.get_valid_access_token(uid(), 'outlook',
+                                                refresh_fn=_outlook_refresh_fn)
+    if not access_token:
+        row = _conn.get_connector(uid(), 'outlook')
+        if not row:
+            return err(CONNECTOR_NOT_FOUND, "Outlook not connected", 400)
+        return err(CONNECTOR_EXPIRED, "Outlook reconnect required", 401)
+    try:
+        from db import upsert_outlook_emails, upsert_outlook_events
+        emails = outlook_sync.fetch_recent_emails(access_token)
+        events = outlook_sync.fetch_events(access_token)
+        emails_count = upsert_outlook_emails(uid(), emails)
+        events_count = upsert_outlook_events(uid(), events)
+        _conn.save_connector(uid(), 'outlook', last_sync_at=int(time.time()))
+        return jsonify({"ok": True, "sync": {"emails": emails_count, "events": events_count}})
+    except Exception as e:
+        _log.exception("Outlook manual sync failed")
+        _conn.mark_connector_error(uid(), 'outlook',
+                                   "Outlook sync failed", str(e)[:200])
+        return jsonify({"ok": False, "error": "Outlook sync failed",
+                        "error_code": "upstream_unavailable"}), 502
+
+
+@app.route("/api/outlook/status")
+@login_required
+def api_outlook_status():
+    """Return Outlook connection status + cached emails/events for Time tab."""
+    import connectors as _conn
+    from db import get_outlook_emails, get_outlook_events
+    row = _conn.get_connector(uid(), 'outlook')
+    connected = bool(row and row.get('status') == _conn.STATUS_CONNECTED)
+    if not connected:
+        return jsonify({"connected": False, "emails": [], "events": []})
+
+    # Events: now → +48h (matches gcal/status pattern)
+    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+    now_iso = _dt.now(_tz.utc).isoformat()
+    end_iso = (_dt.now(_tz.utc) + _td(days=2)).isoformat()
+    events = get_outlook_events(uid(), start_iso=now_iso, end_iso=end_iso, limit=30)
+    emails = get_outlook_emails(uid(), limit=20)
+
+    return jsonify({
+        "connected":    True,
+        "email":        row.get('external_user_id') or '',
+        "last_sync_at": row.get('last_sync_at'),
+        "events":       events,
+        "emails":       emails,
+        "unread_count": sum(1 for e in emails if not e.get("is_read")),
+    })
+
+
+@app.route("/api/outlook/disconnect", methods=["POST"])
+@login_required
+def api_outlook_disconnect():
+    """Revoke locally + clear cached emails/events. Microsoft also has a
+    /me/oauth2PermissionGrants delete endpoint but it's user-flow heavy;
+    local revoke is enough — when the user reconnects they'll get a fresh
+    token and tokens left dangling expire on their own."""
+    import connectors as _conn
+    from db import clear_outlook_emails, clear_outlook_events
+    _conn.save_connector(
+        uid(), 'outlook',
+        access_token=None,
+        refresh_token=None,
+        expires_at=None,
+        status=_conn.STATUS_REVOKED,
+        last_error=None, last_error_detail=None,
+    )
+    clear_outlook_emails(uid())
+    clear_outlook_events(uid())
+    return jsonify({"ok": True})
+
+
+# ── Strava (BUILD_PLAN_v2 §3.6) ─────────────────────────
+# Strava is OAuth 2.0 with a real client_secret (no PKCE), so the mobile
+# flow is simpler than Gmail: client opens the consent URL, captures the
+# `code` from the deep-link callback, posts {code, redirect_uri} here.
+# Tokens live in users_connectors only (no legacy table).
+
+import strava_sync  # noqa: E402
+
+def _strava_refresh_fn(refresh_token: str) -> dict:
+    """Adapter from strava_sync.refresh_access_token's response shape to the
+    contract connectors.get_valid_access_token expects.
+    Strava already returns expires_at as unix seconds — no conversion."""
+    r = strava_sync.refresh_access_token(refresh_token)
+    return {
+        "access_token":  r.get("access_token"),
+        "refresh_token": r.get("refresh_token"),
+        "expires_at":    int(r.get("expires_at") or 0),
+    }
+
+
+@app.route("/api/strava/oauth/init", methods=["POST"])
+@login_required
+def api_strava_oauth_init():
+    """Issue an oauth_states token + the Strava authorize URL.
+    Body: { redirect_uri }  e.g. "lifedashboard://strava-callback"
+    Returns: { ok, auth_url, state }
+    """
+    import oauth_state_store as _oss
+    from api_errors import err, SERVER_CONFIG, VALIDATION_FAILED
+    if not strava_sync.is_configured():
+        return err(SERVER_CONFIG,
+                   "Strava OAuth not configured. Set STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET.",
+                   400)
+    data = request.get_json(silent=True) or {}
+    redirect_uri = (data.get("redirect_uri") or "").strip()
+    if not redirect_uri:
+        return err(VALIDATION_FAILED, "redirect_uri required", 400)
+    state = _oss.create_state(uid(), 'strava', redirect_after=redirect_uri)
+    auth_url = strava_sync.get_auth_url(redirect_uri, state=state, mobile=True)
+    return jsonify({"ok": True, "auth_url": auth_url, "state": state})
+
+
+@app.route("/api/strava/oauth/exchange", methods=["POST"])
+@login_required
+def api_strava_oauth_exchange():
+    """Exchange the auth code for tokens, store in users_connectors, kick off
+    a 90-day backfill.
+
+    Body: { code, redirect_uri, state? }
+    Returns: { ok, athlete: {id, firstname, lastname, ...}, sync: {fetched, inserted, skipped} }
+    """
+    import oauth_state_store as _oss
+    import connectors as _conn
+    from api_errors import err, OAUTH_STATE_INVALID, OAUTH_EXCHANGE_FAILED, VALIDATION_FAILED
+    data = request.get_json(silent=True) or {}
+    code = (data.get("code") or "").strip()
+    state = (data.get("state") or "").strip()
+    redirect_uri = (data.get("redirect_uri") or "").strip()
+    if not (code and redirect_uri):
+        return err(VALIDATION_FAILED, "code and redirect_uri are required", 400)
+
+    # If the mobile flow used /init, validate + consume the state token.
+    # If it didn't (custom client-managed state), we accept whatever was
+    # passed — Strava's OAuth security model relies on the client_secret
+    # held server-side, so state is CSRF protection only.
+    if state:
+        ctx = _oss.consume_state(state, expected_provider='strava')
+        if ctx and ctx['user_id'] != uid():
+            return err(OAUTH_STATE_INVALID, "OAuth state invalid", 400)
+
+    try:
+        tok = strava_sync.exchange_code(code)
+        access_token  = tok.get("access_token") or ""
+        refresh_token = tok.get("refresh_token") or ""
+        expires_at    = int(tok.get("expires_at") or 0)
+        athlete       = tok.get("athlete") or {}
+        athlete_id    = str(athlete.get("id") or "")
+        if not access_token:
+            return err(OAUTH_EXCHANGE_FAILED, "Strava returned no access_token", 502)
+
+        _conn.save_connector(
+            uid(), 'strava',
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_at=expires_at or None,
+            scopes=strava_sync.STRAVA_SCOPES,
+            external_user_id=athlete_id or None,
+            status=_conn.STATUS_CONNECTED,
+            last_sync_at=int(time.time()),
+            last_error=None,
+            last_error_detail=None,
+        )
+
+        # Initial backfill — last 90 days. Best-effort: if it fails, the
+        # connection is still considered successful (user can retry sync
+        # from the connections screen).
+        sync_result = {"fetched": 0, "inserted": 0, "skipped": 0}
+        try:
+            sync_result = strava_sync.sync_user_activities(uid(), access_token)
+        except Exception:
+            _log.exception("Strava: initial backfill failed (non-fatal)")
+
+        _log.info("Strava OAuth: connected user_id=%s athlete_id=%s sync=%s",
+                  uid(), athlete_id, sync_result)
+        return jsonify({"ok": True, "athlete": athlete, "sync": sync_result})
+    except Exception as e:
+        _log.exception("Strava OAuth exchange failed")
+        return err(OAUTH_EXCHANGE_FAILED, "Strava token exchange failed",
+                   502, detail=str(e)[:200])
+
+
+@app.route("/api/strava/sync", methods=["POST"])
+@login_required
+def api_strava_sync():
+    """Manual re-sync. Pulls last 90 days, deduped against strava_activity_id.
+    Returns: { ok, sync: {fetched, inserted, skipped} }
+    """
+    import connectors as _conn
+    from api_errors import err, CONNECTOR_NOT_FOUND, CONNECTOR_EXPIRED
+    access_token = _conn.get_valid_access_token(uid(), 'strava',
+                                                refresh_fn=_strava_refresh_fn)
+    if not access_token:
+        row = _conn.get_connector(uid(), 'strava')
+        if not row:
+            return err(CONNECTOR_NOT_FOUND, "Strava not connected", 400)
+        return err(CONNECTOR_EXPIRED, "Strava reconnect required", 401)
+    try:
+        sync_result = strava_sync.sync_user_activities(uid(), access_token)
+        _conn.save_connector(uid(), 'strava', last_sync_at=int(time.time()))
+        return jsonify({"ok": True, "sync": sync_result})
+    except Exception as e:
+        _log.exception("Strava manual sync failed")
+        _conn.mark_connector_error(uid(), 'strava',
+                                   "Strava sync failed", str(e)[:200])
+        return jsonify({"ok": False, "error": "Strava sync failed",
+                        "error_code": "upstream_unavailable"}), 502
+
+
+@app.route("/api/strava/disconnect", methods=["POST"])
+@login_required
+def api_strava_disconnect():
+    """Revoke Strava access — deauthorize upstream + flip local row to revoked.
+    Existing imported activities stay in workout_logs."""
+    import connectors as _conn
+    row = _conn.get_connector(uid(), 'strava')
+    if row and row.get('access_token'):
+        strava_sync.deauthorize(row['access_token'])
+    _conn.save_connector(
+        uid(), 'strava',
+        access_token=None,
+        refresh_token=None,
+        expires_at=None,
+        status=_conn.STATUS_REVOKED,
+        last_error=None,
+        last_error_detail=None,
+    )
+    return jsonify({"ok": True})
+
+
 # ── Chatbot (PRD §4.7) ──────────────────────────────────
 # Buffered (non-SSE) chatbot endpoint per locked C3. Builds 9 typed
 # context containers (Profile/Goals/Nutrition/Fitness real; Finance/Life
@@ -2703,7 +3583,8 @@ def api_workout_history():
     with get_conn() as conn:
         rows = conn.execute(
             """
-            SELECT id, user_id, log_date, logged_at, description, calories_burned
+            SELECT id, user_id, log_date, logged_at, description, calories_burned,
+                   session_type, strava_activity_id
             FROM workout_logs
             WHERE user_id = ? AND log_date >= ?
             ORDER BY log_date DESC, logged_at DESC, id DESC

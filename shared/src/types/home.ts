@@ -31,6 +31,10 @@ export interface Workout {
   /** AI-classified workout shape, persisted by /api/log-workout. Null on
    *  legacy rows logged before the classifier was introduced. */
   session_type?: WorkoutSessionType | null;
+  /** Strava activity id (string) when the row was imported from Strava.
+   *  Drives the "from Strava" marker in WorkoutHistoryList and prevents
+   *  duplicates on re-sync. */
+  strava_activity_id?: string | null;
 }
 
 export interface NutritionTotals {

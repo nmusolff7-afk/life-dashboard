@@ -1,0 +1,19 @@
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+apply plugin: 'expo-module-gradle-plugin'
+
+group = 'expo.modules.usagestats'
+version = '0.0.1'
+
+android {
+  namespace 'expo.modules.usagestats'
+
+  defaultConfig {
+    versionCode 1
+    versionName '0.0.1'
+  }
+
+  // SDK versions, ndk, kotlin version are inherited from the Expo root
+  // project (ExpoRootProject convention). Do NOT pin them here — that
+  // breaks autolinking on SDK upgrades.
+}
