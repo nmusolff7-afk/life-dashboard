@@ -2,8 +2,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { GoalRow, TabHeader } from '../../components/apex';
-import { SegmentedControl } from '../../components/ui';
+import { GoalRow, SubTabs, TabHeader } from '../../components/apex';
 import { useGoals } from '../../lib/hooks/useGoals';
 import {
   deleteTransaction, markBillPaid, useFinanceBills,
@@ -77,19 +76,24 @@ export default function FinanceScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <TabHeader title="Finance" />
-
-      <View style={styles.tabsWrap}>
-        <SegmentedControl<Tab>
-          value={tab}
-          onChange={setTab}
-          options={[
-            { value: 'today', label: 'Today' },
-            { value: 'progress', label: 'Progress' },
-            { value: 'history', label: 'History' },
-          ]}
-        />
-      </View>
+      {/* Match Fitness + Nutrition tab pattern (founder INBOX
+       *  2026-04-28): SubTabs lives inside TabHeader's right slot,
+       *  not as a separate row below. */}
+      <TabHeader
+        title="Finance"
+        right={
+          <SubTabs<Tab>
+            tabs={[
+              { value: 'today', label: 'Today' },
+              { value: 'progress', label: 'Progress' },
+              { value: 'history', label: 'History' },
+            ]}
+            value={tab}
+            onChange={setTab}
+            compact
+          />
+        }
+      />
 
       <ScrollView
         contentContainerStyle={styles.content}

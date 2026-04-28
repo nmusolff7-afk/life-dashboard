@@ -135,7 +135,7 @@ export default function StrengthDetail() {
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text style={[styles.sessionDesc, { color: t.text }]} numberOfLines={2}>
                       {w.description}
-                      {w.strava_activity_id ? ' 🏃' : ''}
+                      {w.strava_activity_id ? ' · Strava' : ''}
                     </Text>
                     <Text style={[styles.sessionMeta, { color: t.muted }]}>
                       {w.log_date}

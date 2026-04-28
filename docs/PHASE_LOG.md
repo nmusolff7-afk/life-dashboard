@@ -1407,3 +1407,64 @@ after adding `GOOGLE_MAPS_API_KEY` to `.env`. Resolved.
 - **Manual checks (pending):** see Manual checks section in
   INBOX.md — drafted 5 new items for this phase + still
   carrying 12 from previous phases. Founder responds inline.
+
+### 25:00 — Tab visual consistency (Finance + Time match Fitness + Nutrition) + key emoji → Ionicons sweep
+- **Prompt:** "continue" — pick the next phase.
+- **Did:**
+  1. **Triaged INBOX** — no new items; 15 unresponded manual
+     checks carry forward.
+  2. **Active phase: Tab visual consistency (~3h shipped).**
+     - **Finance tab** (`mobile/app/(tabs)/finance.tsx`):
+       replaced the standalone `<View><SegmentedControl/></View>`
+       row below the TabHeader with a compact `<SubTabs>` chip
+       inside `TabHeader`'s `right` slot — matching the
+       Fitness + Nutrition pattern.
+     - **Time tab** (`mobile/app/(tabs)/time.tsx`): same
+       conversion. Now all four main tabs share the visual
+       rhythm.
+  3. **Emoji → Ionicons (key surfaces).**
+     - `GoalRow.tsx`: `CATEGORY_EMOJI` (💪🥗💰⏰) → `CATEGORY_ICON`
+       Ionicons (barbell-outline / restaurant-outline /
+       wallet-outline / time-outline). Each renders in a
+       colored circle that picks up the goal's pace color.
+     - `HealthConnectCard.tsx`: ❤️ Health Connect →
+       `<Ionicons name="heart-outline" />` Health Connect
+       (both empty + populated states).
+     - `AttentionCards.tsx` ScreenTimeCard: 📱 Screen Time →
+       `phone-portrait-outline`. LocationCard: 📍 Location →
+       `location-outline`. New shared `titleRow` style for the
+       icon-plus-text header pattern.
+     - Strava-sourced row markers: 🏃 → " · Strava" text suffix
+       across `WorkoutHistoryList`, `cardio.tsx`,
+       `strength.tsx`, `day/[date].tsx`.
+- **Files:** `mobile/app/(tabs)/finance.tsx`,
+  `mobile/app/(tabs)/time.tsx`,
+  `mobile/components/apex/GoalRow.tsx`,
+  `mobile/components/apex/HealthConnectCard.tsx`,
+  `mobile/components/apex/AttentionCards.tsx`,
+  `mobile/components/apex/WorkoutHistoryList.tsx`,
+  `mobile/app/fitness/subsystem/cardio.tsx`,
+  `mobile/app/fitness/subsystem/strength.tsx`,
+  `mobile/app/day/[date].tsx`,
+  `docs/BUILD_PLAN.md`, `docs/INBOX.md`.
+- **Decisions:**
+  - **Kept `SegmentedControl` import in Time/Finance dead
+    until next refactor** — the unused `tabsWrap` style is
+    harmless. Cleanup bundles with the next time/finance
+    work.
+  - **Strava row marker → text not icon.** "Strava" reads
+    cleaner than an inline runner icon at small font size,
+    and avoids needing brand-permission for the Strava logo.
+  - **GoalRow icon in colored circle** picks up
+    `paceColor` (ahead = blue, on-track = green, behind =
+    amber, paused = orange). Adds a second visual signal to
+    the row without new chrome.
+  - **Skipped the bigger emoji sweep** — EmptyState defaults
+    (icon prop is a string, would need API change),
+    TodayBalanceCard 🎯, etc. Filed as a smaller follow-up
+    "Emoji → Ionicons sweep — micro-surfaces" in Backlog
+    → Later (~2h).
+- **Outcome:** Shipping. TS clean (only pre-existing
+  finance.tsx). All JS — no rebuild.
+- **Manual checks (pending):** drafted 4 new items in
+  `docs/INBOX.md` under "From Tab visual consistency".

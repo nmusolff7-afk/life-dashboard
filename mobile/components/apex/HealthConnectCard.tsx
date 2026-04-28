@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -70,7 +71,10 @@ export function HealthConnectCard() {
     return (
       <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border, opacity: 0.85 }]}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: t.text }]}>❤️ Health Connect</Text>
+          <View style={styles.titleRow}>
+            <Ionicons name="heart-outline" size={16} color={t.danger} />
+            <Text style={[styles.title, { color: t.text }]}>Health Connect</Text>
+          </View>
           <View style={[styles.pill, { borderColor: t.border }]}>
             <Text style={[styles.pillText, { color: t.subtle }]}>Not connected</Text>
           </View>
@@ -85,7 +89,10 @@ export function HealthConnectCard() {
   return (
     <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: t.text }]}>❤️ Health Connect</Text>
+        <View style={styles.titleRow}>
+          <Ionicons name="heart-outline" size={16} color={t.danger} />
+          <Text style={[styles.title, { color: t.text }]}>Health Connect</Text>
+        </View>
         <Pressable onPress={onSync} disabled={syncing || hc.loading} hitSlop={10}>
           <Text style={[styles.linkText, { color: t.accent, opacity: (syncing || hc.loading) ? 0.5 : 1 }]}>
             {syncing || hc.loading ? 'Syncing…' : 'Sync now'}
@@ -142,6 +149,7 @@ function fmtSleep(min: number | null | undefined): string {
 const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 6 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   title: { fontSize: 14, fontWeight: '700' },
   sub: { fontSize: 12 },
   pill: { borderWidth: 1, borderRadius: 100, paddingVertical: 3, paddingHorizontal: 10 },

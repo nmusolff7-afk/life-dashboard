@@ -1,13 +1,17 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Goal, GoalPaceIndicator } from '../../../shared/src/types/goals';
 import { useTokens } from '../../lib/theme';
 
-const CATEGORY_EMOJI: Record<string, string> = {
-  fitness: '💪',
-  nutrition: '🥗',
-  finance: '💰',
-  time: '⏰',
+// 2026-04-28 founder INBOX: replaced category emojis with Ionicons
+// to match the tab-bar icon family. Same icons used across the app
+// for consistency.
+const CATEGORY_ICON: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
+  fitness: 'barbell-outline',
+  nutrition: 'restaurant-outline',
+  finance: 'wallet-outline',
+  time: 'time-outline',
 };
 
 const PACE_COLOR: Record<GoalPaceIndicator, string> = {
@@ -41,7 +45,13 @@ export function GoalRow({ goal, onPress }: { goal: Goal; onPress: () => void }) 
         },
       ]}>
       <View style={styles.header}>
-        <Text style={styles.emoji}>{CATEGORY_EMOJI[goal.category] ?? '🎯'}</Text>
+        <View style={[styles.iconWrap, { backgroundColor: paceColor + '22' }]}>
+          <Ionicons
+            name={CATEGORY_ICON[goal.category] ?? 'flag-outline'}
+            size={16}
+            color={paceColor}
+          />
+        </View>
         <View style={{ flex: 1 }}>
           <Text style={[styles.name, { color: t.text }]} numberOfLines={1}>{goal.display_name}</Text>
           <Text style={[styles.sub, { color: t.muted }]} numberOfLines={1}>
@@ -65,7 +75,13 @@ export function GoalRow({ goal, onPress }: { goal: Goal; onPress: () => void }) 
 const styles = StyleSheet.create({
   row: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 10 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  emoji: { fontSize: 22 },
+  iconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   name: { fontSize: 15, fontWeight: '600' },
   sub: { fontSize: 12, marginTop: 2 },
   pacePill: { borderWidth: 1, borderRadius: 100, paddingVertical: 3, paddingHorizontal: 8 },

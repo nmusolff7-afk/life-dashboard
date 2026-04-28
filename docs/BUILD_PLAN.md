@@ -196,23 +196,20 @@ the project will become.
 
 ### Now — pick the next phase from here
 
-- **Replace emojis with proper icons app-wide** (~3h) — INBOX 2026-04-28
-  - **Founder symptom:** "Get rid of emojis and use only good
-    logos everywhere like you do for the tab icons."
-  - **Scope:** Cross-cutting design refactor. Inventory of
-    emoji-string usage in `mobile/`: WorkoutHistoryList row
-    (🏃 for Strava), Movement subsystem, EmptyState defaults,
-    HealthConnectCard (❤️), FAB labels, etc. Replace each with
-    an `Ionicons` (or matching icon from
-    `@expo/vector-icons`) consistent with the tab-bar icon
-    family. Standardize on a single icon set.
-  - **Files:** grep `mobile/` for emoji literals (heart /
-    target / strava-runner / hourglass / clock).
-  - **Done when:** No emoji glyph survives in user-facing
-    strings; everything's `<Ionicons>` or matched icons.
-  - **Trigger:** Bundle into the next visual-consistency
-    phase (probably "Tab visual consistency" since they
-    overlap on shared design tokens).
+- **Emoji → Ionicons sweep — micro-surfaces** (~2h) — partial shipped 2026-04-28
+  - **Status (2026-04-28):** Hottest emoji surfaces fixed in
+    Tab visual consistency phase: GoalRow category icons
+    (💪🥗💰⏰ → barbell / restaurant / wallet / time-outline),
+    HealthConnectCard ❤️ → heart-outline, ScreenTimeCard 📱
+    → phone-portrait-outline, LocationCard 📍 → location-outline,
+    Strava-row 🏃 → " · Strava" text suffix.
+  - **Remaining (this Later item):** EmptyState defaults
+    (icons prop is already an emoji string — needs API change),
+    DayStrip kind colors / labels for source types (currently
+    text-only, no emojis but could benefit from icons),
+    TodayBalanceCard 🎯, occasional emoji elsewhere in copy.
+  - **Trigger:** Founder feedback says Time tab (or any other
+    surface) still feels emoji-heavy.
 
 - **Unified inbox view (Gmail + Outlook combined, click to read)** (~6h) — INBOX 2026-04-28
   - **Founder symptom:** "Need to see all emails, need
@@ -290,21 +287,6 @@ the project will become.
     them.
   - **Done when:** Founder reports the chart matches their
     daily meal logs.
-
-- **Tab visual consistency: Finance + Time match Fitness + Nutrition** (~3h) — INBOX 2026-04-28
-  - **Founder symptom:** "The layout of the Finance and Time
-    tabs looks nothing like the Fitness and Nutrition. The way
-    the tabs are laid out and the tab selector looks."
-  - **Scope:** Compare `mobile/app/(tabs)/finance.tsx` and
-    `time.tsx` against `fitness.tsx` and `nutrition.tsx`. Port
-    the same SubTabs / sub-section pattern, the same hero card
-    structure, the same density. Each of the 4 main tabs should
-    feel like a sibling, not stylistically branched.
-  - **Files:** `mobile/app/(tabs)/finance.tsx`,
-    `mobile/app/(tabs)/time.tsx`. Reference: `fitness.tsx`,
-    `nutrition.tsx`.
-  - **Done when:** Founder confirms the four tabs feel
-    consistent.
 
 - 
   - **Scope:** Alert chain on first-connect is fragile —

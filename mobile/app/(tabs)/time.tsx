@@ -2,8 +2,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { CalendarTodayCard, DayStrip, EmptyState, GmailSummaryCard, GoalRow, LocationCard, OutlookCard, ScreenTimeCard, TabHeader, TimeTodaySignals } from '../../components/apex';
-import { SegmentedControl } from '../../components/ui';
+import { CalendarTodayCard, DayStrip, EmptyState, GmailSummaryCard, GoalRow, LocationCard, OutlookCard, ScreenTimeCard, SubTabs, TabHeader, TimeTodaySignals } from '../../components/apex';
 import { useGoals } from '../../lib/hooks/useGoals';
 import { deleteTask, toggleTask, useTasks, useTimeFocus } from '../../lib/hooks/useTasks';
 import { useAutoSyncOnFocus, useGcalStatus, useGmailStatus, useOutlookStatus } from '../../lib/hooks/useTimeData';
@@ -95,19 +94,23 @@ export default function TimeScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <TabHeader title="Time" />
-
-      <View style={styles.tabsWrap}>
-        <SegmentedControl<Tab>
-          value={tab}
-          onChange={setTab}
-          options={[
-            { value: 'today', label: 'Today' },
-            { value: 'patterns', label: 'Patterns' },
-            { value: 'timeline', label: 'Timeline' },
-          ]}
-        />
-      </View>
+      {/* Match Fitness + Nutrition tab pattern (founder INBOX
+       *  2026-04-28): SubTabs in TabHeader's right slot. */}
+      <TabHeader
+        title="Time"
+        right={
+          <SubTabs<Tab>
+            tabs={[
+              { value: 'today', label: 'Today' },
+              { value: 'patterns', label: 'Patterns' },
+              { value: 'timeline', label: 'Timeline' },
+            ]}
+            value={tab}
+            onChange={setTab}
+            compact
+          />
+        }
+      />
 
       <ScrollView
         contentContainerStyle={styles.content}

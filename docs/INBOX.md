@@ -47,6 +47,20 @@ write naturally, Claude figures it out.
 > - `[~]` — partially works; describe what's off
 > - delete the line entirely if you don't care about it anymore
 
+### From Tab visual consistency — 2026-04-28
+
+- [ ] **Time + Finance tab top bar** — both now use the same compact `<SubTabs>` chip in the TabHeader's right slot (matching Fitness + Nutrition), instead of a separate full-width segmented row below
+  → response:
+
+- [ ] **Goal row icons** — Goals tab + Today tab Active Goals strip — each row's left-side icon is now an Ionicon in a colored circle (barbell / restaurant / wallet / time-outline), not the emoji 💪🥗💰⏰
+  → response:
+
+- [ ] **Card titles cleaned up** — HealthConnectCard, ScreenTimeCard, LocationCard show an Ionicon next to the title text instead of an emoji prefix (heart, phone-portrait, location)
+  → response:
+
+- [ ] **Strava-sourced workout rows** — show "· Strava" text suffix instead of the 🏃 emoji on WorkoutHistoryList + cardio + strength + day-detail rows
+  → response:
+
 ### From Time tab content density — 2026-04-28
 
 - [ ] **Time tab → Today subtab signal chips** — between the 3-cell summary row and Today's Focus card, four chips appear: Screen / Places / Focus / Meetings. Values populate from your real data within ~1s

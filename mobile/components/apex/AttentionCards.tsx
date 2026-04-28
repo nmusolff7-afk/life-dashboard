@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
 
@@ -121,7 +122,10 @@ export function ScreenTimeCard() {
     return (
       <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border, opacity: 0.85 }]}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: t.text }]}>📱 Screen Time</Text>
+          <View style={styles.titleRow}>
+            <Ionicons name="phone-portrait-outline" size={16} color={t.text} />
+            <Text style={[styles.title, { color: t.text }]}>Screen Time</Text>
+          </View>
           <View style={[styles.pill, { borderColor: t.border }]}>
             <Text style={[styles.pillText, { color: t.subtle }]}>
               {isPermitted ? 'Syncing…' : 'No data'}
@@ -144,7 +148,10 @@ export function ScreenTimeCard() {
   return (
     <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: t.text }]}>📱 Screen Time</Text>
+        <View style={styles.titleRow}>
+          <Ionicons name="phone-portrait-outline" size={16} color={t.text} />
+          <Text style={[styles.title, { color: t.text }]}>Screen Time</Text>
+        </View>
       </View>
       <Text style={[styles.bigStat, { color: t.text }]}>{totalLabel}</Text>
       <Text style={[styles.sub, { color: t.muted }]}>on phone today</Text>
@@ -190,7 +197,10 @@ export function LocationCard() {
     return (
       <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border, opacity: 0.85 }]}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: t.text }]}>📍 Location</Text>
+          <View style={styles.titleRow}>
+            <Ionicons name="location-outline" size={16} color={t.text} />
+            <Text style={[styles.title, { color: t.text }]}>Location</Text>
+          </View>
           <View style={[styles.pill, { borderColor: t.border }]}>
             <Text style={[styles.pillText, { color: t.subtle }]}>No samples</Text>
           </View>
@@ -329,6 +339,7 @@ function formatLastTime(iso: string): string {
 const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 6 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   title: { fontSize: 14, fontWeight: '700' },
   sub: { fontSize: 12 },
   subFootnote: { fontSize: 10, marginTop: 6 },

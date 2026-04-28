@@ -246,7 +246,7 @@ export default function DayDetailScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.rowDesc, { color: t.text }]} numberOfLines={2}>
                       {w.description}
-                      {w.strava_activity_id ? ' 🏃' : ''}
+                      {w.strava_activity_id ? ' · Strava' : ''}
                     </Text>
                     <Text style={[styles.rowMeta, { color: t.muted }]}>
                       {formatTime(w.logged_at)}
