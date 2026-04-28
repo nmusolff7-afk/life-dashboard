@@ -196,6 +196,51 @@ the project will become.
 
 ### Now — pick the next phase from here
 
+- **Email importance flag not surfacing** (~1h) — INBOX 2026-04-28
+  - **Founder symptom:** "Nothing's marked as important right
+    now from emails."
+  - **Scope:** Gmail's importance classifier returns a
+    boolean per message; `gmail_summaries` schema has the
+    field but no UI surface displays it. Add an importance
+    indicator (filled dot / star) on the email previews in
+    `TimeSubsystemCards.tsx`. Possibly also feed importance
+    into Today's Focus ranking.
+  - **Files:** `mobile/components/apex/TimeSubsystemCards.tsx`,
+    `gmail_sync.py` if importance isn't being persisted.
+  - **Done when:** At least one inbox item shows an
+    importance flag when Gmail flags it.
+
+- **Unified inbox view (Gmail + Outlook combined, click to read)** (~6h) — INBOX 2026-04-28
+  - **Founder symptom:** "Need to see all emails, need
+    Outlook and Gmail inboxes combined, need to be able to
+    click on emails to read them."
+  - **Scope:** New `mobile/app/time/inbox.tsx` route — merged
+    chronological list of `gmail_summaries` + `outlook_emails`
+    rows. Tap a row → modal with full body + reply / mark-
+    read affordances (real read needs Gmail send scope and/or
+    Outlook send scope, which expands OAuth scopes — flag
+    that as a sub-decision when starting).
+  - **Files:** new `mobile/app/time/inbox.tsx`, new email
+    detail modal component, possibly extend `gmail_sync.py`
+    + `outlook_sync.py` to pull message bodies (currently
+    only snippets).
+  - **Done when:** Tap email count on Time tab → unified
+    inbox; tap a message → readable detail.
+
+- **Combined calendar card (Google + Outlook in one)** (~2h) — INBOX 2026-04-28
+  - **Founder symptom:** "Need to combine Google and
+    Microsoft calendars into one card."
+  - **Scope:** Time tab currently shows separate
+    `CalendarTodayCard` (Google) and `OutlookCard` (Outlook).
+    Merge into one card showing today's events from both
+    providers, ranked chronologically, with a small provider
+    badge per event.
+  - **Files:** new `mobile/components/apex/UnifiedCalendarCard.tsx`,
+    `mobile/app/(tabs)/time.tsx` (replace the two cards with
+    one).
+  - **Done when:** Time tab shows a single calendar card
+    with both providers' events interleaved.
+
 - **Screen Time "still says connect" stale state** (~1h) — INBOX 2026-04-28
   - **Founder symptom:** "Screen time still shows to connect
     screen time in settings even though I've done it and it

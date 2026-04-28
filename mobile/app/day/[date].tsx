@@ -228,7 +228,16 @@ export default function DayDetailScreen() {
               workouts.map((w) => (
                 <Pressable
                   key={w.id}
-                  onPress={() => setEditingWorkout(w)}
+                  onPress={() => {
+                    if (w.strava_activity_id) {
+                      router.push({
+                        pathname: '/fitness/strava-activity/[id]',
+                        params: { id: w.strava_activity_id, name: w.description },
+                      });
+                    } else {
+                      setEditingWorkout(w);
+                    }
+                  }}
                   style={({ pressed }) => [
                     styles.rowItem,
                     { borderBottomColor: t.border, opacity: pressed ? 0.6 : 1 },
@@ -237,6 +246,7 @@ export default function DayDetailScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.rowDesc, { color: t.text }]} numberOfLines={2}>
                       {w.description}
+                      {w.strava_activity_id ? ' 🏃' : ''}
                     </Text>
                     <Text style={[styles.rowMeta, { color: t.muted }]}>
                       {formatTime(w.logged_at)}

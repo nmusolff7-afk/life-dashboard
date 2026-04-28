@@ -20,6 +20,7 @@ import {
 } from '../../components/apex';
 import { logWeight, logWorkout } from '../../lib/api/fitness';
 import { classifyAsStrength } from '../../lib/strengthHelpers';
+import { healthHubLabel, useHealthData, useHealthToday } from '../../lib/hooks/useHealthData';
 import {
   useProfile,
   useSavedWorkouts,
@@ -120,15 +121,31 @@ export default function FitnessScreen() {
   const todayWorkouts = workouts.data?.workouts ?? [];
   const lastWorkout = todayWorkouts[todayWorkouts.length - 1];
 
+  // HC data flowing into the subsystem hints — fixes founder's
+  // "movement card shows steps inside but not outside" + "sleep
+  // and recovery still say connect Apple Health" symptoms (INBOX
+  // 2026-04-28). HC steps override manual entry when permitted +
+  // present.
+  const hc = useHealthData();
+  const { today: hcToday } = useHealthToday();
+  const hcSteps = (hc.permitted && hcToday?.steps != null) ? hcToday.steps : null;
+  const stepsForHint = hcSteps ?? stepsState.steps ?? 0;
+
   // Per-subsystem hints — parent derives, child renders.
   const hints = useMemo(() => buildSubsystemHints({
-    stepsToday: stepsState.steps ?? 0,
+    stepsToday: stepsForHint,
+    stepsFromHC: hcSteps != null,
+    sleepMinutes: hcToday?.sleep_minutes ?? null,
+    hrvMs: hcToday?.hrv_ms ?? null,
+    activeKcal: hcToday?.active_kcal ?? null,
+    hcPermitted: hc.permitted,
     totalBurn: balance.totalBurn,
     weightLbs: weight,
     lastWorkoutDesc: lastWorkout?.description ?? null,
     weightUnit: units.weightUnit,
     formatWeight: units.formatWeight,
-  }), [stepsState.steps, balance.totalBurn, weight, lastWorkout, units]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [stepsForHint, hcSteps, hcToday?.sleep_minutes, hcToday?.hrv_ms, hcToday?.active_kcal, hc.permitted, balance.totalBurn, weight, lastWorkout, units]);
 
   const subsystems = fitnessScore.data?.subsystems ?? [];
   const orderedSubs = orderSubsystems(subsystems);
@@ -445,12 +462,37 @@ function orderSubsystems(subs: SubsystemScore[]): SubsystemScore[] {
 
 function buildSubsystemHints(ctx: {
   stepsToday: number;
+  stepsFromHC: boolean;
+  sleepMinutes: number | null;
+  hrvMs: number | null;
+  activeKcal: number | null;
+  hcPermitted: boolean;
   totalBurn: number | null;
   weightLbs: number | null;
   lastWorkoutDesc: string | null;
   weightUnit: string;
   formatWeight: (n: number | null) => string;
 }): Record<string, string> {
+  // Sleep / Recovery hints reflect HC reality on Android. Founder
+  // flagged 2026-04-28: cards still said "Connect Apple Health"
+  // even when HC was connected and had data.
+  const hub = healthHubLabel();
+  const sleepHint = ctx.sleepMinutes != null
+    ? `${Math.floor(ctx.sleepMinutes / 60)}h ${ctx.sleepMinutes % 60}m last night`
+    : ctx.hcPermitted
+      ? `${hub} connected — no sleep data yet`
+      : `Connect ${hub} to activate`;
+  const recoveryHint = ctx.hrvMs != null
+    ? `${ctx.hrvMs}ms HRV today`
+    : ctx.hcPermitted
+      ? `${hub} connected — no HRV data yet`
+      : `Connect ${hub} to activate`;
+  // Movement hint: HC steps override manual when present.
+  const movementHint = ctx.stepsToday > 0
+    ? `${ctx.stepsToday.toLocaleString()} steps${ctx.stepsFromHC ? ` · ${hub}` : ''}`
+    : ctx.hcPermitted
+      ? `${hub} connected — no step data yet`
+      : 'No steps logged today';
   return {
     plan: ctx.lastWorkoutDesc
       ? `Last: ${ctx.lastWorkoutDesc.slice(0, 40)}`
@@ -464,11 +506,9 @@ function buildSubsystemHints(ctx: {
     body: ctx.weightLbs != null
       ? `${ctx.formatWeight(ctx.weightLbs)} today`
       : 'Log weight to activate',
-    movement: ctx.stepsToday > 0
-      ? `${ctx.stepsToday.toLocaleString()} steps today`
-      : 'No steps logged today',
-    sleep: 'Connect Apple Health to activate',
-    recovery: 'Connect Apple Health to activate',
+    movement: movementHint,
+    sleep: sleepHint,
+    recovery: recoveryHint,
   };
 }
 

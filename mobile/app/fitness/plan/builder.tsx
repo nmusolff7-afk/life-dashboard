@@ -171,7 +171,7 @@ export default function WorkoutBuilder() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: 120 + insets.bottom }]}
+        contentContainerStyle={[styles.content, { paddingBottom: 80 + insets.bottom }]}
         keyboardShouldPersistTaps="handled">
         {step === 'days' ? (
           <>
@@ -649,18 +649,24 @@ function parseInitialQuiz(raw: string | string[] | undefined): BuilderInitialSta
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 16, paddingBottom: 120, gap: 12 },
+  // Tightened 2026-04-28 per founder INBOX: builder felt slightly
+  // scrollable on every step. Reduced vertical breathing room
+  // (gap 12→8, padding 16→14, chip vertical 10→8, heading marginTop
+  // 8→4) so a typical step fits one screen without scroll. The
+  // ScrollView paddingBottom is set inline using insets.bottom +
+  // 80 (was 120) — the nav bar handles its own safe-area now.
+  content: { padding: 14, paddingBottom: 80, gap: 8 },
   progressBar: { height: 3, width: '100%' },
   progressFill: { height: 3 },
 
-  heading: { fontSize: 22, fontWeight: '700', marginTop: 8 },
+  heading: { fontSize: 22, fontWeight: '700', marginTop: 4 },
   sub: { fontSize: 13, lineHeight: 18 },
   footNote: { fontSize: 11, marginTop: 6 },
 
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
   chip: {
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderRadius: 100,
     borderWidth: 1,
   },

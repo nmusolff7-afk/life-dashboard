@@ -108,23 +108,47 @@ export default function SettingsWorkoutPlan() {
               ) : null}
             </>
           ) : mode === 'overview' ? (
-            <Pressable
-              onPress={() => {
-                haptics.fire('tap');
-                // Cycle through import → manual → reset to overview.
-                // Compact, doesn't add a third heavy panel.
-                setMode('import');
-              }}
-              style={({ pressed }) => [
-                styles.tertiaryRow,
-                { borderColor: t.border, opacity: pressed ? 0.7 : 1 },
-              ]}>
-              <Ionicons name="options-outline" size={14} color={t.muted} />
-              <Text style={[styles.tertiaryLabel, { color: t.muted }]}>
-                Build a different way (import or manual)
+            // 2026-04-28: founder INBOX flagged that the previous
+            // single "Build a different way" tertiary jumped straight
+            // to import — no path to AI quiz or manual builder. Now
+            // a 3-button row exposes all three.
+            <View style={styles.altModesWrap}>
+              <Text style={[styles.altModesLabel, { color: t.muted }]}>
+                Build a different way
               </Text>
-              <Ionicons name="chevron-forward" size={14} color={t.subtle} />
-            </Pressable>
+              <View style={styles.altModesRow}>
+                <Pressable
+                  onPress={() => {
+                    haptics.fire('tap');
+                    router.push('/fitness/plan/builder' as never);
+                  }}
+                  style={({ pressed }) => [
+                    styles.altModeChip,
+                    { borderColor: t.border, opacity: pressed ? 0.7 : 1 },
+                  ]}>
+                  <Ionicons name="sparkles-outline" size={13} color={t.accent} />
+                  <Text style={[styles.altModeLabel, { color: t.text }]}>AI quiz</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => { haptics.fire('tap'); setMode('import'); }}
+                  style={({ pressed }) => [
+                    styles.altModeChip,
+                    { borderColor: t.border, opacity: pressed ? 0.7 : 1 },
+                  ]}>
+                  <Ionicons name="reader-outline" size={13} color={t.accent} />
+                  <Text style={[styles.altModeLabel, { color: t.text }]}>AI import</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => { haptics.fire('tap'); setMode('manual'); }}
+                  style={({ pressed }) => [
+                    styles.altModeChip,
+                    { borderColor: t.border, opacity: pressed ? 0.7 : 1 },
+                  ]}>
+                  <Ionicons name="construct-outline" size={13} color={t.accent} />
+                  <Text style={[styles.altModeLabel, { color: t.text }]}>Manual</Text>
+                </Pressable>
+              </View>
+            </View>
           ) : (
             // mode is 'import' or 'manual' AND plan exists — show the
             // mode form just like the no-plan path. The forms handle
@@ -599,6 +623,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   tertiaryLabel: { flex: 1, fontSize: 13, fontWeight: '500' },
+
+  altModesWrap: { marginTop: 12, gap: 8 },
+  altModesLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6 },
+  altModesRow: { flexDirection: 'row', gap: 8 },
+  altModeChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  altModeLabel: { fontSize: 12, fontWeight: '600' },
   secondary: {
     flexDirection: 'row',
     alignItems: 'center',

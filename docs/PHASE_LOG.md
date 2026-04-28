@@ -1078,3 +1078,75 @@ after adding `GOOGLE_MAPS_API_KEY` to `.env`. Resolved.
     The task should appear as a block from 2:30p to 3:00p
     (default 30min).
   - All-day calendar events are still excluded.
+
+### 22:00 — INBOX triage (12 items) + Trust pass v2 (5 testing bugs)
+- **Prompt:** "go" — pick the next phase.
+- **Did:**
+  1. **Triaged 12 INBOX items** (filing-only). New Now: Email
+     importance flag (~1h). New Later: Unified Gmail+Outlook
+     inbox (~6h), Combined calendar card (~2h). Reinforced:
+     §14.2.2 soft AI labels, §14.3 Patterns. Question
+     (re-onboarding flow) answered in summary.
+  2. **HC display regression deferred to MANUAL CHECK.** Last
+     phase's fix was JS-only and should hot-reload over Metro;
+     if founder still sees old text after reload, file as a
+     real bug.
+  3. **Trust pass v2 shipped (~3h, 5 testing-fresh bugs):**
+     - **Movement Today card outside steps + sleep/HRV hints.**
+       `fitness.tsx` `buildSubsystemHints` extended to take HC
+       `steps / sleep_minutes / hrv_ms / active_kcal` +
+       `hc.permitted`. HC steps override manual on the outside
+       hint when permitted+present. Sleep + Recovery hints
+       show "Xh Ym last night" / "Nms HRV today" instead of
+       hardcoded "Connect Apple Health to activate" — uses
+       `healthHubLabel()` for platform-aware copy.
+     - **Day detail Strava nav.** Same anti-pattern fix as
+       cardio/strength subsystem screens. `day/[date].tsx`
+       workout rows check `w.strava_activity_id` and route
+       to `/fitness/strava-activity/[id]`. 🏃 emoji on Strava
+       rows.
+     - **Workout builder fit.** `builder.tsx` styles tightened
+       — content gap 12→8, padding 16→14, chip vertical 10→8,
+       heading marginTop 8→4, ScrollView paddingBottom
+       constant 120→80 (still adds insets.bottom on top).
+       Most steps now fit one screen.
+     - **Plan switching from existing-plan state.**
+       `settings/workout-plan.tsx` previously had a single
+       tertiary link that hard-coded `setMode('import')` — no
+       path to AI quiz or manual from this screen with a plan.
+       Replaced with a 3-chip row: AI quiz (routes to
+       `/fitness/plan/builder`) / AI import / Manual.
+- **Files:** `mobile/app/(tabs)/fitness.tsx`,
+  `mobile/app/day/[date].tsx`,
+  `mobile/app/fitness/plan/builder.tsx`,
+  `mobile/app/settings/workout-plan.tsx`,
+  `docs/BUILD_PLAN.md`, `docs/INBOX.md` (cleared).
+- **Decisions:**
+  - Plan-switch UX: 3 small chips when a plan exists, 3 full
+    ModeCards in the no-plan path. Density appropriate to
+    each state.
+  - Skipped a true font pass on builder; padding tightening
+    should fix most cases. File follow-up if some steps
+    still scroll on small devices.
+  - HC display regression: don't ship a "fix" without
+    evidence the fix is needed. The old fix's code is
+    correct — verify reload first.
+- **Outcome:** Shipping. TS clean (only pre-existing
+  finance.tsx:114). All JS — no rebuild needed.
+- **Manual checks (pending):**
+  - **HC display regression:** Reload Metro (shake → Reload).
+    Check Fitness Sleep/Recovery — should show real numbers
+    or "no data yet" diagnostic, NOT "Connect Apple Health".
+    If still broken after a real reload, file as a bug
+    (drop in INBOX).
+  - **Movement outside step count:** Today tab Fitness
+    subsystem stack — Movement card should show steps, not
+    "—".
+  - **Day detail Strava nav:** Activity calendar → tap a
+    day with a Strava workout → tap the workout → should
+    open Strava detail screen.
+  - **Workout builder fit:** Settings → Workout plan →
+    Build a different way → AI quiz → each step should fit
+    one screen.
+  - **Plan switching:** Same screen — three chips (AI quiz,
+    AI import, Manual) all reachable.
