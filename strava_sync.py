@@ -156,6 +156,88 @@ def get_athlete(access_token: str) -> dict:
     return resp.json()
 
 
+def fetch_activity_detail(access_token: str, activity_id: str) -> dict:
+    """Fetch the detailed view of a single activity.
+
+    Strava /activities/{id} returns:
+      id, name, type, start_date_local, distance, moving_time,
+      elapsed_time, total_elevation_gain, average_speed, max_speed,
+      average_heartrate, max_heartrate, average_watts (cycling),
+      map: {polyline, summary_polyline},
+      splits_metric: [...], splits_standard: [...],
+      ...
+
+    We surface the polyline + summary stats + splits to the client.
+    Returns the raw response dict; caller maps the fields into the
+    strava_activity_detail row.
+    """
+    headers = {"Authorization": f"Bearer {access_token}"}
+    resp = requests.get(
+        f"{STRAVA_API_BASE}/activities/{activity_id}",
+        headers=headers,
+        params={"include_all_efforts": "false"},
+        timeout=REQUEST_TIMEOUT,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def fetch_activity_streams(access_token: str, activity_id: str) -> dict:
+    """Fetch time-series streams for an activity. Used to render the
+    elevation profile + HR-over-distance charts.
+
+    Strava /activities/{id}/streams accepts a `keys` param naming the
+    streams we want. Returns either an array of stream objects (older
+    API) or a dict keyed by stream name (newer). We tolerate both.
+    """
+    headers = {"Authorization": f"Bearer {access_token}"}
+    resp = requests.get(
+        f"{STRAVA_API_BASE}/activities/{activity_id}/streams",
+        headers=headers,
+        params={
+            "keys":      "heartrate,altitude,distance",
+            "key_by_type": "true",
+        },
+        timeout=REQUEST_TIMEOUT,
+    )
+    if not resp.ok:
+        # Streams API returns 404 if the activity has no recorded
+        # streams (e.g. manually-logged activity, no GPS). Treat as
+        # empty rather than fatal.
+        if resp.status_code == 404:
+            return {}
+        resp.raise_for_status()
+    return resp.json() or {}
+
+
+def fetch_activity_zones(access_token: str, activity_id: str) -> list[dict]:
+    """Fetch precomputed HR zones distribution. Strava returns:
+      [{type: "heartrate", distribution_buckets: [{min, max, time}, ...]}]
+    Empty list if no HR data.
+    """
+    headers = {"Authorization": f"Bearer {access_token}"}
+    resp = requests.get(
+        f"{STRAVA_API_BASE}/activities/{activity_id}/zones",
+        headers=headers,
+        timeout=REQUEST_TIMEOUT,
+    )
+    if not resp.ok:
+        return []
+    data = resp.json()
+    return data if isinstance(data, list) else []
+
+
+def downsample_stream(stream: list, target_points: int = 60) -> list:
+    """Downsample a long stream to ~target_points evenly spaced
+    samples. Strava streams can have 1000+ points; for the chart we
+    only need enough to show the shape. Keeps the URL/JSON payload
+    small."""
+    if not isinstance(stream, list) or len(stream) <= target_points:
+        return stream or []
+    step = max(1, len(stream) // target_points)
+    return stream[::step][:target_points]
+
+
 def fetch_activities(access_token: str, *,
                      after_unix: int | None = None,
                      per_page: int = 100,

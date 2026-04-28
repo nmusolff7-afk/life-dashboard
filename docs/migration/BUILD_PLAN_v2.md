@@ -1574,8 +1574,10 @@ Rough order, ~125h total (~3.5 weeks at 40h/wk solo):
 - ✅ §14.5.5.e Wire location into chatbot LifeContext (shipped —
   [chatbot.py](chatbot.py) `_life_context` location subtree)
 - ✅ §14.9 Outlook admin consent for founder's tenant (done 2026-04-28)
-- ⏳ §14.7 Workout builder rewrite (8h) — next up
-- ⏳ §14.5.1 Strava maps + charts (10h) — next up
+- ✅ §14.7 Workout builder rewrite (shipped — see Phase log 2026-04-28
+  + §14.7b draft-mode follow-up)
+- ✅ §14.5.1 Strava maps + charts (shipped — Phase log 2026-04-26;
+  detail screen + Static Maps hero + elevation / HR-zones / splits)
 - ⏳ §14.2 Day Timeline core — hard blocks + cron (12h) — week 2
 
 **Week 2 — Day Timeline AI + Patterns + chatbot:**
@@ -1945,6 +1947,99 @@ save to commit, then redirect to fitness page."
 1. **§14.5.1 Strava maps + charts** — see prior log.
 2. **§14.8 Goals data-binding tightening** — see prior log.
 3. **§14.2 Day Timeline core** — week 2.
+
+---
+
+### Phase log: §14.5.1 Strava maps + charts — 2026-04-26
+
+**Shipped:**
+- **`strava_activity_detail` table** ([`db.py`](db.py)) — composite PK
+  `(user_id, activity_id)`, holds polyline, distance/time/elevation,
+  HR/speed/power summaries, plus three large JSON blobs:
+  `splits_json`, `zones_json`, `streams_json`. Also helpers
+  `upsert_strava_detail` and `get_strava_detail`.
+- **Detail fetchers** ([`strava_sync.py`](strava_sync.py)) — three
+  Strava API wrappers: `fetch_activity_detail` (GET `/activities/{id}`),
+  `fetch_activity_streams` (heartrate + altitude + distance keyed),
+  `fetch_activity_zones` (returns `[]` on 404 — many activities lack
+  zones). Plus `downsample_stream(stream, target_points=60)` to keep
+  chart payloads small.
+- **Lazy detail route** ([`app.py /api/strava/activity/<activity_id>`](app.py))
+  — first hit calls all three Strava endpoints + caches; subsequent
+  hits read the cached row instantly. `?refresh=1` forces re-fetch.
+  `_strava_static_map_url` builds the Google Static Maps URL with
+  `path=enc:<polyline>` (Strava's polylines are already Google-encoded);
+  returns `null` when no GPS or no `GOOGLE_MAPS_API_KEY`. Server-side
+  build keeps the API key off the client.
+- **Mobile API helper** ([`mobile/lib/api/strava.ts`](mobile/lib/api/strava.ts))
+  — `fetchStravaActivityDetail(id, opts?)` + full TS types for
+  splits, zones, streams, and the response shape including `map_url`.
+- **Detail screen** ([`mobile/app/fitness/strava-activity/[id].tsx`](mobile/app/fitness/strava-activity/[id].tsx))
+  — map hero (Static Maps `<Image>`) + 4-cell stats grid
+  (Distance / Time / Pace / Climb) + secondary row (Avg HR / Max HR /
+  Avg power) + custom **ElevationSparkline** (View-based bars, no
+  charting lib) + **ZonesBars** (HR zone time distribution) +
+  **SplitsTable** (capped 30 rows). All four viz components inline in
+  the file — no SVG / no chart dep.
+- **Wired navigation** ([`mobile/components/apex/WorkoutHistoryList.tsx`](mobile/components/apex/WorkoutHistoryList.tsx))
+  — Strava-sourced workout rows (those with `strava_activity_id`)
+  navigate to `/fitness/strava-activity/[id]?id=...&name=...`. Manual
+  workout rows still open `WorkoutEditSheet` as before.
+
+**Deferred:**
+- **Pace-over-distance line chart** — splits table covers per-mile
+  pace already; a smoothed pace stream chart was scoped out (would
+  need `velocity_smooth` stream + another View-based renderer).
+  Pickup: v1.6 polish if user feedback signals it.
+- **Tap-a-zone-bucket → drilldown** to see exactly which segments
+  fell in that HR zone. Nice-to-have, not in v1.5.
+
+**Problems flagged:**
+- `useUnits()` exposes weight + height formatters but not distance.
+  Inlined a small `formatDistance` + `distanceUnit` in the detail
+  screen rather than expanding the hook globally — distance is a
+  Strava-only concern in this app right now. If a third caller
+  appears, promote it to the hook.
+- Pre-existing `app/(tabs)/finance.tsx:114` TS error
+  (`FinanceTransaction.merchant_name` shape mismatch) still untouched.
+  §14.5.1 work is TS-clean; carrying the finance error forward.
+- `_extract_streams` had to handle both dict-keyed (`key_by_type=true`)
+  and list-shaped Strava responses — first attempt only handled the
+  dict case and crashed on activities where the API returned a list.
+  Both shapes covered now.
+
+**Decisions:**
+- **Static Maps over `react-native-maps`** as scoped — visual parity
+  with the LocationCard preview, no native dep, no rebuild needed,
+  same `GOOGLE_MAPS_API_KEY` env var. The polyline rides directly
+  on `path=enc:<polyline>` (Google-encoded format matches Strava's).
+- **All viz inline / View-based** instead of pulling in `victory-native`
+  or `react-native-svg-charts`. Three small components (~80 lines
+  total) match the app's lo-fi-elegant aesthetic and avoid another
+  build dep.
+- **Lazy server-side fetch** rather than backfilling all activities'
+  details on initial Strava sync. 90 days of activity = ~30–60 detail
+  fetches × 3 API calls each = a lot of API budget for screens the
+  user may never open. First-tap fetch is ~1s and cached forever.
+- **`?refresh=1` query flag** retained on the route for forced
+  re-fetch — useful if Strava corrects a polyline or HR stream after
+  the fact. Not surfaced in the UI yet; available for future
+  "Re-sync this activity" affordance.
+
+**Next pickup:**
+1. **§14.8 Goals data-binding tightening (~6h)** — pure backend.
+   Wire `_PROGRESS_HANDLERS` for the 5 newly-unblocked goal types
+   (TIME-02 screen-time, TIME-03 sleep regularity, TIME-04 location
+   routine, TIME-05 calendar density, TIME-06 inbox-by-N-AM). No
+   rebuild required.
+2. **§14.2 Day Timeline core (~12h hard blocks)** — week 2 item.
+   Two-tier blocks: deterministic hard blocks (calendar events,
+   tasks with explicit times, sleep windows) + AI-labeled soft
+   blocks (clusters of activity from Health Connect + screen time +
+   location).
+3. **§14.5.5.g Location connect-flow UX fix (~1h)** — alert chain
+   was flagged as a bit fragile in the C1 phase log; minor polish
+   anytime.
 
 ---
 

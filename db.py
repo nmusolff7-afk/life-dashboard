@@ -612,6 +612,39 @@ def init_db():
             )
         """)
 
+        # Strava activity detail — rich per-activity data fetched
+        # lazily the first time a user opens an activity's detail
+        # screen. Stores the encoded polyline (for Static Maps), splits
+        # (per-mile/km pace breakdown), HR zones distribution, and
+        # compact streams (hr/altitude/distance) for the elevation +
+        # HR-over-distance charts.
+        #
+        # PRIMARY KEY (user_id, activity_id) so the same activity can
+        # be re-fetched without duplicates if the user re-syncs Strava.
+        # `activity_id` matches workout_logs.strava_activity_id.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS strava_activity_detail (
+                user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                activity_id      TEXT NOT NULL,
+                activity_type    TEXT,
+                polyline         TEXT,
+                distance_m       REAL,
+                moving_time_s    INTEGER,
+                elapsed_time_s   INTEGER,
+                elevation_gain_m REAL,
+                avg_hr           INTEGER,
+                max_hr           INTEGER,
+                avg_speed_mps    REAL,
+                max_speed_mps    REAL,
+                avg_watts        REAL,
+                splits_json      TEXT,
+                zones_json       TEXT,
+                streams_json     TEXT,
+                fetched_at       TIMESTAMP NOT NULL,
+                PRIMARY KEY (user_id, activity_id)
+            )
+        """)
+
         # Health Connect (Android) — daily aggregates fetched from the
         # device's HealthConnect platform. One row per (user, date) per
         # metric type. Mobile pushes these via /api/health/sync after
@@ -1499,6 +1532,58 @@ def delete_workout(workout_id, user_id):
     with get_conn() as conn:
         conn.execute("DELETE FROM workout_logs WHERE id = ? AND user_id = ?", (workout_id, user_id))
         conn.commit()
+
+
+def upsert_strava_detail(user_id: int, activity_id: str, fields: dict) -> None:
+    """Upsert a strava_activity_detail row. `fields` accepts any of the
+    columns; missing fields keep their old value on update so partial
+    refetches don't clobber what was already there.
+
+    Caller responsible for serialising splits/zones/streams to JSON
+    strings — db doesn't know about JSON natively (sqlite3 stores TEXT).
+    """
+    now = datetime.now().isoformat()
+    allowed = {
+        "activity_type", "polyline", "distance_m", "moving_time_s",
+        "elapsed_time_s", "elevation_gain_m", "avg_hr", "max_hr",
+        "avg_speed_mps", "max_speed_mps", "avg_watts",
+        "splits_json", "zones_json", "streams_json",
+    }
+    safe = {k: v for k, v in fields.items() if k in allowed}
+    with get_conn() as conn:
+        existing = conn.execute(
+            "SELECT 1 FROM strava_activity_detail WHERE user_id = ? AND activity_id = ?",
+            (user_id, activity_id),
+        ).fetchone()
+        if existing:
+            if not safe:
+                return
+            sets = ", ".join(f"{k} = ?" for k in safe) + ", fetched_at = ?"
+            params = list(safe.values()) + [now, user_id, activity_id]
+            conn.execute(
+                f"UPDATE strava_activity_detail SET {sets} "
+                "WHERE user_id = ? AND activity_id = ?",
+                params,
+            )
+        else:
+            cols = ["user_id", "activity_id", "fetched_at"] + list(safe.keys())
+            placeholders = ", ".join("?" for _ in cols)
+            conn.execute(
+                f"INSERT INTO strava_activity_detail ({', '.join(cols)}) "
+                f"VALUES ({placeholders})",
+                [user_id, activity_id, now] + list(safe.values()),
+            )
+        conn.commit()
+
+
+def get_strava_detail(user_id: int, activity_id: str) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM strava_activity_detail "
+            "WHERE user_id = ? AND activity_id = ?",
+            (user_id, activity_id),
+        ).fetchone()
+    return dict(row) if row else None
 
 
 def insert_strava_activity(user_id: int, mapped: dict) -> int | None:

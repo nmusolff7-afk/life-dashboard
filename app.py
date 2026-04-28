@@ -2946,6 +2946,147 @@ def api_strava_sync():
                         "error_code": "upstream_unavailable"}), 502
 
 
+@app.route("/api/strava/activity/<activity_id>", methods=["GET"])
+@login_required
+def api_strava_activity_detail(activity_id: str):
+    """Detailed view of a single Strava activity: polyline + splits +
+    HR zones + downsampled streams (HR / altitude / distance) for
+    chart rendering.
+
+    Lazy-fetched: the first hit pulls /activities/{id}, /streams, and
+    /zones from Strava and stores in `strava_activity_detail`.
+    Subsequent hits return the cached row immediately. Pass
+    `?refresh=1` to force a re-fetch from Strava.
+
+    Path param `activity_id` matches `workout_logs.strava_activity_id`.
+    """
+    import connectors as _conn
+    import json as _json
+    from db import get_strava_detail, upsert_strava_detail
+    from api_errors import err, CONNECTOR_NOT_FOUND, CONNECTOR_EXPIRED, NOT_FOUND
+
+    activity_id = (activity_id or "").strip()
+    if not activity_id:
+        return err(NOT_FOUND, "Missing activity_id", 404)
+
+    refresh = request.args.get("refresh", "").lower() in ("1", "true")
+    cached = get_strava_detail(uid(), activity_id) if not refresh else None
+    if cached:
+        # Hydrate JSON columns on the way out so the client gets
+        # parsed structures instead of raw strings.
+        cached = _hydrate_strava_detail(cached)
+        cached["map_url"] = _strava_static_map_url(cached.get("polyline"))
+        return jsonify(cached)
+
+    access_token = _conn.get_valid_access_token(uid(), 'strava',
+                                                refresh_fn=_strava_refresh_fn)
+    if not access_token:
+        row = _conn.get_connector(uid(), 'strava')
+        if not row:
+            return err(CONNECTOR_NOT_FOUND, "Strava not connected", 400)
+        return err(CONNECTOR_EXPIRED, "Strava reconnect required", 401)
+
+    try:
+        raw = strava_sync.fetch_activity_detail(access_token, activity_id)
+        streams = strava_sync.fetch_activity_streams(access_token, activity_id)
+        zones = strava_sync.fetch_activity_zones(access_token, activity_id)
+    except Exception as e:
+        _log.exception("strava activity detail fetch failed (%s)", activity_id)
+        return jsonify({"ok": False, "error": "Strava detail fetch failed",
+                        "error_code": "upstream_unavailable",
+                        "detail": str(e)[:200]}), 502
+
+    # Compact streams: pull just hr / altitude / distance arrays,
+    # downsampled to ~60 points for cheap chart rendering. Strava can
+    # return either {hr: {data: [...]}} (key_by_type=true) or
+    # [{type: 'heartrate', data: [...]}, ...]. Tolerate both.
+    compact_streams = _extract_streams(streams)
+
+    polyline = (raw.get("map") or {}).get("polyline") or (raw.get("map") or {}).get("summary_polyline") or ""
+    splits = raw.get("splits_standard") or raw.get("splits_metric") or []
+
+    fields = {
+        "activity_type":    raw.get("type") or "",
+        "polyline":         polyline,
+        "distance_m":       float(raw.get("distance") or 0) or None,
+        "moving_time_s":    int(raw.get("moving_time") or 0) or None,
+        "elapsed_time_s":   int(raw.get("elapsed_time") or 0) or None,
+        "elevation_gain_m": float(raw.get("total_elevation_gain") or 0) or None,
+        "avg_hr":           int(raw["average_heartrate"]) if raw.get("average_heartrate") else None,
+        "max_hr":           int(raw["max_heartrate"]) if raw.get("max_heartrate") else None,
+        "avg_speed_mps":    float(raw.get("average_speed") or 0) or None,
+        "max_speed_mps":    float(raw.get("max_speed") or 0) or None,
+        "avg_watts":        float(raw["average_watts"]) if raw.get("average_watts") else None,
+        "splits_json":      _json.dumps(splits),
+        "zones_json":       _json.dumps(zones),
+        "streams_json":     _json.dumps(compact_streams),
+    }
+    upsert_strava_detail(uid(), activity_id, fields)
+
+    detail = get_strava_detail(uid(), activity_id) or {}
+    detail = _hydrate_strava_detail(detail)
+    detail["map_url"] = _strava_static_map_url(polyline)
+    return jsonify(detail)
+
+
+def _hydrate_strava_detail(row: dict) -> dict:
+    """Parse JSON columns into native lists/objects for the client."""
+    import json as _json
+    out = dict(row)
+    for col in ("splits_json", "zones_json", "streams_json"):
+        raw = out.get(col)
+        client_key = col.replace("_json", "")
+        try:
+            out[client_key] = _json.loads(raw) if raw else None
+        except Exception:
+            out[client_key] = None
+        out.pop(col, None)
+    return out
+
+
+def _extract_streams(streams: dict | list) -> dict:
+    """Normalize Strava's two stream-response shapes into:
+      { heartrate: [...], altitude: [...], distance: [...] }
+    Each downsampled to ~60 points. Empty when no streams available."""
+    out: dict[str, list] = {}
+    if not streams:
+        return out
+    if isinstance(streams, dict):
+        # New shape: {hr: {data: [...]}, altitude: {data: [...]}, ...}
+        for stream_name, key in (("heartrate", "heartrate"),
+                                  ("altitude",  "altitude"),
+                                  ("distance",  "distance")):
+            blob = streams.get(stream_name)
+            if isinstance(blob, dict):
+                data = blob.get("data") or []
+                out[key] = strava_sync.downsample_stream(data)
+    elif isinstance(streams, list):
+        # Legacy shape: [{type: 'heartrate', data: [...]}, ...]
+        for s in streams:
+            stype = s.get("type")
+            if stype in ("heartrate", "altitude", "distance"):
+                out[stype] = strava_sync.downsample_stream(s.get("data") or [])
+    return out
+
+
+def _strava_static_map_url(polyline: str | None) -> str | None:
+    """Build a Google Static Maps URL drawing the route polyline.
+    Strava returns Google-encoded polylines, so we pass them straight
+    through as `path=enc:<polyline>` — no decoding step needed.
+    Returns None if no polyline or no GOOGLE_MAPS_API_KEY configured."""
+    api_key = os.environ.get("GOOGLE_MAPS_API_KEY", "")
+    if not (polyline and api_key):
+        return None
+    from urllib.parse import quote
+    # Static Maps auto-fits when no center/zoom + a path — let it.
+    base = "https://maps.googleapis.com/maps/api/staticmap"
+    return (
+        f"{base}?size=600x300&scale=2&maptype=roadmap"
+        f"&path=color:0x4F46E5FF|weight:4|enc:{quote(polyline)}"
+        f"&key={api_key}"
+    )
+
+
 @app.route("/api/strava/disconnect", methods=["POST"])
 @login_required
 def api_strava_disconnect():

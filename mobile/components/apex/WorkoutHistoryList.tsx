@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -158,7 +159,16 @@ export function WorkoutHistoryList({ workouts, onChanged }: Props) {
                 return (
                   <Pressable
                     key={w.id}
-                    onPress={() => setEditing(w)}
+                    onPress={() => {
+                      if (w.strava_activity_id) {
+                        router.push({
+                          pathname: '/fitness/strava-activity/[id]',
+                          params: { id: w.strava_activity_id, name: w.description },
+                        });
+                      } else {
+                        setEditing(w);
+                      }
+                    }}
                     style={({ pressed }) => [
                       styles.row,
                       {
