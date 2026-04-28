@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -118,7 +118,16 @@ export default function StrengthDetail() {
               return (
                 <Pressable
                   key={`${w.log_date}-${i}`}
-                  onPress={() => setDetailWorkout(w)}
+                  onPress={() => {
+                    if (w.strava_activity_id) {
+                      router.push({
+                        pathname: '/fitness/strava-activity/[id]',
+                        params: { id: w.strava_activity_id, name: w.description },
+                      });
+                    } else {
+                      setDetailWorkout(w);
+                    }
+                  }}
                   style={({ pressed }) => [
                     styles.session,
                     { borderBottomColor: t.border, opacity: pressed ? 0.6 : 1 },
@@ -126,6 +135,7 @@ export default function StrengthDetail() {
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text style={[styles.sessionDesc, { color: t.text }]} numberOfLines={2}>
                       {w.description}
+                      {w.strava_activity_id ? ' 🏃' : ''}
                     </Text>
                     <Text style={[styles.sessionMeta, { color: t.muted }]}>
                       {w.log_date}

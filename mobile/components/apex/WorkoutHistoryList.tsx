@@ -9,25 +9,15 @@ import {
   classifyWorkout,
   formatWorkoutTime,
   iconForWorkoutType,
-  type WorkoutType,
 } from '../../lib/workout';
 import { EmptyState } from './EmptyState';
 import { WorkoutEditSheet } from './WorkoutEditSheet';
-
-type Filter = 'all' | WorkoutType;
 
 interface Props {
   workouts: Workout[];
   /** Refetch after edit/delete. */
   onChanged: () => void;
 }
-
-const FILTERS: { value: Filter; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'strength', label: 'Strength' },
-  { value: 'cardio', label: 'Cardio' },
-  { value: 'mixed', label: 'Mixed' },
-];
 
 function todayIso(): string {
   const d = new Date();
@@ -73,74 +63,35 @@ function formatRowDate(iso: string): string {
 
 export function WorkoutHistoryList({ workouts, onChanged }: Props) {
   const t = useTokens();
-  const [filter, setFilter] = useState<Filter>('all');
   const [editing, setEditing] = useState<Workout | null>(null);
 
   const today = todayIso();
   const yesterday = yesterdayIso();
 
   const grouped = useMemo(() => {
-    const filtered = filter === 'all'
-      ? workouts
-      : workouts.filter((w) => classifyWorkout(w.description) === filter);
     const byBucket: Record<Bucket, Workout[]> = {
       today: [], yesterday: [], 'this-week': [], earlier: [],
     };
-    filtered.forEach((w) => {
+    workouts.forEach((w) => {
       byBucket[bucketFor(w.log_date, today, yesterday)].push(w);
     });
     return byBucket;
-  }, [workouts, filter, today, yesterday]);
+  }, [workouts, today, yesterday]);
 
   const isEmpty = workouts.length === 0;
-  const filteredEmpty =
-    !isEmpty &&
-    BUCKET_ORDER.every((b) => grouped[b].length === 0);
 
   if (isEmpty) {
     return (
       <EmptyState
         icon="🏋️"
-        title="No workouts logged yet"
-        description="Log your first workout from the Today tab."
+        title="No workouts match"
+        description="Try a different filter, or log a workout from the Today tab."
       />
     );
   }
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.chips}>
-        {FILTERS.map((f) => {
-          const active = filter === f.value;
-          return (
-            <Pressable
-              key={f.value}
-              onPress={() => setFilter(f.value)}
-              style={[
-                styles.chip,
-                {
-                  backgroundColor: active ? t.accent : t.surface,
-                  borderColor: active ? t.accent : t.border,
-                },
-              ]}>
-              <Text
-                style={[
-                  styles.chipLabel,
-                  { color: active ? '#fff' : t.muted, fontWeight: active ? '700' : '500' },
-                ]}>
-                {f.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {filteredEmpty ? (
-        <Text style={[styles.emptyFilter, { color: t.subtle }]}>
-          No {filter} workouts in the last 90 days.
-        </Text>
-      ) : null}
-
       {BUCKET_ORDER.map((bucket) => {
         const rows = grouped[bucket];
         if (rows.length === 0) return null;
@@ -213,16 +164,6 @@ export function WorkoutHistoryList({ workouts, onChanged }: Props) {
 
 const styles = StyleSheet.create({
   wrap: { gap: 14 },
-  chips: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  chip: {
-    borderRadius: 100,
-    borderWidth: 1,
-    paddingVertical: 7,
-    paddingHorizontal: 14,
-  },
-  chipLabel: { fontSize: 13 },
-  emptyFilter: { fontSize: 13, textAlign: 'center', paddingVertical: 16 },
-
   group: { gap: 8 },
   groupHeader: {
     flexDirection: 'row',

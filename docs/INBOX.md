@@ -8,7 +8,7 @@ start of each chat response.
 After triage this list will be empty again. That's the signal Claude
 saw your notes — when you come back to add more, the list is fresh.
 
-**Format:** `- [Type] description` — Type ∈ `Bug` / `UX` / `Feature` / `Question`.
+**Format:** `- [Type] description` — Type ∈ `Bug` / `UX` / `Feature` / `Question`/ `Unknown` .
 
 **Severity tags** (optional, for bugs): `(blocker)` / `(annoying)` / `(minor)`.
 
@@ -29,4 +29,7 @@ _(empty)_
 _(empty)_
 
 ## Questions
+_(empty)_
+
+## Other Thoughts
 _(empty)_

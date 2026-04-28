@@ -639,3 +639,71 @@ after adding `GOOGLE_MAPS_API_KEY` to `.env`. Resolved.
   expected. Then pick from Backlog → Now (current candidates: §14.2
   Day Timeline, Customize.tsx config-fields, Location connect-flow
   UX). Reply with the phase to start.
+
+### 17:30 — INBOX triage: history filter dedup, cardio Strava nav, HC questions
+- **Prompt:** "ok" (founder approved next phase pick) — but inbox
+  had 2 bugs + 4 questions + 1 workflow rule that preempted.
+- **Did:**
+  1. **Codified "push every chat response"** as a workflow rule in
+     `CLAUDE.md` (founder direction in INBOX → Other Thoughts).
+     Inserted as step 5 in the per-response workflow so PHASE_LOG
+     entries always have a corresponding pushed commit.
+  2. **Bug fix — duplicated history filter chips:**
+     `mobile/app/(tabs)/fitness.tsx` and
+     `mobile/components/apex/WorkoutHistoryList.tsx` both rendered
+     filter chip rows. Outer (fitness.tsx) uses AI-classified
+     `session_type` (canonical); inner used keyword-based
+     `classifyWorkout(description)` (legacy). Removed the inner
+     row + `Filter` state from WorkoutHistoryList — it's now a
+     pure presentation component that renders + groups whatever
+     workouts it's given. Outer filter is unchanged.
+  3. **Bug fix — cardio + strength subsystem screens didn't
+     navigate Strava rows:** §14.5.1 only wired
+     WorkoutHistoryList → Strava detail screen. The 6 fitness
+     subsystem screens (cardio.tsx, strength.tsx) had their own
+     row renderers that always called `setDetailWorkout(w)`,
+     opening the manual-edit modal even for Strava-sourced rows.
+     Patched both to check `w.strava_activity_id` and route to
+     `/fitness/strava-activity/[id]`. Added a 🏃 emoji on Strava
+     rows so the affordance is visible.
+  4. **Triaged 4 founder questions** from INBOX (answers in chat
+     reply): no-sleep/HRV is data-source not code; Garmin
+     activities → HC needs §14.5.2 + a Garmin Connect toggle;
+     PRD overrides applied 2026-04-28; steps ARE pulled from HC.
+     Updated `BUILD_PLAN.md` § Backlog Next entry for
+     **§14.5.2 Health Connect granular pulls** — added
+     ExerciseSessionRecord (the Garmin path) to scope, plus a
+     "Founder note" diagnosing the no-sleep-data symptom.
+  5. **Emptied INBOX.md** back to template state.
+- **Files:** `CLAUDE.md` (push-every-response rule),
+  `mobile/components/apex/WorkoutHistoryList.tsx`,
+  `mobile/app/fitness/subsystem/cardio.tsx`,
+  `mobile/app/fitness/subsystem/strength.tsx`,
+  `docs/BUILD_PLAN.md` (§14.5.2 expanded),
+  `docs/INBOX.md` (cleared).
+- **Decisions:**
+  - Outer filter (AI-classified) wins over inner filter
+    (keyword) — outer has access to the canonical `session_type`
+    field that comes from the log-time AI classifier.
+  - Apply the same Strava-route pattern to strength.tsx even
+    though most Strava activities are cardio — Strava DOES emit
+    weight-training as an activity type, and the fix is identical.
+  - "no sleep/HRV" stays diagnostic-not-fix. Module pulls all 5
+    metrics; if data isn't appearing, the chain is HC → source
+    (phone or wearable). Logged the diagnosis in BUILD_PLAN so
+    future questions land at the right spot.
+- **Outcome:** Shipping. TS clean (only pre-existing
+  finance.tsx:114 carrying forward).
+- **Manual checks (pending):**
+  - Open Fitness tab → History sub-tab. Confirm only ONE row of
+    filter chips shows (AI-classified, by `session_type`).
+  - Open Fitness tab → Cardio subsystem detail screen. Tap a
+    Strava-sourced row (look for 🏃 emoji) → should open the
+    Strava detail screen (map + stats), not the manual-edit
+    modal.
+  - Same check on Strength subsystem detail (if any
+    Strava-sourced strength activities exist).
+  - Question follow-up: pull up Health Connect → Data → Sleep
+    and Data → HRV. If both are empty, the issue is upstream of
+    the app — your phone or wearable isn't writing those record
+    types. If they have data but app shows null, ping back.

@@ -287,18 +287,29 @@ the project will become.
 
 - **§14.5.2 Health Connect granular pulls** (~8h) — connector depth
   - **Scope:** Per-day workout segments (start/end + activity
-    type), more sleep stages (REM / deep / light / awake), HRV
-    quality flag, HR zones from workouts. Extends Health Connect
-    Expo Module with new permission scopes.
+    type) via `ExerciseSessionRecord` — this is the path to **Garmin
+    activities flowing through HC** (Garmin Connect → Settings →
+    Health Connect → toggle on activity sync). Plus more sleep
+    stages (REM / deep / light / awake via `SleepSessionRecord.stages`),
+    HRV quality flag, HR zones from workouts.
   - **Files:** `mobile/modules/health-connect/android/.../HealthConnectModule.kt`
-    (new pull functions), `mobile/modules/health-connect/index.ts`
-    (TS bindings), `db.py` (extend `health_daily` or add
-    `health_workout_segments` table), `app.py` (sync route),
-    `chatbot.py` (LifeContext consumer).
+    (new pull functions for `ExerciseSessionRecord` + sleep stages),
+    `mobile/modules/health-connect/index.ts` (TS bindings + new
+    permission scopes: `READ_EXERCISE`, `READ_SLEEP_DATA_DETAILS`),
+    `db.py` (extend `health_daily` or add `health_workout_segments`
+    table), `app.py` (sync route), `chatbot.py` (LifeContext
+    consumer).
   - **Done when:** Fitness tab shows yesterday's sleep stage
     breakdown (donut chart); chatbot LifeContext includes HC
-    workout segments; Strava + HC data merge cleanly without
+    workout segments; Garmin activities synced through HC appear
+    in workout history; Strava + HC data merge cleanly without
     double-count.
+  - **Founder note (2026-04-28):** "no sleep/HRV data from HC" is
+    typically a **data-source problem**, not a code problem — the
+    current module pulls all 5 metrics correctly. Check Health
+    Connect → Data → Sleep / HRV. If empty, no source is writing
+    them. Garmin watches write to HC only when the user enables
+    that path in the Garmin Connect mobile app.
 
 ### Later — v1.5+, scoped but not urgent
 

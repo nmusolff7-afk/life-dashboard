@@ -91,7 +91,21 @@ Every chat response, in order:
   yourself (UI / native / env / external system / ambiguous spec).
   Wait for ack before declaring done.
 
-### 5. Append a `PHASE_LOG.md` entry — every response, no exceptions
+### 5. Push every response — `git add` + `git commit` + `git push`
+
+Every chat response that touches files ends with a commit + push to
+`origin/master`. Founder-mandated 2026-04-28: PHASE_LOG entries
+without a corresponding pushed commit are useless if the laptop dies
+or Claude's context resets. Even small one-file edits push.
+
+- If the response only updated docs (BUILD_PLAN / INBOX / PHASE_LOG),
+  push them. They're load-bearing.
+- If the response made no file changes, no commit needed — the
+  PHASE_LOG entry can ship in the next batched push.
+- Don't squash multiple unrelated changes into one commit. Each
+  logical phase = one commit.
+
+### 6. Append a `PHASE_LOG.md` entry — every response, no exceptions
 
 Even one-word responses ("ok", "continue") get a brief log entry.
 Format (in PHASE_LOG.md itself, repeated here for reference):
@@ -113,7 +127,7 @@ without grepping commits.
 
 **Never edit prior entries.** If context changes, add a new entry.
 
-### 6. End-of-phase only — update BUILD_PLAN.md too
+### 7. End-of-phase only — update BUILD_PLAN.md too
 
 When a phase concludes (not every response — just when work wraps):
 
