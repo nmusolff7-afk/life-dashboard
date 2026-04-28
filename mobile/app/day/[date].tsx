@@ -10,6 +10,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MealDetailModal, WorkoutDetailModal } from '../../components/apex';
 import { fetchDayDetail, type DayDetailResponse } from '../../lib/api/day';
@@ -62,6 +63,7 @@ export default function DayDetailScreen() {
   const t = useTokens();
   const router = useRouter();
   const units = useUnits();
+  const insets = useSafeAreaInsets();
   const { date } = useLocalSearchParams<{ date: string }>();
   const dateIso = typeof date === 'string' ? date : '';
 
@@ -112,8 +114,18 @@ export default function DayDetailScreen() {
   const deficit = workoutBurn > 0 ? workoutBurn - intake : null;
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <View style={[styles.header, { borderBottomColor: t.border }]}>
+    <View style={{ flex: 1, backgroundColor: t.bg, paddingBottom: insets.bottom }}>
+      <View
+        style={[
+          styles.header,
+          {
+            borderBottomColor: t.border,
+            // Custom header (root Stack hides the default one for this
+            // route) — pad the top so it sits below the status bar
+            // instead of behind it. Founder-flagged 2026-04-28.
+            paddingTop: 12 + insets.top,
+          },
+        ]}>
         <Pressable onPress={() => router.back()} hitSlop={10} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={22} color={t.text} />
           <Text style={[styles.backLabel, { color: t.text }]}>Back</Text>

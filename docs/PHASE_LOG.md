@@ -874,3 +874,119 @@ after adding `GOOGLE_MAPS_API_KEY` to `.env`. Resolved.
   - If no events today, you'll see the "Connect Google Calendar
     or Outlook" empty-state copy.
   - All-day events are intentionally excluded.
+
+### 19:45 — INBOX triage (8 items + Plaid de-icebox) + Founder trust pass: HC display + platform copy + safe-area
+- **Prompt:** "continue" — pick up the next phase from Now.
+- **Did:**
+  1. **Triaged 8 INBOX items** (filing-only). Bugs/UX (5) →
+     Backlog → Now: tab visual consistency Finance+Time vs
+     Fitness+Nutrition (~3h), homepage Time card overhaul
+     (~2h), safe-area enforcement (~1h, addressed this turn).
+     Features (1) → Backlog → Later: Fitness subsystem
+     consolidation (~3h), Day Summary view content gap (~3h).
+     Question (2, scores not working / location sampling
+     cadence) → answered in summary, not stored. Substantive
+     scope change: **founder de-iceboxed Plaid** ("plaid should
+     not be marked as deferred to post release this is critical
+     for finance page i will work on getting it set up soon").
+     Moved Plaid to Backlog → Next as a v1 critical-path
+     ~30h item; founder owns the Developer Portal setup.
+     Cleared INBOX.
+  2. **Diagnosed root cause of HC display gap.**
+     `mobile/lib/useHealthConnection.ts` is a stub from before
+     C1 — just an AsyncStorage boolean, not connected to the
+     real HC pipeline. `sleep.tsx` and `recovery.tsx` consumed
+     this stub, never read `health_daily`, and showed
+     "data pending — coming build" forever even when HC had
+     real data. This is the founder's "HC has my data but
+     Life Dashboard doesn't display it" symptom in full.
+  3. **Shipped: HC data wiring on subsystem screens.** Added
+     two helpers to `useHealthData.ts`: `useHealthToday()`
+     (one-shot fetch of `/api/health/today` with today + history)
+     and `healthHubLabel()` (platform-aware "Health Connect"
+     vs "Apple Health" string). Rewrote
+     `mobile/app/fitness/subsystem/sleep.tsx` with three states:
+     not-permitted → connect CTA; permitted-but-no-data →
+     diagnostic ("most Android phones don't track sleep
+     natively; check your wearable's HC bridge"); permitted-
+     with-data → hero number + 7-night trend bars. Same
+     pattern in `recovery.tsx` (HRV + RHR hero + 14-day EMA
+     + bar chart).
+  4. **Movement subsystem:** wired HC `active_kcal` (replaces
+     the "Connect Apple Health" stub in the active-minutes
+     card with a real "Active calories from Health Connect"
+     readout when permitted). HC `steps` overrides the
+     manually-logged step count when present.
+  5. **Cardio subsystem:** removed stale "Phase 6 / Apple
+     Health" copy on the HR-zones placeholder; pointed users
+     to the Strava activity detail screen for per-session
+     zones (already shipped in §14.5.1).
+  6. **Safe-area fixes (founder-flagged):**
+     - `mobile/app/(onboarding)/_layout.tsx` now wraps the
+       Stack in a View with `paddingTop: insets.top` +
+       `paddingBottom: insets.bottom`. Onboarding screens
+       no longer bleed into status bar / gesture nav.
+     - `mobile/app/fitness/plan/builder.tsx`: nav bar at
+       bottom now uses `paddingBottom: 12 + insets.bottom`;
+       ScrollView contentContainerStyle adds insets.bottom
+       to the bottom padding so content doesn't sit under
+       the bar. Founder's "feels compressed" symptom fixed.
+     - `mobile/app/day/[date].tsx`: custom header now uses
+       `paddingTop: 12 + insets.top` (root Stack hides the
+       default header for this route, so the custom header
+       previously sat under the status bar).
+- **Files:** `mobile/lib/hooks/useHealthData.ts` (new
+  `useHealthToday` + `healthHubLabel`),
+  `mobile/app/fitness/subsystem/sleep.tsx` (rewrite),
+  `mobile/app/fitness/subsystem/recovery.tsx` (rewrite),
+  `mobile/app/fitness/subsystem/movement.tsx` (HC active_kcal
+  + steps wiring), `mobile/app/fitness/subsystem/cardio.tsx`
+  (copy fix), `mobile/app/(onboarding)/_layout.tsx` (insets),
+  `mobile/app/fitness/plan/builder.tsx` (insets),
+  `mobile/app/day/[date].tsx` (insets),
+  `docs/BUILD_PLAN.md` (3 INBOX bugs added to Now, 2 features
+  added to Later, Plaid de-iceboxed to Next, 3 just-shipped
+  bugs removed from Now, Status snapshot updated),
+  `docs/INBOX.md` (cleared).
+- **Decisions:**
+  - Don't deprecate `useHealthConnection` (stub) outright —
+    leaving it for now since other code paths might still
+    import it. Add a note to its JSDoc that
+    sleep/recovery/movement now use `useHealthData` directly.
+    Future cleanup phase: rip out the stub.
+  - Three-state UI on sleep/recovery (disconnected /
+    permitted-no-data / has-data) instead of two — the
+    middle state explicitly tells the founder "we're hooked
+    up but your wearable isn't writing data" with a Sync
+    button. Solves the "why is it empty" mystery in-place.
+  - Movement subsystem: HC `steps` overrides manual entry
+    when permitted-and-present. The reverse (manual override
+    of HC) is a v1.6 polish if needed.
+  - Plaid scope estimate (~30h): comparable to Strava's lift
+    + extra OAuth complexity (Plaid Link's mobile flow is
+    SDK-driven, not pure OAuth). Founder owns the Developer
+    Portal setup; integration follows.
+- **Outcome:** Shipping. TS clean (only pre-existing
+  finance.tsx:114). All JS-only — no rebuild needed.
+- **Manual checks (pending):**
+  - Open Fitness → Sleep. With HC permitted + sleep data
+    present, you should see a hero "8h 12m" (or whatever)
+    and a 7-night bar trend. Without sleep data: a "Health
+    Connect connected — no sleep data yet" diagnostic with
+    Sync button.
+  - Open Fitness → Recovery. Should show HRV today + 14-day
+    EMA + RHR + a bar trend, OR the "no HRV data yet"
+    diagnostic.
+  - Open Fitness → Movement. Active calories card should
+    show real kcal from HC if permitted, not the "Connect
+    Apple Health" stub.
+  - Open Fitness → Cardio. The HR zones placeholder should
+    no longer say "Connect Apple Health" — it now points
+    you at Strava-sourced rows for per-session zones.
+  - Open Workout Builder. The bottom nav bar should sit
+    above your gesture pill / on-screen back button, not
+    behind it.
+  - Open any onboarding screen. Top should sit below the
+    status bar.
+  - Open Day Detail (tap a day on the activity calendar).
+    Header should sit below the status bar.

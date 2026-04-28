@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { DayName, WorkoutPlanQuiz } from '../../../../shared/src/types/plan';
 import {
@@ -71,6 +72,7 @@ export default function WorkoutBuilder() {
   const router = useRouter();
   const haptics = useHaptics();
   const profile = useProfile();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ initial?: string }>();
 
   // PRD §4.3.10 "Edit Plan opens the Workout Builder with pre-populated
@@ -168,7 +170,9 @@ export default function WorkoutBuilder() {
         />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: 120 + insets.bottom }]}
+        keyboardShouldPersistTaps="handled">
         {step === 'days' ? (
           <>
             <Text style={[styles.heading, { color: t.text }]}>Which days will you train?</Text>
@@ -349,7 +353,18 @@ export default function WorkoutBuilder() {
         ) : null}
       </ScrollView>
 
-      <View style={[styles.navBar, { borderTopColor: t.border, backgroundColor: t.bg }]}>
+      <View
+        style={[
+          styles.navBar,
+          {
+            borderTopColor: t.border,
+            backgroundColor: t.bg,
+            // Safe-area: pad the bottom of the fixed nav bar so the
+            // gesture pill / on-screen back button doesn't sit on
+            // top of the buttons (founder-flagged 2026-04-28).
+            paddingBottom: 12 + insets.bottom,
+          },
+        ]}>
         <Pressable
           onPress={back}
           disabled={generating}

@@ -132,6 +132,12 @@ work?").
 - **DayStrip** (§14.2 hard blocks) shipped 2026-04-28 — calendar-
   events-only for v1; tasks-with-time and sleep blocks deferred.
 - 1 missing component set: **Patterns view** (for §14.3) — queued.
+- **Sleep + Recovery subsystem screens** now read real
+  `health_daily.sleep_minutes` / `hrv_ms` / `resting_hr` data
+  with 7-day trend bars + 14-day HRV EMA (shipped 2026-04-28).
+  Platform-aware "Connect Health Connect" copy on Android.
+  Movement subsystem displays HC `active_kcal` + steps when
+  permitted.
 
 **Tooling:**
 - Local Android build pipeline (~5 min) vs EAS ~70 min.
@@ -187,35 +193,6 @@ the project will become.
 
 ### Now — pick the next phase from here
 
-- **HC display gap diagnosis** (~3h) — INBOX 2026-04-28
-  - **Founder symptom:** "Health Connect has my sleep, step, HRV
-    data but Life Dashboard does not display it anywhere." This
-    contradicts the audit (which said pipeline was intact end-to-
-    end). Real diagnostic phase needed.
-  - **Hypotheses to investigate:**
-    1. `HealthConnectCard` is conditional on `permitted` state
-       (`useHealthData.ts`) — if permission re-check fails on
-       cold launch, the card silently hides even when data
-       exists in `health_daily`.
-    2. Auto-sync isn't running — the Card only refreshes via
-       manual "Sync now" tap; data may be stale or never
-       synced after the connect flow.
-    3. The "Connect Apple Health" copy on `recovery.tsx` /
-       `sleep.tsx` subsystem screens is hardcoded — these
-       screens may not be reading `health_daily` at all (they
-       might only check for HealthKit which doesn't apply on
-       Android).
-  - **Files to inspect:** `mobile/lib/hooks/useHealthData.ts`,
-    `mobile/components/apex/HealthConnectCard.tsx`,
-    `mobile/app/fitness/subsystem/sleep.tsx`,
-    `mobile/app/fitness/subsystem/recovery.tsx`,
-    `mobile/app/fitness/subsystem/body.tsx`,
-    `app.py` `/api/health/today` route + `/api/health/sync`.
-  - **Done when:** Sleep / recovery / body subsystem screens on
-    Android show real HC data when present; "Connect Apple
-    Health" copy is replaced with platform-aware copy on
-    Android; HC data flows through to chatbot LifeContext.
-
 - **Auto-sync cadence tightening** (~2h) — INBOX 2026-04-28
   - **Founder symptom:** "Things need to be syncing more often,
     feels like I'm looking at old data most of the time."
@@ -245,23 +222,39 @@ the project will become.
   - **Done when:** Founder reports the chart matches their
     daily meal logs.
 
-- **Subsystem screen copy: "Apple Health" → platform-aware** (~30m) — INBOX 2026-04-28
-  - **Founder symptom:** "Sleep and recovery cards in fitness
-    show 'Connect Apple Health' but I'm on Android and have
-    Health Connect connected."
-  - **Scope:** Hardcoded "Apple Health" string on
-    `subsystem/sleep.tsx`, `subsystem/recovery.tsx` (likely
-    `cardio.tsx` and others too). Replace with platform-aware
-    copy ("Connect Health Connect" on Android, "Connect Apple
-    Health" on iOS). Better: detect existing HC connection +
-    hide the connect prompt when permitted+data present.
-  - **Files:** all 6 `mobile/app/fitness/subsystem/*.tsx`
-    screens — grep "Apple Health".
-  - **Done when:** Empty-state copy on each subsystem reflects
-    Android reality; if HC is permitted, the "Connect" CTA
-    isn't shown at all.
-  - **Likely overlaps with HC display gap above** — bundle the
-    fixes into one phase.
+- **Tab visual consistency: Finance + Time match Fitness + Nutrition** (~3h) — INBOX 2026-04-28
+  - **Founder symptom:** "The layout of the Finance and Time
+    tabs looks nothing like the Fitness and Nutrition. The way
+    the tabs are laid out and the tab selector looks."
+  - **Scope:** Compare `mobile/app/(tabs)/finance.tsx` and
+    `time.tsx` against `fitness.tsx` and `nutrition.tsx`. Port
+    the same SubTabs / sub-section pattern, the same hero card
+    structure, the same density. Each of the 4 main tabs should
+    feel like a sibling, not stylistically branched.
+  - **Files:** `mobile/app/(tabs)/finance.tsx`,
+    `mobile/app/(tabs)/time.tsx`. Reference: `fitness.tsx`,
+    `nutrition.tsx`.
+  - **Done when:** Founder confirms the four tabs feel
+    consistent.
+
+- **Homepage Time card → active + tasks-led + FAB add-task** (~2h) — INBOX 2026-04-28
+  - **Founder symptom:** "We need to make the time card in
+    homepage active and show important stuff. Tasks should be
+    at least one of the main things displayed in main time
+    card on homepage. Add the option to add task through the
+    FAB."
+  - **Scope:** Today tab's Time category card currently shows
+    score only. Promote it to a content-rich card: top-3
+    pending tasks for today (priority + overdue first), next
+    calendar event time, unread email count. FAB on Today tab
+    gets a "+ Task" quick-action.
+  - **Files:** `mobile/app/(tabs)/index.tsx` (Today tab Time
+    card section), `mobile/components/apex/CategoryScoreRow.tsx`
+    (potentially expand), `mobile/components/apex/FAB.tsx` (add
+    task action), `mobile/lib/hooks/useHomeData.ts` (extend
+    with task + email peek).
+  - **Done when:** Tap Today tab → Time card shows live tasks
+    + next event; FAB → "+ Task" → goes to task-new.
 
 - **`mind_tasks.task_time` field for time-windowed tasks** (~1h) — surfaced by §14.2 Day Timeline
   - **Scope:** Currently `mind_tasks` has only `task_date` (which
@@ -367,6 +360,30 @@ the project will become.
   - **Done when:** All 3 goals are creatable from the library
     picker, instantiate active (not paused), and show real
     progress.
+
+- **Plaid integration — Finance tab connector** (~30h, was Icebox; promoted 2026-04-28 per founder)
+  - **Founder note (2026-04-28):** "Plaid should not be marked
+    as deferred to post release this is critical for finance
+    page i will work on getting it set up soon."
+  - **Scope:** OAuth (Plaid Link mobile flow), accounts pull,
+    transactions pull (with cursor-based pagination), balance
+    refresh, transactions webhook for real-time updates.
+    Backend: new `plaid_sync.py` + ~5 routes
+    (`/oauth/init`, `/exchange`, `/sync`, `/transactions`,
+    `/disconnect`). DB: `finance_accounts` + `finance_transactions`
+    schema is already Plaid-ready (every row carries `source`
+    column; manual rows untouched on Plaid sync). Mobile: new
+    `useplaidOAuth.ts` hook (mirror Strava), `connections.tsx`
+    handler, transaction list rebind to Plaid-sourced rows.
+  - **Files:** new `plaid_sync.py`, `app.py` (routes),
+    `connectors.py` (catalog entry), `mobile/lib/hooks/usePlaidOAuth.ts`,
+    `mobile/app/settings/connections.tsx`,
+    `mobile/app/(tabs)/finance.tsx`.
+  - **Done when:** Founder connects Plaid; bank accounts +
+    last 30 days of transactions appear in Finance tab;
+    refresh works; webhook pushes new transactions live.
+  - **Blocked on:** Founder completing Plaid Developer Portal
+    setup (Plaid keys + webhook URL).
 
 - **§14.5.2 Health Connect granular pulls** (~8h) — connector depth
   - **Scope:** Per-day workout segments (start/end + activity
@@ -532,6 +549,41 @@ the project will become.
   - **Blocked on:** Apex Leadership LLC formation docs uploaded;
     Microsoft 1-5 business day review.
 
+- **Fitness subsystem consolidation + equal-weight rebalance** (~3h) — INBOX 2026-04-28
+  - **Founder symptom:** "I think we have too many subcards in
+    Fitness and a lot of them could be combined but without
+    losing functionality once you click into them. Recovery
+    being just HRV is dumb. They should all feel equal weight."
+  - **Scope:** 6 subsystem cards (body, cardio, movement,
+    recovery, sleep, strength) feel uneven — recovery is one
+    metric while cardio has full week chart + history.
+    Either combine (Recovery + Sleep into one "Recovery &
+    Sleep"), or beef up the lighter ones to match
+    visual+content weight. Founder preference TBD; this is
+    a design phase.
+  - **Files:** `mobile/components/apex/FitnessSubsystemCard.tsx`
+    (rendering), `mobile/components/apex/SubsystemsCard.tsx`
+    (composition), all 6 `mobile/app/fitness/subsystem/*.tsx`
+    detail screens.
+  - **Done when:** Fitness tab subsystem stack feels
+    visually balanced; tapping each gives a comparable
+    detail screen.
+
+- **Day Summary view content gap** (~3h) — INBOX 2026-04-28
+  - **Founder symptom:** "The day summary view is empty right
+    now compared to the amount of data we have."
+  - **Scope:** `mobile/app/day/[date].tsx` should be a rich
+    cross-domain rollup — today's meals + workouts + tasks +
+    calendar events + sleep / steps / HRV / HR + screen-time
+    + visited places + Day Timeline blocks. Should feel like
+    "what happened today" snapshot, not a lite version of
+    Today tab. Pulls from existing endpoints.
+  - **Files:** `mobile/app/day/[date].tsx`, possibly new
+    `/api/day/<date>` aggregation route in `app.py`.
+  - **Done when:** Day view answers "what did I do on
+    YYYY-MM-DD?" by showing every category we have data for
+    that day.
+
 - **Bodyweight chart parity with Flask PWA** (~3h) — INBOX 2026-04-28
   - **Founder symptom:** "Bodyweight graph should show change
     over time and mimick my pwa more."
@@ -674,10 +726,10 @@ the project will become.
   if Garmin-specific data fields (body battery, training load)
   become a frequent feature request.
 
-- **Plaid** — finance tab is manual-entry-only for v1. Plaid is
-  the post-launch monetization gate ($60/100 active users/mo
-  cost; need paid tier active first). PRD §1.6 has it on Core
-  tier; deferred to v1.5+.
+- _(2026-04-28: **Plaid** moved out of Icebox per founder._
+  _Founder is handling Plaid Developer Portal setup; integration_
+  _work is now in Backlog → Next as a v1 critical-path item._
+  _PRD §1.6 has it on Core tier.)_
 
 - **RevenueCat / paywall / tier gating** — solo-user phase. No
   auth → no tiers → no paywall. Ship after the user count

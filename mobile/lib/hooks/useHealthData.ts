@@ -4,6 +4,53 @@ import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../api';
 import { localToday } from '../localTime';
 
+/** A single row from `health_daily` (or null fields for missing metrics). */
+export interface HealthDay {
+  steps: number | null;
+  sleep_minutes: number | null;
+  resting_hr: number | null;
+  hrv_ms: number | null;
+  active_kcal: number | null;
+  synced_at?: string;
+}
+
+/** Backend-persisted aggregate from `/api/health/today` — today + recent
+ *  history. Use this in subsystem screens (sleep/recovery/movement) to
+ *  display the data the HC custom Expo Module has synced. */
+export function useHealthToday(): {
+  today: HealthDay | null;
+  history: HealthDay[];
+  loading: boolean;
+  refetch: () => Promise<void>;
+} {
+  const [today, setToday] = useState<HealthDay | null>(null);
+  const [history, setHistory] = useState<HealthDay[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refetch = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/health/today');
+      if (!res.ok) return;
+      const json = (await res.json()) as { today?: HealthDay; history?: HealthDay[] };
+      setToday(json.today ?? null);
+      setHistory(json.history ?? []);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void refetch(); }, [refetch]);
+
+  return { today, history, loading, refetch };
+}
+
+/** Platform-aware copy for "the health hub on this device". Used by
+ *  fitness subsystem screens that need to tell the user where to grant
+ *  permission. */
+export function healthHubLabel(): string {
+  return Platform.OS === 'android' ? 'Health Connect' : 'Apple Health';
+}
+
 // Local Expo module — see mobile/modules/health-connect/. Lazy-required
 // so iOS/web bundling doesn't choke on the native binding lookup.
 type HealthConnectModuleType = {

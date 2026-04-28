@@ -17,7 +17,9 @@ const DAYS: DayName[] = [
 ];
 
 /** Cardio subsystem — weekly cardio-minutes trend + recent activity list.
- *  HR-zone breakdown deferred until HealthKit wiring (Phase 6). */
+ *  HR zones from logged sessions are surfaced via Strava activity
+ *  detail screen (tap a Strava-sourced row). Per-session zones
+ *  display directly on the cardio card is queued in Backlog → Later. */
 export default function CardioDetail() {
   const t = useTokens();
   const history = useWorkoutHistory(90);
@@ -92,7 +94,9 @@ export default function CardioDetail() {
         <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
           <Text style={[styles.cardTitle, { color: t.muted }]}>Heart rate zones</Text>
           <Text style={[styles.empty, { color: t.muted }]}>
-            Connect Apple Health to see zone breakdown from logged sessions.
+            Tap a Strava-sourced run/ride above for per-session HR zones,
+            splits, and elevation. Aggregated zone breakdown across
+            sessions is queued.
           </Text>
         </View>
 

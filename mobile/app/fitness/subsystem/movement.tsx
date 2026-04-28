@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { NumberPromptModal } from '../../../components/apex';
 import { useState } from 'react';
 import { OCC_BASE, computeNeat, type Occupation } from '../../../../shared/src/logic/neat';
+import { healthHubLabel, useHealthData, useHealthToday } from '../../../lib/hooks/useHealthData';
 import { useProfile, useTodaySteps, useTodayWorkouts } from '../../../lib/hooks/useHomeData';
 import { useTokens } from '../../../lib/theme';
 
@@ -16,7 +17,18 @@ export default function MovementDetail() {
   const stepsState = useTodaySteps();
   const profile = useProfile();
   const workouts = useTodayWorkouts();
+  const hc = useHealthData();
+  const { today: hcToday } = useHealthToday();
   const [stepsModal, setStepsModal] = useState(false);
+  // Prefer HC's active_kcal when available; otherwise show empty-state
+  // copy that points the user at Health Connect on Android (or Apple
+  // Health on iOS, when that lands).
+  const activeKcal = hcToday?.active_kcal ?? null;
+  const hcSteps = hcToday?.steps ?? null;
+  // Override the manually-logged step count with HC's read when HC is
+  // permitted AND has data — manual entry is the fallback for users
+  // without a wearable.
+  const displaySteps = (hc.permitted && hcSteps != null) ? hcSteps : stepsState.steps;
 
   const occupation: Occupation = ((): Occupation => {
     const ws = profile.data?.work_style;
@@ -44,8 +56,13 @@ export default function MovementDetail() {
         <View style={[styles.heroCard, { backgroundColor: t.surface, borderColor: t.border }]}>
           <Text style={[styles.heroLabel, { color: t.muted }]}>STEPS TODAY</Text>
           <Text style={[styles.heroValue, { color: t.text }]}>
-            {stepsState.steps != null ? stepsState.steps.toLocaleString() : '—'}
+            {displaySteps != null ? displaySteps.toLocaleString() : '—'}
           </Text>
+          {hc.permitted && hcSteps != null ? (
+            <Text style={[styles.hcHint, { color: t.subtle }]}>
+              from {healthHubLabel()}
+            </Text>
+          ) : null}
           <Pressable
             onPress={() => setStepsModal(true)}
             style={({ pressed }) => [
@@ -80,11 +97,25 @@ export default function MovementDetail() {
         </View>
 
         <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
-          <Text style={[styles.cardTitle, { color: t.muted }]}>Active minutes</Text>
-          <Text style={[styles.empty, { color: t.muted }]}>
-            Connect Apple Health to automatically track active minutes.{'\n'}
-            Target: {activeMinTarget} min/day.
-          </Text>
+          <Text style={[styles.cardTitle, { color: t.muted }]}>Active calories</Text>
+          {hc.permitted && activeKcal != null ? (
+            <>
+              <Text style={[styles.bigValue, { color: t.text }]}>
+                {activeKcal}
+                <Text style={[styles.bigUnit, { color: t.muted }]}> kcal today</Text>
+              </Text>
+              <Text style={[styles.hint, { color: t.subtle }]}>
+                From {healthHubLabel()}. Combines workout + non-workout
+                active energy reported by your wearable.
+              </Text>
+            </>
+          ) : (
+            <Text style={[styles.empty, { color: t.muted }]}>
+              Connect {healthHubLabel()} to automatically track active
+              calories + minutes.{'\n'}
+              Target: {activeMinTarget} min/day.
+            </Text>
+          )}
         </View>
       </ScrollView>
 
@@ -117,6 +148,7 @@ const styles = StyleSheet.create({
   heroCard: { borderRadius: 14, borderWidth: 1, padding: 18, alignItems: 'center', gap: 8 },
   heroLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1 },
   heroValue: { fontSize: 40, fontWeight: '700', letterSpacing: -1 },
+  hcHint: { fontSize: 11, fontStyle: 'italic', marginTop: -4 },
   editBtn: { borderRadius: 100, paddingHorizontal: 18, paddingVertical: 8, marginTop: 4 },
   editLabel: { color: '#fff', fontSize: 13, fontWeight: '700' },
   card: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 8 },
