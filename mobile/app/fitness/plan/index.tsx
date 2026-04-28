@@ -55,6 +55,14 @@ export default function PlanIndex() {
     idx: number;
     draft: PlanExercise;
   } | null>(null);
+  // Inline cardio editor — same pattern as exercise edit. Opens when
+  // user taps the cardio row OR the "Add cardio" CTA on a day without
+  // cardio. Stores the day + a draft cardio object; save writes
+  // through to draftPlan, delete sets cardio = null.
+  const [editCardio, setEditCardio] = useState<{
+    day: DayName;
+    draft: { type: string; committed: boolean };
+  } | null>(null);
 
   // Draft-mode state. All edits (manual via modal/delete + AI-proposed
   // via dry-run revise) land here, NOT on the server. The user reviews
@@ -280,6 +288,52 @@ export default function PlanIndex() {
     setEditTarget(null);
   };
 
+  const openCardioEditor = (dayName: DayName) => {
+    haptics.fire('tap');
+    const day = weekly[dayName];
+    const existing = day?.cardio;
+    setEditCardio({
+      day: dayName,
+      // Seed draft with the current cardio (if any) so editing
+      // pre-fills, or empty fields when adding fresh.
+      draft: { type: existing?.type ?? '', committed: existing?.committed ?? true },
+    });
+  };
+
+  const handleSaveCardioEdit = () => {
+    if (!editCardio) return;
+    const { day: dayName, draft } = editCardio;
+    haptics.fire('tap');
+    const trimmed = draft.type.trim();
+    updateDraft((current) => {
+      const w = current.weeklyPlan ?? {};
+      const day = w[dayName] ?? { label: 'Workout', exercises: [], cardio: null };
+      // Empty type = remove cardio. Non-empty = upsert.
+      const nextCardio = trimmed
+        ? { type: trimmed, committed: !!draft.committed }
+        : null;
+      return {
+        ...current,
+        weeklyPlan: { ...w, [dayName]: { ...day, cardio: nextCardio } },
+      };
+    });
+    setEditCardio(null);
+  };
+
+  const handleRemoveCardio = (dayName: DayName) => {
+    haptics.fire('tap');
+    updateDraft((current) => {
+      const w = current.weeklyPlan ?? {};
+      const day = w[dayName];
+      if (!day) return current;
+      return {
+        ...current,
+        weeklyPlan: { ...w, [dayName]: { ...day, cardio: null } },
+      };
+    });
+    setEditCardio(null);
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <Stack.Screen options={{ title: 'Plan' }} />
@@ -404,11 +458,31 @@ export default function PlanIndex() {
                     </View>
                   ))}
                   {cardioLabel ? (
-                    <View style={[styles.cardioRow, { borderTopColor: t.border }]}>
+                    <Pressable
+                      onPress={() => openCardioEditor(dayName)}
+                      accessibilityLabel={`Edit cardio for ${dayName}`}
+                      style={({ pressed }) => [
+                        styles.cardioRow,
+                        { borderTopColor: t.border, opacity: pressed ? 0.6 : 1 },
+                      ]}>
                       <Ionicons name="walk-outline" size={16} color={t.fitness} />
-                      <Text style={[styles.cardioLabel, { color: t.text }]}>{cardioLabel}</Text>
-                    </View>
-                  ) : null}
+                      <Text style={[styles.cardioLabel, { color: t.text, flex: 1 }]}>{cardioLabel}</Text>
+                      <Ionicons name="create-outline" size={14} color={t.muted} />
+                    </Pressable>
+                  ) : (
+                    <Pressable
+                      onPress={() => openCardioEditor(dayName)}
+                      accessibilityLabel={`Add cardio to ${dayName}`}
+                      style={({ pressed }) => [
+                        styles.cardioRow,
+                        { borderTopColor: t.border, opacity: pressed ? 0.6 : 1 },
+                      ]}>
+                      <Ionicons name="add-circle-outline" size={16} color={t.muted} />
+                      <Text style={[styles.cardioLabel, { color: t.muted, flex: 1, fontStyle: 'italic' }]}>
+                        Add cardio session
+                      </Text>
+                    </Pressable>
+                  )}
                 </View>
               ) : null}
             </View>
@@ -627,6 +701,71 @@ export default function PlanIndex() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Cardio editor — opens when user taps a cardio row OR the
+          "Add cardio session" CTA on a day with no cardio yet. Single
+          field (type label) plus a Remove button when editing an
+          existing cardio session. */}
+      <Modal
+        visible={!!editCardio}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditCardio(null)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalBackdrop}>
+          <Pressable
+            onPress={() => setEditCardio(null)}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={[styles.modalSheet, { backgroundColor: t.surface, borderColor: t.border }]}>
+            <Text style={[styles.modalTitle, { color: t.text }]}>
+              {weekly[editCardio?.day as DayName]?.cardio?.type ? 'Edit cardio' : 'Add cardio'}
+            </Text>
+
+            <Text style={[styles.modalLabel, { color: t.muted }]}>Session type</Text>
+            <TextInput
+              value={editCardio?.draft.type ?? ''}
+              onChangeText={(v) => setEditCardio((prev) =>
+                prev ? { ...prev, draft: { ...prev.draft, type: v } } : prev)}
+              placeholder="e.g. Easy Run, Incline Walk, Bike Intervals"
+              placeholderTextColor={t.subtle}
+              autoCapitalize="words"
+              style={[
+                styles.modalInput,
+                { color: t.text, backgroundColor: t.surface2, borderColor: t.border },
+              ]}
+            />
+            <Text style={[styles.modalHint, { color: t.subtle }]}>
+              Leave blank and Save to clear cardio for this day.
+            </Text>
+
+            <View style={styles.modalActions}>
+              {weekly[editCardio?.day as DayName]?.cardio?.type ? (
+                <Pressable
+                  onPress={() => editCardio && handleRemoveCardio(editCardio.day)}
+                  style={[styles.secondaryGhost, { marginRight: 'auto' }]}
+                  accessibilityLabel="Remove cardio">
+                  <Ionicons name="trash-outline" size={14} color={t.danger} />
+                </Pressable>
+              ) : null}
+              <Pressable
+                onPress={() => { haptics.fire('tap'); setEditCardio(null); }}
+                style={styles.secondaryGhost}>
+                <Text style={[styles.secondaryLabel, { color: t.muted }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleSaveCardioEdit}
+                style={({ pressed }) => [
+                  styles.primaryBtn,
+                  { backgroundColor: t.accent, opacity: pressed ? 0.8 : 1 },
+                ]}>
+                <Text style={styles.primaryLabel}>Save</Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -798,6 +937,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   modalRow: { flexDirection: 'row', gap: 10 },
+  modalHint: { fontSize: 11, fontStyle: 'italic', marginTop: 4 },
   modalActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
