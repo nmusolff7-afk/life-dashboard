@@ -5,7 +5,7 @@
 > history accumulates in [`PHASE_LOG.md`](PHASE_LOG.md); long-term
 > product spec lives in [`migration/APEX_PRD_Final.md`](migration/APEX_PRD_Final.md).
 
-**Last updated:** 2026-04-28 by Claude (post 3-file split + Vision rewrite)
+**Last updated:** 2026-04-28 by Claude (post codebase audit — confirmed plan ≈ reality)
 
 ---
 
@@ -88,27 +88,52 @@ work?").
 
 ## Status snapshot
 
-**Where we are:** v1.5 mid-build. C1 connectors all shipped (Gmail /
-GCal / Outlook / Strava / Health Connect / Location / Screen Time).
-Workout builder + Strava activity detail + 3 of 5 newly-unblocked goal
-handlers shipped. Mobile is on local Android builds (~5 min vs EAS
-~70 min). Doc system was just restructured into the 3-file split
-(BUILD_PLAN / INBOX / PHASE_LOG).
+**Where we are:** v1.5 mid-build. Audited 2026-04-28: plan ≈ reality.
 
-**Active surface area:** Goals (TIME-02/05/06 wired backend; UI for
-config_json not yet exposed). Day Timeline core is the next big
-phase. Strava detail polish nice-to-have.
+**Backend** (~145 routes in `app.py`, ~41 DB tables, 5 sync modules):
+- C1 connectors all shipped: Gmail / GCal / Outlook / Strava /
+  Health Connect / Location / Screen Time.
+- Goals engine: 16 of 21 library handlers wired
+  (`_PROGRESS_HANDLERS`); 5 paused waiting on data sources (NUT-05
+  alcohol, FIN-01/02/03 Plaid, TIME-03 social, TIME-04 phone-down).
+- Strava detail (§14.5.1) shipped: lazy fetch, splits, zones,
+  streams, polyline → Static Maps.
+- Workout builder rewrite (§14.7) + draft-mode editing (§14.7b)
+  shipped.
+- Goals data-binding (§14.8) shipped: TIME-02 / TIME-05 / TIME-06
+  handlers + `config_json` plumbing end-to-end.
+- Chatbot context: **partially built.** Always-on tier wired
+  (Profile / Goals primary / Nutrition / Fitness containers).
+  Day-stream + historical tiers stubbed (queued in §14.4 Next).
+  Finance + LifeContext containers also stubs.
 
-**Known stable:** Nutrition tab, Fitness tab core, OAuth flows for
-all 4 providers, custom Expo Modules (`health-connect`, `usage-stats`),
-local Android build pipeline.
+**Mobile** (Expo SDK 54, Android-first; ~5 main tabs + ~50 routes):
+- 5 tabs all complete (Home / Fitness / Nutrition / Finance / Time).
+- Settings flow complete (12 screens incl. profile-edit sub-flow).
+- 6 fitness subsystem drilldown screens.
+- Strava activity detail screen wired in.
+- Goals library + customize flow live, but **TIME-02/05/06 config
+  fields not surfaced in `customize.tsx`** — those goals
+  instantiate paused until the UI lands (Backlog → Now).
+- Custom Expo Modules: `health-connect`, `usage-stats` — both
+  working.
+- 2 missing component sets: **DayStrip** (for §14.2 Day Timeline)
+  and **Patterns view** (for §14.3) — both queued.
+
+**Tooling:**
+- Local Android build pipeline (~5 min) vs EAS ~70 min.
+- Test coverage: minimal — `test_scoring.py` (50 lines, pytest)
+  covers the deterministic scoring math; nothing else automated.
+  Manual integration testing via founder + INBOX.md feedback loop.
 
 **Known fragile:**
-- Location connect-flow alert chain (minor UX polish in Backlog).
-- Outlook multi-tenant (waiting on Microsoft Publisher Verification —
-  ~1 wk wait + paperwork).
+- Location connect-flow alert chain (minor UX polish in Backlog → Now).
+- Outlook multi-tenant (waiting on Microsoft Publisher Verification
+  — ~1 wk wait + paperwork; Backlog → Later).
 - Pre-existing TS error `app/(tabs)/finance.tsx:114` (carrying
-  forward; will fix when finance gets next touch).
+  forward; Backlog → Later, ~30m fix).
+- Webhook receiver in `app.py` is a generic stub from B1 scaffolding
+  — not production-wired (Backlog → Later).
 
 ---
 
@@ -464,6 +489,43 @@ the project will become.
   - **Caveat:** May not ship — current customize.tsx already
     shows `data_source` from the library entry; founder may
     decide explicit picker is friction-for-no-reason.
+
+- **Webhook receiver production-wiring** (~3h) — surfaced by 2026-04-28 audit
+  - **Scope:** B1 phase scaffolded a generic webhook stub in
+    `app.py` + `webhook_events` table. Not production-wired:
+    no provider-specific signature verification, no per-provider
+    routing, no replay protection. v1 connectors all use polling
+    (Gmail) or OAuth-server-pull (GCal/Outlook), so this isn't
+    blocking — but it's the foundation for any push-based
+    integration (e.g. Slack, Plaid Transactions webhook).
+  - **Files:** `app.py` (replace stub route), new
+    `webhook_router.py`, `db.py` (extend `webhook_events`
+    schema).
+  - **Done when:** A test webhook from a real provider (or
+    `ngrok`-replayed) routes through, signature-verifies, and
+    persists.
+
+- **`scoring.py` / Flask-PWA-era code review** (~1h) — surfaced by 2026-04-28 audit
+  - **Scope:** `scoring.py` is from the Flask PWA era (pre-RN
+    migration). The audit flagged it as "still imported but not
+    actively driving the RN-phase score computation." Either
+    delete (if dead) or document why it lives on (if scoring
+    fall-through goes through it).
+  - **Files:** `scoring.py`, callers (`grep` first to confirm
+    consumers).
+  - **Done when:** Either removed cleanly (no broken imports)
+    or kept with a docstring explaining its current role.
+
+- **Test coverage expansion** (~6h) — surfaced by 2026-04-28 audit
+  - **Scope:** Today only `test_scoring.py` exists. Add:
+    `test_goals_engine.py` (3 new TIME handlers minimum),
+    `test_strava_sync.py` (extract_streams shape variance),
+    `test_db.py` (goal create + update + serialize round-trip).
+    Backend-only; jest/RN tests are out of scope for v1.
+  - **Files:** `tests/` (new directory).
+  - **Done when:** `pytest` runs, ≥3 new test modules, CI-able.
+  - **Trigger:** before public launch or when a regression
+    bites.
 
 ### Icebox — explicitly deferred-with-no-revisit / out of scope
 
