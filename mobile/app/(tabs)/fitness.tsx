@@ -7,6 +7,7 @@ import {
   ActivityCalendar,
   BurnTrendCard,
   FitnessSubsystemCard,
+  HealthConnectCard,
   LogActivityCard,
   NumberPromptModal,
   OverallScoreHero,
@@ -233,6 +234,12 @@ export default function FitnessScreen() {
             />
 
             <TodayWorkoutsList workouts={todayWorkouts} onChanged={refreshAllWorkouts} />
+
+            {/* Health Connect aggregate (Android only — auto-hides on iOS).
+                Shows the 5 metrics we sync: steps, sleep, resting HR,
+                HRV, active calories. The "what's it doing with the
+                data?" answer made visible. */}
+            <HealthConnectCard />
 
             {/* 7 subsystem cards stacked — each drills to its detail screen. */}
             <View style={styles.subsystemStack}>
