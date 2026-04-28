@@ -3458,12 +3458,18 @@ def create_goal_from_library(user_id: int, library_id: str, *,
                              period: str | None = None,
                              window_size: int | None = None,
                              aggregation: str | None = None,
-                             period_unit: str | None = None) -> int:
+                             period_unit: str | None = None,
+                             config: dict | None = None) -> int:
     """Instantiate a goal from a library entry. Type-specific fields are
     required only when the library type uses them; the caller is expected
     to have validated required fields against the library's goal_type.
 
+    `config` is an optional dict of goal-specific settings serialized to
+    `config_json`. Examples: TIME-02 → {"daily_cap_minutes": 180},
+    TIME-06 → {"cluster_id": 42}.
+
     Returns new goal_id. Raises ValueError for unknown library_id."""
+    import json
     lib = get_library_entry(library_id)
     if not lib:
         raise ValueError(f"Unknown library_id: {library_id}")
@@ -3533,7 +3539,7 @@ def create_goal_from_library(user_id: int, library_id: str, *,
                       NULL, ?,
                       ?, NULL, ?, ?,
                       ?, 0, ?, ?, ?,
-                      '{}', ?, ?)
+                      ?, ?, ?)
         """, (
             user_id, library_id, goal_type, category, name,
             int(is_primary), affects_cal,
@@ -3543,6 +3549,7 @@ def create_goal_from_library(user_id: int, library_id: str, *,
             baseline_value,
             target_rate, window_size_val, aggregation_val,
             target_count, period_val, period_start_val, period_end_val,
+            json.dumps(config or {}),
             now, now,
         ))
         conn.commit()
@@ -3553,15 +3560,20 @@ def update_goal_fields(goal_id: int, user_id: int, fields: dict) -> bool:
     """Apply a whitelisted subset of user-editable fields to a goal.
 
     Per PRD §4.10.12, editable: target_value, target_streak_length,
-    target_count, target_rate, deadline, display_name, is_primary.
+    target_count, target_rate, deadline, display_name, is_primary,
+    plus `config` (per-goal settings dict, JSON-serialized to config_json
+    — used by TIME-02 daily_cap_minutes, TIME-06 cluster_id, etc.).
     NOT editable: library_id, goal_type, category, start_value.
 
     Returns True if a row was updated."""
+    import json
     allowed = {
         "target_value", "target_streak_length", "target_count", "target_rate",
         "deadline", "display_name", "is_primary", "auto_restart_enabled",
     }
     safe = {k: v for k, v in fields.items() if k in allowed}
+    if "config" in fields and isinstance(fields["config"], dict):
+        safe["config_json"] = json.dumps(fields["config"])
     if not safe:
         return False
     existing = get_goal(goal_id, user_id)

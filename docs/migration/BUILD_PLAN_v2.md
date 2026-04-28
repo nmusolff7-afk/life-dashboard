@@ -1578,6 +1578,10 @@ Rough order, ~125h total (~3.5 weeks at 40h/wk solo):
   + §14.7b draft-mode follow-up)
 - ✅ §14.5.1 Strava maps + charts (shipped — Phase log 2026-04-26;
   detail screen + Static Maps hero + elevation / HR-zones / splits)
+- ✅ §14.8 Goals data-binding (partial — Phase log 2026-04-28;
+  TIME-02 / TIME-05 / TIME-06 handlers wired + config_json plumbing.
+  TIME-03 / TIME-04 + 3 new goal types + wizard data-source
+  enforcement deferred — see log)
 - ⏳ §14.2 Day Timeline core — hard blocks + cron (12h) — week 2
 
 **Week 2 — Day Timeline AI + Patterns + chatbot:**
@@ -2040,6 +2044,131 @@ save to commit, then redirect to fitness page."
 3. **§14.5.5.g Location connect-flow UX fix (~1h)** — alert chain
    was flagged as a bit fragile in the C1 phase log; minor polish
    anytime.
+
+---
+
+### Phase log: §14.8 Goals data-binding (partial) — 2026-04-28
+
+Orientation surfaced two important corrections to the build plan:
+1. The §14.8 plan listed TIME-02..06 with descriptions ("wake-time
+   consistency", "email-zero-by-N-AM", etc.) that don't match the
+   actual library entries in `db.py:_GOAL_LIBRARY_V1`. The real lineup
+   is screen-time / social-cap / phone-down / focus-time / location-
+   visits. Source-of-truth is the seeded library, not the plan doc.
+2. Of the 5 nominally unblocked goals, only 3 are wirable from
+   existing data tables. TIME-03 needs per-app categorization on
+   `screen_time_daily.top_apps_json`; TIME-04 needs hourly screen
+   data (we only sample daily). Both deferred with explicit notes.
+
+**Shipped:**
+- **`config_json` plumbing** ([db.py](db.py), [app.py](app.py)) — the
+  goals row already had a `config_json TEXT DEFAULT '{}'` column but
+  nothing wrote to it. Added a `config: dict | None` kwarg to
+  `create_goal_from_library`, taught `update_goal_fields` to accept
+  a `config` field (JSON-serialized to the column), and made
+  `_serialize_goal` parse it back into a `config: {}` object on the
+  way out — so the client never sees a JSON string.
+- **TIME-02 — Screen-time cap streak** — daily streak handler reads
+  `config.daily_cap_minutes` and qualifies a day iff
+  `screen_time_daily.total_minutes <= cap`. Goal is paused if no cap
+  is configured or if the user has zero screen-time rows yet
+  (UI then shows "Reconnect source").
+- **TIME-05 — Focus time per week** — period_count handler sums
+  duration of any calendar event whose title matches `lower LIKE
+  '%focus%'` across `gcal_events ∪ outlook_events`, in the goal's
+  `[period_start, period_end]` window. Convention: `target_count` is
+  HOURS (matches library default_target=10). Paused when the user has
+  zero events on either calendar.
+- **TIME-06 — Location visits streak (weekly)** — reads
+  `config.cluster_id` and `config.weekly_visits_target`, walks back
+  week-by-week from the last complete week counting calendar days
+  within the [Mon..Sun] window that had at least one location_sample
+  within ~75m of the cluster centroid. Streak length in weeks =
+  `target_streak_length`. Paused when no cluster is configured or
+  zero location samples exist.
+- **Helpers** in [goals_engine.py](goals_engine.py):
+  `_goal_config(goal)` (safe JSON-parse), `_haversine_m`,
+  `_visits_to_cluster_in_week`, `_focus_minutes_in_window`. The
+  haversine formula matches what `location_engine.py` uses for
+  clustering — kept the radius (75m) slightly more generous than the
+  clustering radius (50m) so visits at the edge of a cluster still
+  count.
+
+**Deferred:**
+- **TIME-03 Social media cap** — screen_time_daily.top_apps_json is
+  currently a freeform JSON blob with no app-category classification.
+  Wiring this means either (a) building a hardcoded social-package
+  whitelist in code (`com.instagram.android`, `com.zhiliaoapp.musically`,
+  etc., easy ~1h, high maintenance) or (b) extending the usage-stats
+  Expo Module to surface Android's category metadata (cleaner, ~3h).
+  Pickup: alongside the next screen-time depth pass.
+- **TIME-04 Phone-down after cutoff** — needs hourly buckets, not just
+  daily totals. UsageStatsManager can return hourly intervals; the
+  Expo Module currently aggregates to daily. Two work items: extend
+  the module + add a `screen_time_hourly` table. Pickup: ~3h, treat
+  as part of §14.5.2 Health Connect / device-data depth phase.
+- **3 new goal types** (inbox-zero-streak, sleep-regularity,
+  movement-minutes) — listed in §14.8 step 4. Each needs a library
+  entry (db.py seed), a `_PROGRESS_HANDLERS` entry, and a wizard
+  surface for the type-specific config (cutoff time, std-dev window,
+  etc.). Better as its own ~4h follow-up phase that ships them
+  together.
+- **`data_source_status` field + wizard data-source enforcement**
+  (§14.8 steps 2 + 3) — for v1.5 the existing `paused` flag and the
+  pace label "Reconnect source" already do the user-visible job; a
+  formal enum field is over-engineered until the UI grows badges.
+  Pickup: when the goals list view gets a polish pass.
+- **Customize.tsx UI for `config` fields** — backend accepts the
+  config dict, but the create-goal form has no input for
+  `daily_cap_minutes` / `cluster_id` / `weekly_visits_target` yet.
+  TIME-02/05/06 will instantiate as paused until the user PATCHes
+  config in. Pickup: small mobile follow-up; ~2h.
+
+**Problems flagged:**
+- The build-plan §14.8 description (TIME-02..06 labels + data
+  sources) was out of date relative to the actual seeded library.
+  Same lesson as §14.7's audit finding: when the plan looks small,
+  read the source of truth before assuming. Updated §14.10 to point
+  at the actual goal IDs that shipped.
+- **No tests yet for the 3 new handlers.** Backend smoke-test
+  (`python -c "import goals_engine, app; ..."`) confirms imports
+  clean and `_PROGRESS_HANDLERS` dispatch table now has 16 entries
+  (up from 13). Real testing waits on a UI surface for `config_json`
+  edits + actual data flowing in.
+- Pre-existing `app/(tabs)/finance.tsx:114` TS error untouched
+  (still carrying forward — JS-only finance edit will fix).
+
+**Decisions:**
+- **`config_json` column over a parallel `goal_config` table** —
+  per-goal settings are sparse and goal-type-specific; schema would
+  end up either widely-typed (one column per setting) or generic
+  (key/value rows). JSON column matches the existing
+  `user_goals.config_json` pattern and keeps the migration to zero.
+- **Skip the data-source-status enum** — the `paused` boolean flag
+  + `pace.label` ("Reconnect source") already convey what the UI
+  needs. Adding a field for taxonomic neatness is wasted complexity
+  in v1.5.
+- **TIME-05 keyword match on "focus"** — simplest convention; does
+  the right thing for events the user explicitly named "Focus block"
+  / "Deep focus" / "Focus time". The richer alternative (calendar
+  category metadata, attendee-count == 1, color, etc.) is a v1.6
+  refinement once we see actual user data.
+- **Visit radius 75m vs cluster-form radius 50m** — kept slightly
+  bigger so a cluster centroid that's a few samples off from the
+  user's actual gym door / desk doesn't reject legit visits. Same
+  haversine formula either way.
+
+**Next pickup:**
+1. **§14.2 Day Timeline core (~12h hard blocks)** — week 2 item.
+   Two-tier blocks (deterministic hard blocks from calendar/tasks/
+   sleep + AI-labeled soft blocks). Read PRD §4.2 then survey
+   `chatbot.py:_life_context` (it already pulls calendar + tasks
+   + sleep — Day Timeline reuses that surface).
+2. **Customize.tsx config-field UX (~2h)** — surface `daily_cap_minutes`
+   for TIME-02, `cluster_id` (cluster picker) + `weekly_visits_target`
+   for TIME-06. Without this, the new handlers will all instantiate
+   as paused.
+3. **§14.5.5.g Location connect-flow UX fix (~1h)** — minor polish.
 
 ---
 

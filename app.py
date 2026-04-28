@@ -3972,12 +3972,23 @@ def _user_goal_slot_limit(user_id: int) -> int:
 
 
 def _serialize_goal(goal: dict) -> dict:
-    """Trim internal-only fields and pass pace/progress through cleanly."""
+    """Trim internal-only fields and pass pace/progress through cleanly.
+
+    Parses `config_json` into a `config` dict so the client doesn't have
+    to. Drops the raw `config_json` string from the payload."""
     if not goal:
         return goal
-    # Nothing needs removing for v1 — keep the dict as-is. Placeholder in case
-    # we later strip config_json etc.
-    return goal
+    out = dict(goal)
+    raw_config = out.pop("config_json", None)
+    if raw_config:
+        try:
+            import json as _json
+            out["config"] = _json.loads(raw_config)
+        except Exception:
+            out["config"] = {}
+    else:
+        out["config"] = {}
+    return out
 
 
 @app.route("/api/goal-library", methods=["GET"])
@@ -4093,6 +4104,7 @@ def api_goals_create():
             window_size=data.get("window_size"),
             aggregation=data.get("aggregation"),
             period_unit=data.get("period_unit"),
+            config=data.get("config") if isinstance(data.get("config"), dict) else None,
         )
     except ValueError as e:
         return jsonify({"ok": False, "error": str(e), "error_code": "validation_failed"}), 400

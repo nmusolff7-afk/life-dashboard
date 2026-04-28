@@ -416,6 +416,234 @@ def _qualifies_all_priority_tasks_done(user_id: int, d: date) -> bool:
     return True
 
 
+# ── TIME-02 / TIME-05 / TIME-06 (§14.8) ───────────────────────────────────
+#
+# Three time-category goals wired up once the connectors that back them
+# shipped in C1: screen-time daily aggregates, calendar (gcal+outlook),
+# and foreground location samples. Per-goal config (cap minutes,
+# cluster_id, etc.) lives in goals.config_json.
+#
+# Deferred for a follow-up phase:
+#   - TIME-03 social-cap streak: needs per-app categorization in
+#     screen_time_daily.top_apps_json before we can sum "social" minutes.
+#   - TIME-04 phone-down-after-cutoff streak: screen_time_daily is
+#     daily-only; needs hourly sampling from UsageStatsManager. Plumbing
+#     hourly buckets is its own work.
+
+def _goal_config(goal: dict) -> dict:
+    """Parse goals.config_json into a dict. Returns {} on missing/bad JSON."""
+    raw = goal.get("config_json")
+    if isinstance(raw, dict):
+        return raw  # already-parsed (e.g. unit tests)
+    if not raw:
+        return {}
+    try:
+        import json as _json
+        return _json.loads(raw)
+    except Exception:
+        return {}
+
+
+# --- TIME-02: Screen-time cap streak (daily) ---
+
+def _qualifies_screen_time_under_cap(cap_minutes: int):
+    """Returns a per-day predicate. Day qualifies iff
+    screen_time_daily.total_minutes <= cap_minutes.
+    Days with no row don't qualify (data must be present to count)."""
+    def inner(user_id: int, d: date) -> bool:
+        with get_conn() as conn:
+            row = conn.execute(
+                "SELECT total_minutes FROM screen_time_daily "
+                "WHERE user_id = ? AND stat_date = ?",
+                (user_id, d.isoformat()),
+            ).fetchone()
+        if not row:
+            return False
+        return int(row["total_minutes"] or 0) <= cap_minutes
+    return inner
+
+
+def _progress_screen_time_cap(goal: dict, user_id: int) -> dict:
+    cfg = _goal_config(goal)
+    cap = cfg.get("daily_cap_minutes")
+    if not (isinstance(cap, (int, float)) and cap > 0):
+        return _paused_handler(goal, user_id)
+    # Need at least one row of screen_time_daily, else there's no data
+    # source — render as paused (UI: "Reconnect source").
+    with get_conn() as conn:
+        n = conn.execute(
+            "SELECT COUNT(*) AS n FROM screen_time_daily WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()["n"]
+    if n == 0:
+        return _paused_handler(goal, user_id)
+    return _progress_daily_streak(_qualifies_screen_time_under_cap(int(cap)))(goal, user_id)
+
+
+# --- TIME-05: Focus time per period (period_count) ---
+#
+# Sums duration of any calendar event (Google or Outlook) whose title
+# contains "focus" (case-insensitive) within the goal's period window.
+# Convention: target_count is HOURS (matches library default_target=10).
+
+def _focus_minutes_in_window(user_id: int, start_iso: str, end_iso: str) -> int:
+    """Total minutes of focus events across gcal_events + outlook_events
+    whose start_iso falls inside [start_iso, end_iso] (date strings).
+    Title match is a case-insensitive 'focus' substring."""
+    # ISO date strings compared lexicographically work for the YYYY-MM-DD
+    # prefix; events store full ISO timestamps so we use start_iso < (end+1)
+    # by appending T99 isn't safe — instead bound on the start_iso column
+    # against day-prefix comparisons.
+    lo = start_iso          # 'YYYY-MM-DD'
+    hi = end_iso + "T99"    # any timestamp on end_iso < this
+    sql = (
+        "SELECT start_iso, end_iso FROM {table} "
+        "WHERE user_id = ? AND lower(title) LIKE '%focus%' "
+        "AND start_iso >= ? AND start_iso < ?"
+    )
+    rows: list = []
+    with get_conn() as conn:
+        for table in ("gcal_events", "outlook_events"):
+            try:
+                rows.extend(conn.execute(
+                    sql.format(table=table), (user_id, lo, hi)
+                ).fetchall())
+            except Exception:
+                # Table may not exist on a fresh DB; treat as empty.
+                pass
+    total = 0
+    for r in rows:
+        s = (r["start_iso"] or "")
+        e = (r["end_iso"] or "")
+        try:
+            sd = datetime.fromisoformat(s.replace("Z", "+00:00"))
+            ed = datetime.fromisoformat(e.replace("Z", "+00:00"))
+            mins = max(0, int((ed - sd).total_seconds() // 60))
+            total += mins
+        except Exception:
+            continue
+    return total
+
+
+def _progress_focus_period(goal: dict, user_id: int) -> dict:
+    period_start = goal.get("period_start")
+    period_end = goal.get("period_end")
+    target_hours = goal.get("target_count")
+    if not (period_start and period_end and target_hours):
+        return _paused_handler(goal, user_id)
+    # If the user has zero calendar events at all, treat as paused so the UI
+    # nudges them to connect a calendar.
+    with get_conn() as conn:
+        n_g = conn.execute("SELECT COUNT(*) AS n FROM gcal_events WHERE user_id = ?",
+                           (user_id,)).fetchone()["n"]
+        n_o = conn.execute("SELECT COUNT(*) AS n FROM outlook_events WHERE user_id = ?",
+                           (user_id,)).fetchone()["n"]
+    if (n_g + n_o) == 0:
+        return _paused_handler(goal, user_id)
+    minutes = _focus_minutes_in_window(user_id, period_start, period_end)
+    hours = minutes / 60.0
+    pct = min(1.0, hours / float(target_hours)) if target_hours else None
+    completed = hours >= float(target_hours)
+    return {
+        "current_fields": {"current_count": int(round(hours))},
+        "progress_pct": pct,
+        "snapshot_value": hours,
+        "paused": False,
+        "completed": completed,
+    }
+
+
+# --- TIME-06: Location visits to a chosen cluster (weekly streak) ---
+#
+# config_json must include cluster_id (the location_clusters row to count
+# visits to) and weekly_visits_target (visits/week needed to qualify the
+# week). target_streak_length is the streak goal in weeks.
+#
+# A "visit" = one or more samples within ~50m of the cluster centroid
+# during a calendar day. Multiple samples in the same day count once.
+
+_CLUSTER_RADIUS_M = 75.0
+
+
+def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Approximate distance between two lat/lon pairs in meters. Matches the
+    formula location_engine uses for clustering (small angle / spherical)."""
+    import math as _math
+    R = 6371000.0
+    p1 = _math.radians(lat1); p2 = _math.radians(lat2)
+    dp = _math.radians(lat2 - lat1); dl = _math.radians(lon2 - lon1)
+    a = _math.sin(dp / 2) ** 2 + _math.cos(p1) * _math.cos(p2) * _math.sin(dl / 2) ** 2
+    return 2 * R * _math.asin(_math.sqrt(a))
+
+
+def _visits_to_cluster_in_week(user_id: int, cluster_id: int,
+                               week_start: date, week_end: date) -> int:
+    """Distinct days within [week_start, week_end] that have at least one
+    sample within _CLUSTER_RADIUS_M of the cluster centroid."""
+    with get_conn() as conn:
+        cluster = conn.execute(
+            "SELECT centroid_lat, centroid_lon FROM location_clusters "
+            "WHERE id = ? AND user_id = ?",
+            (cluster_id, user_id),
+        ).fetchone()
+        if not cluster:
+            return 0
+        rows = conn.execute(
+            "SELECT lat, lon, sampled_at FROM location_samples "
+            "WHERE user_id = ? AND substr(sampled_at, 1, 10) >= ? "
+            "AND substr(sampled_at, 1, 10) <= ?",
+            (user_id, week_start.isoformat(), week_end.isoformat()),
+        ).fetchall()
+    days_with_visit: set[str] = set()
+    clat = float(cluster["centroid_lat"]); clon = float(cluster["centroid_lon"])
+    for r in rows:
+        d_m = _haversine_m(float(r["lat"]), float(r["lon"]), clat, clon)
+        if d_m <= _CLUSTER_RADIUS_M:
+            days_with_visit.add((r["sampled_at"] or "")[:10])
+    return len(days_with_visit)
+
+
+def _progress_location_visits_streak(goal: dict, user_id: int) -> dict:
+    cfg = _goal_config(goal)
+    cluster_id = cfg.get("cluster_id")
+    weekly_target = cfg.get("weekly_visits_target") or 1
+    streak_target = goal.get("target_streak_length") or 0
+    if not (isinstance(cluster_id, int) and cluster_id > 0):
+        return _paused_handler(goal, user_id)
+    # No location data at all → paused.
+    with get_conn() as conn:
+        n = conn.execute(
+            "SELECT COUNT(*) AS n FROM location_samples WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()["n"]
+    if n == 0:
+        return _paused_handler(goal, user_id)
+    today = date.today()
+    last_sun = today - timedelta(days=(today.weekday() + 1) % 7 or 7)
+    if last_sun >= today:
+        last_sun = today - timedelta(days=7)
+    streak = 0
+    week_end = last_sun
+    for _ in range(260):  # 5-year safety bound
+        week_start = week_end - timedelta(days=6)
+        visits = _visits_to_cluster_in_week(user_id, int(cluster_id),
+                                            week_start, week_end)
+        if visits >= int(weekly_target):
+            streak += 1
+            week_end = week_start - timedelta(days=1)
+            continue
+        break
+    pct = min(1.0, streak / streak_target) if streak_target else None
+    completed = streak_target > 0 and streak >= streak_target
+    return {
+        "current_fields": {"current_streak_length": streak},
+        "progress_pct": pct,
+        "snapshot_value": float(streak),
+        "paused": False,
+        "completed": completed,
+    }
+
+
 _PROGRESS_HANDLERS = {
     "FIT-01": _progress_weight,
     "FIT-02": _progress_strength_pr("squat"),
@@ -430,10 +658,14 @@ _PROGRESS_HANDLERS = {
     "FIN-04": _progress_monthly_spending_limit,
     "FIN-05": _progress_budget_streak,
     "TIME-01": _progress_daily_streak(_qualifies_all_priority_tasks_done),
-    # NUT-05, FIN-01/02/03, TIME-02/03/04/05/06: default _paused_handler.
-    # FIN-01/02/03 (cumulative savings/debt) need account balances (Plaid).
-    # TIME-02/03/04 need Screen Time. TIME-05 needs Focus/Calendar.
-    # TIME-06 needs Location.
+    "TIME-02": _progress_screen_time_cap,
+    "TIME-05": _progress_focus_period,
+    "TIME-06": _progress_location_visits_streak,
+    # Still paused (default _paused_handler):
+    #   NUT-05 alcohol-free streak — needs alcohol classification on meal_logs.
+    #   FIN-01/02/03 — Plaid not shipped.
+    #   TIME-03 social cap — needs per-app categories on screen_time_daily.
+    #   TIME-04 phone-down-after-cutoff — needs hourly screen-time data.
 }
 
 
