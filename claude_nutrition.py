@@ -1022,16 +1022,36 @@ Give a brief, practical observation about where they stand on calories right now
 def parse_workout_plan(text: str) -> dict:
     """Parse free-form plan text into the structured {weeklyPlan, planNotes}
     shape — same envelope generate_comprehensive_plan uses. Mobile picks
-    up the result and saves it via /api/workout-plan/save."""
+    up the result and saves it via /api/workout-plan/save.
+
+    max_tokens=4096 — a 7-day plan with cardio + all metadata can run
+    ~2500-3500 output tokens. Previous 2048 cap silently truncated the
+    JSON for long plans, causing _parse_json to throw and the route to
+    500 with the generic _AI_ERR message. Bumped + logged the raw
+    response on parse failure so future "long plan failed" reports
+    have actionable context.
+    """
     response = _client().messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=2048,
-        timeout=45.0,
+        max_tokens=4096,
+        timeout=60.0,
         system=PLAN_PROMPT,
         messages=[{"role": "user", "content": text}],
     )
     raw = next((b.text for b in response.content if b.type == "text"), "")
-    data = _parse_json(raw)
+    try:
+        data = _parse_json(raw)
+    except Exception as e:
+        # Surface the truncation/format issue with actual evidence.
+        logger.error(
+            "parse_workout_plan: JSON parse failed (input_len=%d, output_len=%d, "
+            "stop_reason=%s): %s\nLast 300 chars of output: %r",
+            len(text), len(raw),
+            getattr(response, "stop_reason", "?"),
+            e,
+            raw[-300:],
+        )
+        raise
     weekly = data.get("weeklyPlan")
     if not isinstance(weekly, dict):
         # Backward-compat: if the model slipped back to the old flat
