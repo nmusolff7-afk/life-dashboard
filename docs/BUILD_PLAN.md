@@ -196,19 +196,23 @@ the project will become.
 
 ### Now — pick the next phase from here
 
-- **Email importance flag not surfacing** (~1h) — INBOX 2026-04-28
-  - **Founder symptom:** "Nothing's marked as important right
-    now from emails."
-  - **Scope:** Gmail's importance classifier returns a
-    boolean per message; `gmail_summaries` schema has the
-    field but no UI surface displays it. Add an importance
-    indicator (filled dot / star) on the email previews in
-    `TimeSubsystemCards.tsx`. Possibly also feed importance
-    into Today's Focus ranking.
-  - **Files:** `mobile/components/apex/TimeSubsystemCards.tsx`,
-    `gmail_sync.py` if importance isn't being persisted.
-  - **Done when:** At least one inbox item shows an
-    importance flag when Gmail flags it.
+- **Replace emojis with proper icons app-wide** (~3h) — INBOX 2026-04-28
+  - **Founder symptom:** "Get rid of emojis and use only good
+    logos everywhere like you do for the tab icons."
+  - **Scope:** Cross-cutting design refactor. Inventory of
+    emoji-string usage in `mobile/`: WorkoutHistoryList row
+    (🏃 for Strava), Movement subsystem, EmptyState defaults,
+    HealthConnectCard (❤️), FAB labels, etc. Replace each with
+    an `Ionicons` (or matching icon from
+    `@expo/vector-icons`) consistent with the tab-bar icon
+    family. Standardize on a single icon set.
+  - **Files:** grep `mobile/` for emoji literals (heart /
+    target / strava-runner / hourglass / clock).
+  - **Done when:** No emoji glyph survives in user-facing
+    strings; everything's `<Ionicons>` or matched icons.
+  - **Trigger:** Bundle into the next visual-consistency
+    phase (probably "Tab visual consistency" since they
+    overlap on shared design tokens).
 
 - **Unified inbox view (Gmail + Outlook combined, click to read)** (~6h) — INBOX 2026-04-28
   - **Founder symptom:** "Need to see all emails, need
@@ -240,22 +244,6 @@ the project will become.
     one).
   - **Done when:** Time tab shows a single calendar card
     with both providers' events interleaved.
-
-- **Screen Time "still says connect" stale state** (~1h) — INBOX 2026-04-28
-  - **Founder symptom:** "Screen time still shows to connect
-    screen time in settings even though I've done it and it
-    shows connected. Only place it shows is in screen time card."
-  - **Likely cause:** Same class as the just-fixed HC display
-    gap — connector status flag isn't shared across surfaces.
-    `connections.tsx` shows correct state, but the per-feature
-    "you need to connect Screen Time" prompts on other tabs
-    read a different source (probably permission-grant flag,
-    not the backend connector state) and stay stale.
-  - **Files:** Search the codebase for "Connect Screen Time"
-    string. Likely `useUsageStats` hook or a settings page
-    feature-flag.
-  - **Done when:** Founder confirms the stale prompts are
-    gone from every surface they appear on.
 
 - **Units enforcement audit** (~2h) — INBOX 2026-04-28
   - **Founder symptom:** "All data should be metric or imperial
@@ -317,20 +305,6 @@ the project will become.
     `nutrition.tsx`.
   - **Done when:** Founder confirms the four tabs feel
     consistent.
-
-- **FAB "+ Task" quick-action** (~1h) — INBOX 2026-04-28 follow-up
-  - **Founder symptom:** "Add the option to add task through
-    the FAB."
-  - **Scope:** Time-card content + Today's tasks already shipped
-    (TimeCardContent has its own "+ Add" affordance pointing at
-    task-new). Founder also wants the global FAB to surface a
-    "+ Task" quick-action when on Today tab. Extend the FAB
-    surface model to include a tasks-row.
-  - **Files:** `mobile/components/apex/FAB.tsx`,
-    `mobile/components/chat/ChatShortcutRail.tsx` (likely the
-    real-shortcut layer).
-  - **Done when:** FAB on Today tab includes a "+ Task" tile
-    that routes to `/time/task-new`.
 
 - **Today's Focus — make Time tab feel non-empty** (~2h) — INBOX 2026-04-28
   - **Founder symptom:** "Today's focus maybe should be

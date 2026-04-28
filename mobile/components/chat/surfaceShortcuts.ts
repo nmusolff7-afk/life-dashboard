@@ -5,15 +5,19 @@ interface Deps {
   expandedKey: string | null;
   setExpandedKey: (key: string | null) => void;
   openQuickLog: (kind: QuickLog) => void;
+  /** Optional navigation hook — for shortcuts that route to a real
+   *  screen (e.g. Task → /time/task-new) instead of popping a
+   *  floating modal. Pass `router.push` from expo-router. */
+  navigate?: (route: string) => void;
 }
 
 /** Universal FAB shortcut rail. Tapping Meal or Workout expands into
  *  sub-options (Manual / … / Back); every leaf fires openQuickLog, which
  *  closes the overlay and pops the matching floating entry modal
- *  (see QuickLogHost). No tab navigation — entry lives over the current
- *  screen so the user never loses context. */
+ *  (see QuickLogHost). Task is a navigation, not a quick-log modal —
+ *  routes to the existing task-new screen. */
 export function universalShortcuts(deps: Deps): Shortcut[] {
-  const { expandedKey, setExpandedKey, openQuickLog } = deps;
+  const { expandedKey, setExpandedKey, openQuickLog, navigate } = deps;
 
   const fire = (kind: QuickLog) => () => openQuickLog(kind);
 
@@ -56,5 +60,16 @@ export function universalShortcuts(deps: Deps): Shortcut[] {
       icon: 'scale-outline',
       onPress: fire('weight'),
     },
+    // INBOX 2026-04-28: founder asked for a Task shortcut on the
+    // FAB. Routes to the existing task-new screen rather than a
+    // floating modal — matches the simpler Settings → Profile flow
+    // pattern. Hidden when navigate isn't available (theoretical;
+    // ChatOverlay always passes it).
+    ...(navigate ? [{
+      key: 'log-task' as const,
+      label: 'Task',
+      icon: 'checkbox-outline' as const,
+      onPress: () => navigate('/time/task-new'),
+    }] : []),
   ];
 }

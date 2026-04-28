@@ -17,6 +17,10 @@ export interface GmailEmail {
   is_read: number;
   has_replied: number;
   importance_score?: number;
+  /** Gmail's native ML importance flag (the IMPORTANT system label).
+   *  Either this or a positive `importance_score` (user-defined rule)
+   *  promotes the email into the "important" bucket on the API. */
+  is_important?: number;
 }
 
 export interface GmailSummary {

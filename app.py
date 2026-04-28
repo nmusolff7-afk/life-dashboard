@@ -1892,13 +1892,20 @@ def api_gmail_status():
     today = client_today()
     summary = get_gmail_summary(uid(), today) if connected else None
     cached = get_gmail_cache(uid(), limit=100) if connected else []
-    # Split by importance — score every cached email
+    # Split by importance — score every cached email. Two signals
+    # combine: (1) user-defined `gmail_importance` rules give a
+    # positive score for trusted senders; (2) Gmail's native
+    # `IMPORTANT` label (stored in `gmail_cache.is_important` since
+    # 2026-04-28) provides a default when the user hasn't set rules.
+    # Either one promotes the email into the important bucket.
     from db import get_importance_rules, score_email_importance
     rules = get_importance_rules(uid()) if connected else {}
     for e in cached:
         e["importance_score"] = score_email_importance(e.get("sender", ""), rules) if rules else 0
-    important = [e for e in cached if e.get("importance_score", 0) > 0][:20]
-    stream = [e for e in cached if e.get("importance_score", 0) == 0][:20]  # unlabeled only, cap at 20
+    def _is_important(e: dict) -> bool:
+        return e.get("importance_score", 0) > 0 or bool(e.get("is_important"))
+    important = [e for e in cached if _is_important(e)][:20]
+    stream = [e for e in cached if not _is_important(e)][:20]
     return jsonify({
         "configured": gmail_sync.is_configured(),
         "connected":  connected,
@@ -2154,12 +2161,16 @@ def api_gmail_sync():
     for e in emails[:3]:
         _log.info("Gmail email: sender=%s subject=%s", e.get("sender","?")[:30], e.get("subject","?")[:50])
 
-    # Cache emails (upsert — don't clear, let the pool grow)
+    # Cache emails (upsert — don't clear, let the pool grow).
+    # is_important comes from Gmail's native IMPORTANT label
+    # (extracted in gmail_sync._fetch_messages) — surfaces as a
+    # star in the mobile UI without requiring user-defined rules.
     for e in emails:
         upsert_gmail_cache(
             uid(), e["thread_id"], e["message_id"],
             e["sender"], e["subject"], e["snippet"],
             e["received_at"], e["has_replied"], e["is_read"],
+            is_important=int(e.get("is_important") or 0),
         )
 
     # Score importance for all cached emails

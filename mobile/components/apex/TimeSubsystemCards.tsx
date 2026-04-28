@@ -119,6 +119,12 @@ export function GmailSummaryCard({
 function GmailEmailRow({ email }: { email: GmailEmail }) {
   const t = useTokens();
   const isUnread = !email.is_read;
+  // Either Gmail's native IMPORTANT label OR a user-defined
+  // importance score makes this row important. Surfaces as a star
+  // icon next to the subject — INBOX 2026-04-28 founder asked
+  // "nothing's marked as important right now from emails" before
+  // we wired the native flag through.
+  const isImportant = !!email.is_important || (email.importance_score ?? 0) > 0;
   const meta = [
     email.sender,
     formatRelative(email.received_at),
@@ -130,12 +136,17 @@ function GmailEmailRow({ email }: { email: GmailEmail }) {
         borderColor: isUnread ? t.accent : t.subtle,
       }]} />
       <View style={{ flex: 1 }}>
-        <Text style={[styles.emailSubject, {
-          color: t.text,
-          fontWeight: isUnread ? '700' : '500',
-        }]} numberOfLines={1}>
-          {email.subject || '(no subject)'}
-        </Text>
+        <View style={styles.emailSubjectRow}>
+          {isImportant ? (
+            <Ionicons name="star" size={11} color="#F59E0B" style={styles.emailStar} />
+          ) : null}
+          <Text style={[styles.emailSubject, {
+            color: t.text,
+            fontWeight: isUnread ? '700' : '500',
+          }]} numberOfLines={1}>
+            {email.subject || '(no subject)'}
+          </Text>
+        </View>
         <Text style={[styles.emailMeta, { color: t.muted }]} numberOfLines={1}>
           {meta}
         </Text>
@@ -448,7 +459,9 @@ const styles = StyleSheet.create({
 
   emailRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', paddingVertical: 6 },
   emailDot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, marginTop: 6 },
-  emailSubject: { fontSize: 13 },
+  emailSubjectRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  emailStar: { marginTop: 1 },
+  emailSubject: { fontSize: 13, flex: 1 },
   emailMeta: { fontSize: 11, marginTop: 1 },
   emailSnippet: { fontSize: 11, marginTop: 2 },
 });

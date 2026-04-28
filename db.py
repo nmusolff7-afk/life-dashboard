@@ -167,6 +167,15 @@ def init_db():
                 UNIQUE(user_id, message_id)
             )
         """)
+        # Additive 2026-04-28: Gmail's native IMPORTANT label. The
+        # importance system used to depend on the user setting up
+        # `gmail_importance` rules manually; with this column we get
+        # Gmail's ML-classified default for free, surfaced as a star
+        # in the email row (TimeSubsystemCards). User rules still
+        # take precedence in score_email_importance.
+        gc_cols = {r["name"] for r in conn.execute("PRAGMA table_info(gmail_cache)").fetchall()}
+        if "is_important" not in gc_cols:
+            conn.execute("ALTER TABLE gmail_cache ADD COLUMN is_important INTEGER DEFAULT 0")
         # Gmail daily summaries — AI-generated, one per user per date
         conn.execute("""
             CREATE TABLE IF NOT EXISTS gmail_summaries (
@@ -2786,23 +2795,25 @@ def update_gmail_access_token(user_id: int, access_token: str, token_expiry: str
 
 def upsert_gmail_cache(user_id: int, thread_id: str, message_id: str,
                        sender: str, subject: str, snippet: str,
-                       received_at: str, has_replied: int, is_read: int):
+                       received_at: str, has_replied: int, is_read: int,
+                       is_important: int = 0):
     now = datetime.now().isoformat()
     with get_conn() as conn:
         conn.execute("""
             INSERT INTO gmail_cache
                 (user_id, thread_id, message_id, sender, subject, snippet,
-                 received_at, has_replied, is_read, cached_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 received_at, has_replied, is_read, is_important, cached_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(user_id, message_id) DO UPDATE SET
-                sender      = excluded.sender,
-                subject     = excluded.subject,
-                snippet     = excluded.snippet,
-                has_replied = excluded.has_replied,
-                is_read     = excluded.is_read,
-                cached_at   = excluded.cached_at
+                sender       = excluded.sender,
+                subject      = excluded.subject,
+                snippet      = excluded.snippet,
+                has_replied  = excluded.has_replied,
+                is_read      = excluded.is_read,
+                is_important = excluded.is_important,
+                cached_at    = excluded.cached_at
         """, (user_id, thread_id, message_id, sender, subject, snippet,
-              received_at, has_replied, is_read, now))
+              received_at, has_replied, is_read, is_important, now))
         conn.commit()
 
 

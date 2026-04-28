@@ -305,7 +305,13 @@ export default function HomeScreen() {
         ) : activeGoal ? (
           <View style={styles.horizPad}>
             <Pressable
-              onPress={() => router.push('/goals')}
+              // Legacy calorie-goal fallback (pre-unified-goals state).
+              // Founder INBOX 2026-04-28: clicking should go to the
+              // specifics of THIS goal, not the general goals list.
+              // The "specifics" of the legacy calorie goal live at
+              // Settings → Profile → Macros where the user can edit
+              // calorie target / protein / fat / carbs directly.
+              onPress={() => router.push('/settings/profile/macros' as never)}
               style={({ pressed }) => [
                 styles.goalCard,
                 {

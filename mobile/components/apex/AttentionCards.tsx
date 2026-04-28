@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
 
 import { apiFetch } from '../../lib/api';
+import { useAutoSyncUsageStatsOnFocus, useUsageStats } from '../../lib/hooks/useUsageStats';
 import { useTokens } from '../../lib/theme';
 
 // ── Shared types ──────────────────────────────────────────────────────────
@@ -86,7 +87,16 @@ function useLocationStatus() {
 
 export function ScreenTimeCard() {
   const t = useTokens();
-  const { data, loading } = useScreenTimeStatus();
+  const { data, loading, refetch } = useScreenTimeStatus();
+  // Distinguish "not connected" from "connected, no data yet" —
+  // INBOX 2026-04-28 founder flagged that this card kept showing
+  // "Connect Screen Time" even after granting Usage Access. Same
+  // root cause as the HC display gap: component checked DATA, not
+  // PERMISSION. Hook also fires an auto-sync (90s throttle) so a
+  // freshly-granted permission populates `screen_time_daily`
+  // without requiring a manual sync tap.
+  const us = useUsageStats();
+  useAutoSyncUsageStatsOnFocus(refetch);
 
   if (loading && !data) {
     return (
@@ -100,16 +110,28 @@ export function ScreenTimeCard() {
   const topApps = today?.top_apps ?? [];
 
   if (!today || (totalMin === 0 && topApps.length === 0)) {
+    // Three empty-state branches:
+    //   (a) Android, permission NOT granted → connect prompt.
+    //   (b) Android, permission granted, no data → "syncing" state
+    //       — the auto-sync above is firing; data should appear
+    //       within seconds.
+    //   (c) Non-Android → connect prompt (Apple Family Controls
+    //       isn't shipped; iOS users see "not available on iOS yet").
+    const isPermitted = us.available && us.permitted;
     return (
       <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border, opacity: 0.85 }]}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: t.text }]}>📱 Screen Time</Text>
           <View style={[styles.pill, { borderColor: t.border }]}>
-            <Text style={[styles.pillText, { color: t.subtle }]}>No data</Text>
+            <Text style={[styles.pillText, { color: t.subtle }]}>
+              {isPermitted ? 'Syncing…' : 'No data'}
+            </Text>
           </View>
         </View>
         <Text style={[styles.sub, { color: t.muted }]}>
-          Connect Screen Time in Settings → Connections to surface your daily phone usage and top apps here.
+          {isPermitted
+            ? 'Screen Time is connected — pulling today\'s usage now. Top apps and total time appear here within a minute.'
+            : 'Connect Screen Time in Settings → Connections to surface your daily phone usage and top apps here.'}
         </Text>
       </View>
     );

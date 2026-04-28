@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { apiFetch } from '../api';
 import { localToday } from '../localTime';
@@ -155,4 +155,36 @@ export function useUsageStats(): UsageStatsState {
   }, []);
 
   return { available, permitted, today, loading, error, connect, sync, disconnect };
+}
+
+// ── Auto-sync ───────────────────────────────────────────────────────
+//
+// Same pattern as `useAutoSyncHealthOnFocus` — fixes the symmetric
+// founder symptom: "screen time still says connect even though I've
+// done it" (INBOX 2026-04-28). Root cause was the same as HC: the
+// component checks for DATA, not for whether the connector is
+// connected. If the user grants permission but no sync has fired,
+// `screen_time_daily` stays empty and the UI shows the connect copy
+// indefinitely.
+let _usLastSync = 0;
+const US_THROTTLE_MS = 90 * 1000;
+
+/** Fire UsageStats sync on mount when permitted, throttled to 90s
+ *  app-wide. Call from ScreenTimeCard or any other surface that
+ *  reads `screen_time_daily`. Pass a `refetch` to update the
+ *  caller's view after sync completes. */
+export function useAutoSyncUsageStatsOnFocus(onSynced?: () => void): void {
+  const us = useUsageStats();
+  const onSyncedRef = useRef(onSynced);
+  onSyncedRef.current = onSynced;
+  useEffect(() => {
+    if (!us.permitted) return;
+    const now = Date.now();
+    if (now - _usLastSync < US_THROTTLE_MS) return;
+    _usLastSync = now;
+    void us.sync().then(() => {
+      onSyncedRef.current?.();
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [us.permitted]);
 }

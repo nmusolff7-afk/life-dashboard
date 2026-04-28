@@ -1245,3 +1245,91 @@ after adding `GOOGLE_MAPS_API_KEY` to `.env`. Resolved.
     Walk through; on completion, your existing meals /
     workouts / weight log are still there, but the profile
     fields you edited reflect the new entries.
+
+### 23:30 — Polish round 1: 4 small wins
+- **Prompt:** "continue" — pick the next phase.
+- **Did:**
+  1. **Triaged INBOX.** New: goal click → specifics
+     (legacy fallback bug, fixed this turn) and emojis →
+     icons app-wide refactor (filed Backlog → Later, ~3h
+     cross-cutting).
+  2. **Legacy goal-card click → macros editor.** Today
+     tab's legacy-fallback calorie-goal card was routing
+     to `/goals` (general list) instead of the goal's
+     specifics. Routed to `/settings/profile/macros` —
+     where the calorie target lives.
+  3. **FAB "+ Task" shortcut.** Extended
+     `surfaceShortcuts.universalShortcuts` with an optional
+     `navigate(route)` dep + a Task chip after Weight in
+     the universal rail. ChatOverlay passes
+     `(route) => { chat.close(); router.push(route); }`
+     so tapping Task closes the chat overlay and routes
+     to `/time/task-new`. Founder asked for this in INBOX
+     two phases back; deferred until now.
+  4. **Email importance flag — surfaced via Gmail's native
+     IMPORTANT label.** Previously the system relied on
+     user-defined importance rules; if you hadn't set up
+     rules, nothing was ever marked important. Added
+     `gmail_cache.is_important` column + extracted
+     `IMPORTANT` from `labelIds` in `gmail_sync._fetch_messages`.
+     `/api/gmail/status` now uses (rules-score > 0 OR
+     native-IMPORTANT) as the "important" predicate.
+     `TimeSubsystemCards.GmailEmailRow` shows a yellow star
+     next to the subject when the row is important.
+  5. **Screen Time stale "still says connect" fix.** Same
+     class as the HC display gap from previous phases —
+     `ScreenTimeCard` checked DATA, not PERMISSION, so a
+     permitted-but-no-data state showed the connect prompt
+     forever. Added `useAutoSyncUsageStatsOnFocus(refetch)`
+     hook (mirrors `useAutoSyncHealthOnFocus`, 90s app-wide
+     throttle). ScreenTimeCard wires it on mount + branches
+     empty-state copy: "Syncing…" when permitted-no-data,
+     "Connect Screen Time" only when actually unpermitted.
+- **Files:** `mobile/app/(tabs)/index.tsx` (legacy goal
+  route), `mobile/components/chat/surfaceShortcuts.ts`
+  (Task shortcut), `mobile/components/chat/ChatOverlay.tsx`
+  (navigate dep + useRouter), `db.py` (`gmail_cache.is_important`
+  column + upsert helper), `gmail_sync.py` (extract
+  IMPORTANT), `app.py` (status route uses dual-source
+  importance + cache helper passes is_important),
+  `mobile/lib/hooks/useTimeData.ts` (`is_important` field on
+  GmailEmail), `mobile/components/apex/TimeSubsystemCards.tsx`
+  (star indicator), `mobile/lib/hooks/useUsageStats.ts`
+  (`useAutoSyncUsageStatsOnFocus` hook),
+  `mobile/components/apex/AttentionCards.tsx` (3-state
+  empty branching + auto-sync hook),
+  `docs/BUILD_PLAN.md`, `docs/INBOX.md` (cleared).
+- **Decisions:**
+  - **Gmail IMPORTANT as default fallback** instead of
+    requiring user-defined rules. Gmail's ML classifier
+    is reliable enough; the rules system stays as a
+    user-override layer on top.
+  - **FAB Task = navigation, not floating modal.** Task
+    creation already has a full screen (`/time/task-new`);
+    no need to build a quick-log modal mirror. The FAB
+    closes the chat overlay first to mimic the
+    `openQuickLog` flow.
+  - **ScreenTime auto-sync mirrors HC pattern exactly.**
+    Same throttle window (90s), same module-level lock.
+    Both are "tap-to-sync" connectors that never auto-fired
+    before.
+- **Outcome:** Shipping. TS clean (only pre-existing
+  finance.tsx:114). Backend boots. JS+SQL only — no rebuild.
+- **Manual checks (pending):**
+  - **Today tab calorie-goal card** (only visible if you
+    have NO unified goals + a calorie goal set) — tap →
+    should route to Settings → Profile → Macros.
+  - **FAB → tap → "Task" chip** — should appear after
+    Weight; tapping should close chat overlay and route to
+    Time → New task.
+  - **Time tab Gmail row stars** — important emails now
+    show a yellow star next to the subject. Star uses
+    Gmail's native classifier so even without setting
+    importance rules you should see stars on the inbox-
+    important threads.
+  - **Screen Time card empty state** — if you've granted
+    Usage Access but no data has synced yet, the card
+    should now say "Syncing…" with explanatory copy
+    instead of "Connect Screen Time". Within 60s of mount,
+    real data should fill in (auto-sync fires once per 90s
+    app-wide).

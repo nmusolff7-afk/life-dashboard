@@ -283,6 +283,11 @@ def fetch_recent_emails(access_token: str, max_results: int = 20) -> list[dict]:
             "received_at": _parse_header(headers, "Date"),
             "is_read":     0 if "UNREAD" in label_ids else 1,
             "has_replied": 1 if thread_replied.get(thread_id) else 0,
+            # Gmail's native ML-classified importance flag — surfaces
+            # in the mobile UI as a star icon. User-defined importance
+            # rules in `gmail_importance` still apply on top via
+            # `score_email_importance` for /api/time/focus ranking.
+            "is_important": 1 if "IMPORTANT" in label_ids else 0,
         })
 
     return results

@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -69,6 +70,7 @@ const TAB_BAR_HEIGHT = 64;
 export function ChatOverlay() {
   const t = useTokens();
   const chat = useChatSession();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const anim = useRef(new Animated.Value(0)).current;
   const scrollRef = useRef<ScrollView>(null);
@@ -141,6 +143,14 @@ export function ChatOverlay() {
     expandedKey: shortcutExpandedKey,
     setExpandedKey: setShortcutExpandedKey,
     openQuickLog: chat.openQuickLog,
+    // Allows the Task shortcut to navigate to /time/task-new instead
+    // of popping a quick-log modal. Closes the chat overlay first
+    // (same as openQuickLog) so the rail animates away before the
+    // route push.
+    navigate: (route: string) => {
+      chat.close();
+      router.push(route as never);
+    },
   });
 
   // Anchor math — use the FAB's RESTING position (bottom-right above
