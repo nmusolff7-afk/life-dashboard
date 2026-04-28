@@ -707,3 +707,84 @@ after adding `GOOGLE_MAPS_API_KEY` to `.env`. Resolved.
     and Data → HRV. If both are empty, the issue is upstream of
     the app — your phone or wearable isn't writing those record
     types. If they have data but app shows null, ping back.
+
+### 18:15 — Workflow refinement (filing-only triage) + customize.tsx config UX shipped
+- **Prompt:** "i want claude to look at inbox, move items to
+  correct spot so they are being tracked then clear it first
+  then execute the next task in the active phase, not address
+  the inbox item immediately. then when that is done provide an
+  answer to any questions and what you did with my inbox items
+  as well as with the active phase task as well in your end of
+  movement summary. update build plan inbox .claude and phase
+  log to reflect this modified workflow"
+- **Did:**
+  1. **Codified filing-only triage** in `CLAUDE.md` (Step 1
+     rewritten: triage = filing, not executing; bugs go to
+     Backlog with priority but don't preempt the active phase),
+     `docs/BUILD_PLAN.md` (workflow section), and `docs/INBOX.md`
+     (instruction text). Founder can still manually re-rank or
+     say "fix this first" in chat to override.
+  2. **Codified end-of-response 3-block summary** in CLAUDE.md
+     (new step 4a — Inbox actions / Active phase progress /
+     Answers to questions). Format is non-negotiable per founder
+     direction — they need to know exactly what was filed vs
+     built vs answered, every response.
+  3. **Triaged INBOX:** founder added a Feature note while I was
+     working ("we need to prompt the user on how to get each
+     connection wired properly… for example go to health connect
+     or garmin to make sure those can talk to each other").
+     Filed as **"Connection wiring guidance / contextual
+     onboarding"** (~6h) in Backlog → Later, with concrete
+     scope including the HC-empty-after-grant detection +
+     diagnostic affordance pattern. Cleared INBOX.md.
+  4. **Set Active phase = Customize.tsx config-field UX** and
+     executed it.
+  5. **Backend:** added `/api/location/clusters` route in
+     `app.py` — lightweight cluster list (no reverse-geocoding
+     side effects, unlike `/api/location/today`). Returns
+     `id / place_name / place_label / total_dwell_minutes /
+     centroid_lat / centroid_lon` ranked by dwell.
+  6. **Types:** extended `shared/src/types/goals.ts` with a
+     `GoalConfig` interface (loose-typed; sparse keys per
+     library_id) and added `config?: GoalConfig` to
+     `GoalCreateInput`.
+  7. **Mobile UI:** customize.tsx now renders per-library_id
+     config sections:
+     - **TIME-02:** `daily_cap_minutes` number input + hint.
+     - **TIME-06:** cluster picker (one-tap-to-select, lists
+       user's location_clusters with place name + dwell hours)
+       + `weekly_visits_target` number input.
+     - **TIME-05:** no extra config — `target_count` (hours/week)
+       already covers it.
+     `canCreate` now includes per-library config gates.
+     `onSubmit` builds the `config` payload only when keys are
+     set (clean payload).
+- **Files:** `CLAUDE.md` (triage rule + 3-block summary rule),
+  `docs/BUILD_PLAN.md` (workflow section, Active phase cleared,
+  Status snapshot updated, new Backlog → Later item),
+  `docs/INBOX.md` (rewritten + cleared), `app.py` (new route),
+  `shared/src/types/goals.ts` (GoalConfig + config field),
+  `mobile/app/goals/customize.tsx` (per-library config UI).
+- **Decisions:**
+  - Inline cluster picker over a separate component — only
+    consumer right now is customize.tsx. Promote later if
+    re-used elsewhere.
+  - `GoalConfig` is loose-typed (`[key: string]: unknown`) so
+    adding new per-goal config keys doesn't require type
+    surgery.
+  - Filing-only triage rule applies even to bugs — they go to
+    Backlog → Now (default for testing-surfaced bugs) and get
+    fixed when their tier comes up. Founder can override by
+    saying so or re-ranking Backlog directly.
+- **Outcome:** Shipping. TS clean (only pre-existing
+  finance.tsx:114 carrying forward). Backend boot OK.
+- **Manual checks (pending):**
+  - Open the app → Goals → Library → pick TIME-02 (Screen time
+    target). Confirm the form shows a "Daily screen-time cap
+    (minutes)" input. Set 180, save, then Goals list should
+    show the goal as active (not paused) once today's
+    `screen_time_daily` row exists.
+  - Same for TIME-06 (Location visit target). Confirm cluster
+    picker lists your real location clusters. If empty, the
+    "no clusters yet" hint should show. Pick a cluster, set
+    weekly target, save.

@@ -1,11 +1,31 @@
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { Button } from '../../components/ui';
-import type { GoalCreateInput, GoalLibraryEntry } from '../../../shared/src/types/goals';
+import type { GoalConfig, GoalCreateInput, GoalLibraryEntry } from '../../../shared/src/types/goals';
+import { apiFetch } from '../../lib/api';
 import { createGoal, useGoalLibrary } from '../../lib/hooks/useGoals';
 import { useTokens } from '../../lib/theme';
+
+interface ClusterRow {
+  id: number;
+  place_name: string | null;
+  place_label: string | null;
+  total_dwell_minutes: number;
+  centroid_lat: number;
+  centroid_lon: number;
+}
+
+function clusterDisplayName(c: ClusterRow): string {
+  return c.place_name || c.place_label
+    || `${c.centroid_lat.toFixed(4)}, ${c.centroid_lon.toFixed(4)}`;
+}
+
+function formatDwellHours(minutes: number): string {
+  if (minutes < 60) return `${minutes}m dwell`;
+  return `${Math.round(minutes / 60)}h dwell`;
+}
 
 /** Customize & create-from-library. The inputs shown depend on the library
  *  entry's goal_type — cumulative_numeric gets a target value + deadline,
@@ -32,6 +52,33 @@ export default function CustomizeScreen() {
   const [isPrimary, setIsPrimary] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  // Per-library_id config inputs (§14.8 mobile follow-up).
+  // TIME-02: daily screen-time cap (minutes).
+  // TIME-06: cluster_id + weekly visits target.
+  const [dailyCapMinutes, setDailyCapMinutes] = useState('');
+  const [clusterId, setClusterId] = useState<number | null>(null);
+  const [weeklyVisitsTarget, setWeeklyVisitsTarget] = useState('');
+  const [clusters, setClusters] = useState<ClusterRow[] | null>(null);
+  const [clustersLoading, setClustersLoading] = useState(false);
+
+  // Fetch the user's location clusters when picking TIME-06.
+  // Cheap one-shot read of /api/location/clusters (no geocoding side
+  // effects — that's /api/location/today). Empty array is a valid
+  // result; UI shows a "no clusters yet" hint.
+  useEffect(() => {
+    if (library_id !== 'TIME-06') return;
+    let cancelled = false;
+    setClustersLoading(true);
+    apiFetch('/api/location/clusters?limit=20')
+      .then((res) => res.ok ? res.json() : { clusters: [] })
+      .then((json: { clusters?: ClusterRow[] }) => {
+        if (!cancelled) setClusters(json.clusters ?? []);
+      })
+      .catch(() => { if (!cancelled) setClusters([]); })
+      .finally(() => { if (!cancelled) setClustersLoading(false); });
+    return () => { cancelled = true; };
+  }, [library_id]);
+
   if (lib.loading && !lib.data) {
     return (
       <View style={[styles.container, { backgroundColor: t.bg, alignItems: 'center', justifyContent: 'center' }]}>
@@ -48,6 +95,11 @@ export default function CustomizeScreen() {
   }
 
   const canCreate = (() => {
+    // Library-id-specific config gates (§14.8 backend handlers
+    // require these or instantiate as paused).
+    if (entry.library_id === 'TIME-02' && dailyCapMinutes.length === 0) return false;
+    if (entry.library_id === 'TIME-06' && (clusterId == null || weeklyVisitsTarget.length === 0)) return false;
+
     if (entry.goal_type === 'cumulative_numeric') return targetValue.length > 0;
     if (entry.goal_type === 'streak') return targetStreak.length > 0;
     if (entry.goal_type === 'period_count') return targetCount.length > 0;
@@ -80,6 +132,18 @@ export default function CustomizeScreen() {
     if (entry.category === 'fitness' && entry.affects_calorie_math === 1 && isPrimary) {
       input.is_primary = true;
     }
+
+    // Per-library_id config (§14.8). Only attach a `config` object
+    // if at least one key is set — keeps the create payload clean.
+    const config: GoalConfig = {};
+    if (entry.library_id === 'TIME-02' && dailyCapMinutes) {
+      config.daily_cap_minutes = parseInt(dailyCapMinutes, 10);
+    }
+    if (entry.library_id === 'TIME-06') {
+      if (clusterId != null) config.cluster_id = clusterId;
+      if (weeklyVisitsTarget) config.weekly_visits_target = parseInt(weeklyVisitsTarget, 10);
+    }
+    if (Object.keys(config).length > 0) input.config = config;
 
     setBusy(true);
     try {
@@ -189,6 +253,94 @@ export default function CustomizeScreen() {
           </View>
         )}
 
+        {/* TIME-02 — daily screen-time cap. Without this the goal
+         *  instantiates paused (handler returns _paused_handler when
+         *  config.daily_cap_minutes is missing). */}
+        {entry.library_id === 'TIME-02' && (
+          <>
+            <Text style={[styles.label, { color: t.muted, marginTop: 16 }]}>
+              Daily screen-time cap (minutes)
+            </Text>
+            <TextInput
+              style={[styles.input, { color: t.text, borderColor: t.border, backgroundColor: t.surface }]}
+              value={dailyCapMinutes}
+              onChangeText={setDailyCapMinutes}
+              keyboardType="numeric"
+              placeholder="e.g. 180 (3 hours)"
+              placeholderTextColor={t.subtle}
+            />
+            <Text style={[styles.hint, { color: t.subtle }]}>
+              A day qualifies for the streak when total screen time is at or below this number.
+            </Text>
+          </>
+        )}
+
+        {/* TIME-06 — pick a cluster + weekly visit target. Cluster
+         *  list comes from /api/location/clusters ranked by dwell. */}
+        {entry.library_id === 'TIME-06' && (
+          <>
+            <Text style={[styles.label, { color: t.muted, marginTop: 16 }]}>
+              Which place are you tracking visits to?
+            </Text>
+            {clustersLoading ? (
+              <ActivityIndicator color={t.accent} style={{ marginVertical: 12 }} />
+            ) : !clusters || clusters.length === 0 ? (
+              <Text style={[styles.pausedHint, { color: t.muted }]}>
+                No location clusters yet. Open the app a few times in
+                different places (gym, work, etc.) and the system
+                will detect them automatically. Then come back and
+                pick one here.
+              </Text>
+            ) : (
+              <View style={{ gap: 8 }}>
+                {clusters.map((c) => {
+                  const active = clusterId === c.id;
+                  return (
+                    <Pressable
+                      key={c.id}
+                      onPress={() => setClusterId(c.id)}
+                      style={[
+                        styles.clusterRow,
+                        {
+                          borderColor: active ? t.accent : t.border,
+                          backgroundColor: active ? t.surface : t.bg,
+                        },
+                      ]}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.clusterTitle, { color: t.text }]} numberOfLines={1}>
+                          {clusterDisplayName(c)}
+                        </Text>
+                        <Text style={[styles.clusterMeta, { color: t.muted }]}>
+                          {formatDwellHours(c.total_dwell_minutes)}
+                          {c.place_label ? ` · ${c.place_label}` : ''}
+                        </Text>
+                      </View>
+                      {active ? (
+                        <Text style={[styles.clusterCheck, { color: t.accent }]}>✓</Text>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+
+            <Text style={[styles.label, { color: t.muted, marginTop: 16 }]}>
+              Weekly visit target
+            </Text>
+            <TextInput
+              style={[styles.input, { color: t.text, borderColor: t.border, backgroundColor: t.surface }]}
+              value={weeklyVisitsTarget}
+              onChangeText={setWeeklyVisitsTarget}
+              keyboardType="numeric"
+              placeholder="e.g. 3 (visits per week)"
+              placeholderTextColor={t.subtle}
+            />
+            <Text style={[styles.hint, { color: t.subtle }]}>
+              A week qualifies for the streak when you visit this place at least this many days.
+            </Text>
+          </>
+        )}
+
         {entry.data_source && entry.data_source !== 'meal_logs' && entry.data_source !== 'workout_logs' && entry.data_source !== 'strength_logs' && entry.data_source !== 'health_connect' && entry.data_source !== 'mind_tasks' && (
           <Text style={[styles.pausedHint, { color: t.muted }]}>
             Note: this goal tracks data from <Text style={{ fontWeight: '700' }}>{entry.data_source}</Text>, which isn't connected yet. Progress will stay paused until you connect that source.
@@ -218,4 +370,17 @@ const styles = StyleSheet.create({
   primaryLabel: { fontSize: 14, fontWeight: '700' },
   primarySub: { fontSize: 12, marginTop: 2 },
   pausedHint: { fontSize: 12, lineHeight: 17, marginTop: 14, fontStyle: 'italic' },
+  hint: { fontSize: 11, marginTop: 6, lineHeight: 15 },
+  clusterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderRadius: 12,
+  },
+  clusterTitle: { fontSize: 14, fontWeight: '600' },
+  clusterMeta: { fontSize: 11, marginTop: 2 },
+  clusterCheck: { fontSize: 18, fontWeight: '700' },
 });

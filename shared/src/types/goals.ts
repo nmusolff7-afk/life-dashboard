@@ -135,6 +135,24 @@ export interface GoalLibraryResponse {
   library: GoalLibraryEntry[];
 }
 
+/** Per-goal config dict (`config_json` on the row). Goal-type
+ *  orthogonal — different library_ids consume different keys. The
+ *  shape is loose-typed because adding a new key shouldn't require
+ *  type churn. Backend stores as JSON string; client reads/writes
+ *  as a parsed object. */
+export interface GoalConfig {
+  /** TIME-02 Screen-time cap streak — minutes/day cap. */
+  daily_cap_minutes?: number;
+  /** TIME-06 Location visits — id of the location_clusters row to
+   *  count visits to. */
+  cluster_id?: number;
+  /** TIME-06 Location visits — weekly visit count needed for the
+   *  week to qualify the streak. */
+  weekly_visits_target?: number;
+  /** Future keys land here. */
+  [key: string]: unknown;
+}
+
 export interface GoalCreateInput {
   library_id: string;
   target_value?: number;
@@ -151,6 +169,7 @@ export interface GoalCreateInput {
   window_size?: number;
   aggregation?: 'average' | 'sum' | 'percentage';
   period_unit?: 'day' | 'week';
+  config?: GoalConfig;
 }
 
 export interface GoalUpdateInput {

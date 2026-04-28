@@ -2,13 +2,23 @@
 
 **This file is yours.** Drop one-line notes here while testing the app —
 bug reports, UX issues, feature ideas, questions. Don't worry about
-formatting; Claude triages everything below into `BUILD_PLAN.md` at the
-start of each chat response.
+formatting; Claude **files** everything below into the right `BUILD_PLAN.md`
+backlog tier at the start of each chat response and clears this list.
 
-After triage this list will be empty again. That's the signal Claude
-saw your notes — when you come back to add more, the list is fresh.
+**Filing only — Claude won't preempt the active phase to fix inbox
+bugs.** They get fixed when their Backlog tier comes up. If you want
+something to jump the queue, say so in chat or re-rank Backlog → Now
+in `BUILD_PLAN.md` yourself (Claude will respect either signal).
 
-**Format:** `- [Type] description` — Type ∈ `Bug` / `UX` / `Feature` / `Question`/ `Unknown` .
+Questions get answered in the end-of-response summary, not stored
+unless they imply a new phase. Truncated / ambiguous notes get filed
+with an "awaiting clarification" tag and surfaced in the summary so
+you can finish the thought.
+
+After triage this list is empty again — that's the signal Claude saw
+your notes.
+
+**Format:** `- [Type] description` — Type ∈ `Bug` / `UX` / `Feature` / `Question` / `Unknown`.
 
 **Severity tags** (optional, for bugs): `(blocker)` / `(annoying)` / `(minor)`.
 

@@ -44,20 +44,30 @@ The full PRD (long-form product spec) lives in
 
 Every chat response, in order:
 
-### 1. Triage `docs/INBOX.md` (mandatory, every response)
+### 1. Triage `docs/INBOX.md` — filing only, not fixing (mandatory, every response)
 
-- Read it. If non-empty, process every line:
-  - **Bug** → add to `BUILD_PLAN.md` → Backlog → Now (if blocker) or
-    Backlog → Later (if minor); or as a current-phase blocker if
-    related to active work.
-  - **UX** → Backlog with a tier matching urgency.
-  - **Feature** → Backlog → Later (or Icebox if out of scope).
-  - **Question** → answer in your reply; add the answer + question
-    to the relevant section of BUILD_PLAN.md if it changes scope.
-- **After triage, empty `INBOX.md`** (back to the empty template).
-  That's the founder's signal you saw their notes.
-- If something looks ambiguous, ask the founder before triaging it
-  to a tier — don't guess.
+**Critical rule:** triage is **filing**, not **executing**. Read every
+line, move it to the correct spot in `BUILD_PLAN.md`, and continue
+with the active phase. **Don't preempt the active phase to fix inbox
+bugs** — they get fixed when their Backlog tier comes up. If the
+founder wants a bug to jump the queue, they'll say so in chat or
+re-rank Backlog → Now manually.
+
+For each line:
+- **Bug** → add to `BUILD_PLAN.md` → Backlog → Now (default — testing-
+  surfaced bugs usually deserve next-up priority) or Backlog → Later
+  if minor / cosmetic. Don't open the file to fix it this turn.
+- **UX** → Backlog with a tier matching urgency.
+- **Feature** → Backlog → Later (or Icebox if out of scope).
+- **Question** → keep aside to answer in the end-of-response summary.
+  Don't file as a Backlog item unless it implies a new phase.
+- **Ambiguous / truncated** → file in Backlog → Later with
+  "(awaiting clarification — '<exact text>')" tag, AND surface in the
+  end-of-response summary so the founder can clarify next turn.
+  Don't guess.
+
+**After triage, empty `INBOX.md`** (back to the empty template).
+That's the founder's signal you saw their notes.
 
 ### 2. Read `BUILD_PLAN.md` for current state
 
@@ -83,13 +93,35 @@ Every chat response, in order:
 - **Read the source before assuming a Backlog item is accurate.**
   Source is truth; the plan is a guide.
 
-### 4. Do the work
+### 4. Do the work — on the active phase, not on inbox items
 
-- One phase active at a time. If scope creeps, log the new item to
-  Backlog and continue current scope — don't silently expand.
+- One phase active at a time. The active phase is what's in
+  `BUILD_PLAN.md` → Active phase. If Active is empty, propose one
+  from Backlog → Now and start it.
+- If scope creeps, log the new item to Backlog and continue current
+  scope — don't silently expand.
 - Issue `MANUAL CHECK:` prompts for anything you can't verify
   yourself (UI / native / env / external system / ambiguous spec).
   Wait for ack before declaring done.
+
+### 4a. End-of-response summary (mandatory)
+
+The chat reply at the end of every response is the founder's
+single read-out. Structure it in three blocks:
+
+1. **Inbox actions** — one line per item filed, with where it
+   landed in Backlog. *("[Bug] X → Backlog → Now"; "[Question] Y →
+   answered below"; "[?] truncated 'we need' → Backlog → Later
+   (awaiting clarification)").*  If inbox was empty, write "Inbox:
+   empty."
+2. **Active phase progress** — what shipped this turn for the
+   current phase, MANUAL CHECKs issued, what's next.
+3. **Answers to questions** — direct answers to anything in inbox
+   under [Question]. One short paragraph each.
+
+This format is non-negotiable. The founder's testing loop depends
+on knowing exactly what was filed vs. what was built vs. what was
+answered, every response.
 
 ### 5. Push every response — `git add` + `git commit` + `git push`
 

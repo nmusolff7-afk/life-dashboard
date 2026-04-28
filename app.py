@@ -2527,6 +2527,31 @@ def api_location_today():
     })
 
 
+@app.route("/api/location/clusters", methods=["GET"])
+@login_required
+def api_location_clusters():
+    """Lightweight cluster list for forms that need to pick a cluster
+    (e.g. TIME-06 goal config). No reverse-geocoding side effects —
+    `/api/location/today` runs the heavy pipeline; this one just reads
+    the rows ranked by dwell minutes. ?limit= caps results (default 20)."""
+    from db import list_location_clusters
+    limit = max(1, min(int(request.args.get("limit", 20)), 100))
+    rows = list_location_clusters(uid(), limit=limit)
+    return jsonify({
+        "clusters": [
+            {
+                "id":                  int(r["id"]),
+                "place_name":          r.get("place_name"),
+                "place_label":         r.get("place_label"),
+                "total_dwell_minutes": int(r.get("total_dwell_minutes") or 0),
+                "centroid_lat":        r.get("centroid_lat"),
+                "centroid_lon":        r.get("centroid_lon"),
+            }
+            for r in rows
+        ],
+    })
+
+
 # ── Device-native: Android Screen Time ──────────────────
 # Mobile uses UsageStatsManager (requires user to grant Usage Access in
 # system Settings) and POSTs daily aggregates. Backend stores in

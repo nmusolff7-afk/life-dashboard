@@ -36,16 +36,27 @@ say it in chat.
 ### Claude workflow (me)
 
 **Start of every chat response:**
-1. Read `INBOX.md`. If non-empty, triage every line — convert to
-   Backlog tier here (Now / Next / Later / Icebox), file as a
-   current-phase blocker, ask the founder for clarification, or
-   dismiss with a one-line reason. **Empty `INBOX.md` after triage**
-   so the founder knows their notes were processed.
+1. Read `INBOX.md`. If non-empty, **file every line into the right
+   Backlog tier** (Now / Next / Later / Icebox). **Don't fix items
+   this turn** — triage is filing, not executing. Bugs get fixed
+   when their Backlog tier comes up, not just because they appeared
+   in inbox. Questions are kept aside for the end-of-response
+   summary. Truncated/ambiguous items go to Backlog → Later with a
+   "(awaiting clarification)" tag, AND get surfaced in the summary.
+   **Empty `INBOX.md` after triage** — that's the founder's signal
+   their notes were seen.
 2. Read this file's `Status` + `Active phase` + `Backlog → Now` to
    know where the project is.
 3. Read the source files relevant to the *active phase* — not the
    inbox content. Inbox is feedback flow; the active phase is what
-   I work on unless the founder explicitly redirects.
+   I work on unless the founder explicitly redirects in chat.
+
+**End-of-response summary** is the founder's single read-out.
+Three blocks, every response:
+- **Inbox actions** — one line per item filed (where it landed)
+- **Active phase progress** — what shipped, MANUAL CHECKs issued,
+  what's next
+- **Answers to questions** — short direct answers
 
 **During a phase:**
 - One phase active at a time.
@@ -112,9 +123,10 @@ work?").
 - Settings flow complete (12 screens incl. profile-edit sub-flow).
 - 6 fitness subsystem drilldown screens.
 - Strava activity detail screen wired in.
-- Goals library + customize flow live, but **TIME-02/05/06 config
-  fields not surfaced in `customize.tsx`** — those goals
-  instantiate paused until the UI lands (Backlog → Now).
+- Goals library + customize flow live; TIME-02/05/06 config fields
+  now surfaced (TIME-02 daily_cap_minutes input, TIME-06 cluster
+  picker + weekly_visits_target). New goals of those types
+  instantiate active instead of paused.
 - Custom Expo Modules: `health-connect`, `usage-stats` — both
   working.
 - 2 missing component sets: **DayStrip** (for §14.2 Day Timeline)
@@ -189,23 +201,6 @@ the project will become.
     that §14.2.2 AI labeling can fill later.
   - **PRD ref:** §4.6.5 (override applied — AI permitted for soft-
     block labeling, see [Vision → PRD overrides](#prd-overrides-where-the-build-plan-supersedes-the-prd)).
-
-- **Customize.tsx config-field UX** (~2h) — §14.8 mobile follow-up
-  - **Scope:** Surface the per-goal config inputs that backend
-    already accepts. TIME-02 needs `daily_cap_minutes` (number
-    input). TIME-06 needs `cluster_id` (cluster picker — list user's
-    `location_clusters` rows ranked by `total_dwell_minutes`) plus
-    `weekly_visits_target` (number). TIME-05 currently has no
-    config — period_count target_count (hours/week) covers it.
-  - **Files:** `mobile/app/goals/customize.tsx`,
-    `mobile/lib/hooks/useGoals.ts` (add cluster fetcher),
-    `mobile/lib/api/goals.ts` (extend create input),
-    `app.py` (`/api/location/clusters` already exists — verify).
-  - **Done when:** Creating a TIME-02 / TIME-05 / TIME-06 goal
-    sets the right `config` payload; the goals instantiate active
-    instead of paused; recompute returns real progress.
-  - **Without this:** TIME-02/05/06 handlers shipped in §14.8 sit
-    paused forever.
 
 - **Location connect-flow UX fix** (~1h) — §14.5.5.g, C1 carry-over
   - **Scope:** Alert chain on first-connect is fragile —
@@ -412,6 +407,33 @@ the project will become.
     streak ticks up daily.
   - **Overlaps with:** §14.6.5 Phone wake events (same hourly
     table).
+
+- **Connection wiring guidance / contextual onboarding** (~6h) — INBOX 2026-04-28
+  - **Scope:** Help users wire connections that depend on
+    upstream config they don't realize exists. Concrete examples
+    surfaced by founder testing:
+    - Connect Health Connect → most users don't realize Garmin /
+      Fitbit / Pixel Watch data only flows in if they enable it
+      in **the source app** (Garmin Connect → Settings → Health
+      Connect → toggle data types). Surface a checklist or
+      "connect upstream sources" guide post-HC-grant.
+    - Detect "live but empty" connections (HC permissions
+      granted but `health_daily` rows are null/zero across all
+      metrics) and prompt the user with a diagnostic affordance
+      instead of just showing "0 steps".
+    - First-time-Strava: explain it's read-only + AI-excluded.
+    - First-time-Outlook on a work tenant: explain Publisher
+      Verification status if it blocks.
+  - **Files:** new `mobile/components/apex/ConnectionGuidance.tsx`
+    (modal/sheet pattern), updates to
+    `mobile/app/settings/connections.tsx` to invoke it post-grant,
+    `mobile/app/(tabs)/fitness.tsx` for the empty-HC detection,
+    possibly `connectors.py` for a `health_check` field on each
+    catalog entry.
+  - **Done when:** After granting HC perms but with no upstream
+    data, the app shows a "Where does Health Connect get data?"
+    sheet with platform-specific links (Garmin Connect, Fitbit
+    settings, Pixel Watch settings, etc.).
 
 - **§14.9 Outlook multi-tenant via Publisher Verification** (~2h docs + 1 wk wait)
   - **Scope:** Microsoft Partner Center "Verify my publisher"
