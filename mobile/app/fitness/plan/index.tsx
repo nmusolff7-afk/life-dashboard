@@ -56,6 +56,15 @@ export default function PlanIndex() {
     draft: PlanExercise;
   } | null>(null);
 
+  // Draft-mode state. All edits (manual via modal/delete + AI-proposed
+  // via dry-run revise) land here, NOT on the server. The user reviews
+  // the cumulative changes and either commits via "Save changes"
+  // (PATCH + redirect to Fitness tab) or discards via "Cancel".
+  // null = no pending changes (rendering reads from `plan.plan` from
+  // the server). Non-null = working copy.
+  const [draftPlan, setDraftPlan] = useState<WeeklyPlan | null>(null);
+  const [savingDraft, setSavingDraft] = useState(false);
+
   // Resolve source shortNames back to full citations.
   const sourceObjects = useMemo<WorkoutPlanSource[]>(() => {
     const names = plan?.sources ?? [];
@@ -96,23 +105,56 @@ export default function PlanIndex() {
     );
   }
 
-  const weekly = plan.plan.weeklyPlan ?? {};
+  // Effective rendering source — draft (when dirty) or server-saved.
+  // Single source of truth for all read paths so the page reflects
+  // unsaved changes exactly as the user will see them post-save.
+  const workingPlan: WeeklyPlan = draftPlan ?? plan.plan;
+  const weekly = workingPlan.weeklyPlan ?? {};
+  const isDirty = draftPlan !== null;
 
-  const handleEditPlan = () => {
+  // Helper for handlers that produce a new plan dict — bumps draft
+  // state without touching the server.
+  const updateDraft = (mutator: (current: WeeklyPlan) => WeeklyPlan) => {
+    setDraftPlan((prev) => mutator(prev ?? plan.plan));
+  };
+
+  const handleSaveDraft = async () => {
+    if (!draftPlan) return;
     haptics.fire('tap');
-    // PRD §4.3.10: "Edit Plan opens the Workout Builder with
-    // pre-populated answers". Pass the saved quiz_payload through
-    // a URL search param; builder reverses it back to per-step
-    // state. Falls through to fresh state if no payload exists
-    // (older plans pre-dating quiz_payload column).
-    const payload = plan.quiz_payload;
-    if (!payload) {
-      // Old plan without saved quiz — just open fresh wizard.
-      router.push('/fitness/plan/builder' as never);
-      return;
+    setSavingDraft(true);
+    try {
+      await patchWorkoutPlan(draftPlan);
+      haptics.fire('success');
+      setDraftPlan(null);
+      // Per founder direction: Save → bounce to the Fitness tab so the
+      // user sees their freshly-saved plan in context (Today's
+      // Scheduled Workout pulls from it).
+      router.replace('/(tabs)/fitness' as never);
+    } catch (e) {
+      haptics.fire('error');
+      Alert.alert('Save failed', e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingDraft(false);
     }
-    const encoded = encodeURIComponent(JSON.stringify(payload));
-    router.push(`/fitness/plan/builder?initial=${encoded}` as never);
+  };
+
+  const handleDiscardDraft = () => {
+    if (!draftPlan) return;
+    Alert.alert(
+      'Discard changes?',
+      'Your unsaved edits will be lost.',
+      [
+        { text: 'Keep editing', style: 'cancel' },
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: () => {
+            haptics.fire('tap');
+            setDraftPlan(null);
+          },
+        },
+      ],
+    );
   };
 
   const handleSwitchPlan = () => {
@@ -145,11 +187,20 @@ export default function PlanIndex() {
     haptics.fire('tap');
     setRevising(true);
     try {
-      await reviseWorkoutPlan(msg);
+      // Dry-run mode: AI proposes a revised plan without saving. Pass
+      // the current working plan (could be draft or server-saved) so
+      // the AI revises on top of any pending manual edits — gives the
+      // user a coherent unified preview to either Save or Cancel.
+      const result = await reviseWorkoutPlan(msg, {
+        dryRun: true,
+        currentPlan: workingPlan,
+      });
       haptics.fire('success');
       setReviseText('');
       setReviseOpen(false);
-      await refetch();
+      // Apply the AI proposal as the new draft. User reviews via the
+      // existing day cards + Save/Cancel banner.
+      setDraftPlan(result.plan);
     } catch (e) {
       haptics.fire('error');
       Alert.alert('Revise failed', e instanceof Error ? e.message : String(e));
@@ -181,25 +232,18 @@ export default function PlanIndex() {
     router.replace('/(tabs)/fitness');
   };
 
-  const handleRemoveExercise = async (dayName: DayName, exerciseIdx: number) => {
-    const day = weekly[dayName];
-    if (!day) return;
-    const nextDay: PlanDay = {
-      ...day,
-      exercises: (day.exercises ?? []).filter((_, i) => i !== exerciseIdx),
-    };
-    const nextPlan: WeeklyPlan = {
-      ...plan.plan,
-      weeklyPlan: { ...weekly, [dayName]: nextDay },
-    };
-    try {
-      await patchWorkoutPlan(nextPlan);
-      haptics.fire('success');
-      await refetch();
-    } catch (e) {
-      haptics.fire('error');
-      Alert.alert('Edit failed', e instanceof Error ? e.message : String(e));
-    }
+  const handleRemoveExercise = (dayName: DayName, exerciseIdx: number) => {
+    haptics.fire('tap');
+    updateDraft((current) => {
+      const w = current.weeklyPlan ?? {};
+      const day = w[dayName];
+      if (!day) return current;
+      const nextDay: PlanDay = {
+        ...day,
+        exercises: (day.exercises ?? []).filter((_, i) => i !== exerciseIdx),
+      };
+      return { ...current, weeklyPlan: { ...w, [dayName]: nextDay } };
+    });
   };
 
   const openExerciseEditor = (dayName: DayName, idx: number) => {
@@ -207,42 +251,47 @@ export default function PlanIndex() {
     const ex = day?.exercises?.[idx];
     if (!ex) return;
     haptics.fire('tap');
-    // Clone so the modal mutates a draft, not the live plan.
+    // Clone so the modal mutates a draft of the exercise (separate
+    // from the page's draftPlan), not the live plan.
     setEditTarget({ day: dayName, idx, draft: { ...ex } });
   };
 
-  const handleSaveExerciseEdit = async () => {
+  const handleSaveExerciseEdit = () => {
     if (!editTarget) return;
     const { day: dayName, idx, draft } = editTarget;
-    const day = weekly[dayName];
-    if (!day) return;
-    const cleaned: PlanExercise = {
-      name: draft.name.trim() || day.exercises[idx]?.name || 'Exercise',
-      sets: Math.max(1, Math.min(20, Number(draft.sets) || 3)),
-      reps: String(draft.reps || '').trim() || '8-12',
-      rest: typeof draft.rest === 'string' && draft.rest.trim() ? draft.rest.trim() : null,
-      notes: typeof draft.notes === 'string' && draft.notes.trim() ? draft.notes.trim() : null,
-    };
-    const nextExercises = (day.exercises ?? []).map((ex, i) => (i === idx ? cleaned : ex));
-    const nextPlan: WeeklyPlan = {
-      ...plan.plan,
-      weeklyPlan: { ...weekly, [dayName]: { ...day, exercises: nextExercises } },
-    };
-    try {
-      await patchWorkoutPlan(nextPlan);
-      haptics.fire('success');
-      setEditTarget(null);
-      await refetch();
-    } catch (e) {
-      haptics.fire('error');
-      Alert.alert('Save failed', e instanceof Error ? e.message : String(e));
-    }
+    haptics.fire('tap');
+    updateDraft((current) => {
+      const w = current.weeklyPlan ?? {};
+      const day = w[dayName];
+      if (!day) return current;
+      const cleaned: PlanExercise = {
+        name: draft.name.trim() || day.exercises[idx]?.name || 'Exercise',
+        sets: Math.max(1, Math.min(20, Number(draft.sets) || 3)),
+        reps: String(draft.reps || '').trim() || '8-12',
+        rest: typeof draft.rest === 'string' && draft.rest.trim() ? draft.rest.trim() : null,
+        notes: typeof draft.notes === 'string' && draft.notes.trim() ? draft.notes.trim() : null,
+      };
+      const nextExercises = (day.exercises ?? []).map((ex, i) => (i === idx ? cleaned : ex));
+      return {
+        ...current,
+        weeklyPlan: { ...w, [dayName]: { ...day, exercises: nextExercises } },
+      };
+    });
+    setEditTarget(null);
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <Stack.Screen options={{ title: 'Plan' }} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          // When the save bar is visible, give the scroll content extra
+          // bottom padding so the user can see the last day card above
+          // the sticky bar.
+          isDirty ? { paddingBottom: 110 } : null,
+        ]}>
+
         {plan.understanding ? (
           <View style={[styles.understanding, { backgroundColor: t.surface, borderColor: t.border }]}>
             <Ionicons name="information-circle-outline" size={16} color={t.accent} />
@@ -376,15 +425,6 @@ export default function PlanIndex() {
             <Ionicons name="sparkles-outline" size={16} color={t.accent} />
             <Text style={[styles.secondaryLabel, { color: t.accent }]}>Revise with AI</Text>
           </Pressable>
-          <Pressable
-            onPress={handleEditPlan}
-            style={({ pressed }) => [
-              styles.secondaryBtn,
-              { backgroundColor: t.surface, borderColor: t.border, opacity: pressed ? 0.7 : 1 },
-            ]}>
-            <Ionicons name="create-outline" size={16} color={t.muted} />
-            <Text style={[styles.secondaryLabel, { color: t.text }]}>Edit plan</Text>
-          </Pressable>
         </View>
         <Pressable
           onPress={handleSwitchPlan}
@@ -438,6 +478,46 @@ export default function PlanIndex() {
           </View>
         ) : null}
       </ScrollView>
+
+      {/* Sticky save/discard banner — appears only when there are
+          unsaved manual edits or AI-proposed revisions. Save commits
+          the working plan via PATCH and bounces to the Fitness tab so
+          the user sees their changes in the workout-of-the-day card. */}
+      {isDirty ? (
+        <View style={[styles.saveBar, { backgroundColor: t.surface, borderTopColor: t.border }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.saveBarTitle, { color: t.text }]}>Unsaved changes</Text>
+            <Text style={[styles.saveBarHint, { color: t.muted }]} numberOfLines={1}>
+              Review the days above. Save to apply, Cancel to discard.
+            </Text>
+          </View>
+          <Pressable
+            onPress={handleDiscardDraft}
+            disabled={savingDraft}
+            style={({ pressed }) => [
+              styles.saveBarGhost,
+              { opacity: pressed ? 0.6 : 1 },
+            ]}>
+            <Text style={[styles.saveBarGhostLabel, { color: t.muted }]}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            onPress={handleSaveDraft}
+            disabled={savingDraft}
+            style={({ pressed }) => [
+              styles.saveBarPrimary,
+              { backgroundColor: t.accent, opacity: pressed || savingDraft ? 0.85 : 1 },
+            ]}>
+            {savingDraft ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="checkmark" size={16} color="#fff" />
+                <Text style={styles.primaryLabel}>Save</Text>
+              </>
+            )}
+          </Pressable>
+        </View>
+      ) : null}
 
       {/* Inline exercise editor — opens when user taps an exercise row.
           Five fields: name, sets, reps, rest, notes. Save patches the
@@ -658,6 +738,35 @@ const styles = StyleSheet.create({
   sourceRow: { paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, gap: 4 },
   sourceName: { fontSize: 12, fontWeight: '700' },
   sourceCitation: { fontSize: 11, lineHeight: 15 },
+
+  // Save/Discard sticky banner — shown when draftPlan is non-null
+  saveBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingBottom: 18,
+    borderTopWidth: 1,
+  },
+  saveBarTitle: { fontSize: 13, fontWeight: '700' },
+  saveBarHint: { fontSize: 11, marginTop: 1 },
+  saveBarGhost: { paddingHorizontal: 12, paddingVertical: 10 },
+  saveBarGhostLabel: { fontSize: 13, fontWeight: '600' },
+  saveBarPrimary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 100,
+    minWidth: 92,
+    justifyContent: 'center',
+  },
 
   // Edit-exercise modal
   modalBackdrop: {

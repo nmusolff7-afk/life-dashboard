@@ -1867,4 +1867,85 @@ This was a multi-day marathon session. Listing as one consolidated entry.
 
 ---
 
+### Phase log: §14.7b Workout-plan draft-mode editing — 2026-04-28
+
+Iteration on §14.7 driven by founder feedback: "clicking the edit
+plan button forces you to rebuild with the full ai builder — i want
+manual changes or ai changes proposed, then either should require a
+save to commit, then redirect to fitness page."
+
+**Shipped:**
+- **Backend dry-run revise** ([`app.py /api/workout-plan/revise`](app.py))
+  — added `dry_run` and `current_plan` flags. When `dry_run=true`,
+  AI computes the proposal and returns `{plan, dry_run: true}` WITHOUT
+  saving. `current_plan` lets the client pass its working-copy plan
+  as the AI's basis (supports edits-on-top-of-edits).
+- **Mobile API helper** ([`mobile/lib/api/plan.ts`](mobile/lib/api/plan.ts))
+  — `reviseWorkoutPlan(req, opts?)` now overload-typed: default mode
+  returns `WorkoutPlanResponse` (saved row, backwards-compat); dry-run
+  mode returns `ReviseDryRunResponse` (`{plan, dry_run: true}`).
+- **Draft mode in plan view** ([`mobile/app/fitness/plan/index.tsx`](mobile/app/fitness/plan/index.tsx))
+  — single `draftPlan` state captures all pending changes: inline
+  exercise edits via the modal, exercise deletes via trash icon, AND
+  AI revisions (now dry-run). Page renders from `workingPlan = draftPlan ?? plan.plan`
+  so all reads reflect unsaved state.
+- **Save/Cancel sticky banner** — shown only when `isDirty`. Pinned
+  to bottom of screen with "Unsaved changes" title + Cancel /
+  Save buttons. Save calls `patchWorkoutPlan(draftPlan)` then
+  `router.replace('/(tabs)/fitness')` per founder direction.
+  Cancel asks for confirmation before discarding (no accidental
+  data loss).
+- **Removed misleading "Edit plan" → wizard button** from plan view
+  AND from Settings → Workout Plan card. Settings now has a single
+  "View / edit" button → `/fitness/plan`. The wizard is reachable
+  only via the explicit "Build a totally new plan from scratch"
+  tertiary link or the empty-state "Build a plan" CTA.
+
+**Deferred:**
+- **Granular diff hint in the save banner** ("3 exercises changed")
+  is currently a static "Review the days above" string. A real diff
+  computation (compare draftPlan against plan.plan, count modified
+  exercises) is a nice-to-have for v1.6.
+- **Inline-add-an-exercise** — the modal supports edit + the trash
+  icon supports delete, but adding a new exercise requires the
+  Manual Builder flow in Settings. Could surface a "+" affordance
+  per day card; deferred until founder feedback signals it.
+
+**Problems flagged:**
+- Pre-existing `app/(tabs)/finance.tsx` line 114 TS error still
+  carrying forward — unrelated to this work, will fix when finance
+  tab next gets touched.
+- Save flow doesn't optimistic-update the home screen / scheduled-
+  workout card. After Save the user lands on Fitness tab; if Today's
+  Scheduled Workout is rendered from a stale `useWorkoutPlan()` cache
+  it could briefly show the old plan before refetch. Not observed in
+  testing but worth flagging — the Fitness tab's `useFocusEffect`
+  refetches on focus so the window is small.
+
+**Decisions:**
+- **Dry-run on the existing endpoint** (flag) rather than a new
+  `/revise-preview` route. Simpler API surface; backwards-compat
+  preserved via overloaded TS types in the client.
+- **AI revise basis = current working plan** (draft if dirty, else
+  saved). Lets the user iterate: manual edits → AI revise → review
+  → save, all in one session, with the AI seeing the user's actual
+  intent rather than a stale DB version.
+- **Single Save bar pinned bottom** rather than per-card or floating
+  modal. Always-visible-when-dirty matches the user's mental model:
+  "I'm in edit mode, what I do gets saved on Save."
+- **Discard = confirm dialog** because the user is one tap away from
+  losing AI revise output that took 5–10s to generate. Save = no
+  confirm because Save is the no-regret action.
+- **Removed the wizard pre-fill flow** from plan/index.tsx but
+  preserved it in the codebase. The builder still accepts
+  `?initial=<encoded>`, so a future entry point (e.g. "Edit quiz
+  answers" in Settings) can use it without code revival.
+
+**Next pickup (unchanged):**
+1. **§14.5.1 Strava maps + charts** — see prior log.
+2. **§14.8 Goals data-binding tightening** — see prior log.
+3. **§14.2 Day Timeline core** — week 2.
+
+---
+
 **End of BUILD_PLAN_v2.**

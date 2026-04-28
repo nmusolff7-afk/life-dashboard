@@ -68,15 +68,51 @@ export async function generateWorkoutPlan(
   return jsonOrThrow<WorkoutPlanResponse>(res, 'workout-plan/generate');
 }
 
-/** AI-revise the current plan with a natural-language change request. */
+/** AI-revise the current plan with a natural-language change request.
+ *
+ *  Default mode (no opts): commits the revision to the active plan and
+ *  returns the saved WorkoutPlanResponse. Used by anything that wants
+ *  immediate apply.
+ *
+ *  Dry-run mode (opts.dryRun): returns the AI-proposed plan WITHOUT
+ *  saving, so the client can show it for review + explicit Save. The
+ *  shape in dry-run is `{plan: WeeklyPlan, dry_run: true}`. Optional
+ *  `currentPlan` lets the caller send their working-copy plan as the
+ *  AI's basis instead of the DB-saved one (supports edits-on-top-of-
+ *  edits in mobile's draft mode).
+ */
+export interface ReviseOptions {
+  dryRun?: boolean;
+  currentPlan?: WeeklyPlan;
+}
+
+export interface ReviseDryRunResponse {
+  plan: WeeklyPlan;
+  dry_run: true;
+}
+
 export async function reviseWorkoutPlan(
   changeRequest: string,
-): Promise<WorkoutPlanResponse> {
+): Promise<WorkoutPlanResponse>;
+export async function reviseWorkoutPlan(
+  changeRequest: string,
+  opts: ReviseOptions & { dryRun: true },
+): Promise<ReviseDryRunResponse>;
+export async function reviseWorkoutPlan(
+  changeRequest: string,
+  opts: ReviseOptions = {},
+): Promise<WorkoutPlanResponse | ReviseDryRunResponse> {
+  const body: Record<string, unknown> = { change_request: changeRequest };
+  if (opts.dryRun) body.dry_run = true;
+  if (opts.currentPlan) body.current_plan = opts.currentPlan;
   const res = await apiFetch('/api/workout-plan/revise', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ change_request: changeRequest }),
+    body: JSON.stringify(body),
   });
+  if (opts.dryRun) {
+    return jsonOrThrow<ReviseDryRunResponse>(res, 'workout-plan/revise (dry-run)');
+  }
   return jsonOrThrow<WorkoutPlanResponse>(res, 'workout-plan/revise');
 }
 

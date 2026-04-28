@@ -69,25 +69,8 @@ export default function SettingsWorkoutPlan() {
                 <Pressable
                   onPress={() => { haptics.fire('tap'); router.push('/fitness/plan' as never); }}
                   style={({ pressed }) => [styles.secondary, { backgroundColor: t.accent, opacity: pressed ? 0.85 : 1 }]}>
-                  <Ionicons name="calendar-outline" size={14} color="#fff" />
-                  <Text style={[styles.secondaryLabel, { color: '#fff' }]}>View week</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => {
-                    haptics.fire('tap');
-                    // Same Edit-Plan flow as plan/index.tsx: pre-fill
-                    // the builder from quiz_payload via URL param.
-                    const payload = plan.quiz_payload;
-                    if (!payload) {
-                      router.push('/fitness/plan/builder' as never);
-                      return;
-                    }
-                    const encoded = encodeURIComponent(JSON.stringify(payload));
-                    router.push(`/fitness/plan/builder?initial=${encoded}` as never);
-                  }}
-                  style={({ pressed }) => [styles.secondary, { backgroundColor: t.surface2, opacity: pressed ? 0.7 : 1 }]}>
-                  <Ionicons name="create-outline" size={14} color={t.text} />
-                  <Text style={[styles.secondaryLabel, { color: t.text }]}>Edit plan</Text>
+                  <Ionicons name="create-outline" size={14} color="#fff" />
+                  <Text style={[styles.secondaryLabel, { color: '#fff' }]}>View / edit</Text>
                 </Pressable>
               </View>
             </View>

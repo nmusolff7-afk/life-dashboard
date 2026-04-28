@@ -1802,26 +1802,43 @@ def api_workout_plan_generate():
 @app.route("/api/workout-plan/revise", methods=["POST"])
 @login_required
 def api_workout_plan_revise():
-    """Revise the user's active plan in place. Body:
-      { change_request: str } — the user's natural-language feedback.
-    Uses the stored quiz_payload + current plan_json as AI context. """
+    """Revise the user's active plan. Body:
+      { change_request: str,
+        dry_run?: bool,           # default false; when true, return the
+                                  # AI-proposed plan WITHOUT saving so the
+                                  # client can show it for review + Save
+        current_plan?: dict }     # optional override of the AI's "current"
+                                  # context; lets the mobile draft-mode
+                                  # send the user's already-edited working
+                                  # copy as the basis for the AI's revise
+
+    Uses the stored quiz_payload as AI context. Plan source is either the
+    request's `current_plan` (preferred when sent — supports edits-on-top-
+    of-edits) or the DB's active plan."""
     from db import get_active_workout_plan, save_active_workout_plan
     data = request.get_json() or {}
     change_request = (data.get("change_request") or "").strip()
+    dry_run = bool(data.get("dry_run", False))
+    current_plan_override = data.get("current_plan") if isinstance(data.get("current_plan"), dict) else None
     if not change_request:
         return jsonify({"error": "Missing change_request"}), 400
     current = get_active_workout_plan(uid())
     if not current:
         return jsonify({"error": "No active plan to revise"}), 404
+    base_plan = current_plan_override if current_plan_override is not None else (current.get("plan") or {})
     try:
         revised = revise_plan(
             current.get("quiz_payload") or {},
-            current.get("plan") or {},
+            base_plan,
             change_request,
         )
     except Exception:
         _log.exception("workout-plan/revise AI call failed")
         return jsonify({"error": _AI_ERR}), 500
+    if dry_run:
+        # Return the proposed plan so the client can preview + let the
+        # user accept (PATCH) or discard. No DB write.
+        return jsonify({"plan": revised, "dry_run": True})
     save_active_workout_plan(
         uid(),
         revised,
