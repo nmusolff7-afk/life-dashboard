@@ -126,98 +126,386 @@ When picking up, fill this with:
 
 ## Backlog
 
-Prioritized queue. **Now** is the next 1-3 phases; **Next** is queued
-for the following weeks; **Later** is v1.5+ scope; **Icebox** is out
-of scope for the foreseeable future.
+**The key feature of this doc.** Every deferred item, every founder
+feedback, every PRD-derived future scope item lives here in one of
+four tiers. Reading top-to-bottom is the single best way to see what
+the project will become.
 
-Each item: `- **Title** (~Xh)` + 1-2 lines of context.
+**Tiers:**
+- **Now** — next 1-3 phases. Pick the next active phase from here.
+- **Next** — queued for the following 2-3 weeks.
+- **Later** — v1.5+ scope; will happen, just not urgently.
+- **Icebox** — explicitly out-of-scope for the foreseeable future
+  (deferred-with-no-revisit, post-launch features, off-platform).
+
+**Item format:**
+```
+- **Title** (~Xh) — origin / source
+  Scope: what changes.
+  Files: paths affected.
+  Done when: acceptance criterion.
+  PRD ref / dependencies / blocked-on (if any).
+```
 
 ### Now — pick the next phase from here
 
-- **§14.2 Day Timeline core — hard blocks** (~12h). Deterministic
-  block computation from gcal/outlook events + tasks-with-time +
-  HC sleep windows. Stored in a new `day_blocks` table; rendered as
-  a day strip on Today tab. See [Vision → Day Timeline](#day-timeline-the-architectural-pivot).
-- **Customize.tsx config-field UX** (~2h, mobile follow-up to §14.8).
-  TIME-02/05/06 backend handlers ship, but the create-goal form has
-  no input for `daily_cap_minutes` / `cluster_id` /
-  `weekly_visits_target`. Until this lands, those goals instantiate
-  paused. JS-only change.
-- **Location connect-flow UX fix** (~1h). Alert chain still fragile
-  post-C1; minor polish.
+- **§14.2 Day Timeline core — hard blocks** (~12h) — Vision pivot, biggest v1.5 leverage
+  - **Scope:** Deterministic block computation from gcal/outlook
+    events + tasks-with-time + HC sleep windows. Stored in a new
+    `day_blocks` table; rendered as a day strip on Today tab. Each
+    block: `(user_id, block_start, block_end, kind, label,
+    confidence, source_json)`.
+  - **Files:** `db.py` (new table + helpers), `app.py` (new route
+    `/api/day-timeline/<date>`), new `day_timeline.py` compute
+    module, `mobile/components/apex/DayStrip.tsx`, `mobile/lib/api/timeline.ts`.
+  - **Done when:** day strip on Today tab shows today's events as
+    coloured blocks, sleep window as an overnight block, tasks with
+    times as blocks; unaccounted hours render as empty placeholders
+    that §14.2.2 AI labeling can fill later.
+  - **PRD ref:** §4.6.5 (override applied — AI permitted for soft-
+    block labeling, see [Vision → PRD overrides](#prd-overrides-where-the-build-plan-supersedes-the-prd)).
+
+- **Customize.tsx config-field UX** (~2h) — §14.8 mobile follow-up
+  - **Scope:** Surface the per-goal config inputs that backend
+    already accepts. TIME-02 needs `daily_cap_minutes` (number
+    input). TIME-06 needs `cluster_id` (cluster picker — list user's
+    `location_clusters` rows ranked by `total_dwell_minutes`) plus
+    `weekly_visits_target` (number). TIME-05 currently has no
+    config — period_count target_count (hours/week) covers it.
+  - **Files:** `mobile/app/goals/customize.tsx`,
+    `mobile/lib/hooks/useGoals.ts` (add cluster fetcher),
+    `mobile/lib/api/goals.ts` (extend create input),
+    `app.py` (`/api/location/clusters` already exists — verify).
+  - **Done when:** Creating a TIME-02 / TIME-05 / TIME-06 goal
+    sets the right `config` payload; the goals instantiate active
+    instead of paused; recompute returns real progress.
+  - **Without this:** TIME-02/05/06 handlers shipped in §14.8 sit
+    paused forever.
+
+- **Location connect-flow UX fix** (~1h) — §14.5.5.g, C1 carry-over
+  - **Scope:** Alert chain on first-connect is fragile —
+    permission denial doesn't always surface a clear next-step.
+    Tighten copy, ensure deny-then-approve flow ends in a sampled
+    location, not a stuck spinner.
+  - **Files:** `mobile/app/settings/connections.tsx`,
+    `mobile/lib/hooks/useLocationConnector.ts`.
+  - **Done when:** Disable → re-enable → see a fresh sample on
+    LocationCard within 30s.
 
 ### Next — queued for weeks 2-3
 
-- **Day Timeline soft-block AI labeling** (~10h). Builds on hard
-  blocks. Claude Haiku labels gaps using HC + screen-time + location
-  context.
-- **Day Timeline mobile UI** (~2h). Day-strip component on Today tab.
-- **Patterns view — hybrid** (~14h). Deterministic patterns + AI
-  synthesis. Replaces Momentum tab's stub.
-- **Chatbot three-tier context** (~10h). Always-on / day-stream /
-  historical loading per PRD §3.3 chat overhaul.
-- **3 new goal types** (~4h). Inbox-zero-streak, sleep-regularity,
-  movement-minutes — needs library entries + handlers + customize.tsx
-  surfaces.
-- **Health Connect granular pulls** (~8h). Per-day workout segments,
-  more sleep stages.
+- **§14.2.2 Day Timeline soft-block AI labeling** (~10h) — builds on Now §14.2
+  - **Scope:** For every gap in `day_blocks` (an unaccounted hour-
+    range), pull HC activity + screen-time top-app + location
+    cluster, send to Claude Haiku, store the returned label +
+    confidence as a `kind='soft'` block.
+  - **Files:** `day_timeline.py` (new soft-label function),
+    `chatbot.py` (could share LifeContext serializer),
+    `app.py` (cron route `/api/cron/label-soft-blocks`).
+  - **Done when:** Yesterday's day strip shows soft blocks like
+    "Focus work · 0.85" / "Transit · 0.6" filling gaps between
+    hard events.
+  - **PRD ref:** §4.6.5 override (AI permitted for labeling only,
+    not score computation).
+
+- **§14.2.4 Day Timeline mobile UI polish** (~2h)
+  - **Scope:** DayStrip component refinements: tap-a-block →
+    detail sheet, scroll snapping, "now" indicator line, dark-mode
+    color tokens.
+  - **Files:** `mobile/components/apex/DayStrip.tsx`,
+    `mobile/components/apex/DayStripDetailSheet.tsx` (new).
+  - **Done when:** Tapping a block shows source data; "now" line
+    auto-scrolls into view on tab open.
+
+- **§14.3 Patterns view — hybrid** (~14h) — replaces Momentum tab stub
+  - **Scope:** Deterministic patterns (~6h) from 14-day rollups:
+    avg sleep, avg active mins, avg screen time, top locations,
+    cross-domain correlations. AI synthesis (~6h): Haiku reads
+    patterns + recent LifeContext, surfaces 3 plain-English
+    insights. Storage + UI: ~2h.
+  - **Files:** `patterns_engine.py` (new), `app.py` (route),
+    `mobile/app/(tabs)/momentum.tsx` (rebuild).
+  - **Done when:** Momentum tab renders 14-day pattern cards +
+    3 AI insight bullets; insights are user-invoked (refresh
+    button), never auto-generated.
+  - **PRD ref:** §4.6 (Patterns surface).
+
+- **§14.4 Chatbot three-tier context** (~10h)
+  - **Scope:** Always-on tier (~2K tokens, profile + today's plan
+    + active goals). Day-stream tier (~6K, today's events / tasks /
+    meal logs / workouts). Historical tier (~10K, lazy on intent —
+    14-day summary + last week's Day Timeline). Cost guardrails
+    (~2h): per-user-per-day token cap. Privacy (~2h): explicit
+    "what does Claude see?" panel.
+  - **Files:** `chatbot.py` (rewrite `_life_context`),
+    `mobile/app/chatbot/index.tsx` (privacy panel).
+  - **Done when:** Chatbot answer quality improves on questions
+    that need historical context ("how does this week compare to
+    last week?"); token usage stays under the daily cap.
+  - **PRD ref:** §4.7 + §4.7.10 (override applied — 18K cap, see
+    Vision).
+
+- **3 new goal types** (~4h) — §14.8 follow-up
+  - **Scope:** Add library entries + `_PROGRESS_HANDLERS` for:
+    - **Inbox-zero-streak** — Gmail unread = 0 by N PM, X days in
+      a row. Reads `gmail_messages` (synced unread count by hour).
+    - **Sleep-regularity** — wake-time stddev < N min over 14 days.
+      Reads `health_daily.sleep_minutes` + a new `wake_time` field.
+    - **Movement-minutes** — daily active minutes from
+      `health_daily.active_kcal` (or convert kcal→minutes via TDEE).
+  - **Files:** `db.py` (`_GOAL_LIBRARY_V1` extension + seed call),
+    `goals_engine.py` (3 new handlers), `mobile/app/goals/customize.tsx`
+    (per-goal config fields).
+  - **Done when:** All 3 goals are creatable from the library
+    picker, instantiate active (not paused), and show real
+    progress.
+
+- **§14.5.2 Health Connect granular pulls** (~8h) — connector depth
+  - **Scope:** Per-day workout segments (start/end + activity
+    type), more sleep stages (REM / deep / light / awake), HRV
+    quality flag, HR zones from workouts. Extends Health Connect
+    Expo Module with new permission scopes.
+  - **Files:** `mobile/modules/health-connect/android/.../HealthConnectModule.kt`
+    (new pull functions), `mobile/modules/health-connect/index.ts`
+    (TS bindings), `db.py` (extend `health_daily` or add
+    `health_workout_segments` table), `app.py` (sync route),
+    `chatbot.py` (LifeContext consumer).
+  - **Done when:** Fitness tab shows yesterday's sleep stage
+    breakdown (donut chart); chatbot LifeContext includes HC
+    workout segments; Strava + HC data merge cleanly without
+    double-count.
 
 ### Later — v1.5+, scoped but not urgent
 
-- **Background GPS sampling** (~3h). Foreground-only today; needs
-  platform review + persistent-notification permission rationale.
-- **Google Tasks connector** (~3h, recommended next-connector).
-- **Photo metadata connector** (~6h, geotags + EXIF for location
-  ground truth).
-- **GitHub events connector** (~4h).
-- **AI tool exports** (~10h, ambitious / differentiating).
-- **Phone wake events** (~3h).
-- **Calendar enrichment** (~4h).
-- **Email enrichment** (~5h).
-- **TIME-03 Social media cap** — needs per-app categorization on
-  `screen_time_daily.top_apps_json`. Either hardcoded social-package
-  whitelist (~1h) or extend usage-stats Expo Module to surface
-  Android category metadata (~3h).
-- **TIME-04 Phone-down after cutoff** — needs hourly screen-time
-  buckets. Requires extending `usage-stats` module + a new
-  `screen_time_hourly` table (~3h).
-- **Outlook Publisher Verification** (~2h docs + 1 wk wait).
+- **§14.5.5.a Background GPS sampling** (~3h)
+  - **Scope:** Foreground-only today; add background sampling via
+    a foreground service + persistent notification (Android) or
+    `location.permissions.background` (iOS, when iOS lands).
+  - **Files:** `mobile/modules/location-bg/` (new Expo Module),
+    `mobile/lib/hooks/useLocationConnector.ts`.
+  - **Done when:** Location samples accumulate while app
+    backgrounded; notification copy clearly explains "Location
+    samples are only used to improve your Time category score".
+  - **Blocked on:** Play Store approval review for persistent
+    location notification.
 
-### Icebox — out of scope for foreseeable future
+- **§14.6.1 Google Tasks connector** (~3h) — recommended next connector
+  - **Scope:** OAuth scope already granted with GCal; pull
+    user's Google Tasks lists + tasks; merge into `mind_tasks`
+    (with `source='google_tasks'`).
+  - **Files:** `gtasks_sync.py` (new), `connectors.py` (catalog
+    entry), `mobile/app/settings/connections.tsx` (handler).
+  - **Done when:** Google Tasks shows in Connections; tasks
+    appear in Time tab Today's Focus alongside manual tasks.
 
-- **iOS / HealthKit / Family Controls** — Android-first; defer until
-  iPhone test device + Apple Developer Program.
-- **Garmin Connect** — approval gate is months long; HC + Strava
-  cover the use case for now.
-- **Plaid** — finance tab is manual-entry-only for v1; Plaid is
-  post-launch monetization gate.
-- **RevenueCat / paywall / tier gating** — solo-user phase;
-  post-monetization.
+- **§14.6.2 Photo metadata connector** (~6h) — geotags + EXIF
+  - **Scope:** Read photo EXIF (lat/lon, timestamp) from a
+    user-selected gallery range; uses photo location as ground-
+    truth corroboration for `location_clusters`.
+  - **Files:** new `mobile/modules/photo-meta/` Expo Module,
+    `photo_sync.py`.
+  - **Done when:** "Add my photo locations" button in Connections
+    samples the user's last 30 days of photos; reverse-geocoded
+    place names appear in LocationCard.
+
+- **§14.6.3 GitHub events connector** (~4h)
+  - **Scope:** Read user's GitHub event stream (commits, PRs,
+    reviews). Useful as a Time-category signal for "deep work
+    output" pattern.
+  - **Files:** `github_sync.py`, `connectors.py`.
+  - **Done when:** GitHub shows in Connections; commit/PR counts
+    appear in Patterns view (after §14.3).
+
+- **§14.6.4 AI tool exports** (~10h, ambitious / differentiating)
+  - **Scope:** Connector that ingests the user's ChatGPT /
+    Claude / Gemini conversation history (export-file upload) and
+    extracts time-of-use signals into `screen_time_daily`-like
+    rollups + topic clusters into Patterns.
+  - **Files:** new `ai_export_sync.py`, mobile upload flow.
+  - **Done when:** User uploads a ChatGPT export; daily AI usage
+    minutes appear in Time tab; topic clusters surface in Patterns.
+
+- **§14.6.5 Phone wake events** (~3h)
+  - **Scope:** Count phone unlocks per hour as a high-resolution
+    attention-fragmentation signal complementing screen-time
+    aggregates.
+  - **Files:** extend `mobile/modules/usage-stats/`,
+    `screen_time_hourly` (new table — overlaps with TIME-04 work).
+  - **Done when:** Patterns view shows hourly unlock heatmap.
+
+- **§14.5.3 Calendar enrichment** (~4h) — connector depth
+  - **Scope:** Beyond title/start/end: pull attendees count,
+    self-organizer flag, location, recurring-event metadata.
+    Some already in `gcal_events` schema; just need to populate.
+  - **Files:** `gcal_sync.py`, `outlook_sync.py`, `chatbot.py`.
+  - **Done when:** Chatbot can answer "do I have any 1:1s today?"
+    using attendee data.
+
+- **§14.5.4 Email enrichment** (~5h) — connector depth
+  - **Scope:** Snippet preview, importance classification (Gmail
+    only — built-in API field), thread-grouping, has-replied
+    tracking. Most schema present; populate + surface in Time tab.
+  - **Files:** `gmail_sync.py`, `outlook_sync.py`,
+    `mobile/components/apex/TimeSubsystemCards.tsx`.
+  - **Done when:** Time tab top-3 unread shows importance badges;
+    chatbot can answer "did I reply to <person>?".
+
+- **TIME-03 Social media cap** (~1-3h) — §14.8 deferred
+  - **Scope:** Streak goal qualifying when social-app minutes ≤
+    target. Two implementation paths:
+    - Quick (~1h): hardcode a social-package whitelist
+      (com.instagram.android, com.zhiliaoapp.musically, etc.) and
+      sum minutes from `screen_time_daily.top_apps_json`.
+    - Better (~3h): extend `usage-stats` Expo Module to surface
+      Android's `ApplicationInfo.category` metadata; classify
+      apps automatically.
+  - **Files:** `goals_engine.py`, `mobile/modules/usage-stats/`
+    (if better path), `db.py` (if hourly schema needed).
+  - **Done when:** Library shows TIME-03 as creatable;
+    instantiated goal accumulates streak based on real social-app
+    minutes.
+
+- **TIME-04 Phone-down after cutoff** (~3h) — §14.8 deferred
+  - **Scope:** Streak qualifying when no phone use after a
+    user-configured cutoff time, X days in a row. Needs hourly
+    screen-time data (we only have daily totals).
+  - **Files:** extend `usage-stats` Expo Module to return hourly
+    buckets, new `screen_time_hourly` table in `db.py`,
+    `goals_engine.py` handler.
+  - **Done when:** Setting cutoff to 22:00 + sleeping early →
+    streak ticks up daily.
+  - **Overlaps with:** §14.6.5 Phone wake events (same hourly
+    table).
+
+- **§14.9 Outlook multi-tenant via Publisher Verification** (~2h docs + 1 wk wait)
+  - **Scope:** Microsoft Partner Center "Verify my publisher"
+    process unlocks work-tenant Outlook accounts whose admins
+    don't allow unverified third-party apps.
+  - **Done when:** Work-email Outlook accounts can connect
+    without per-tenant admin approval friction.
+  - **Blocked on:** Apex Leadership LLC formation docs uploaded;
+    Microsoft 1-5 business day review.
+
+- **Wizard step reduction** (~2h) — workout builder polish
+  - **Scope:** Current 8-step quiz is fine for first plan, less
+    so for repeat edits. Combine focus + injuries into one
+    screen, default experience from profile, etc.
+  - **Files:** `mobile/app/fitness/plan/builder.tsx`.
+  - **Done when:** Quiz is 5 steps, not 8.
+
+- **AI-generated cardio sub-flow in workout wizard** (~3h) — PRD §4.1.6
+  - **Scope:** PRD §4.1.6 specs cardio goal/intensity/activities
+    sub-screens. Current builder has a `cardio` payload with
+    sensible defaults but no UI step.
+  - **Files:** `mobile/app/fitness/plan/builder.tsx`,
+    `claude_workout_plan.py`.
+  - **Done when:** Quiz includes a cardio sub-flow; AI plan
+    generation respects the selections.
+  - **PRD ref:** §4.1.6.
+
+- **Plan adherence stats / weekly calendar strip** (~3h) — PRD §4.3.10
+  - **Scope:** Fitness tab Today shows scheduled workout for
+    today. PRD §4.3.10 also wants weekly-completion strip +
+    monthly-adherence-% surface in plan view.
+  - **Files:** `mobile/app/fitness/plan/index.tsx`,
+    `mobile/components/apex/PlanAdherenceStrip.tsx` (new).
+  - **Done when:** Plan view shows a 7-day strip with
+    completion checks + monthly adherence %.
+  - **PRD ref:** §4.3.10.
+
+- **Tap-a-zone-bucket drilldown on Strava detail** (~2h) — §14.5.1 deferred
+  - **Scope:** Tap an HR zone bar → modal listing the splits /
+    segments that fell in that zone.
+  - **Files:** `mobile/app/fitness/strava-activity/[id].tsx`.
+  - **Done when:** Tapping Z3 bar shows a list of "Mile 4-7,
+    avg 162bpm" type segments.
+
+- **Pace-over-distance smoothed line chart** (~3h) — §14.5.1 deferred
+  - **Scope:** Beyond per-mile splits, pull `velocity_smooth`
+    stream and render as a line chart on Strava detail.
+  - **Files:** `strava_sync.py` (extend stream pull),
+    `mobile/app/fitness/strava-activity/[id].tsx` (new
+    PaceLineChart component).
+  - **Done when:** Strava detail shows a smoothed pace line +
+    splits table side by side.
+
+- **Granular diff hint in plan-edit save banner** (~1h) — §14.7b deferred
+  - **Scope:** Currently shows static "Review the days above".
+    Compute diff between `draftPlan` and `plan.plan` (count
+    modified exercises) and show "3 exercises changed".
+  - **Files:** `mobile/app/fitness/plan/index.tsx`.
+  - **Done when:** Save banner subtitle is dynamic and accurate.
+
+- **Inline-add-an-exercise affordance in plan view** (~2h) — §14.7b deferred
+  - **Scope:** Modal supports edit, trash supports delete; need
+    a "+" button per day card to add a new exercise without
+    going to Manual Builder.
+  - **Files:** `mobile/app/fitness/plan/index.tsx`,
+    `mobile/components/apex/ExerciseEditModal.tsx`.
+  - **Done when:** Tap "+" on a day card → exercise edit modal
+    opens with empty fields → save appends to draft plan.
+
+- **`finance.tsx:114` TS error fix** (~30m) — pre-existing tech debt
+  - **Scope:** `FinanceTransaction.merchant_name` is typed
+    `string | null | undefined` but the consumer expects
+    `string | null`. Either narrow the type at the boundary or
+    fix the consumer.
+  - **Files:** `mobile/app/(tabs)/finance.tsx`,
+    `shared/src/types/finance.ts`.
+  - **Done when:** `npx tsc --noEmit` is clean.
+
+- **Wizard "REQUIRE picking a data source for tracked goals"** (~2h) — §14.8 deferred
+  - **Scope:** PRD-aligned: every "tracked" goal must have a
+    bound data source. Wizard surface for choosing source +
+    "Self-report only" explicit checkbox.
+  - **Files:** `mobile/app/goals/customize.tsx`.
+  - **Done when:** Can't create a goal without picking a
+    source or explicitly self-reporting.
+  - **Caveat:** May not ship — current customize.tsx already
+    shows `data_source` from the library entry; founder may
+    decide explicit picker is friction-for-no-reason.
+
+### Icebox — explicitly deferred-with-no-revisit / out of scope
+
+- **iOS / HealthKit / Apple Family Controls** — Android-first;
+  defer until iPhone test device + Apple Developer Program +
+  HealthKit entitlement approval. Multi-month gate. PRD assumes
+  parity at v1; we accepted Android-only for v1 as a scope cut.
+
+- **Garmin Connect official API** — approval gate is months
+  long. HC + Strava cover the use case. Re-evaluate post-launch
+  if Garmin-specific data fields (body battery, training load)
+  become a frequent feature request.
+
+- **Plaid** — finance tab is manual-entry-only for v1. Plaid is
+  the post-launch monetization gate ($60/100 active users/mo
+  cost; need paid tier active first). PRD §1.6 has it on Core
+  tier; deferred to v1.5+.
+
+- **RevenueCat / paywall / tier gating** — solo-user phase. No
+  auth → no tiers → no paywall. Ship after the user count
+  justifies it. PRD §1.6 has the tier structure locked; build
+  it when needed.
+
 - **Sentry / crash reporting** — solo-user phase; logs + manual
-  reproduction sufficient.
+  reproduction sufficient. Add when user count > 10.
 
----
+- **`data_source_status` enum on goals** — explicitly chose-not-
+  to-do. The `paused` boolean + `pace.label = "Reconnect source"`
+  cover the UI need. Re-evaluate if goal list view grows badges
+  that need 3+ states.
 
-## Deferred / known gaps
+- **Pre-summarized chatbot context** (PRD §3.3 default) — scrapped
+  for the three-tier raw-JSON approach. Documented as a PRD
+  override.
 
-Things explicitly cut from scope with reason + when to revisit.
+- **Pure-deterministic Day Timeline** (PRD §4.6.5 default) —
+  scrapped for the two-tier deterministic+AI approach.
+  Documented as a PRD override.
 
-- **`app/(tabs)/finance.tsx:114` TS error** (`FinanceTransaction.merchant_name`
-  shape mismatch). Pre-existing; carrying forward across phases.
-  Revisit: when finance tab next gets touched.
-- **Inline-add-an-exercise in plan view** — modal supports edit, trash
-  supports delete, but adding a new exercise requires the Manual
-  Builder flow. Revisit: when founder asks.
-- **Granular diff hint in plan-edit save banner** ("3 exercises
-  changed") — currently a static string. Revisit: v1.6 polish.
-- **Pace-over-distance line chart on Strava detail** — splits table
-  covers per-mile pace. Revisit: if user feedback signals.
-- **`data_source_status` enum on goals** — `paused` boolean +
-  `pace.label` cover the UI need. Revisit: when goals list view
-  gets badges.
-- **Wizard "REQUIRE picking a data source for tracked goals"** —
-  current customize.tsx already shows `data_source` from the
-  library entry. Revisit: if onboarding studies show confusion.
+- **Node.js + AWS-native backend** (PRD §1.7 default) — scrapped
+  for Flask + SQLite v1; v2 migration is a separate project.
+  Documented as a PRD override.
 
 ---
 

@@ -530,3 +530,59 @@ after adding `GOOGLE_MAPS_API_KEY` to `.env`. Resolved.
 - **Manual checks:** None pending. The founder will start using
   INBOX.md going forward; I'll triage it at the start of every
   response.
+
+### 16:10 — Backlog audit + detailed expansion + PRD override application
+- **Prompt:** "ensure that all defered items (from previous phase
+  log structure) get put somewhere in the backlog this backlog is
+  the key feature of the build plan so should be detailed. when a
+  prd override happens it should update the prd itself but only
+  after founder confirmation, current overides are approved.
+  archive is good."
+- **Did:**
+  1. **Audited every Deferred item** across all PHASE_LOG entries
+     (pre-Claude-Code through §14.8). Found 9 items missing from
+     `BUILD_PLAN.md` → Backlog: wizard step reduction, AI cardio
+     sub-flow (PRD §4.1.6), plan adherence stats (PRD §4.3.10),
+     tap-zone-bucket drilldown, finance.tsx:114 TS error,
+     granular diff hint, inline-add-exercise, pace-over-distance
+     chart, wizard data-source enforcement.
+  2. **Expanded Backlog format**: every item now has Scope / Files
+     / Done-when (acceptance criterion) / PRD-ref-or-blocker. The
+     previous one-line bullets are gone. Backlog is now ~385 lines
+     (~20 items in Now+Next, ~13 in Later, ~9 in Icebox).
+  3. **Removed standalone "Deferred / known gaps" section** —
+     everything that lived there is now in Backlog → Later (with
+     a "(deferred — reason)" tag) or Icebox (for explicit
+     chose-not-to-do items like `data_source_status` enum and
+     pre-summarized chatbot context).
+  4. **Applied 3 approved PRD overrides** to
+     `docs/migration/APEX_PRD_Final.md` directly, with
+     `**Revised 2026-04-28**` footnotes preserving the original
+     reasoning inline:
+       - §1.7 Platform & Launch — Flask + SQLite for v1 (Node.js + AWS
+         for v2); Android-first (iOS at v1.1).
+       - §4.6.5 Day Timeline → AI Usage — two-tier deterministic +
+         AI-labeled soft blocks, replacing the original
+         "None for computation" stance.
+       - §4.7.10 Chatbot context — 18K with three-tier loading,
+         replacing the 8K pre-summarized cap.
+  5. **Codified PRD-override workflow in CLAUDE.md**: future
+     overrides require explicit founder approval via MANUAL CHECK,
+     then applied to PRD with footnote, then logged in BUILD_PLAN
+     Vision + PHASE_LOG. The 4 currently-approved overrides are
+     listed.
+- **Files:** `docs/BUILD_PLAN.md` (Backlog rewrite, ~385 lines),
+  `docs/migration/APEX_PRD_Final.md` (3 sections — §1.7, §4.6.5,
+  §4.7.10), `CLAUDE.md` (new "PRD overrides" section).
+- **Decisions:**
+  - Merge "Deferred / known gaps" into Backlog tiers rather than
+    keeping a separate section. Single index for everything-that-
+    will-or-won't-happen.
+  - Keep PRD's original text alongside revisions (don't delete) —
+    revisions inherit historical context; deletes lose the why.
+  - Mark Android-only as a §1.7 PRD revision too (was implicit;
+    now explicit since iOS may slip past v1).
+- **Outcome:** Shipping with the next commit.
+- **Manual checks (pending):** Open `docs/BUILD_PLAN.md` and skim
+  the expanded Backlog — confirm the structure / level of detail
+  is what you want. Reply 'ok' or what to change.

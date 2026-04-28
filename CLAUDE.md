@@ -131,6 +131,44 @@ BUILD_PLAN.md.
 
 ---
 
+## PRD overrides — must be approved + applied
+
+The PRD (`docs/migration/APEX_PRD_Final.md`) is the long-term spec.
+When implementation reveals that the PRD is wrong or stale, the
+override workflow is:
+
+1. **Identify the override during phase planning.** Note the section
+   number, the original position, and the specific deviation you're
+   proposing.
+2. **Issue a MANUAL CHECK** in the chat: *"Proposed PRD override of
+   §X.Y. Original: '<short quote>'. Proposed change: '<short
+   description>'. Reason: '<why>'. Approve?"*
+3. **Wait for explicit founder approval.** Don't ship code that
+   diverges from the PRD without it. If the founder says no, the
+   PRD is authoritative — find a different path or escalate the
+   conflict.
+4. **After approval**, apply the change to the PRD itself with a
+   `**Revised YYYY-MM-DD** (see [BUILD_PLAN.md → Vision → PRD
+   overrides](...))` footnote that preserves the original reasoning
+   inline. Don't delete the original — explain why it changed and
+   what the new position is.
+5. **Add the override to BUILD_PLAN.md → Vision → PRD overrides**
+   for the audit trail.
+6. **Log it in PHASE_LOG.md** as a Decision in the phase's entry.
+
+The current approved overrides (as of 2026-04-28) are:
+- **§1.7 Backend stack** — Flask + SQLite for v1, Node.js + AWS for v2
+- **§4.6.5 Day Timeline AI usage** — two-tier (deterministic hard +
+  AI-labeled soft) instead of pure-deterministic
+- **§4.7.10 Chatbot context cap** — ~18K with three-tier loading
+  instead of ~8K with pre-summarization
+- **§1.7 Android-first** — iOS at v1.1, not v1, due to entitlement
+  approval gates
+
+Future overrides follow the workflow above.
+
+---
+
 ## Manual checks — explicit, never silent
 
 Some changes Claude can't verify alone. **Always call out manual

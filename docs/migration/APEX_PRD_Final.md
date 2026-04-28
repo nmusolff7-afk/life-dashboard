@@ -153,7 +153,11 @@ Target unit economics are contribution-positive at blended user distribution on 
 
 ## 1.7 Platform & Launch
 
-React Native application deployed simultaneously to Apple App Store and Google Play Store. No web app at launch (deferred to v2.0+). Backend in Node.js + TypeScript using an AWS-first serverless architecture for compute, queues, storage, and key management, with PostgreSQL as the primary relational datastore. Early launch may continue to use leaner managed PostgreSQL infrastructure where appropriate for startup speed and low idle cost, while long-term production architecture targets AWS-native scale patterns.
+React Native application deployed simultaneously to Apple App Store and Google Play Store. No web app at launch (deferred to v2.0+).
+
+**Backend (revised 2026-04-28 — see [BUILD_PLAN.md → Vision → PRD overrides](../BUILD_PLAN.md#prd-overrides-where-the-build-plan-supersedes-the-prd)):** v1 ships on **Flask (Python) + SQLite** for solo-founder velocity. The original PRD specified Node.js + TypeScript + AWS-first serverless + PostgreSQL; that target was preserved as a **v2 migration project** but determined to be premature scaffolding for a pre-launch single-developer codebase. Flask + SQLite reaches the launch user base (target: closed beta 50–100, public launch a few thousand) without infra ceremony, and migration risk is bounded by writing all DB access through `db.py` helpers (no ORM lock-in). Long-term production architecture still targets a Node.js/PostgreSQL/AWS-native stack — that work moves to v2.
+
+**Android-first (revised 2026-04-28):** v1 also ships **Android-only**. iOS waits on Apple Developer Program enrollment + HealthKit + Apple Family Controls entitlement approvals (multi-month gates). Per PRD §1.7's launch sequence, iOS rejoins at the closed-beta or public-launch milestone if approvals land in time; otherwise v1 is Android-only and iOS is v1.1.
 
 ### Launch Requirements (Connection Floor)
 
@@ -5687,7 +5691,19 @@ All controls are one-tap. No confirmation mazes.
 
 ### AI Usage In Timeline
 
-None for computation — timeline is entirely deterministic aggregation of connection data. AI can be invoked by the user to interpret the timeline ("tell me about yesterday"), with context fed to the chatbot per Section 4.7.
+**Revised 2026-04-28** (see [BUILD_PLAN.md → Vision → PRD overrides](../BUILD_PLAN.md#prd-overrides-where-the-build-plan-supersedes-the-prd)):
+
+The timeline uses a **two-tier model**:
+
+1. **Hard blocks — fully deterministic.** Calendar events, tasks with explicit start/end times, sleep windows from HealthKit / Health Connect. No AI involved. Every hard block is reproducible from connection data alone.
+
+2. **Soft blocks — AI-labeled gap inference.** Unaccounted hour-ranges between hard blocks are sent to Claude Haiku with HC activity + Screen Time top-app + location-cluster context. The model returns a label (e.g. "focus work", "transit", "exercise", "social") and a confidence score. Soft blocks are clearly visually distinguished from hard blocks in the UI and the user can dismiss / re-label any soft block.
+
+The original PRD position was "None for computation — timeline is entirely deterministic." That stance was reversed because pure-deterministic timelines leave the majority of waking hours unaccounted for, producing a strip that's mostly empty placeholders. The two-tier model preserves the deterministic spine for accuracy-critical blocks while letting AI fill the gaps with explicit confidence flags.
+
+Soft-block AI usage is **never prescriptive** (no "you should…" copy), follows the descriptive-only AI rule from §3.3, and is gated by the user's existing AI-consent flag for Life data. Cost is bounded — soft-block labeling runs as a nightly cron, not per-query, and labels are cached on the `day_blocks` row.
+
+User-invoked timeline interpretation ("tell me about yesterday") is unchanged from the original spec — context is fed to the chatbot per Section 4.7.
 
 ## 4.6.6 Productivity Subsystem (Calendar + Email + Tasks)
 
@@ -7316,6 +7332,16 @@ Nine containers are defined for v1:
 | DayTimelineContext | 500 | 800 | Server query (on-demand) | Per-query (realtime) | Life AI consent |
 
 Total possible context for a single query with all containers loaded: ~3900 target tokens, ~5900 hard cap. Plus system prompt (~500 tokens) and conversation history (~1000 tokens). Total cap per query: ~8K tokens, which is within Haiku's efficient range.
+
+**Revised 2026-04-28** (see [BUILD_PLAN.md → Vision → PRD overrides](../../BUILD_PLAN.md#prd-overrides-where-the-build-plan-supersedes-the-prd)): the per-query cap is raised to **~18K tokens** under a three-tier loading model:
+
+- **Always-on tier (~2K tokens)** — user profile + today's plan + active goals. Loaded for every query.
+- **Day-stream tier (~6K tokens)** — today's events / tasks / meal logs / workouts. Loaded for any query referencing "today" / "right now".
+- **Historical tier (~10K tokens, lazy)** — trailing 14-day summary + last week's Day Timeline. Loaded only when intent classifier detects historical / comparative questions ("how does this week compare to last week?").
+
+The original 8K cap was set conservatively to fit Haiku's efficient context range; testing with the live LifeContext serializer showed pre-summarization was lossy enough that answer quality degraded for cross-domain questions. Raw JSON at 18K, gated behind a per-user-per-day token cap (default 50K/day, soft-degraded above), produced materially better answers on questions that needed historical context. Cost remains bounded by the per-day cap; abuse-protection cap of 300K/day per PRD §1.6 is preserved.
+
+The container schema below is unchanged in shape; only the budget is lifted, and the lazy-load pattern is added for the historical tier.
 
 ### Container Schemas
 
