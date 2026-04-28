@@ -17,155 +17,160 @@ project.
 
 ---
 
-## The build plan
+## The 3-file project doc system
 
-**Single source of truth: [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md).**
+```
+docs/
+  BUILD_PLAN.md   ← Claude territory. Status / Active / Backlog /
+                    Deferred / Vision. Founder reads but does not edit.
+  INBOX.md        ← founder territory. Drop-zone for bug reports,
+                    UX issues, feature ideas, questions while testing.
+                    Claude empties at start of every chat response.
+  PHASE_LOG.md    ← Claude territory. Append-only log of every Claude
+                    response. Never capped. Read end-to-end to recover
+                    full project history.
+```
 
-Status-first: read top-to-bottom and the first ~150 lines tell you
-where the project is. Sections in order:
+Founder edits `INBOX.md` only. Claude maintains `BUILD_PLAN.md` and
+`PHASE_LOG.md`. Founder doesn't need to touch either.
 
-1. **How this doc works** — the workflow guide for both founder + Claude
-2. **Status snapshot** — current state, one paragraph
-3. **Active phase** — what's in flight RIGHT NOW (one phase at a time)
-4. **Inbox** — founder drops bug reports / feedback / questions while
-   testing the app. Untriaged. Claude clears at start of next session.
-5. **Backlog** — Now / Next / Later / Icebox
-6. **Deferred / known gaps** — explicit cuts with revisit-when
-7. **Done — Phase Log** — append-only, capped at 15 entries
-8. **Vision** — long-term roadmap (mostly stable)
-
-The full `CLAUDE.md` workflow rules below mirror "How this doc works"
-in the build plan; that section is meant to teach the founder. This
-section is a tighter version for Claude.
+The full PRD (long-form product spec) lives in
+`docs/migration/APEX_PRD_Final.md`. The Vision section of
+`BUILD_PLAN.md` is the load-bearing distillation.
 
 ---
 
-## Phase execution discipline
+## Per-response workflow
 
-A "phase" = a coherent chunk of work that ships together. **One phase
-active at a time.** Items come from `docs/BUILD_PLAN.md` → Backlog →
-Now.
+Every chat response, in order:
 
-### At the start of every phase — orient first
+### 1. Triage `docs/INBOX.md` (mandatory, every response)
 
-Before writing any code:
+- Read it. If non-empty, process every line:
+  - **Bug** → add to `BUILD_PLAN.md` → Backlog → Now (if blocker) or
+    Backlog → Later (if minor); or as a current-phase blocker if
+    related to active work.
+  - **UX** → Backlog with a tier matching urgency.
+  - **Feature** → Backlog → Later (or Icebox if out of scope).
+  - **Question** → answer in your reply; add the answer + question
+    to the relevant section of BUILD_PLAN.md if it changes scope.
+- **After triage, empty `INBOX.md`** (back to the empty template).
+  That's the founder's signal you saw their notes.
+- If something looks ambiguous, ask the founder before triaging it
+  to a tier — don't guess.
 
-1. **Read `docs/BUILD_PLAN.md`** top-to-bottom (it's deliberately
-   compact). Focus on:
-   - **Status snapshot** + **Active phase** — current state
-   - **Inbox** — triage every entry: convert to Backlog (Now / Next /
-     Later), file as a current-phase blocker, ask the founder for
-     clarification, or dismiss with a one-line reason. **Don't leave
-     items in the Inbox after triage** — that's the founder's signal
-     that you've seen and acted on them.
-   - **Backlog → Now** — the candidate phase list
-   - **Done — Phase Log** most recent entry — catches problems +
-     deferred items from the prior phase
+### 2. Read `BUILD_PLAN.md` for current state
 
-2. **Confirm the active phase with the founder before writing code.**
-   If Active is empty, propose one from Backlog → Now and wait for
-   "go" or a redirect.
+- **Status snapshot** + **Active phase** + **Backlog → Now**.
+- The **active phase** in BUILD_PLAN.md is what you work on, not
+  whatever was in the inbox. Inbox is feedback flow; the active
+  phase is the directive. Founder will redirect explicitly in chat
+  if they want a different focus.
 
-3. **Read relevant PRD sections** — `docs/migration/APEX_PRD_Final.md`.
-   PRD overrides (where the build plan supersedes the PRD) are
-   documented in BUILD_PLAN's **Vision → PRD overrides**. Check there
-   before assuming PRD is authoritative.
+### 3. Read source files for the active phase
 
-4. **Survey the architecture you're about to touch.** At minimum:
-   - **Backend changes**: `app.py` (routes), `db.py` (schema), the
-     relevant `*_sync.py` module, `connectors.py` (catalog),
-     `chatbot.py` (LifeContext consumers)
-   - **Mobile UI**: `mobile/app/(tabs)/*.tsx`,
-     `mobile/components/apex/`, `mobile/lib/hooks/`
-   - **New connector**: `connectors.py` +
-     `mobile/app/settings/connections.tsx` handler + (if device-native)
-     `mobile/modules/<name>/` template
-   - **Shared types**: `shared/src/types/`
+- For backend changes: `app.py` (routes), `db.py` (schema), the
+  relevant `*_sync.py` module, `connectors.py` (catalog),
+  `chatbot.py` (LifeContext consumers).
+- For mobile UI: `mobile/app/(tabs)/*.tsx`, `mobile/components/apex/`,
+  `mobile/lib/hooks/`.
+- For new connectors: `connectors.py` +
+  `mobile/app/settings/connections.tsx` handler + (if device-native)
+  `mobile/modules/<name>/` template.
+- For shared types: `shared/src/types/`.
+- Use `Agent` with `Explore` agent type for surveys spanning >3
+  files.
+- **Read the source before assuming a Backlog item is accurate.**
+  Source is truth; the plan is a guide.
 
-   Use `Agent` with `Explore` agent type for surveys spanning >3
-   files. **Read the source before assuming a Backlog item is
-   accurate** — the source of truth is the code, not the plan doc.
+### 4. Do the work
 
-5. **Address Phase Log carry-overs.** If the previous Phase Log entry
-   has deferred items or flagged problems relevant to this phase,
-   decide whether to fix them now or explicitly carry them forward in
-   the new Phase Log entry. Don't silently skip.
+- One phase active at a time. If scope creeps, log the new item to
+  Backlog and continue current scope — don't silently expand.
+- Issue `MANUAL CHECK:` prompts for anything you can't verify
+  yourself (UI / native / env / external system / ambiguous spec).
+  Wait for ack before declaring done.
 
-### Manual checks — explicit, never silent
+### 5. Append a `PHASE_LOG.md` entry — every response, no exceptions
 
-Some changes Claude can't verify alone — they require the founder to
-test on-device or take an action outside the repo. **Always call out
-manual checks explicitly** with a grep-able prefix:
+Even one-word responses ("ok", "continue") get a brief log entry.
+Format (in PHASE_LOG.md itself, repeated here for reference):
+
+```markdown
+### [HH:MM] One-line summary
+- **Prompt:** "founder's request, paraphrased if long"
+- **Did:** what Claude actually did, in 1–5 bullets
+- **Files:** comma-separated paths if any code/doc edits happened
+- **Decisions/notes:** non-obvious calls, things deferred, gotchas
+- **Manual checks:** if any were issued — list and mark pending
+- **Outcome:** shipped / partial / blocked / no-op
+```
+
+Per-response granularity, not per-file. Bundle multiple edits in
+one entry. The point: future-Claude (or future-founder, or an LLM
+reading the project history cold) can reconstruct what happened
+without grepping commits.
+
+**Never edit prior entries.** If context changes, add a new entry.
+
+### 6. End-of-phase only — update BUILD_PLAN.md too
+
+When a phase concludes (not every response — just when work wraps):
+
+1. Update **Active phase** in BUILD_PLAN.md to "(none — between
+   phases)".
+2. Re-rank **Backlog → Now** if priorities shifted.
+3. Update **Status snapshot** at the top.
+4. Bubble Deferred items into Backlog with a tier + reason.
+5. Tell the founder in chat: what shipped, manual checks pending,
+   queued next.
+
+The PHASE_LOG.md entry for the final response of the phase serves
+as the formal phase summary — it doesn't need to be duplicated in
+BUILD_PLAN.md.
+
+---
+
+## Manual checks — explicit, never silent
+
+Some changes Claude can't verify alone. **Always call out manual
+checks explicitly** with a grep-able prefix:
 
 ```
 MANUAL CHECK: open the app, navigate to Fitness → tap a Strava
 workout, verify the map loads. Reply 'ok' or describe what's wrong.
 ```
 
-When to issue a manual check:
-- **UI changes** — anything Claude can't run (mobile screens, native
-  modules, anything behind device permissions). Ship the change, then
-  pause for the founder to confirm.
-- **Env / config edits** — when a new env var is required, when a
-  Cloud Console API needs enabling, when a third-party service needs
-  setup. List exactly what to do; founder confirms done.
-- **External-system actions** — anything that touches GitHub
-  permissions, OAuth scopes, app-store config, or any account the
-  founder owns directly.
-- **Unclear requirements** — when the spec is genuinely ambiguous,
-  ask before guessing. Don't ship "best guess + revisit later" when
-  a question takes 10 seconds.
+Issue when:
+- **UI / native / device-permission changes** — anything Claude
+  can't run.
+- **Env / config edits** — new env var, Cloud Console API enable,
+  third-party service setup.
+- **External-system actions** — GitHub permissions, OAuth scopes,
+  app-store config, founder-owned account changes.
+- **Unclear requirements** — ask before guessing when a 10-second
+  question saves a wrong shipment.
 
 **Wait for acknowledgement** before declaring the phase done. Track
-unresolved checks in the Phase Log entry's `Manual checks pending:`
-line so the founder has an explicit hand-off list.
+unresolved checks in the PHASE_LOG.md entry under `Manual checks:`
+with `(pending)`. Surface stale ones at the start of the next
+response: *"Still waiting on manual check from yesterday's §X: did
+Y work?"*
 
-### Founder is testing in parallel
+---
 
-While Claude codes, the founder is using the app — that's the highest
-leverage on their side. Output policy:
+## Founder is testing in parallel — design for it
 
-- When you ship something testable, end the message with a one-line
-  manual check. Even a minor UI tweak: "MANUAL CHECK: pull-to-refresh
-  on Fitness tab — the new strava-linked rows should be visible."
-- If the founder mentions something broken mid-phase that's unrelated,
-  say "I'll add that to Inbox" and add it to BUILD_PLAN.md → Inbox
-  yourself. Don't lose it.
-- If the founder hasn't confirmed a recent manual check, surface
-  uncompleted checks at the start of the next message: "Still waiting
-  on manual check from §14.5.1: did the map load after env-var fix?"
+While Claude codes, the founder is using the app. Their feedback flow
+is `INBOX.md`. Implications:
 
-### As you execute the phase
-
-You can edit BUILD_PLAN.md in-flight to:
-- Update **Active phase** with notes / decisions / blockers
-- Move items between Backlog tiers (Now ↔ Next ↔ Later) if priorities
-  shift
-- Add newly-discovered follow-ups to **Backlog → Later** with a one-
-  line context
-
-Don't restructure the plan invisibly. Material scope changes get
-flagged in the Phase Log entry at end.
-
-### At the end of every phase
-
-1. **Append a Phase Log entry** to BUILD_PLAN.md's **Done — Phase
-   Log** section (template is in the doc itself). The
-   `Manual checks pending:` line is mandatory — write "none" if there
-   are none.
-2. **Clear Active phase** to "(none — between phases)".
-3. **Re-rank Backlog → Now** if priorities shifted.
-4. **Update Status snapshot** at the top.
-5. **Bubble follow-ups** — every Deferred item should land somewhere
-   in Backlog with a tier + a reason. Don't let them rot in Phase Log
-   entries.
-6. **Tell the founder** in the chat reply: what shipped, what to
-   verify (the Manual checks pending list), what's queued next.
-
-### Cap the Phase Log at the 15 most recent entries
-
-When it grows past 15, archive the oldest to
-`docs/PHASE_LOG_ARCHIVE.md` and trim BUILD_PLAN.md.
+- When you ship testable changes, end your reply with a one-line
+  `MANUAL CHECK:`. Even minor UI tweaks.
+- If the founder mentions something broken mid-chat that's unrelated
+  to the active phase, **add it to `INBOX.md` yourself** so it
+  doesn't get lost. (Or directly into Backlog if it's clear-cut.)
+- The founder is allowed to drop notes in `INBOX.md` at any moment,
+  including between sessions. You'll see them on the next response.
 
 ---
 
