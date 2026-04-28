@@ -131,6 +131,14 @@ def init_db():
             conn.execute("ALTER TABLE mind_tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0")
         if "completed_at" not in mt_cols:
             conn.execute("ALTER TABLE mind_tasks ADD COLUMN completed_at TIMESTAMP")
+        # Additive 2026-04-28: task_time + task_duration_minutes for
+        # time-windowed tasks (Day Timeline §14.2 hard blocks). NULLable
+        # — most tasks remain time-of-day-agnostic. When task_time is
+        # set, day_timeline.py renders the task as a hard block.
+        if "task_time" not in mt_cols:
+            conn.execute("ALTER TABLE mind_tasks ADD COLUMN task_time TEXT")
+        if "task_duration_minutes" not in mt_cols:
+            conn.execute("ALTER TABLE mind_tasks ADD COLUMN task_duration_minutes INTEGER")
         # Gmail OAuth tokens — one row per user
         conn.execute("""
             CREATE TABLE IF NOT EXISTS gmail_tokens (
@@ -2202,15 +2210,22 @@ def get_daily_weight(user_id: int, date_str: str):
 # ── Mind tasks ──────────────────────────────────────
 
 def insert_mind_task(user_id, description, source='manual', task_date=None,
-                     due_date=None, priority=False):
+                     due_date=None, priority=False,
+                     task_time=None, task_duration_minutes=None):
+    """Insert a task. `task_time` ('HH:MM') and `task_duration_minutes`
+    are optional — when both/either are set, the task surfaces as a Day
+    Timeline hard block on `task_date` (§14.2)."""
     td = task_date or date.today().isoformat()
     now = datetime.now().isoformat()
     with get_conn() as conn:
         cur = conn.execute("""
             INSERT INTO mind_tasks (user_id, task_date, description, completed, source,
-                                    due_date, priority, created_at)
-            VALUES (?, ?, ?, 0, ?, ?, ?, ?)
-        """, (user_id, td, description, source, due_date, 1 if priority else 0, now))
+                                    due_date, priority, task_time, task_duration_minutes,
+                                    created_at)
+            VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
+        """, (user_id, td, description, source, due_date,
+              1 if priority else 0,
+              task_time, task_duration_minutes, now))
         conn.commit()
         return cur.lastrowid
 
@@ -2300,8 +2315,10 @@ def toggle_mind_task(task_id, user_id):
 
 
 def update_mind_task(task_id: int, user_id: int, fields: dict) -> bool:
-    """Whitelisted edit. Allowed: description, due_date, priority, task_date."""
-    allowed = {"description", "due_date", "priority", "task_date"}
+    """Whitelisted edit. Allowed: description, due_date, priority,
+    task_date, task_time, task_duration_minutes."""
+    allowed = {"description", "due_date", "priority", "task_date",
+               "task_time", "task_duration_minutes"}
     safe = {k: v for k, v in fields.items() if k in allowed}
     if not safe:
         return False

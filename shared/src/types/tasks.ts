@@ -13,6 +13,11 @@ export interface Task {
   source: TaskSource;
   due_date?: string | null;    // YYYY-MM-DD — nullable deadline (separate from task_date)
   priority: number;            // 0 | 1 — feeds TIME-01 priority-complete streak
+  /** HH:MM in the user's local timezone. When set, the task renders as
+   *  a Day Timeline hard block on its `task_date`. */
+  task_time?: string | null;
+  /** Block duration in minutes. Defaults to 30 when null. */
+  task_duration_minutes?: number | null;
   completed_at?: string | null;
   created_at: string;
 }
@@ -26,6 +31,12 @@ export interface CreateTaskInput {
   description: string;
   due_date?: string;
   priority?: boolean;
+  /** HH:MM in user's local timezone — optional. When set, the task
+   *  becomes a Day Timeline hard block. */
+  task_time?: string | null;
+  /** Block duration when task_time is set. Backend defaults to 30
+   *  if null. */
+  task_duration_minutes?: number | null;
 }
 
 export interface UpdateTaskInput {
@@ -33,6 +44,8 @@ export interface UpdateTaskInput {
   due_date?: string | null;
   priority?: boolean;
   task_date?: string;
+  task_time?: string | null;
+  task_duration_minutes?: number | null;
 }
 
 /** Today's Focus — deterministic ranked list of work to do now (PRD §4.6.4).

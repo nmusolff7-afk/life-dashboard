@@ -4,12 +4,12 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 
 import {
   CategoryScoreRow,
-  DayStrip,
   GoalRow,
   OverallScoreHero,
   ProgressRow,
   StreakBar,
   TabHeader,
+  TimeCardContent,
 } from '../../components/apex';
 import { useGoals } from '../../lib/hooks/useGoals';
 import {
@@ -172,11 +172,6 @@ export default function HomeScreen() {
             real-estate twice. */}
         <OverallScoreHero data={scores.overall.data} loading={scores.overall.loading} />
 
-        {/* Day Timeline — §14.2 hard blocks (calendar events). Soft AI
-            blocks land in §14.2.2. Renders only when there are events
-            on the calendar; empty-state copy points to Connections. */}
-        <DayStrip />
-
         {/* Four category score rows — full-width stacked per D2. Goal
             card now lives BELOW these per founder's latest order. */}
         <View style={styles.categoryStack}>
@@ -287,6 +282,7 @@ export default function HomeScreen() {
             data={scores.time.data}
             loading={scores.time.loading}
             href="/(tabs)/time"
+            richContent={<TimeCardContent />}
           />
         </View>
 

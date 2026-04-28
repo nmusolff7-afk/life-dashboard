@@ -2,7 +2,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { CalendarTodayCard, EmptyState, GmailSummaryCard, GoalRow, LocationCard, OutlookCard, ScreenTimeCard, TabHeader } from '../../components/apex';
+import { CalendarTodayCard, DayStrip, EmptyState, GmailSummaryCard, GoalRow, LocationCard, OutlookCard, ScreenTimeCard, TabHeader } from '../../components/apex';
 import { SegmentedControl } from '../../components/ui';
 import { useGoals } from '../../lib/hooks/useGoals';
 import { deleteTask, toggleTask, useTasks, useTimeFocus } from '../../lib/hooks/useTasks';
@@ -494,13 +494,10 @@ function PatternsView() {
 }
 
 function TimelineView() {
-  return (
-    <EmptyState
-      icon="⏱️"
-      title="Day Timeline"
-      description="Your day minute-by-minute, reconstructed from Calendar + Screen Time + Location. Activates once any of those three is connected."
-    />
-  );
+  // Renders the live DayStrip (calendar-event-only hard blocks for v1;
+  // soft AI labels land in §14.2.2). Founder-flagged 2026-04-28: this
+  // sub-tab was an EmptyState placeholder and never wired.
+  return <DayStrip />;
 }
 
 // ── Styles ──────────────────────────────────────────────────────────────

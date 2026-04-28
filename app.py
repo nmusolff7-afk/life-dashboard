@@ -1046,11 +1046,16 @@ def api_mind_add_task():
     if not desc:
         return jsonify({"ok": False, "error": "description required",
                         "error_code": "validation_failed"}), 400
+    task_time = (data.get("task_time") or "").strip() or None
+    duration_raw = data.get("task_duration_minutes")
+    duration = int(duration_raw) if isinstance(duration_raw, (int, float)) and duration_raw > 0 else None
     tid = insert_mind_task(
         uid(), desc,
         task_date=client_today(),
         due_date=(data.get("due_date") or None),
         priority=bool(data.get("priority", False)),
+        task_time=task_time,
+        task_duration_minutes=duration,
     )
     return jsonify({
         "ok": True,
@@ -1061,6 +1066,8 @@ def api_mind_add_task():
             "source": "manual",
             "due_date": data.get("due_date"),
             "priority": 1 if data.get("priority") else 0,
+            "task_time": task_time,
+            "task_duration_minutes": duration,
         },
     })
 

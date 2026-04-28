@@ -12,6 +12,8 @@ export default function TaskNewScreen() {
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [priority, setPriority] = useState(false);
+  const [taskTime, setTaskTime] = useState('');
+  const [taskDurationMin, setTaskDurationMin] = useState('');
   const [saving, setSaving] = useState(false);
 
   const canSave = description.trim().length > 0;
@@ -20,10 +22,17 @@ export default function TaskNewScreen() {
     if (!canSave) return;
     setSaving(true);
     try {
+      // task_time: accept 'HH:MM' or 'H:MM'. If non-empty but malformed,
+      // fall through to backend which will reject.
+      const trimmedTime = taskTime.trim();
+      const durationParsed = parseInt(taskDurationMin, 10);
+      const duration = Number.isFinite(durationParsed) && durationParsed > 0 ? durationParsed : undefined;
       await createTask({
         description: description.trim(),
         due_date: dueDate.trim() || undefined,
         priority,
+        task_time: trimmedTime || undefined,
+        task_duration_minutes: trimmedTime ? duration : undefined,
       });
       router.back();
     } catch (e) {
@@ -57,6 +66,30 @@ export default function TaskNewScreen() {
           autoCorrect={false}
           style={[styles.input, { color: t.text, borderColor: t.border, backgroundColor: t.surface }]}
         />
+
+        <Text style={[styles.label, { color: t.muted, marginTop: 14 }]}>Time (HH:MM, optional)</Text>
+        <View style={styles.row}>
+          <TextInput
+            value={taskTime}
+            onChangeText={setTaskTime}
+            placeholder="14:30"
+            placeholderTextColor={t.subtle}
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={[styles.input, { flex: 1, color: t.text, borderColor: t.border, backgroundColor: t.surface }]}
+          />
+          <TextInput
+            value={taskDurationMin}
+            onChangeText={setTaskDurationMin}
+            placeholder="duration min"
+            placeholderTextColor={t.subtle}
+            keyboardType="numeric"
+            style={[styles.input, { flex: 1, color: t.text, borderColor: t.border, backgroundColor: t.surface }]}
+          />
+        </View>
+        <Text style={[styles.hint, { color: t.subtle }]}>
+          When set, the task appears on your Day Timeline. Default duration is 30 min.
+        </Text>
 
         <View style={[styles.priorityRow, { backgroundColor: t.surface, borderColor: t.border, marginTop: 14 }]}>
           <View style={{ flex: 1 }}>
@@ -95,4 +128,6 @@ const styles = StyleSheet.create({
   },
   priorityLabel: { fontSize: 14, fontWeight: '700' },
   prioritySub: { fontSize: 12, marginTop: 2 },
+  row: { flexDirection: 'row', gap: 10 },
+  hint: { fontSize: 11, marginTop: 6, lineHeight: 15 },
 });

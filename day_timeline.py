@@ -51,16 +51,73 @@ def compute_hard_blocks(user_id: int, date_iso: str) -> list[dict]:
           block_start (ISO timestamp str),
           block_end   (ISO timestamp str),
           label       (str),
-          source_type ('gcal' | 'outlook'),
-          source_id   (provider's event_id),
+          source_type ('gcal' | 'outlook' | 'task'),
+          source_id   (provider's event_id, or 'task:<id>'),
           source_json (raw event dict serialized).
         Sorted by block_start.
     """
     blocks: list[dict] = []
     blocks.extend(_calendar_blocks(user_id, date_iso, table="gcal_events", source_type="gcal"))
     blocks.extend(_calendar_blocks(user_id, date_iso, table="outlook_events", source_type="outlook"))
+    blocks.extend(_task_blocks(user_id, date_iso))
     blocks.sort(key=lambda b: b["block_start"])
     return blocks
+
+
+def _task_blocks(user_id: int, date_iso: str) -> list[dict]:
+    """Pull tasks where task_date matches AND task_time is set.
+    Default duration is 30min when task_duration_minutes is null —
+    user-set value takes precedence."""
+    out: list[dict] = []
+    try:
+        with get_conn() as conn:
+            rows = conn.execute(
+                "SELECT id, description, task_time, task_duration_minutes, "
+                "priority, due_date FROM mind_tasks "
+                "WHERE user_id = ? AND task_date = ? "
+                "AND task_time IS NOT NULL AND completed = 0",
+                (user_id, date_iso),
+            ).fetchall()
+    except Exception:
+        _log.exception("day_timeline: failed to read mind_tasks")
+        return []
+
+    for r in rows:
+        # task_time stored as 'HH:MM' — combine with task_date to make
+        # an ISO timestamp. We don't know the user's tz at backend
+        # time; keep it tz-naive ISO ('YYYY-MM-DDTHH:MM:00') and let
+        # the client interpret as local. Same convention as the
+        # calendar tables.
+        time_str = (r["task_time"] or "").strip()
+        if len(time_str) < 4:
+            continue
+        try:
+            # Accept 'H:MM' as well as 'HH:MM'.
+            hh, mm = time_str.split(":", 1)
+            start_iso = f"{date_iso}T{int(hh):02d}:{int(mm):02d}:00"
+            duration = int(r["task_duration_minutes"] or 30)
+            start_dt = datetime.fromisoformat(start_iso)
+            end_dt = start_dt + timedelta(minutes=duration)
+            end_iso = end_dt.isoformat(timespec="seconds")
+        except (ValueError, TypeError):
+            continue
+
+        payload = {
+            "title": r["description"],
+            "task_id": int(r["id"]),
+            "priority": int(r["priority"] or 0),
+            "due_date": r["due_date"],
+            "duration_minutes": duration,
+        }
+        out.append({
+            "block_start": start_iso,
+            "block_end":   end_iso,
+            "label":       r["description"] or "Task",
+            "source_type": "task",
+            "source_id":   f"task:{int(r['id'])}",
+            "source_json": _json.dumps(payload),
+        })
+    return out
 
 
 def _calendar_blocks(user_id: int, date_iso: str, *, table: str, source_type: str) -> list[dict]:

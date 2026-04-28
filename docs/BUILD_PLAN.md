@@ -129,8 +129,11 @@ work?").
   instantiate active instead of paused.
 - Custom Expo Modules: `health-connect`, `usage-stats` — both
   working.
-- **DayStrip** (§14.2 hard blocks) shipped 2026-04-28 — calendar-
-  events-only for v1; tasks-with-time and sleep blocks deferred.
+- **DayStrip** (§14.2 hard blocks) shipped 2026-04-28 — now
+  rendering on Today tab inside the Time card AND on Time tab →
+  Timeline subtab. Hard blocks include calendar events + time-
+  windowed tasks (`task_time` migration shipped 2026-04-28).
+  Sleep blocks still deferred until §14.5.2.
 - 1 missing component set: **Patterns view** (for §14.3) — queued.
 - **Sleep + Recovery subsystem screens** now read real
   `health_daily.sleep_minutes` / `hrv_ms` / `resting_hr` data
@@ -193,6 +196,54 @@ the project will become.
 
 ### Now — pick the next phase from here
 
+- **Screen Time "still says connect" stale state** (~1h) — INBOX 2026-04-28
+  - **Founder symptom:** "Screen time still shows to connect
+    screen time in settings even though I've done it and it
+    shows connected. Only place it shows is in screen time card."
+  - **Likely cause:** Same class as the just-fixed HC display
+    gap — connector status flag isn't shared across surfaces.
+    `connections.tsx` shows correct state, but the per-feature
+    "you need to connect Screen Time" prompts on other tabs
+    read a different source (probably permission-grant flag,
+    not the backend connector state) and stay stale.
+  - **Files:** Search the codebase for "Connect Screen Time"
+    string. Likely `useUsageStats` hook or a settings page
+    feature-flag.
+  - **Done when:** Founder confirms the stale prompts are
+    gone from every surface they appear on.
+
+- **Units enforcement audit** (~2h) — INBOX 2026-04-28
+  - **Founder symptom:** "All data should be metric or imperial
+    based on user's settings."
+  - **Scope:** Audit every numeric display in the app for
+    unit-respecting via `useUnits()`. Known callouts inlined
+    distance formatters (Strava detail screen). Likely also
+    raw lbs/kg in some workout displays, raw ft/in in body,
+    raw kcal/kJ choice. Preference reads from `preferences.units`.
+  - **Files:** grep for hardcoded unit strings ("lbs", "kg",
+    "mi", "km", "ft", "in", "kcal"); replace with `useUnits()`
+    callers.
+  - **Done when:** Toggling Settings → Preferences → Units
+    flips every display in the app consistently.
+
+- **Map full-screen expand + satellite/street toggle** (~3h) — INBOX 2026-04-28
+  - **Founder symptom:** "Any map should be clickable to
+    expand to a full screen zoomable version with a selector
+    between satellite imagery and current street view."
+  - **Scope:** Tap-handler on every map image (LocationCard,
+    Strava activity detail) → modal with full-screen Static
+    Maps URL + maptype toggle. Could either (a) build with
+    Static Maps API + maptype=satellite|roadmap, or (b)
+    upgrade to `react-native-maps` for a real interactive
+    map (zoomable, pan, tile layers). (b) is the better UX
+    but is a bigger lift (~6h) and adds a native dep.
+  - **Files:** new `mobile/components/apex/MapExpandModal.tsx`,
+    consumers in `LocationCard.tsx` and
+    `mobile/app/fitness/strava-activity/[id].tsx`.
+  - **Done when:** Tapping any map opens a full-screen view
+    with toggle. Decision (a vs b) deferred until the work
+    starts; (a) is the cheap path.
+
 - **Auto-sync cadence tightening** (~2h) — INBOX 2026-04-28
   - **Founder symptom:** "Things need to be syncing more often,
     feels like I'm looking at old data most of the time."
@@ -237,37 +288,37 @@ the project will become.
   - **Done when:** Founder confirms the four tabs feel
     consistent.
 
-- **Homepage Time card → active + tasks-led + FAB add-task** (~2h) — INBOX 2026-04-28
-  - **Founder symptom:** "We need to make the time card in
-    homepage active and show important stuff. Tasks should be
-    at least one of the main things displayed in main time
-    card on homepage. Add the option to add task through the
-    FAB."
-  - **Scope:** Today tab's Time category card currently shows
-    score only. Promote it to a content-rich card: top-3
-    pending tasks for today (priority + overdue first), next
-    calendar event time, unread email count. FAB on Today tab
-    gets a "+ Task" quick-action.
-  - **Files:** `mobile/app/(tabs)/index.tsx` (Today tab Time
-    card section), `mobile/components/apex/CategoryScoreRow.tsx`
-    (potentially expand), `mobile/components/apex/FAB.tsx` (add
-    task action), `mobile/lib/hooks/useHomeData.ts` (extend
-    with task + email peek).
-  - **Done when:** Tap Today tab → Time card shows live tasks
-    + next event; FAB → "+ Task" → goes to task-new.
+- **FAB "+ Task" quick-action** (~1h) — INBOX 2026-04-28 follow-up
+  - **Founder symptom:** "Add the option to add task through
+    the FAB."
+  - **Scope:** Time-card content + Today's tasks already shipped
+    (TimeCardContent has its own "+ Add" affordance pointing at
+    task-new). Founder also wants the global FAB to surface a
+    "+ Task" quick-action when on Today tab. Extend the FAB
+    surface model to include a tasks-row.
+  - **Files:** `mobile/components/apex/FAB.tsx`,
+    `mobile/components/chat/ChatShortcutRail.tsx` (likely the
+    real-shortcut layer).
+  - **Done when:** FAB on Today tab includes a "+ Task" tile
+    that routes to `/time/task-new`.
 
-- **`mind_tasks.task_time` field for time-windowed tasks** (~1h) — surfaced by §14.2 Day Timeline
-  - **Scope:** Currently `mind_tasks` has only `task_date` (which
-    day) and `due_date` (deadline). To make tasks-with-time appear
-    as Day Timeline hard blocks, add `task_time TEXT` (HH:MM) and
-    optionally `task_duration_minutes INTEGER`. Migration: ALTER
-    TABLE add columns nullable. Then extend `day_timeline.compute_hard_blocks`
-    to pull tasks where task_date = the_date AND task_time IS NOT NULL.
-  - **Files:** `db.py` (schema migration), `day_timeline.py`
-    (new pull function), task UX (mobile time picker on
-    `mobile/app/time/task-new.tsx`).
-  - **Done when:** Creating a task with a time appears as a
-    block on the Day Timeline strip.
+- **Today's Focus — make Time tab feel non-empty** (~2h) — INBOX 2026-04-28
+  - **Founder symptom:** "Today's focus maybe should be
+    summarizing all the data from the time tab it has — right
+    now feels empty like it's not doing anything still."
+  - **Scope:** `time.tsx` Today sub-tab currently shows the
+    `TimeFocusResponse` ranked-list (tasks + emails + events).
+    Add: a top-of-tab summary band ("3 events · 12 unread · 5
+    overdue tasks · 1 location visit"); a "Right now" panel
+    showing the in-progress / next Day Timeline block; the
+    LocationCard (already present) but moved up; the screen-
+    time card with its real numbers. The goal is the user
+    opens Time tab → instantly sees what their day looks
+    like.
+  - **Files:** `mobile/app/(tabs)/time.tsx`,
+    possibly `mobile/components/apex/TimeSubsystemCards.tsx`.
+  - **Done when:** Founder confirms Time tab feels busy with
+    real signal, not an empty form.
 
 - **Location connect-flow UX fix** (~1h) — §14.5.5.g, C1 carry-over
   - **Scope:** Alert chain on first-connect is fragile —

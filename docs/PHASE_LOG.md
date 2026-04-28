@@ -990,3 +990,91 @@ after adding `GOOGLE_MAPS_API_KEY` to `.env`. Resolved.
     status bar.
   - Open Day Detail (tap a day on the activity calendar).
     Header should sit below the status bar.
+
+### 21:00 — INBOX triage (8 items) + Time surface unification (DayStrip placement, Time card, task_time)
+- **Prompt:** "continue" — pick the next phase.
+- **Did:**
+  1. **Triaged 8 INBOX items.** New Now items: Screen Time
+     stale "still says connect" diagnosis (~1h), Units
+     enforcement audit (~2h). New Later: Map full-screen
+     expand + satellite/street toggle (~3h). Reinforced
+     existing: §14.2.2 soft AI labels, §14.3 Patterns,
+     §14.5.1 interactive Strava charts. Several items
+     bundled into the active phase below.
+  2. **Active phase: Time surface unification (~5h, shipped).**
+     Founder reversed my last-phase decision to put DayStrip
+     at the top of Today tab — they want it inside the Time
+     card. Plus they wanted Time tab → Timeline subtab to
+     show the actual timeline (it was an EmptyState
+     placeholder), tasks visible on Today tab Time card, and
+     time-windowed tasks to flow into Day Timeline.
+  3. **Mobile shipped:**
+     - New `mobile/components/apex/TimeCardContent.tsx`:
+       top-3 incomplete tasks for today (priority + overdue
+       first ranking), tap to toggle, "+ Add" button to
+       task-new, plus a "next block" preview row pulled from
+       the day timeline. Routes to Time tab on tap.
+     - `mobile/app/(tabs)/index.tsx`: removed standalone
+       `<DayStrip />` from top; passed `<TimeCardContent />`
+       as `richContent` to the Time CategoryScoreRow.
+     - `mobile/app/(tabs)/time.tsx`: replaced TimelineView
+       EmptyState with the actual `<DayStrip />`.
+  4. **Backend shipped:**
+     - `db.py` mind_tasks schema: ALTER TABLE add `task_time
+       TEXT` + `task_duration_minutes INTEGER` (both nullable).
+       `insert_mind_task` + `update_mind_task` accept the
+       new fields.
+     - `day_timeline.py`: new `_task_blocks(user_id,
+       date_iso)` reads incomplete tasks where `task_date =
+       <date>` AND `task_time IS NOT NULL`; computes
+       block_start as `<date>T<HH>:<MM>:00` + duration
+       (default 30min). Calendar + outlook + task blocks
+       merged in `compute_hard_blocks`.
+     - `app.py` `/api/mind/task` (POST) accepts `task_time`
+       + `task_duration_minutes` and round-trips them on the
+       response.
+  5. **Mobile UX shipped:**
+     - `shared/src/types/tasks.ts`: `Task`, `CreateTaskInput`,
+       `UpdateTaskInput` extended with `task_time` +
+       `task_duration_minutes` fields.
+     - `mobile/app/time/task-new.tsx`: optional
+       "Time (HH:MM)" + "duration min" inputs as a row.
+       Tasks remain time-of-day-agnostic by default; setting
+       a time promotes them to Day Timeline hard blocks.
+- **Files:** `mobile/components/apex/TimeCardContent.tsx`
+  (new), `mobile/components/apex/index.ts`,
+  `mobile/app/(tabs)/index.tsx`, `mobile/app/(tabs)/time.tsx`,
+  `db.py`, `day_timeline.py`, `app.py`,
+  `shared/src/types/tasks.ts`,
+  `mobile/app/time/task-new.tsx`,
+  `docs/BUILD_PLAN.md`, `docs/INBOX.md` (cleared).
+- **Decisions:**
+  - **Reverse last phase's DayStrip placement (own mistake).**
+    I put DayStrip at the top of Today tab last phase by
+    judgment — founder reversed it explicitly this turn.
+    Lesson: when a placement is debatable, surface the
+    decision before shipping.
+  - **No FAB "+ Task" wiring this turn.** Founder asked for
+    it but TimeCardContent has its own "+ Add" affordance
+    that routes to task-new — that covers the immediate need.
+    Filed FAB tasks-row as a separate ~1h Now item.
+  - **Default task duration 30min.** Round number, easy to
+    edit. Backend treats null as 30 too so the migration is
+    backwards-compatible.
+  - **Tasks ranking on Time card:** priority first, then
+    overdue (due_date < today), then nearest due_date, then
+    insertion order. Matches PRD §4.6.4 focus ordering.
+- **Outcome:** Shipping. Backend boots clean. TS clean
+  (only pre-existing finance.tsx:114).
+- **Manual checks (pending):**
+  - Today tab → Time card. Should show "Top tasks" section
+    with up to 3 incomplete tasks (or empty-state nudge),
+    "+ Add" button, and a "next block" row if you have
+    calendar events today.
+  - Time tab → Timeline sub-tab. Should render the same
+    DayStrip you previously had at the top of Today tab.
+  - Create a task with a time (e.g. "Submit report" + time
+    "14:30") via "+ Add". After save, open Time → Timeline.
+    The task should appear as a block from 2:30p to 3:00p
+    (default 30min).
+  - All-day calendar events are still excluded.
