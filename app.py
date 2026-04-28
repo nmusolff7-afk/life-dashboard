@@ -2552,6 +2552,53 @@ def api_location_clusters():
     })
 
 
+# ── Day Timeline (PRD §4.6.5 revised) ────────────────────
+
+@app.route("/api/day-timeline/<date_iso>", methods=["GET"])
+@login_required
+def api_day_timeline(date_iso: str):
+    """Day Timeline blocks for a date — deterministic hard blocks
+    from calendar events. Soft-block AI labeling is §14.2.2 (queued).
+
+    `date_iso`: 'YYYY-MM-DD' in the user's local timezone (caller's
+    responsibility — same convention as /api/health/today).
+
+    v1: recomputes on read (cheap; <50 events typical). Cron-driven
+    job is post-launch optimization."""
+    import day_timeline
+    safe_date = day_timeline.parse_date(date_iso)
+    try:
+        blocks = day_timeline.recompute_day_timeline(uid(), safe_date)
+    except Exception as e:
+        _log.exception("day_timeline recompute failed (%s)", safe_date)
+        return jsonify({"ok": False, "error": "Could not compute timeline",
+                        "error_code": "compute_failed",
+                        "detail": str(e)[:200]}), 500
+    # Strip internal-only fields for the client. Parse source_json so
+    # the client doesn't have to.
+    out = []
+    for b in blocks:
+        raw_src = b.get("source_json") or ""
+        try:
+            src = json.loads(raw_src) if raw_src else None
+        except Exception:
+            src = None
+        out.append({
+            "id":          int(b["id"]),
+            "block_start": b["block_start"],
+            "block_end":   b["block_end"],
+            "kind":        b["kind"],
+            "label":       b.get("label"),
+            "confidence":  b.get("confidence"),
+            "source_type": b.get("source_type"),
+            "source":      src,
+        })
+    return jsonify({
+        "date":   safe_date,
+        "blocks": out,
+    })
+
+
 # ── Device-native: Android Screen Time ──────────────────
 # Mobile uses UsageStatsManager (requires user to grant Usage Access in
 # system Settings) and POSTs daily aggregates. Backend stores in

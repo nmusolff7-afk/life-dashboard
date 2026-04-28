@@ -816,6 +816,43 @@ def init_db():
         except sqlite3.OperationalError:
             pass
 
+        # Day Timeline blocks (PRD §4.6.5, revised 2026-04-28). Two-tier:
+        # - kind='hard'  → deterministic blocks from calendar events,
+        #   tasks-with-time, HC sleep sessions. Computed by
+        #   day_timeline.compute_hard_blocks. Recomputed on read in v1.
+        # - kind='soft'  → AI-labeled gap-fill blocks (§14.2.2). Filled
+        #   by Claude Haiku reading HC + screen-time + location for
+        #   each unaccounted hour-range. Carries a confidence score.
+        # Layout: one row per block. (user_id, block_date, source_type,
+        # source_id) is the natural identity for hard blocks (idempotent
+        # recompute via DELETE + INSERT). Soft blocks use UUIDs in
+        # source_id to avoid collisions.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS day_blocks (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                block_date   DATE NOT NULL,
+                block_start  TEXT NOT NULL,
+                block_end    TEXT NOT NULL,
+                kind         TEXT NOT NULL,
+                label        TEXT,
+                confidence   REAL,
+                source_type  TEXT,
+                source_id    TEXT,
+                source_json  TEXT,
+                computed_at  TIMESTAMP NOT NULL,
+                UNIQUE (user_id, block_date, source_type, source_id)
+            )
+        """)
+        try:
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_day_blocks_user_date "
+                "ON day_blocks(user_id, block_date, block_start)"
+            )
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
         # Daily AI-call cap counter — supports per-user-per-day quotas on
         # Premium Scan (20/day Pro per PRD §10.3.3) and Pantry Scanner
         # (10/day Pro per §10.3.12). Single row per (user, day, feature)
@@ -3041,6 +3078,63 @@ def get_location_samples_for_day(user_id: int, day_iso: str) -> list[dict]:
             (user_id, day_iso),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+# ── Day Timeline (PRD §4.6.5 revised) ────────────────────────────────
+
+def list_day_blocks(user_id: int, block_date: str) -> list[dict]:
+    """Return blocks for a date, ordered by start time. Hard + soft mixed."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM day_blocks WHERE user_id = ? AND block_date = ? "
+            "ORDER BY block_start ASC",
+            (user_id, block_date),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_hard_blocks_for_date(user_id: int, block_date: str) -> int:
+    """Wipe hard blocks for a (user, date). Used before recompute so the
+    UNIQUE(user_id, block_date, source_type, source_id) constraint doesn't
+    block re-inserts. Soft blocks (kind='soft') are NOT touched — those
+    are owned by the AI labeling job."""
+    with get_conn() as conn:
+        cur = conn.execute(
+            "DELETE FROM day_blocks "
+            "WHERE user_id = ? AND block_date = ? AND kind = 'hard'",
+            (user_id, block_date),
+        )
+        conn.commit()
+        return cur.rowcount
+
+
+def insert_day_block(user_id: int, block_date: str, *,
+                     block_start: str, block_end: str, kind: str,
+                     label: str | None = None,
+                     confidence: float | None = None,
+                     source_type: str | None = None,
+                     source_id: str | None = None,
+                     source_json: str | None = None) -> int:
+    """Insert a single block. Caller controls kind ('hard'/'soft')."""
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        cur = conn.execute("""
+            INSERT INTO day_blocks (
+                user_id, block_date, block_start, block_end, kind, label,
+                confidence, source_type, source_id, source_json, computed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, block_date, source_type, source_id) DO UPDATE SET
+                block_start = excluded.block_start,
+                block_end   = excluded.block_end,
+                kind        = excluded.kind,
+                label       = excluded.label,
+                confidence  = excluded.confidence,
+                source_json = excluded.source_json,
+                computed_at = excluded.computed_at
+        """, (user_id, block_date, block_start, block_end, kind, label,
+              confidence, source_type, source_id, source_json, now))
+        conn.commit()
+        return int(cur.lastrowid or 0)
 
 
 # ── Location clusters ──────────────────────────────────

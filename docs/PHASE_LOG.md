@@ -788,3 +788,89 @@ after adding `GOOGLE_MAPS_API_KEY` to `.env`. Resolved.
     picker lists your real location clusters. If empty, the
     "no clusters yet" hint should show. Pick a cluster, set
     weekly target, save.
+
+### 19:00 — INBOX triage (7 items) + §14.2 Day Timeline core (hard blocks) shipped
+- **Prompt:** "day timeline" — founder picked the next phase from
+  the Now backlog.
+- **Did:**
+  1. **Triaged 7 INBOX items** (filing-only per new workflow).
+     Bugs / UX (4) → Backlog → Now: HC display gap diagnosis
+     (~3h), auto-sync cadence tightening (~2h), calorie chart
+     wrong (~2h), subsystem "Apple Health" copy on Android
+     (~30m). Feature (1) → Backlog → Later: bodyweight chart
+     parity with Flask PWA (~3h). Question (1, screen-time) →
+     answered in summary, not stored. Substantive feedback (1,
+     "chatbot doesn't know much") → promoted §14.4 Chatbot
+     three-tier context priority + added a "data audit"
+     pre-cursor sub-task. Cleared INBOX.
+  2. **Set Active phase = §14.2 Day Timeline core hard blocks**.
+     Defined scope cuts up front: tasks-with-time deferred
+     (no `task_time` field), sleep blocks deferred (HC daily
+     aggregate has no session start/end), soft AI labeling is
+     §14.2.2 (separate phase).
+  3. **Backend shipped:**
+     - `db.py`: new `day_blocks` table — `(user_id, block_date,
+       block_start, block_end, kind, label, confidence,
+       source_type, source_id, source_json)`. UNIQUE on
+       (user_id, block_date, source_type, source_id) for
+       idempotent recompute. Helpers
+       `list_day_blocks / delete_hard_blocks_for_date /
+       insert_day_block`.
+     - New module `day_timeline.py`: `compute_hard_blocks`
+       (pulls from gcal_events + outlook_events, excludes
+       all-day events, uses prefix-match on start_iso for date
+       window). `recompute_day_timeline` wipes hard + reinserts
+       (preserves soft blocks for §14.2.2).
+     - `app.py`: new `/api/day-timeline/<date_iso>` route.
+       Recomputes on read in v1 (cron job is post-launch
+       optimization). Strips `source_json` → parsed `source`
+       object for client.
+  4. **Mobile shipped:**
+     - `mobile/lib/api/timeline.ts`: `DayBlock` + `DayTimelineResponse`
+       types, `fetchDayTimeline`, `formatBlockTime` helper.
+     - `mobile/components/apex/DayStrip.tsx`: horizontal
+       scrollable strip on the Today tab. Each block = pill
+       card with vertical color bar (kind/source-driven) +
+       time range + label + subtitle (location or source).
+       Empty state copy points to Connections. Header always
+       rendered ("0 blocks" still shows).
+     - Wired into `mobile/app/(tabs)/index.tsx` Today tab —
+       sits between OverallScoreHero and CategoryScoreRow stack.
+- **Files:** `db.py`, `day_timeline.py` (new), `app.py`,
+  `mobile/lib/api/timeline.ts` (new),
+  `mobile/components/apex/DayStrip.tsx` (new),
+  `mobile/components/apex/index.ts`,
+  `mobile/app/(tabs)/index.tsx`,
+  `docs/BUILD_PLAN.md` (workflow updates + Backlog
+  reorganization + new task_time follow-up item),
+  `docs/INBOX.md` (cleared).
+- **Decisions:**
+  - **Recompute on read for v1.** 50-event days take <100ms;
+    don't pre-optimize with cron jobs. Move to nightly compute
+    only when scale demands it.
+  - **`UNIQUE(user_id, block_date, source_type, source_id)`**
+    over a composite PK. Auto-incrementing `id` is cleaner for
+    soft blocks (which use UUIDs in source_id) and lets the
+    insert helper use ON CONFLICT UPDATE.
+  - **All-day events excluded** from the strip — they're not
+    bounded time ranges, so they'd render weirdly. Could add
+    an "all-day" pill row above the strip later if needed.
+  - **DayStrip is horizontal-scroll.** Vertical timeline
+    rendering needs more design; horizontal is simple and
+    works on small screens.
+  - **Tasks-with-time deferred** to a `task_time` migration
+    phase (added to Backlog → Now). Sleep deferred to §14.5.2
+    (already in Backlog → Next).
+- **Outcome:** Shipping. Backend boots clean. TS clean (only
+  pre-existing finance.tsx:114 carrying forward).
+- **Manual checks (pending):**
+  - Open the app → Today tab. Confirm "Today's timeline"
+    section appears between Overall Score and the four
+    category score rows.
+  - If you have GCal or Outlook events today: they should
+    render as horizontal pill cards with time ranges + titles.
+    The vertical bar color is accent-blue for gcal, fitness-
+    color for outlook.
+  - If no events today, you'll see the "Connect Google Calendar
+    or Outlook" empty-state copy.
+  - All-day events are intentionally excluded.

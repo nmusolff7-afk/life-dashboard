@@ -129,8 +129,9 @@ work?").
   instantiate active instead of paused.
 - Custom Expo Modules: `health-connect`, `usage-stats` — both
   working.
-- 2 missing component sets: **DayStrip** (for §14.2 Day Timeline)
-  and **Patterns view** (for §14.3) — both queued.
+- **DayStrip** (§14.2 hard blocks) shipped 2026-04-28 — calendar-
+  events-only for v1; tasks-with-time and sleep blocks deferred.
+- 1 missing component set: **Patterns view** (for §14.3) — queued.
 
 **Tooling:**
 - Local Android build pipeline (~5 min) vs EAS ~70 min.
@@ -186,21 +187,94 @@ the project will become.
 
 ### Now — pick the next phase from here
 
-- **§14.2 Day Timeline core — hard blocks** (~12h) — Vision pivot, biggest v1.5 leverage
-  - **Scope:** Deterministic block computation from gcal/outlook
-    events + tasks-with-time + HC sleep windows. Stored in a new
-    `day_blocks` table; rendered as a day strip on Today tab. Each
-    block: `(user_id, block_start, block_end, kind, label,
-    confidence, source_json)`.
-  - **Files:** `db.py` (new table + helpers), `app.py` (new route
-    `/api/day-timeline/<date>`), new `day_timeline.py` compute
-    module, `mobile/components/apex/DayStrip.tsx`, `mobile/lib/api/timeline.ts`.
-  - **Done when:** day strip on Today tab shows today's events as
-    coloured blocks, sleep window as an overnight block, tasks with
-    times as blocks; unaccounted hours render as empty placeholders
-    that §14.2.2 AI labeling can fill later.
-  - **PRD ref:** §4.6.5 (override applied — AI permitted for soft-
-    block labeling, see [Vision → PRD overrides](#prd-overrides-where-the-build-plan-supersedes-the-prd)).
+- **HC display gap diagnosis** (~3h) — INBOX 2026-04-28
+  - **Founder symptom:** "Health Connect has my sleep, step, HRV
+    data but Life Dashboard does not display it anywhere." This
+    contradicts the audit (which said pipeline was intact end-to-
+    end). Real diagnostic phase needed.
+  - **Hypotheses to investigate:**
+    1. `HealthConnectCard` is conditional on `permitted` state
+       (`useHealthData.ts`) — if permission re-check fails on
+       cold launch, the card silently hides even when data
+       exists in `health_daily`.
+    2. Auto-sync isn't running — the Card only refreshes via
+       manual "Sync now" tap; data may be stale or never
+       synced after the connect flow.
+    3. The "Connect Apple Health" copy on `recovery.tsx` /
+       `sleep.tsx` subsystem screens is hardcoded — these
+       screens may not be reading `health_daily` at all (they
+       might only check for HealthKit which doesn't apply on
+       Android).
+  - **Files to inspect:** `mobile/lib/hooks/useHealthData.ts`,
+    `mobile/components/apex/HealthConnectCard.tsx`,
+    `mobile/app/fitness/subsystem/sleep.tsx`,
+    `mobile/app/fitness/subsystem/recovery.tsx`,
+    `mobile/app/fitness/subsystem/body.tsx`,
+    `app.py` `/api/health/today` route + `/api/health/sync`.
+  - **Done when:** Sleep / recovery / body subsystem screens on
+    Android show real HC data when present; "Connect Apple
+    Health" copy is replaced with platform-aware copy on
+    Android; HC data flows through to chatbot LifeContext.
+
+- **Auto-sync cadence tightening** (~2h) — INBOX 2026-04-28
+  - **Founder symptom:** "Things need to be syncing more often,
+    feels like I'm looking at old data most of the time."
+  - **Scope:** Auto-sync hook (`useAutoSyncOnFocus`) currently
+    throttles to 5min/provider. For founder's testing pace this
+    is too slow. Either (a) tighten throttle to 60-90s, (b) add
+    pull-to-refresh on every tab that fetches synced data, or
+    (c) both. Also surface "last synced X ago" labels so the
+    founder knows the staleness.
+  - **Files:** `mobile/lib/hooks/useTimeData.ts`,
+    `mobile/lib/hooks/useHomeData.ts`,
+    `mobile/lib/hooks/useHealthConnection.ts`, tab screens.
+  - **Done when:** No tab shows data older than 90s during
+    active use; staleness is visible.
+
+- **Calorie chart in Nutrition Progress is wrong** (~2h) — INBOX 2026-04-28
+  - **Founder symptom:** "Calories consumed chart in nutrition
+    progress is wrong completely, not sure what it's showing."
+  - **Scope:** Investigation needed — could be wrong window
+    (showing wrong N days), wrong source (rollup vs raw vs
+    target), wrong unit, or rendering bug. Compare to the meal
+    history truth source.
+  - **Files:** `mobile/components/apex/CaloriesConsumedChart.tsx`,
+    `mobile/components/apex/CalorieBalanceChart.tsx`,
+    `mobile/app/(tabs)/nutrition.tsx`, the API route feeding
+    them.
+  - **Done when:** Founder reports the chart matches their
+    daily meal logs.
+
+- **Subsystem screen copy: "Apple Health" → platform-aware** (~30m) — INBOX 2026-04-28
+  - **Founder symptom:** "Sleep and recovery cards in fitness
+    show 'Connect Apple Health' but I'm on Android and have
+    Health Connect connected."
+  - **Scope:** Hardcoded "Apple Health" string on
+    `subsystem/sleep.tsx`, `subsystem/recovery.tsx` (likely
+    `cardio.tsx` and others too). Replace with platform-aware
+    copy ("Connect Health Connect" on Android, "Connect Apple
+    Health" on iOS). Better: detect existing HC connection +
+    hide the connect prompt when permitted+data present.
+  - **Files:** all 6 `mobile/app/fitness/subsystem/*.tsx`
+    screens — grep "Apple Health".
+  - **Done when:** Empty-state copy on each subsystem reflects
+    Android reality; if HC is permitted, the "Connect" CTA
+    isn't shown at all.
+  - **Likely overlaps with HC display gap above** — bundle the
+    fixes into one phase.
+
+- **`mind_tasks.task_time` field for time-windowed tasks** (~1h) — surfaced by §14.2 Day Timeline
+  - **Scope:** Currently `mind_tasks` has only `task_date` (which
+    day) and `due_date` (deadline). To make tasks-with-time appear
+    as Day Timeline hard blocks, add `task_time TEXT` (HH:MM) and
+    optionally `task_duration_minutes INTEGER`. Migration: ALTER
+    TABLE add columns nullable. Then extend `day_timeline.compute_hard_blocks`
+    to pull tasks where task_date = the_date AND task_time IS NOT NULL.
+  - **Files:** `db.py` (schema migration), `day_timeline.py`
+    (new pull function), task UX (mobile time picker on
+    `mobile/app/time/task-new.tsx`).
+  - **Done when:** Creating a task with a time appears as a
+    block on the Day Timeline strip.
 
 - **Location connect-flow UX fix** (~1h) — §14.5.5.g, C1 carry-over
   - **Scope:** Alert chain on first-connect is fragile —
@@ -250,18 +324,32 @@ the project will become.
     button), never auto-generated.
   - **PRD ref:** §4.6 (Patterns surface).
 
-- **§14.4 Chatbot three-tier context** (~10h)
+- **§14.4 Chatbot three-tier context** (~10h) — promoted to Next priority by INBOX 2026-04-28
+  - **Founder symptom:** "Is everything currently getting passed
+    to the chatbot as JSON? It doesn't seem to be able to read
+    specific activities or specific meals or workout plan? I
+    think we need a larger audit of all the data being stored
+    and what is being passed to the chatbot bc it doesn't know
+    much rn."
   - **Scope:** Always-on tier (~2K tokens, profile + today's plan
     + active goals). Day-stream tier (~6K, today's events / tasks /
     meal logs / workouts). Historical tier (~10K, lazy on intent —
     14-day summary + last week's Day Timeline). Cost guardrails
     (~2h): per-user-per-day token cap. Privacy (~2h): explicit
     "what does Claude see?" panel.
+  - **Pre-cursor: data audit (~1h, do first).** Audit current
+    `_life_context` containers + log a snapshot of what JSON the
+    chatbot actually receives for a typical query. Compare
+    against what's stored in `meal_logs`, `workout_logs`,
+    `workout_plans`, `gcal_events`, etc. The audit becomes the
+    spec for what the day-stream + historical tiers should
+    add.
   - **Files:** `chatbot.py` (rewrite `_life_context`),
     `mobile/app/chatbot/index.tsx` (privacy panel).
-  - **Done when:** Chatbot answer quality improves on questions
-    that need historical context ("how does this week compare to
-    last week?"); token usage stays under the daily cap.
+  - **Done when:** Chatbot can answer "what did I eat for lunch
+    yesterday?", "what's on my workout plan for tomorrow?",
+    "how does this week compare to last?"; token usage stays
+    under the daily cap.
   - **PRD ref:** §4.7 + §4.7.10 (override applied — 18K cap, see
     Vision).
 
@@ -443,6 +531,20 @@ the project will become.
     without per-tenant admin approval friction.
   - **Blocked on:** Apex Leadership LLC formation docs uploaded;
     Microsoft 1-5 business day review.
+
+- **Bodyweight chart parity with Flask PWA** (~3h) — INBOX 2026-04-28
+  - **Founder symptom:** "Bodyweight graph should show change
+    over time and mimick my pwa more."
+  - **Scope:** The Flask PWA had a more polished weight chart
+    (multi-range selector 7/30/90D, only-plot-dates-with-data
+    pattern, deficit overlay). RN port at
+    `mobile/components/apex/WeightTrendCard.tsx` is simpler. Port
+    the missing affordances.
+  - **Files:** `mobile/components/apex/WeightTrendCard.tsx`,
+    possibly a new range-selector component, the Flask
+    `index.html` weight section as reference (commit `c4973e8`
+    onwards in git history).
+  - **Done when:** Founder confirms parity with old PWA.
 
 - **Wizard step reduction** (~2h) — workout builder polish
   - **Scope:** Current 8-step quiz is fine for first plan, less

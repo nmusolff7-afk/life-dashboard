@@ -15,6 +15,7 @@ export { CategoryScoreCard } from './CategoryScoreCard';
 export { CategoryScoreRow } from './CategoryScoreRow';
 export { FitnessSubsystemCard } from './FitnessSubsystemCard';
 export { OverallScoreHero } from './OverallScoreHero';
+export { DayStrip } from './DayStrip';
 export { LogActivityCard } from './LogActivityCard';
 export { TodayScheduledWorkoutCard } from './TodayScheduledWorkoutCard';
 export type { TodayScheduledWorkout } from './TodayScheduledWorkoutCard';
