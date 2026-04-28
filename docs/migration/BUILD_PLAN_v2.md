@@ -1471,13 +1471,35 @@ than the Flask PWA version. Root cause analysis:
 - No "show me how you built this" expandable section linking sources
 
 **Plan:**
-1. Read Flask `templates/index.html` workout-plan section verbatim;
-   port the UX patterns into [mobile/app/settings/workout-plan.tsx](mobile/app/settings/workout-plan.tsx)
-2. Add revise flow with text input → POST /api/workout-plan/revise
-3. Cache understanding separately from plan (already supported
-   server-side; client just needs to read both)
-4. Add "How we built your plan" expandable showing the cited
-   scientific sources
+
+Audit on 2026-04-28 found most §14.7 work was already done — the
+`react-native` workout-plan code is more mature than the Phase Log
+and PRD-survey suggested. The original 4 plan items were:
+
+1. ✅ Port Flask UX patterns — done. `mobile/app/settings/workout-plan.tsx`
+   has AI Import + Manual Builder + AI Build (chip wizard).
+2. ✅ Revise flow with text input → POST `/api/workout-plan/revise` —
+   live in [`mobile/app/fitness/plan/index.tsx`](mobile/app/fitness/plan/index.tsx) lines 114–131.
+3. ✅ `understanding` displayed — Settings card line 60–64 + plan view
+   line 181–188.
+4. ✅ "How we built your plan" expandable — plan view line 190–225
+   resolves source `shortName`s back to full citations.
+
+**Remaining gaps surfaced by the audit (NEW work for this phase):**
+
+5. **Pre-populate builder from `quiz_payload`** — PRD §4.3.10 specifies
+   "Edit Plan opens the Workout Builder with pre-populated answers",
+   currently `mobile/app/fitness/plan/builder.tsx` always seeds with
+   defaults. Pass `quiz_payload` as a URL search param on entry; the
+   builder's `useState` initialisers read from it.
+6. **Inline edit for plan exercises** — current plan view supports
+   delete-exercise via trash icon but not edit. Tap an exercise →
+   modal with name/sets/reps/rest/notes → `patchWorkoutPlan` save.
+7. **Settings → Workout Plan landing consolidation** — when a plan
+   exists, the page shows the active-plan summary AND the three big
+   "Build mode" cards. Cluttered. When `plan != null`, lead with
+   primary actions (Edit Plan / Revise / View week) + a quieter
+   "Build different way" expandable for the three rebuild modes.
 
 ---
 
@@ -1749,6 +1771,99 @@ This was a multi-day marathon session. Listing as one consolidated entry.
    `GOOGLE_MAPS_API_KEY` we set up for Location. Add `polyline` field to
    Strava activity fetch, store on `strava_activity_detail` table, render
    via static-map URL on workout detail screens.
+
+---
+
+### Phase log: §14.7 Workout builder polish — 2026-04-28
+
+**Shipped:**
+- **Quiz pre-population** — [`mobile/app/fitness/plan/builder.tsx`](mobile/app/fitness/plan/builder.tsx)
+  now reads a `?initial=<urlencoded JSON>` URL param, reverse-maps the
+  saved `quiz_payload` back into per-step state. Defensive parser
+  (`parseInitialQuiz`) returns null for malformed input → wizard
+  shows defaults. Implements PRD §4.3.10 "Edit Plan opens the
+  Workout Builder with pre-populated answers".
+- **Inline exercise edit** — [`mobile/app/fitness/plan/index.tsx`](mobile/app/fitness/plan/index.tsx)
+  exercise rows are now tappable. Tap → modal with name/sets/reps/rest/
+  notes inputs → save calls `patchWorkoutPlan` with the updated plan.
+  Trash icon still works for delete. PRD §4.3.10 implicit requirement
+  ("Edit Plan" beyond just delete).
+- **"Edit plan" + "Switch plan" disambiguation** — plan view now has
+  two distinct affordances: primary "Edit plan" (pre-fills builder) and
+  a quieter underlined "Build a totally new plan from scratch" tertiary
+  link (deactivates first). The old single "Switch plan" button buried
+  the pre-fill flow.
+- **Settings → Workout Plan consolidation** — when active plan exists,
+  the page now leads with "View week" (primary, accent-coloured) +
+  "Edit plan" actions on the active-plan card, and tucks the three
+  build-mode cards behind a quieter "Build a different way" row.
+  Reduces clutter on the typical return-visit path.
+
+**Deferred:**
+- **Wizard step reduction** (was floated mid-phase) — current 8-step
+  flow is acceptable for first plan, less so for repeat edits. Could
+  combine focus + injuries into one screen, default experience from
+  profile, etc. Pickup: track as small UX polish task in next session.
+- **AI-generated cardio sub-flow** (PRD §4.1.6 sub-screens for cardio
+  goal/intensity/activities) — current builder has a `cardio` payload
+  with sensible defaults but no UI step. Pickup: treat as v1.5 polish
+  if user feedback signals it.
+- **Plan adherence stats / This-week-calendar-strip** (PRD §4.3.10) —
+  Fitness tab Today shows scheduled workout for today, but a
+  weekly-completion strip / monthly-adherence-% surface isn't in
+  plan/index.tsx yet. Pickup: candidate for §14 polish phase.
+
+**Problems flagged:**
+- The original Phase Log audit (and the orientation Explore agent)
+  reported §14.7 as mostly UN-shipped. Reality: the wizard, revise
+  flow, understanding, and sources expandable were all already in
+  place. **Lesson: when the phase plan looks small, run a quick code
+  read on the target files BEFORE assuming the plan items are
+  todo.** The Phase Log entry for this phase ended up about polish,
+  not greenfield.
+- `quiz_payload` is stored on the active `workout_plans` row but not
+  on every saved plan via `/api/workout-plan/save` (which omits the
+  field). Older plans + AI-Import / Manual-Builder plans won't
+  pre-populate the wizard. Builder gracefully falls back to defaults.
+  Acceptable for v1.5 — the natural workflow is "AI Build → edit",
+  not "Manual build → edit".
+- Pre-existing `app/(tabs)/finance.tsx` line 114 TS error
+  (`FinanceTransaction.merchant_name`) still untouched. Carrying
+  forward to next phase.
+
+**Decisions:**
+- **Pass `quiz_payload` via URL search param** rather than route-level
+  state or context. JSON-encoded payload is <1KB so URL fits comfortably
+  under the 8K cap. expo-router's `useLocalSearchParams` made this a
+  clean two-line read.
+- **Don't deactivate the active plan** when the user hits "Edit plan".
+  The backend's `/api/workout-plan/generate` archives the old +
+  installs the new atomically — manual deactivation was wasted work
+  and risked an empty-state flash if the user backs out of the wizard.
+  Switch-plan still deactivates first because that's the explicit
+  destructive flow.
+- **Modal-based inline edit** rather than expand-the-row inline. Modal
+  preserves scroll position and gives more room for the 5 fields
+  without making the day card jump in height.
+- **Marked the original §14.7 plan items ✅** on the spot rather than
+  silently ignoring them. The plan now reflects what's true on disk.
+
+**Next pickup:**
+1. **§14.5.1 Strava maps + charts (~10h)**. Same `GOOGLE_MAPS_API_KEY`
+   we set up for Location. Pull `polyline` field on activity fetch in
+   `strava_sync.py`, store on a new `strava_activity_detail` table,
+   render path map + HR / pace / elevation charts on a workout detail
+   screen. Decide whether to use `react-native-maps` (would need a
+   rebuild) or stick with Static Maps API (consistent with Location).
+   **Recommendation: Static Maps for v1.5** — visual parity with
+   Location card, no native dep, no rebuild.
+2. **§14.8 Goals data-binding tightening (~6h)** in parallel. Wire
+   `_PROGRESS_HANDLERS` for the 5 newly-unblocked goal types
+   (TIME-02 screen-time, TIME-03 sleep regularity, TIME-04 location
+   routine, TIME-05 calendar density, TIME-06 inbox-by-N-AM). Pure
+   backend; no rebuild.
+3. **§14.2 Day Timeline core (~12h hard blocks)** as the bigger week-2
+   item.
 
 ---
 

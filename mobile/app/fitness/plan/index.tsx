@@ -4,7 +4,10 @@ import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Linking,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,7 +16,7 @@ import {
   View,
 } from 'react-native';
 
-import type { DayName, PlanDay, WeeklyPlan } from '../../../../shared/src/types/plan';
+import type { DayName, PlanDay, PlanExercise, WeeklyPlan } from '../../../../shared/src/types/plan';
 import {
   WORKOUT_PLAN_SOURCES,
   type WorkoutPlanSource,
@@ -44,6 +47,14 @@ export default function PlanIndex() {
   const [reviseText, setReviseText] = useState('');
   const [revising, setRevising] = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  // Inline exercise editor — modal opens when user taps an exercise
+  // row. Stores the (day, idx) coordinates plus a working copy of the
+  // exercise that's mutated in the modal and saved on confirm.
+  const [editTarget, setEditTarget] = useState<{
+    day: DayName;
+    idx: number;
+    draft: PlanExercise;
+  } | null>(null);
 
   // Resolve source shortNames back to full citations.
   const sourceObjects = useMemo<WorkoutPlanSource[]>(() => {
@@ -87,10 +98,27 @@ export default function PlanIndex() {
 
   const weekly = plan.plan.weeklyPlan ?? {};
 
+  const handleEditPlan = () => {
+    haptics.fire('tap');
+    // PRD §4.3.10: "Edit Plan opens the Workout Builder with
+    // pre-populated answers". Pass the saved quiz_payload through
+    // a URL search param; builder reverses it back to per-step
+    // state. Falls through to fresh state if no payload exists
+    // (older plans pre-dating quiz_payload column).
+    const payload = plan.quiz_payload;
+    if (!payload) {
+      // Old plan without saved quiz — just open fresh wizard.
+      router.push('/fitness/plan/builder' as never);
+      return;
+    }
+    const encoded = encodeURIComponent(JSON.stringify(payload));
+    router.push(`/fitness/plan/builder?initial=${encoded}` as never);
+  };
+
   const handleSwitchPlan = () => {
     Alert.alert(
       'Switch plan?',
-      'Your current plan will be archived. You can reactivate it later, but a new plan replaces it as active.',
+      'Builds a new plan from a fresh quiz. Your current plan archives — you can reactivate it later.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -171,6 +199,43 @@ export default function PlanIndex() {
     } catch (e) {
       haptics.fire('error');
       Alert.alert('Edit failed', e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const openExerciseEditor = (dayName: DayName, idx: number) => {
+    const day = weekly[dayName];
+    const ex = day?.exercises?.[idx];
+    if (!ex) return;
+    haptics.fire('tap');
+    // Clone so the modal mutates a draft, not the live plan.
+    setEditTarget({ day: dayName, idx, draft: { ...ex } });
+  };
+
+  const handleSaveExerciseEdit = async () => {
+    if (!editTarget) return;
+    const { day: dayName, idx, draft } = editTarget;
+    const day = weekly[dayName];
+    if (!day) return;
+    const cleaned: PlanExercise = {
+      name: draft.name.trim() || day.exercises[idx]?.name || 'Exercise',
+      sets: Math.max(1, Math.min(20, Number(draft.sets) || 3)),
+      reps: String(draft.reps || '').trim() || '8-12',
+      rest: typeof draft.rest === 'string' && draft.rest.trim() ? draft.rest.trim() : null,
+      notes: typeof draft.notes === 'string' && draft.notes.trim() ? draft.notes.trim() : null,
+    };
+    const nextExercises = (day.exercises ?? []).map((ex, i) => (i === idx ? cleaned : ex));
+    const nextPlan: WeeklyPlan = {
+      ...plan.plan,
+      weeklyPlan: { ...weekly, [dayName]: { ...day, exercises: nextExercises } },
+    };
+    try {
+      await patchWorkoutPlan(nextPlan);
+      haptics.fire('success');
+      setEditTarget(null);
+      await refetch();
+    } catch (e) {
+      haptics.fire('error');
+      Alert.alert('Save failed', e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -264,7 +329,12 @@ export default function PlanIndex() {
                 <View style={styles.dayBody}>
                   {(day?.exercises ?? []).map((ex, i) => (
                     <View key={i} style={[styles.exerciseRow, { borderBottomColor: t.border }]}>
-                      <View style={{ flex: 1 }}>
+                      <Pressable
+                        onPress={() => openExerciseEditor(dayName, i)}
+                        accessibilityLabel={`Edit ${ex.name}`}
+                        style={({ pressed }) => [
+                          { flex: 1, opacity: pressed ? 0.6 : 1 },
+                        ]}>
                         <Text style={[styles.exerciseName, { color: t.text }]}>{ex.name}</Text>
                         <Text style={[styles.exerciseMeta, { color: t.muted }]}>
                           {ex.sets} × {ex.reps}{ex.rest ? ` · rest ${ex.rest}` : ''}
@@ -274,7 +344,7 @@ export default function PlanIndex() {
                             {ex.notes}
                           </Text>
                         ) : null}
-                      </View>
+                      </Pressable>
                       <Pressable
                         onPress={() => handleRemoveExercise(dayName, i)}
                         hitSlop={8}
@@ -307,15 +377,25 @@ export default function PlanIndex() {
             <Text style={[styles.secondaryLabel, { color: t.accent }]}>Revise with AI</Text>
           </Pressable>
           <Pressable
-            onPress={handleSwitchPlan}
+            onPress={handleEditPlan}
             style={({ pressed }) => [
               styles.secondaryBtn,
               { backgroundColor: t.surface, borderColor: t.border, opacity: pressed ? 0.7 : 1 },
             ]}>
-            <Ionicons name="swap-horizontal-outline" size={16} color={t.muted} />
-            <Text style={[styles.secondaryLabel, { color: t.text }]}>Switch plan</Text>
+            <Ionicons name="create-outline" size={16} color={t.muted} />
+            <Text style={[styles.secondaryLabel, { color: t.text }]}>Edit plan</Text>
           </Pressable>
         </View>
+        <Pressable
+          onPress={handleSwitchPlan}
+          style={({ pressed }) => [
+            styles.tertiaryBtn,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}>
+          <Text style={[styles.tertiaryLabel, { color: t.subtle }]}>
+            Build a totally new plan from scratch
+          </Text>
+        </Pressable>
 
         {reviseOpen ? (
           <View style={[styles.reviseBox, { backgroundColor: t.surface, borderColor: t.border }]}>
@@ -358,6 +438,115 @@ export default function PlanIndex() {
           </View>
         ) : null}
       </ScrollView>
+
+      {/* Inline exercise editor — opens when user taps an exercise row.
+          Five fields: name, sets, reps, rest, notes. Save patches the
+          full plan via /api/workout-plan PATCH. */}
+      <Modal
+        visible={!!editTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditTarget(null)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalBackdrop}>
+          <Pressable
+            onPress={() => setEditTarget(null)}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={[styles.modalSheet, { backgroundColor: t.surface, borderColor: t.border }]}>
+            <Text style={[styles.modalTitle, { color: t.text }]}>Edit exercise</Text>
+
+            <Text style={[styles.modalLabel, { color: t.muted }]}>Name</Text>
+            <TextInput
+              value={editTarget?.draft.name ?? ''}
+              onChangeText={(v) => setEditTarget((prev) =>
+                prev ? { ...prev, draft: { ...prev.draft, name: v } } : prev)}
+              placeholder="e.g. Barbell Squat"
+              placeholderTextColor={t.subtle}
+              style={[
+                styles.modalInput,
+                { color: t.text, backgroundColor: t.surface2, borderColor: t.border },
+              ]}
+            />
+
+            <View style={styles.modalRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.modalLabel, { color: t.muted }]}>Sets</Text>
+                <TextInput
+                  value={String(editTarget?.draft.sets ?? '')}
+                  onChangeText={(v) => setEditTarget((prev) =>
+                    prev ? { ...prev, draft: { ...prev.draft, sets: parseInt(v, 10) || 0 } } : prev)}
+                  placeholder="3"
+                  placeholderTextColor={t.subtle}
+                  keyboardType="number-pad"
+                  style={[
+                    styles.modalInput,
+                    { color: t.text, backgroundColor: t.surface2, borderColor: t.border },
+                  ]}
+                />
+              </View>
+              <View style={{ flex: 2 }}>
+                <Text style={[styles.modalLabel, { color: t.muted }]}>Reps</Text>
+                <TextInput
+                  value={editTarget?.draft.reps ?? ''}
+                  onChangeText={(v) => setEditTarget((prev) =>
+                    prev ? { ...prev, draft: { ...prev.draft, reps: v } } : prev)}
+                  placeholder="8-12"
+                  placeholderTextColor={t.subtle}
+                  style={[
+                    styles.modalInput,
+                    { color: t.text, backgroundColor: t.surface2, borderColor: t.border },
+                  ]}
+                />
+              </View>
+            </View>
+
+            <Text style={[styles.modalLabel, { color: t.muted }]}>Rest</Text>
+            <TextInput
+              value={editTarget?.draft.rest ?? ''}
+              onChangeText={(v) => setEditTarget((prev) =>
+                prev ? { ...prev, draft: { ...prev.draft, rest: v } } : prev)}
+              placeholder="e.g. 2 min"
+              placeholderTextColor={t.subtle}
+              style={[
+                styles.modalInput,
+                { color: t.text, backgroundColor: t.surface2, borderColor: t.border },
+              ]}
+            />
+
+            <Text style={[styles.modalLabel, { color: t.muted }]}>Notes</Text>
+            <TextInput
+              value={editTarget?.draft.notes ?? ''}
+              onChangeText={(v) => setEditTarget((prev) =>
+                prev ? { ...prev, draft: { ...prev.draft, notes: v } } : prev)}
+              placeholder="Form cue, tempo, etc."
+              placeholderTextColor={t.subtle}
+              multiline
+              style={[
+                styles.modalInput,
+                { color: t.text, backgroundColor: t.surface2, borderColor: t.border, minHeight: 60 },
+              ]}
+            />
+
+            <View style={styles.modalActions}>
+              <Pressable
+                onPress={() => { haptics.fire('tap'); setEditTarget(null); }}
+                style={styles.secondaryGhost}>
+                <Text style={[styles.secondaryLabel, { color: t.muted }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleSaveExerciseEdit}
+                style={({ pressed }) => [
+                  styles.primaryBtn,
+                  { backgroundColor: t.accent, opacity: pressed ? 0.8 : 1 },
+                ]}>
+                <Text style={styles.primaryLabel}>Save</Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -429,6 +618,9 @@ const styles = StyleSheet.create({
   secondaryLabel: { fontSize: 13, fontWeight: '700' },
   secondaryGhost: { paddingHorizontal: 14, paddingVertical: 10 },
 
+  tertiaryBtn: { alignItems: 'center', paddingVertical: 12 },
+  tertiaryLabel: { fontSize: 12, fontWeight: '500', textDecorationLine: 'underline' },
+
   reviseBox: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 10, marginTop: 6 },
   reviseLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 },
   reviseInput: {
@@ -466,4 +658,42 @@ const styles = StyleSheet.create({
   sourceRow: { paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, gap: 4 },
   sourceName: { fontSize: 12, fontWeight: '700' },
   sourceCitation: { fontSize: 11, lineHeight: 15 },
+
+  // Edit-exercise modal
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  modalSheet: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 18,
+    gap: 6,
+  },
+  modalTitle: { fontSize: 17, fontWeight: '700', marginBottom: 4 },
+  modalLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginTop: 8,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    marginTop: 4,
+  },
+  modalRow: { flexDirection: 'row', gap: 10 },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 14,
+  },
 });

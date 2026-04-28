@@ -50,7 +50,10 @@ export default function SettingsWorkoutPlan() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          {/* Existing active plan summary */}
+          {/* Existing active plan summary — when a plan exists, lead
+              with primary actions (Edit / View) and tuck the build-
+              modes behind an expand. Reduces clutter; the typical
+              return visit isn't to rebuild from scratch. */}
           {loading ? (
             <ActivityIndicator color={t.accent} style={{ marginTop: 40 }} />
           ) : plan ? (
@@ -65,44 +68,86 @@ export default function SettingsWorkoutPlan() {
               <View style={styles.cardActions}>
                 <Pressable
                   onPress={() => { haptics.fire('tap'); router.push('/fitness/plan' as never); }}
+                  style={({ pressed }) => [styles.secondary, { backgroundColor: t.accent, opacity: pressed ? 0.85 : 1 }]}>
+                  <Ionicons name="calendar-outline" size={14} color="#fff" />
+                  <Text style={[styles.secondaryLabel, { color: '#fff' }]}>View week</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    haptics.fire('tap');
+                    // Same Edit-Plan flow as plan/index.tsx: pre-fill
+                    // the builder from quiz_payload via URL param.
+                    const payload = plan.quiz_payload;
+                    if (!payload) {
+                      router.push('/fitness/plan/builder' as never);
+                      return;
+                    }
+                    const encoded = encodeURIComponent(JSON.stringify(payload));
+                    router.push(`/fitness/plan/builder?initial=${encoded}` as never);
+                  }}
                   style={({ pressed }) => [styles.secondary, { backgroundColor: t.surface2, opacity: pressed ? 0.7 : 1 }]}>
                   <Ionicons name="create-outline" size={14} color={t.text} />
-                  <Text style={[styles.secondaryLabel, { color: t.text }]}>View / edit</Text>
+                  <Text style={[styles.secondaryLabel, { color: t.text }]}>Edit plan</Text>
                 </Pressable>
               </View>
             </View>
           ) : null}
 
-          {/* Mode selector — same three PWA-parity modes */}
-          <Text style={[styles.sectionHeader, { color: t.muted }]}>
-            {plan ? 'Switch / rebuild plan' : 'Build your plan'}
-          </Text>
-
-          {mode === 'overview' ? (
-            <View style={styles.modeGrid}>
-              <ModeCard
-                icon="sparkles-outline"
-                title="AI Build"
-                body="Answer a short quiz — we generate a full strength + cardio plan in about 10 seconds."
-                onPress={() => {
-                  haptics.fire('tap');
-                  router.push('/fitness/plan/builder' as never);
-                }}
-              />
-              <ModeCard
-                icon="reader-outline"
-                title="AI Import"
-                body="Paste your existing schedule in any format. AI converts it into a clean weekly plan."
-                onPress={() => { haptics.fire('tap'); setMode('import'); }}
-              />
-              <ModeCard
-                icon="construct-outline"
-                title="Manual builder"
-                body="Type your exercises day-by-day. Full control, no AI."
-                onPress={() => { haptics.fire('tap'); setMode('manual'); }}
-              />
-            </View>
-          ) : null}
+          {/* Build modes — full-width when no plan exists, tucked into
+              an "Other ways to build" expandable when one does. */}
+          {!plan ? (
+            <>
+              <Text style={[styles.sectionHeader, { color: t.muted }]}>Build your plan</Text>
+              {mode === 'overview' ? (
+                <View style={styles.modeGrid}>
+                  <ModeCard
+                    icon="sparkles-outline"
+                    title="AI Build"
+                    body="Answer a short quiz — we generate a full strength + cardio plan in about 10 seconds."
+                    onPress={() => {
+                      haptics.fire('tap');
+                      router.push('/fitness/plan/builder' as never);
+                    }}
+                  />
+                  <ModeCard
+                    icon="reader-outline"
+                    title="AI Import"
+                    body="Paste your existing schedule in any format. AI converts it into a clean weekly plan."
+                    onPress={() => { haptics.fire('tap'); setMode('import'); }}
+                  />
+                  <ModeCard
+                    icon="construct-outline"
+                    title="Manual builder"
+                    body="Type your exercises day-by-day. Full control, no AI."
+                    onPress={() => { haptics.fire('tap'); setMode('manual'); }}
+                  />
+                </View>
+              ) : null}
+            </>
+          ) : mode === 'overview' ? (
+            <Pressable
+              onPress={() => {
+                haptics.fire('tap');
+                // Cycle through import → manual → reset to overview.
+                // Compact, doesn't add a third heavy panel.
+                setMode('import');
+              }}
+              style={({ pressed }) => [
+                styles.tertiaryRow,
+                { borderColor: t.border, opacity: pressed ? 0.7 : 1 },
+              ]}>
+              <Ionicons name="options-outline" size={14} color={t.muted} />
+              <Text style={[styles.tertiaryLabel, { color: t.muted }]}>
+                Build a different way (import or manual)
+              </Text>
+              <Ionicons name="chevron-forward" size={14} color={t.subtle} />
+            </Pressable>
+          ) : (
+            // mode is 'import' or 'manual' AND plan exists — show the
+            // mode form just like the no-plan path. The forms handle
+            // their own back button.
+            null
+          )}
 
           {mode === 'import' ? (
             <AIImportForm
@@ -560,6 +605,17 @@ const styles = StyleSheet.create({
     borderRadius: 100,
   },
   primaryLabel: { color: '#fff', fontSize: 14, fontWeight: '700' },
+
+  tertiaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  tertiaryLabel: { flex: 1, fontSize: 13, fontWeight: '500' },
   secondary: {
     flexDirection: 'row',
     alignItems: 'center',

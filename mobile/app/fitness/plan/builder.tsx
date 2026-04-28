@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -71,15 +71,30 @@ export default function WorkoutBuilder() {
   const router = useRouter();
   const haptics = useHaptics();
   const profile = useProfile();
+  const params = useLocalSearchParams<{ initial?: string }>();
+
+  // PRD §4.3.10 "Edit Plan opens the Workout Builder with pre-populated
+  // answers". When the user lands here with `?initial=<urlencoded JSON>`
+  // (set by plan/index.tsx's "Edit Plan" button), reverse-map the saved
+  // quiz_payload into the builder's per-step state. Defensively try-catch
+  // so a malformed param doesn't crash the whole screen — fall back to
+  // empty defaults.
+  const initialState = useMemo(() => parseInitialQuiz(params.initial), [params.initial]);
 
   const [step, setStep] = useState<Step>('days');
-  const [trainingDays, setTrainingDays] = useState<DayName[]>(['Monday', 'Wednesday', 'Friday']);
-  const [goal, setGoal] = useState<Goal>('build_muscle');
-  const [experience, setExperience] = useState<Experience>('intermediate');
-  const [sessionLength, setSessionLength] = useState<SessionLength>('30_to_60');
-  const [equipment, setEquipment] = useState<string[]>(['Full gym']);
-  const [focus, setFocus] = useState('');
-  const [injuries, setInjuries] = useState('');
+  const [trainingDays, setTrainingDays] = useState<DayName[]>(
+    initialState?.trainingDays ?? ['Monday', 'Wednesday', 'Friday'],
+  );
+  const [goal, setGoal] = useState<Goal>(initialState?.goal ?? 'build_muscle');
+  const [experience, setExperience] = useState<Experience>(
+    initialState?.experience ?? 'intermediate',
+  );
+  const [sessionLength, setSessionLength] = useState<SessionLength>(
+    initialState?.sessionLength ?? '30_to_60',
+  );
+  const [equipment, setEquipment] = useState<string[]>(initialState?.equipment ?? ['Full gym']);
+  const [focus, setFocus] = useState(initialState?.focus ?? '');
+  const [injuries, setInjuries] = useState(initialState?.injuries ?? '');
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
 
@@ -555,6 +570,67 @@ function buildPayload(args: PayloadArgs): {
   };
 
   return { payload, activeSources };
+}
+
+// ── Initial-state parser (Edit Plan flow) ────────────────────────────────
+// Reverses the GOAL_TAG_MAP + extracts builder fields from a saved
+// `quiz_payload`. Defensive — bad input returns null and the builder
+// shows defaults instead.
+
+interface BuilderInitialState {
+  trainingDays: DayName[];
+  goal: Goal;
+  experience: Experience;
+  sessionLength: SessionLength;
+  equipment: string[];
+  focus: string;
+  injuries: string;
+}
+
+const TAG_TO_GOAL: Record<string, Goal> = {
+  hypertrophy: 'build_muscle',
+  fat_loss: 'lose_weight',
+  recomposition: 'recomp',
+  maintenance: 'maintain',
+};
+
+function parseInitialQuiz(raw: string | string[] | undefined): BuilderInitialState | null {
+  if (!raw || typeof raw !== 'string') return null;
+  let quiz: Partial<WorkoutPlanQuiz> & {
+    schedule?: { trainingDays?: DayName[] };
+    physicalConstraints?: string | null;
+    preferredFocus?: string[];
+    selectedExercises?: string[];
+  };
+  try {
+    quiz = JSON.parse(decodeURIComponent(raw));
+  } catch {
+    return null;
+  }
+  const goalTag = (quiz.primaryGoal || quiz.goal) as string | undefined;
+  const goal = (goalTag && TAG_TO_GOAL[goalTag]) || 'build_muscle';
+
+  const exp = (quiz.experience as Experience | undefined) || 'intermediate';
+  const isExp = (e: string): e is Experience =>
+    e === 'beginner' || e === 'intermediate' || e === 'advanced';
+
+  const sess = quiz.sessionLength as SessionLength | undefined;
+  const isSess = (s: string | undefined): s is SessionLength =>
+    s === 'under_30' || s === '30_to_60' || s === '60_to_90' || s === '90_plus';
+
+  const focusList = quiz.preferredFocus || quiz.selectedExercises || [];
+
+  return {
+    trainingDays: Array.isArray(quiz.schedule?.trainingDays)
+      ? (quiz.schedule!.trainingDays as DayName[])
+      : ['Monday', 'Wednesday', 'Friday'],
+    goal,
+    experience: isExp(exp) ? exp : 'intermediate',
+    sessionLength: isSess(sess) ? sess : '30_to_60',
+    equipment: Array.isArray(quiz.equipment) ? (quiz.equipment as string[]) : ['Full gym'],
+    focus: Array.isArray(focusList) ? focusList.join(', ') : '',
+    injuries: typeof quiz.physicalConstraints === 'string' ? quiz.physicalConstraints : '',
+  };
 }
 
 const styles = StyleSheet.create({
