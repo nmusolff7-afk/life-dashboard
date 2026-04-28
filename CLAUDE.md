@@ -53,23 +53,64 @@ bugs** — they get fixed when their Backlog tier comes up. If the
 founder wants a bug to jump the queue, they'll say so in chat or
 re-rank Backlog → Now manually.
 
-For each line:
-- **Bug** → add to `BUILD_PLAN.md` → Backlog → Now (default — testing-
-  surfaced bugs usually deserve next-up priority) or Backlog → Later
-  if minor / cosmetic. Don't open the file to fix it this turn.
-- **UX** → Backlog with a tier matching urgency.
-- **Feature** → Backlog → Later (or Icebox if out of scope).
-- **Question** → keep aside to answer in the end-of-response summary.
-  Don't file as a Backlog item unless it implies a new phase.
+For each section:
+- **🐛 Bugs / UX** → add to `BUILD_PLAN.md` → Backlog → Now (default
+  — testing-surfaced bugs usually deserve next-up priority) or
+  Backlog → Later if minor / cosmetic. Don't open the file to fix
+  it this turn.
+- **✨ Feature ideas** → Backlog → Later (or Icebox if out of scope).
+- **❓ Questions** → keep aside to answer in the end-of-response
+  summary. Don't file as a Backlog item unless it implies a new
+  phase.
+- **💭 Other thoughts** → read as direction. May surface a workflow
+  rule, scope change, or question. File appropriately.
+- **✅ Manual checks** → see Step 2 below. Different handling.
 - **Ambiguous / truncated** → file in Backlog → Later with
-  "(awaiting clarification — '<exact text>')" tag, AND surface in the
-  end-of-response summary so the founder can clarify next turn.
+  "(awaiting clarification — '<exact text>')" tag, AND surface in
+  the end-of-response summary so the founder can clarify next turn.
   Don't guess.
 
-**After triage, empty `INBOX.md`** (back to the empty template).
-That's the founder's signal you saw their notes.
+**After triage, clear the relevant sections in `INBOX.md`** (back to
+`_(empty)_` placeholders). Don't delete the section headings — keep
+the structure intact so the founder always sees the same shape.
 
-### 2. Read `BUILD_PLAN.md` for current state
+### 2. Process `✅ Manual checks` section — verify, file, draft new
+
+The Manual checks section is the founder's verification log. It works
+like a feedback loop:
+
+**On every response:**
+1. **Read the existing checks** for marks the founder added:
+   - `[x]` — verified working. **Delete the entry** from the file.
+   - `[✗]` — broken. **File as a bug** in `🐛 Bugs / UX` (or directly
+     into Backlog → Now if testing-fresh). Then delete the manual-
+     check entry. Surface in the end-of-response summary.
+   - `[~]` — partial. Read the inline reply, file the rest as a
+     bug, delete the manual-check entry.
+   - `[ ]` — still pending. Leave alone. If it's been pending for
+     more than ~3 sessions, surface it in the response as a
+     reminder.
+   - **Removed entirely** — founder dismissed it. Move on.
+
+2. **At the end of every phase, draft new manual checks** for any
+   change you can't verify yourself (UI / native / env / external
+   service / on-device behavior). Add to the Manual checks section
+   under a new sub-heading: `### From <phase name> — <YYYY-MM-DD>`.
+   Each check is a `- [ ] **Description**` line followed by a
+   `→ response:` blank.
+
+3. **Format the section** so it stays scannable:
+   - Group by phase (most recent at top).
+   - Keep each check to one short line + minimal context.
+   - Use bold for the action ("**TIME-02 form shows daily_cap_minutes
+     input**") so the founder skims fast.
+
+4. **Don't surface the same check twice.** If you draft a check in
+   phase N and the founder doesn't respond by phase N+3, you can
+   re-mention it in chat ("still waiting on manual check from
+   §X — care to confirm?") but don't duplicate it in the file.
+
+### 3. Read `BUILD_PLAN.md` for current state
 
 - **Status snapshot** + **Active phase** + **Backlog → Now**.
 - The **active phase** in BUILD_PLAN.md is what you work on, not
@@ -77,7 +118,7 @@ That's the founder's signal you saw their notes.
   phase is the directive. Founder will redirect explicitly in chat
   if they want a different focus.
 
-### 3. Read source files for the active phase
+### 4. Read source files for the active phase
 
 - For backend changes: `app.py` (routes), `db.py` (schema), the
   relevant `*_sync.py` module, `connectors.py` (catalog),
@@ -93,7 +134,7 @@ That's the founder's signal you saw their notes.
 - **Read the source before assuming a Backlog item is accurate.**
   Source is truth; the plan is a guide.
 
-### 4. Do the work — on the active phase, not on inbox items
+### 5. Do the work — on the active phase, not on inbox items
 
 - One phase active at a time. The active phase is what's in
   `BUILD_PLAN.md` → Active phase. If Active is empty, propose one
@@ -104,7 +145,7 @@ That's the founder's signal you saw their notes.
   yourself (UI / native / env / external system / ambiguous spec).
   Wait for ack before declaring done.
 
-### 4a. End-of-response summary (mandatory)
+### 5a. End-of-response summary (mandatory)
 
 The chat reply at the end of every response is the founder's
 single read-out. Structure it in three blocks:
@@ -123,7 +164,7 @@ This format is non-negotiable. The founder's testing loop depends
 on knowing exactly what was filed vs. what was built vs. what was
 answered, every response.
 
-### 5. Push every response — `git add` + `git commit` + `git push`
+### 6. Push every response — `git add` + `git commit` + `git push`
 
 Every chat response that touches files ends with a commit + push to
 `origin/master`. Founder-mandated 2026-04-28: PHASE_LOG entries
@@ -137,7 +178,7 @@ or Claude's context resets. Even small one-file edits push.
 - Don't squash multiple unrelated changes into one commit. Each
   logical phase = one commit.
 
-### 6. Append a `PHASE_LOG.md` entry — every response, no exceptions
+### 7. Append a `PHASE_LOG.md` entry — every response, no exceptions
 
 Even one-word responses ("ok", "continue") get a brief log entry.
 Format (in PHASE_LOG.md itself, repeated here for reference):
@@ -159,7 +200,7 @@ without grepping commits.
 
 **Never edit prior entries.** If context changes, add a new entry.
 
-### 7. End-of-phase only — update BUILD_PLAN.md too
+### 8. End-of-phase only — update BUILD_PLAN.md too
 
 When a phase concludes (not every response — just when work wraps):
 

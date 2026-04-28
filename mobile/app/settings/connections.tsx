@@ -486,8 +486,19 @@ export default function Connections() {
               try {
                 const ok = await location.connect();
                 if (!ok) {
-                  Alert.alert('Permission needed',
-                    location.error || 'Location permission not granted.');
+                  // Founder INBOX (C1 phase log): alert chain on
+                  // first-connect was fragile — denial just showed
+                  // a generic "permission not granted" with no path
+                  // forward. Surface concrete next-steps for both
+                  // first-deny and OS-level "deny permanently".
+                  const detail = location.error
+                    ? `\n\nDetail: ${location.error}`
+                    : '';
+                  Alert.alert(
+                    'Location permission not granted',
+                    `Life Dashboard needs Location to detect places you visit (gym, work, home) and surface them on the Time tab.\n\nIf you tapped "Don't allow" or the dialog didn't appear, grant it manually:\n\nSettings → Apps → Life Dashboard → Permissions → Location → Allow only while using the app${detail}`,
+                    [{ text: 'OK' }],
+                  );
                   return;
                 }
                 await refresh(); haptics.fire('success');

@@ -17,6 +17,7 @@ export { FitnessSubsystemCard } from './FitnessSubsystemCard';
 export { OverallScoreHero } from './OverallScoreHero';
 export { DayStrip } from './DayStrip';
 export { TimeCardContent } from './TimeCardContent';
+export { TimeTodaySignals } from './TimeTodaySignals';
 export { LogActivityCard } from './LogActivityCard';
 export { TodayScheduledWorkoutCard } from './TodayScheduledWorkoutCard';
 export type { TodayScheduledWorkout } from './TodayScheduledWorkoutCard';

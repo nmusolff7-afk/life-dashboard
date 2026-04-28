@@ -2,7 +2,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { CalendarTodayCard, DayStrip, EmptyState, GmailSummaryCard, GoalRow, LocationCard, OutlookCard, ScreenTimeCard, TabHeader } from '../../components/apex';
+import { CalendarTodayCard, DayStrip, EmptyState, GmailSummaryCard, GoalRow, LocationCard, OutlookCard, ScreenTimeCard, TabHeader, TimeTodaySignals } from '../../components/apex';
 import { SegmentedControl } from '../../components/ui';
 import { useGoals } from '../../lib/hooks/useGoals';
 import { deleteTask, toggleTask, useTasks, useTimeFocus } from '../../lib/hooks/useTasks';
@@ -200,6 +200,24 @@ function TodayView({
   const nextEvent = pickNextEvent(allEvents);
   const nextLabel = nextEvent ? eventCountdown(nextEvent.start_iso) : '—';
 
+  // Day signal totals — count today's meetings (all-day excluded)
+  // and sum focus minutes (events with "focus" in the title) for
+  // the TimeTodaySignals chip row. Same provenance as Day Timeline
+  // hard blocks so the numbers match.
+  const todayIso = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+  const todayEvents = allEvents.filter((e) => !e.all_day && (e.start_iso ?? '').slice(0, 10) === todayIso);
+  const meetingsToday = todayEvents.length;
+  const focusMinutesToday = todayEvents.reduce((acc, e) => {
+    if (!/focus/i.test(e.title ?? '')) return acc;
+    const start = new Date(e.start_iso);
+    const end = new Date(e.end_iso);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return acc;
+    return acc + Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
+  }, 0);
+
   return (
     <>
       {/* Summary row — matches the Fitness/Nutrition density pattern.
@@ -226,6 +244,14 @@ function TodayView({
           color={t.text}
         />
       </View>
+
+      {/* Day signal chips + Right-now-from-timeline strip. Founder
+       *  flagged Time tab feel-empty multiple turns; this densifies
+       *  the top with concrete numbers + the in-progress block. */}
+      <TimeTodaySignals
+        meetingsToday={meetingsToday}
+        focusMinutesToday={focusMinutesToday}
+      />
 
       {/* Today's Focus */}
       <View style={[styles.focusCard, { backgroundColor: t.surface, borderColor: t.border }]}>

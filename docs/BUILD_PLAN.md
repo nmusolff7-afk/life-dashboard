@@ -306,25 +306,7 @@ the project will become.
   - **Done when:** Founder confirms the four tabs feel
     consistent.
 
-- **Today's Focus — make Time tab feel non-empty** (~2h) — INBOX 2026-04-28
-  - **Founder symptom:** "Today's focus maybe should be
-    summarizing all the data from the time tab it has — right
-    now feels empty like it's not doing anything still."
-  - **Scope:** `time.tsx` Today sub-tab currently shows the
-    `TimeFocusResponse` ranked-list (tasks + emails + events).
-    Add: a top-of-tab summary band ("3 events · 12 unread · 5
-    overdue tasks · 1 location visit"); a "Right now" panel
-    showing the in-progress / next Day Timeline block; the
-    LocationCard (already present) but moved up; the screen-
-    time card with its real numbers. The goal is the user
-    opens Time tab → instantly sees what their day looks
-    like.
-  - **Files:** `mobile/app/(tabs)/time.tsx`,
-    possibly `mobile/components/apex/TimeSubsystemCards.tsx`.
-  - **Done when:** Founder confirms Time tab feels busy with
-    real signal, not an empty form.
-
-- **Location connect-flow UX fix** (~1h) — §14.5.5.g, C1 carry-over
+- 
   - **Scope:** Alert chain on first-connect is fragile —
     permission denial doesn't always surface a clear next-step.
     Tighten copy, ensure deny-then-approve flow ends in a sampled

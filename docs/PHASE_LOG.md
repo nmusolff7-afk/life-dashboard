@@ -1333,3 +1333,77 @@ after adding `GOOGLE_MAPS_API_KEY` to `.env`. Resolved.
     instead of "Connect Screen Time". Within 60s of mount,
     real data should fill in (auto-sync fires once per 90s
     app-wide).
+
+### 24:15 — INBOX restructure (Manual Checks subsection) + Time tab content density
+- **Prompt:** "create a subsection of inbox that i can add or
+  delete manual checks that ive done. you draft them i complete
+  them and respond to each. start by adding the last manual
+  checks from the last few rotations that youve asked me to do
+  that i havent responded to yet. make the whole inbox .md easy
+  to look at visually and easily editable then continue"
+- **Did:**
+  1. **Restructured `docs/INBOX.md`** with a clean visual
+     layout: emoji headers per section, "How to use" reference
+     table at the top, and a new `✅ Manual checks` subsection
+     between the how-to and the bug-report sections.
+  2. **Pre-populated Manual checks** with 12 unresponded items
+     drafted across the last 5 phases: Polish round 1, Auto-sync
+     trust pass v3, Time surface unification, Trust pass v2,
+     §14.8 Customize.tsx config fields. Each is a `- [ ]
+     **Description**` line with a `→ response:` blank.
+  3. **Codified manual-check workflow in CLAUDE.md.** New Step 2
+     ("Process Manual checks section — verify, file, draft new")
+     details the four-state mark convention (`[x]` ✓ verified —
+     delete; `[✗]` broken — file as bug; `[~]` partial — file
+     remainder; deleted entirely — dismissed). Also adds the
+     end-of-phase-draft requirement: every shipped phase must
+     leave new `- [ ]` items in INBOX for the founder.
+     Renumbered subsequent steps 2-7 → 3-8.
+  4. **Active phase: Time tab content density (~3h shipped).**
+     - New `mobile/components/apex/TimeTodaySignals.tsx` —
+       pulls from 3 endpoints (`/api/screen-time/today`,
+       `/api/location/today`, `/api/day-timeline/<today>`)
+       and renders 4 chips (Screen / Places / Focus /
+       Meetings) + a "Right now / Up next" strip from the
+       Day Timeline.
+     - Wired into `mobile/app/(tabs)/time.tsx` between the
+       3-cell summary row and Today's Focus card. `meetingsToday`
+       and `focusMinutesToday` derived in the parent from
+       gcal+outlook events to avoid double-fetching.
+     - Founder's "Time tab feels empty" complaint is the same
+       across multiple phases — this fills the top of the tab
+       with concrete day signals so it stops feeling like a
+       blank form.
+  5. **Location connect-flow alert tightened.**
+     `mobile/app/settings/connections.tsx` Location handler
+     denial path was a generic "Permission not granted" alert.
+     Replaced with copy that explains the value of Location +
+     gives concrete steps to grant manually via Android
+     Settings → Apps → Life Dashboard → Permissions →
+     Location → Allow only while using.
+- **Files:** `docs/INBOX.md` (rewrite),
+  `CLAUDE.md` (manual-check workflow, step renumbering),
+  `mobile/components/apex/TimeTodaySignals.tsx` (new),
+  `mobile/components/apex/index.ts`,
+  `mobile/app/(tabs)/time.tsx`,
+  `mobile/app/settings/connections.tsx`,
+  `docs/BUILD_PLAN.md`.
+- **Decisions:**
+  - **Inline 4-chip strip + 2-row Right Now block** rather
+    than a sprawling new card. Time tab already has plenty of
+    cards; density should compress, not expand.
+  - **Pre-populate manual checks from prior phases** instead
+    of starting fresh. Some are now stale (the founder may
+    have already verified some informally), but listing them
+    gives the founder a clean ledger to work through. They
+    can delete unwanted entries.
+  - **Location alert UX uses copy, not a re-permission
+    flow.** Most fragility was just "where do I go?" — that's
+    a copy fix, not a logic fix. A real "ask again" path
+    needs careful permission-state handling that's a follow-
+    up phase.
+- **Outcome:** Shipping. TS clean (only pre-existing
+  finance.tsx:114). All JS — no rebuild needed.
+- **Manual checks (pending):** see Manual checks section in
+  INBOX.md — drafted 5 new items for this phase + still
+  carrying 12 from previous phases. Founder responds inline.
