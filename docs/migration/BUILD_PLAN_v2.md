@@ -1597,4 +1597,159 @@ None of these are individually hard. The combination is the moat.
 
 ---
 
+### 14.12 Phase Log
+
+This is the canonical handoff document between Claude sessions. **Read
+the most recent entry at the start of every new phase** to catch
+deferred items + flagged problems from prior work. **Append a new entry
+at the conclusion of every phase** with the structure shown below.
+
+Workflow rules are documented in [`CLAUDE.md`](../../CLAUDE.md) at the
+project root (loaded automatically by Claude Code at session start).
+
+Cap this section at the **15 most recent entries**. Older entries
+archive to `docs/migration/PHASE_LOG_ARCHIVE.md`.
+
+#### Entry template
+
+```markdown
+### Phase log: <phase name> — <YYYY-MM-DD>
+
+**Shipped:**
+- ...
+
+**Deferred:**
+- ... (reason; expected pickup point)
+
+**Problems flagged:**
+- ...
+
+**Decisions:**
+- ...
+
+**Next pickup:**
+- ...
+```
+
+---
+
+### Phase log: C1 connectors + Time/Finance redesigns + v1.5 vision — 2026-04-27 / 2026-04-28
+
+This was a multi-day marathon session. Listing as one consolidated entry.
+
+**Shipped:**
+- **OAuth integrations**, all wired end-to-end (mobile connect → backend
+  exchange → token storage in `users_connectors` → chatbot LifeContext
+  consumption):
+  - Gmail mobile (PKCE, generic [`AuthSession.useAuthRequest`](mobile/lib/hooks/useGmailOAuth.ts) — NOT `/providers/google` which auto-exchanges and broke our backend flow)
+  - Google Calendar ([`gcal_sync.py`](gcal_sync.py), [`useGcalOAuth.ts`](mobile/lib/hooks/useGcalOAuth.ts))
+  - Microsoft Outlook ([`outlook_sync.py`](outlook_sync.py), public-client
+    PKCE — `MS_CLIENT_SECRET` is unused, see module docstring)
+  - Strava ([`strava_sync.py`](strava_sync.py), 90-day activity backfill
+    into `workout_logs` deduped via new `strava_activity_id` column)
+- **Device-native (Android)**:
+  - Health Connect via custom Expo Module ([`mobile/modules/health-connect/`](mobile/modules/health-connect/)) — the matinzd library was incompatible with Expo new-arch
+  - Location ([`useLocationConnector.ts`](mobile/lib/hooks/useLocationConnector.ts)) — foreground sampling
+  - Screen Time via custom Expo Module ([`mobile/modules/usage-stats/`](mobile/modules/usage-stats/)) — abandoned npm lib used Gradle 4 syntax
+- **Location intelligence** ([`location_engine.py`](location_engine.py)):
+  - DBSCAN-style cluster detection
+  - Reverse geocoding via Google Geocoding API (bounded 5/day/user)
+  - Static Maps URL builder for path preview (no native maps lib needed)
+  - End-to-end `process_day()` pipeline
+- **Time tab redesign** ([`time.tsx`](mobile/app/(tabs)/time.tsx)):
+  - 3-cell summary row (Tasks left / Unread / Next event)
+  - Rich Gmail/Outlook email previews (top-3 unread inline, not just counts)
+  - Auto-sync hook ([`useAutoSyncOnFocus`](mobile/lib/hooks/useTimeData.ts)) throttled to 5min/provider
+  - Today's Focus enhanced with kind-aware items (task/email/event union)
+  - LocationCard with map preview + visits + recurring places
+  - HealthConnectCard on Fitness tab (5 metrics: steps/sleep/HR/HRV/active-cal)
+- **Finance tab redesign** ([`finance.tsx`](mobile/app/(tabs)/finance.tsx)):
+  - 3-cell summary (Week / Bills 7d / MTD) under hero
+  - Quick-actions card (Transaction / Bill / Budget)
+- **Backend infra**:
+  - 4 new sync modules + `location_engine.py`
+  - 7 new tables: `gcal_events`, `outlook_emails`, `outlook_events`,
+    `screen_time_daily`, `health_daily`, `location_samples`,
+    `location_clusters`
+  - Chatbot LifeContext now real (Gmail/Calendar/Outlook/Screen Time/
+    Location/Health) — replaced null-stub
+- **Local Android build pipeline** working (Windows + Android Studio's
+  JBR + NDK 27.x + `npx expo prebuild` + Gradle). ~5min builds vs.
+  EAS free tier's 70min queue.
+- **Plan**: §14 Vision v1.5 added (PRD overrides for AI-assisted
+  timeline / hybrid patterns / 3-tier chatbot context, ~125h scope).
+
+**Deferred:**
+- **§14.5.5.g Location connect-flow UX fix** (~1h) — alert chain still a
+  bit fragile but acceptable now that the card shows real signal.
+  Pickup: anytime.
+- **§14.5.5.a Background GPS sampling** (~3h) — foreground-only for v1.
+  Pickup: week 3 of v1.5 phasing.
+- **Outlook Publisher Verification** (§14.9, ~1 week wait) — work-tenant
+  users (other employers) still gated behind admin approval. Personal
+  Outlook accounts work fine. Acceptable for v1 launch.
+- **Apple HealthKit / iOS** — Android-first; defer until iPhone test
+  device + Apple Developer Program.
+- **Workout builder rewrite** (§14.7, ~8h) — known UX gap vs Flask PWA.
+  Pickup: next phase.
+- **Strava maps + charts** (§14.5.1, ~10h) — polylines / HR / pace /
+  elevation. Pickup: next phase.
+- **Day Timeline core** (§14.2, ~12h hard blocks + ~10h soft blocks).
+  Pickup: phase after workout builder + Strava.
+
+**Problems flagged:**
+- `react-native-health-connect` (matinzd) is structurally incompatible
+  with Expo new-arch — registers `ActivityResultLauncher` via
+  `registerForActivityResult(...)` which only works in Activity.onCreate.
+  Worked around by writing our own Expo Module using
+  `activity.activityResultRegistry.register(key, contract)` (registry
+  form is invokable from JS-driven Promise callbacks). **If we ever
+  need an HC API we don't expose, extend the local module — don't add
+  the third-party lib back.**
+- `react-native-usage-stats-manager` is similar — abandoned, uses
+  `compile()` Gradle 4 syntax. Same fix: own the wrapper.
+- `app/(tabs)/finance.tsx` line 114 has a pre-existing TS error about
+  `FinanceTransaction.merchant_name` being `string | null | undefined`
+  vs expected `string | null`. Untouched by all session work. Easy fix
+  next time we touch finance.tsx.
+- `.env` got accidentally edited mid-session and lost
+  `GOOGLE_CLIENT_ID_ANDROID` + `STRAVA_CLIENT_ID` — caused two debug
+  cycles before we found it. The `_client_id_for_platform` fallback
+  in `gmail_sync.py` silently falls back to Web client which produces
+  misleading errors (`unauthorized_client` for Google, `client_id
+  invalid` for Strava). Recorded as project memory
+  (`oauth_env_var_gotcha.md`).
+
+**Decisions:**
+- **Scrapped PRD §4.6.5's "no AI in timeline computation" stance** —
+  documented in §14.1 as a PRD override. Two-tier blocks (deterministic
+  hard + AI-labeled soft) is the right answer because purely
+  deterministic timelines have too many gaps.
+- **Big-JSON-to-chatbot pattern** confirmed — pre-summarizing is lossy.
+  3-tier context (always-on / day-stream / historical) approved with
+  ~18K-token cap (PRD's 8K was over-cautious). See §14.4.
+- **Custom Expo Modules over third-party libs** for fragile native
+  integrations. Two modules shipped this session
+  (`usage-stats`, `health-connect`); the pattern is replicable in ~6h
+  per integration. Adding to permanent project knowledge.
+- **Local Gradle builds over EAS Build local mode** — EAS local doesn't
+  support Windows. Bypass it with `npx expo prebuild` + manual gradle.
+- **Goals data-binding tightening** (§14.8) prioritized for v1.5 week 1
+  alongside workout builder + Strava maps — light up the 5 newly-
+  unblocked goal types now that connectors are live.
+
+**Next pickup:**
+1. **Workout builder rewrite** (§14.7, ~8h). Read PRD §4.X workout-plan
+   section, read Flask templates/index.html for the workout-plan
+   sub-flow, port to `mobile/app/settings/workout-plan.tsx`. Key UX
+   wins to port: `understanding` cached separately from plan, revise
+   flow with stored `quiz_payload`, "How we built your plan"
+   expandable.
+2. **Strava maps + charts** (§14.5.1, ~10h) immediately after — same
+   `GOOGLE_MAPS_API_KEY` we set up for Location. Add `polyline` field to
+   Strava activity fetch, store on `strava_activity_detail` table, render
+   via static-map URL on workout detail screens.
+
+---
+
 **End of BUILD_PLAN_v2.**
