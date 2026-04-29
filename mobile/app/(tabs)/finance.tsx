@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -202,21 +203,21 @@ function TodayView({
         <Pressable
           onPress={onLogTxn}
           style={({ pressed }) => [styles.actionBtn, { opacity: pressed ? 0.7 : 1 }]}>
-          <Text style={[styles.actionEmoji]}>💸</Text>
+          <Ionicons name="card-outline" size={20} color={t.accent} />
           <Text style={[styles.actionLabel, { color: t.text }]}>Transaction</Text>
         </Pressable>
         <View style={[styles.actionDivider, { backgroundColor: t.border }]} />
         <Pressable
           onPress={onAddBill}
           style={({ pressed }) => [styles.actionBtn, { opacity: pressed ? 0.7 : 1 }]}>
-          <Text style={[styles.actionEmoji]}>📅</Text>
+          <Ionicons name="calendar-outline" size={20} color={t.accent} />
           <Text style={[styles.actionLabel, { color: t.text }]}>Bill</Text>
         </Pressable>
         <View style={[styles.actionDivider, { backgroundColor: t.border }]} />
         <Pressable
           onPress={onSetBudget}
           style={({ pressed }) => [styles.actionBtn, { opacity: pressed ? 0.7 : 1 }]}>
-          <Text style={[styles.actionEmoji]}>🎯</Text>
+          <Ionicons name="speedometer-outline" size={20} color={t.accent} />
           <Text style={[styles.actionLabel, { color: t.text }]}>Budget</Text>
         </Pressable>
       </View>

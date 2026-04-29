@@ -75,7 +75,10 @@ export function GmailSummaryCard({
   return (
     <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: t.text }]}>📧 Email</Text>
+        <View style={styles.titleRow}>
+          <Ionicons name="mail-outline" size={16} color={t.accent} />
+          <Text style={[styles.title, { color: t.text }]}>Email</Text>
+        </View>
         <Pressable onPress={onSync} disabled={syncing} hitSlop={10}>
           <Text style={[styles.linkText, { color: t.accent, opacity: syncing ? 0.5 : 1 }]}>
             {syncing ? 'Syncing…' : 'Sync now'}
@@ -210,7 +213,10 @@ export function CalendarTodayCard({
   return (
     <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: t.text }]}>📅 Calendar</Text>
+        <View style={styles.titleRow}>
+          <Ionicons name="calendar-outline" size={16} color={t.accent} />
+          <Text style={[styles.title, { color: t.text }]}>Calendar</Text>
+        </View>
         <Pressable onPress={onSync} disabled={syncing} hitSlop={10}>
           <Text style={[styles.linkText, { color: t.accent, opacity: syncing ? 0.5 : 1 }]}>
             {syncing ? 'Syncing…' : 'Sync now'}
@@ -290,7 +296,10 @@ export function OutlookCard({
   return (
     <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: t.text }]}>📬 Outlook</Text>
+        <View style={styles.titleRow}>
+          <Ionicons name="mail-open-outline" size={16} color={t.accent} />
+          <Text style={[styles.title, { color: t.text }]}>Outlook</Text>
+        </View>
         <Pressable onPress={onSync} disabled={syncing} hitSlop={10}>
           <Text style={[styles.linkText, { color: t.accent, opacity: syncing ? 0.5 : 1 }]}>
             {syncing ? 'Syncing…' : 'Sync now'}
@@ -439,6 +448,7 @@ function formatRelative(iso: string): string {
 const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 6 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   title: { fontSize: 14, fontWeight: '700' },
   sub: { fontSize: 11 },
   pill: { borderWidth: 1, borderRadius: 100, paddingVertical: 3, paddingHorizontal: 10 },
