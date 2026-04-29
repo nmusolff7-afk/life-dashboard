@@ -2,7 +2,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { CalendarTodayCard, DayStrip, EmptyState, GmailSummaryCard, GoalRow, LocationCard, OutlookCard, PatternsViewCard, ScreenTimeCard, SubTabs, TabHeader, TimeTodaySignals } from '../../components/apex';
+import { CalendarTodayCard, DayStrip, EmptyState, GmailSummaryCard, GoalRow, LocationCard, LogTaskCard, OutlookCard, PatternsViewCard, ScreenTimeCard, SubTabs, TabHeader, TimeTodaySignals } from '../../components/apex';
 import { useGoals } from '../../lib/hooks/useGoals';
 import { deleteTask, toggleTask, useTasks, useTimeFocus } from '../../lib/hooks/useTasks';
 import { useAutoSyncOnFocus, useGcalStatus, useGmailStatus, useOutlookStatus } from '../../lib/hooks/useTimeData';
@@ -136,6 +136,7 @@ export default function TimeScreen() {
             outlookStatus={outlookStatus.data}
             outlookLoading={outlookStatus.loading && !outlookStatus.data}
             onOutlookChanged={outlookRefetch}
+            onTaskAdded={() => { tasksRefetch(); focusRefetch(); }}
           />
         ) : tab === 'patterns' ? (
           <PatternsView />
@@ -156,6 +157,7 @@ function TodayView({
   gmailStatus, gmailLoading, onGmailChanged,
   gcalStatus, gcalLoading, onGcalChanged,
   outlookStatus, outlookLoading, onOutlookChanged,
+  onTaskAdded,
 }: {
   focus: FocusItem[];
   focusLoading: boolean;
@@ -176,6 +178,9 @@ function TodayView({
   outlookStatus: import('../../lib/hooks/useTimeData').OutlookStatusResponse | null;
   outlookLoading: boolean;
   onOutlookChanged: () => void;
+  /** Called after the inline LogTaskCard saves so the parent can
+   *  refetch tasks + focus to surface the new row immediately. */
+  onTaskAdded: () => void;
 }) {
   const t = useTokens();
   const activeTasks = tasks.filter((x) => !x.completed);
@@ -223,6 +228,12 @@ function TodayView({
 
   return (
     <>
+      {/* Top-of-tab task input — matches Nutrition LogMealCard +
+       *  Fitness LogActivityCard pattern. Founder INBOX 2026-04-28:
+       *  "need to move task card to be top input card in time just
+       *  like log a meal and log a workout are in the other 2 tabs". */}
+      <LogTaskCard onLogged={onTaskAdded} />
+
       {/* Summary row — matches the Fitness/Nutrition density pattern.
           Three glanceable signals at the top of the tab so the user
           knows what the day looks like before scrolling. */}

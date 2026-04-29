@@ -20,6 +20,7 @@ export { TimeCardContent } from './TimeCardContent';
 export { TimeTodaySignals } from './TimeTodaySignals';
 export { PatternsView as PatternsViewCard } from './PatternsView';
 export { LogActivityCard } from './LogActivityCard';
+export { LogTaskCard } from './LogTaskCard';
 export { TodayScheduledWorkoutCard } from './TodayScheduledWorkoutCard';
 export type { TodayScheduledWorkout } from './TodayScheduledWorkoutCard';
 export { TodayWorkoutsList } from './TodayWorkoutsList';
