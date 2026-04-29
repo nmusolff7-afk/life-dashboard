@@ -2617,6 +2617,49 @@ def api_day_timeline(date_iso: str):
     })
 
 
+@app.route("/api/day-timeline/<date_iso>/label-soft", methods=["POST"])
+@login_required
+def api_day_timeline_label_soft(date_iso: str):
+    """Trigger AI soft-block labeling for a date. Wipes existing
+    kind='soft' rows for the date + re-inserts based on Claude
+    Haiku's read of the gaps between hard blocks (PRD §4.6.5
+    revised, see BUILD_PLAN.md → Vision → PRD overrides).
+
+    Note: hard blocks must already exist for the date (call
+    GET /api/day-timeline/<date> first to recompute them).
+    Returns the full block list including the new soft labels."""
+    import day_timeline
+    import day_timeline_ai
+    safe_date = day_timeline.parse_date(date_iso)
+    try:
+        day_timeline_ai.label_soft_blocks(uid(), safe_date)
+        from db import list_day_blocks
+        blocks = list_day_blocks(uid(), safe_date)
+    except Exception as e:
+        _log.exception("day-timeline label-soft failed (%s)", safe_date)
+        return jsonify({"ok": False, "error": "Could not label soft blocks",
+                        "error_code": "compute_failed",
+                        "detail": str(e)[:200]}), 500
+    out = []
+    for b in blocks:
+        raw_src = b.get("source_json") or ""
+        try:
+            src = json.loads(raw_src) if raw_src else None
+        except Exception:
+            src = None
+        out.append({
+            "id":          int(b["id"]),
+            "block_start": b["block_start"],
+            "block_end":   b["block_end"],
+            "kind":        b["kind"],
+            "label":       b.get("label"),
+            "confidence":  b.get("confidence"),
+            "source_type": b.get("source_type"),
+            "source":      src,
+        })
+    return jsonify({"date": safe_date, "blocks": out})
+
+
 # ── Device-native: Android Screen Time ──────────────────
 # Mobile uses UsageStatsManager (requires user to grant Usage Access in
 # system Settings) and POSTs daily aggregates. Backend stores in

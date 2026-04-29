@@ -3136,6 +3136,20 @@ def delete_hard_blocks_for_date(user_id: int, block_date: str) -> int:
         return cur.rowcount
 
 
+def delete_soft_blocks_for_date(user_id: int, block_date: str) -> int:
+    """Wipe soft blocks for a (user, date). Symmetric to
+    delete_hard_blocks_for_date — the AI labeling job runs as a wipe
+    + replace so re-runs are idempotent."""
+    with get_conn() as conn:
+        cur = conn.execute(
+            "DELETE FROM day_blocks "
+            "WHERE user_id = ? AND block_date = ? AND kind = 'soft'",
+            (user_id, block_date),
+        )
+        conn.commit()
+        return cur.rowcount
+
+
 def insert_day_block(user_id: int, block_date: str, *,
                      block_start: str, block_end: str, kind: str,
                      label: str | None = None,

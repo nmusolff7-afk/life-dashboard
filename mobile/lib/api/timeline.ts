@@ -53,6 +53,21 @@ export async function fetchDayTimeline(dateIso: string): Promise<DayTimelineResp
   return (await res.json()) as DayTimelineResponse;
 }
 
+/** Trigger AI soft-block labeling for a date. Wipes existing
+ *  `kind='soft'` rows + re-inserts based on Claude Haiku's read of
+ *  the gaps. Returns the full block list. ~1s round-trip; throttle
+ *  in the caller (one labeling pass per day per app-instance is
+ *  plenty). */
+export async function labelSoftBlocks(dateIso: string): Promise<DayTimelineResponse> {
+  const res = await apiFetch(`/api/day-timeline/${encodeURIComponent(dateIso)}/label-soft`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    throw new Error(`label-soft ${dateIso} → ${res.status}`);
+  }
+  return (await res.json()) as DayTimelineResponse;
+}
+
 /** Format an ISO timestamp as 'h:mma' in the device's local timezone.
  *  Used by DayStrip to label blocks. */
 export function formatBlockTime(iso: string): string {

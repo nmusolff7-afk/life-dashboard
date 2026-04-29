@@ -47,6 +47,17 @@ write naturally, Claude figures it out.
 > - `[~]` — partially works; describe what's off
 > - delete the line entirely if you don't care about it anymore
 
+### From §14.2.2 Day Timeline soft AI labels — 2026-04-28
+
+- [ ] **Soft blocks appear on DayStrip** — open Time tab → Timeline. After ~1-3s, the gaps between calendar events should fill with AI-labeled blocks (focus / meal / transit / leisure / etc) rendered with a dashed border + "AI · low/med/high" confidence pill
+  → response:
+
+- [ ] **Soft-block labels feel reasonable** — at-a-glance, do the labels match what you actually did during those gaps? "Focus" during work hours, "meal" at noon, etc. (Quality is best-effort; flag obvious misses)
+  → response:
+
+- [ ] **Hard blocks still distinguishable** — calendar events keep solid borders + colored bars; only the AI-inferred ones get the dashed treatment. The two types should not visually blend
+  → response:
+
 ### From Data correctness pass — 2026-04-28
 
 - [ ] **Calorie chart in Nutrition Progress** — target dashed line now uses your stable `user_goals.calorie_target` (not the live one that drifts with workouts/rollover). Today's partial-day row excluded from the chart + avg. Subline shows "X logged days · target Y kcal"

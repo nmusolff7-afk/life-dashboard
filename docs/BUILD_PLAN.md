@@ -287,7 +287,20 @@ the project will become.
 
 ### Next — queued for weeks 2-3
 
-- **§14.2.2 Day Timeline soft-block AI labeling** (~10h) — builds on Now §14.2
+- **§14.2.2 Day Timeline soft-block AI labeling — polish phase** (~3h, follow-up)
+  - **Status (2026-04-28):** MVP shipped — `day_timeline_ai.py`
+    module + `/api/day-timeline/<date>/label-soft` route +
+    DayStrip renders soft blocks with dashed border + AI
+    confidence pill. Auto-fires on DayStrip mount, throttled to
+    once per 30min per date per app instance.
+  - **Polish remaining:** tap-soft-block → dismiss / re-label
+    affordance; cron-driven nightly labeling for yesterday's
+    blocks; richer prompt context (sleep windows once §14.5.2
+    ships); A/B-style label quality review after real data
+    accumulates.
+  - **Original (now-shipped) scope:** builds on Now §14.2 — for
+    each gap between hard blocks pull HC + screen-time +
+    location context, Haiku labels, store as kind='soft'.
   - **Scope:** For every gap in `day_blocks` (an unaccounted hour-
     range), pull HC activity + screen-time top-app + location
     cluster, send to Claude Haiku, store the returned label +

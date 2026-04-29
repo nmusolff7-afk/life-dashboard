@@ -4,11 +4,18 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import {
   fetchDayTimeline,
   formatBlockTime,
+  labelSoftBlocks,
   type DayBlock,
   type DayTimelineResponse,
 } from '../../lib/api/timeline';
 import { useTokens } from '../../lib/theme';
 import { localToday } from '../../lib/localTime';
+
+// App-instance throttle for soft-block labeling — keep it cheap.
+// First DayStrip mount fires it; subsequent mounts within the
+// session skip. Per-day key so a day-rollover triggers a new pass.
+const _lastLabeledForDate: Record<string, number> = {};
+const LABEL_THROTTLE_MS = 30 * 60 * 1000; // 30 min
 
 /** Day strip on the Today tab — horizontal scrollable list of the
  *  current day's blocks (calendar events, sleep sessions, etc).
@@ -34,7 +41,21 @@ export function DayStrip() {
     setLoading(true);
     setError(null);
     fetchDayTimeline(dateIso)
-      .then((d) => { if (!cancelled) setData(d); })
+      .then((d) => {
+        if (cancelled) return;
+        setData(d);
+        // Trigger AI soft-block labeling once per day per session.
+        // Fire-and-forget — soft blocks appear on the next refresh,
+        // but the initial render still shows hard blocks immediately.
+        // Cron-driven nightly labeling is the post-launch optimization.
+        const last = _lastLabeledForDate[dateIso] ?? 0;
+        if (Date.now() - last > LABEL_THROTTLE_MS) {
+          _lastLabeledForDate[dateIso] = Date.now();
+          labelSoftBlocks(dateIso)
+            .then((labeled) => { if (!cancelled) setData(labeled); })
+            .catch(() => { /* swallow — soft blocks are nice-to-have */ });
+        }
+      })
       .catch((e) => { if (!cancelled) setError((e as Error).message); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -103,29 +124,80 @@ function BlockCard({ block }: { block: DayBlock }) {
     : block.source_type === 'gcal' || block.source_type === 'outlook'
       ? sourceLabel(block.source_type)
       : '';
+  const isSoft = block.kind === 'soft';
+  // Confidence pill — only on soft blocks. Maps 0..1 to Low/Med/High
+  // so it's glanceable without exposing arbitrary precision.
+  const confLabel = isSoft && block.confidence != null
+    ? block.confidence >= 0.8 ? 'high'
+      : block.confidence >= 0.55 ? 'med'
+      : 'low'
+    : null;
 
   return (
-    <Pressable style={[styles.block, { backgroundColor: t.bg, borderColor: t.border }]}>
+    <Pressable
+      style={[
+        styles.block,
+        {
+          // Soft blocks get a lighter background tint so they read
+          // as inferred-not-authoritative even before confidence
+          // is parsed. Hard blocks use the normal bg.
+          backgroundColor: isSoft ? t.surface : t.bg,
+          borderColor: isSoft ? t.subtle : t.border,
+          borderStyle: isSoft ? 'dashed' : 'solid',
+          opacity: isSoft ? 0.92 : 1,
+        },
+      ]}>
       <View style={[styles.blockBar, { backgroundColor: accent }]} />
       <View style={styles.blockBody}>
         <Text style={[styles.blockTime, { color: t.muted }]} numberOfLines={1}>
           {timeRange}
         </Text>
-        <Text style={[styles.blockLabel, { color: t.text }]} numberOfLines={2}>
-          {block.label || 'Untitled'}
+        <Text
+          style={[
+            styles.blockLabel,
+            { color: t.text, fontStyle: isSoft ? 'italic' : 'normal' },
+          ]}
+          numberOfLines={2}>
+          {capitalize(block.label || 'Untitled')}
         </Text>
-        {subtitle ? (
+        {subtitle && !isSoft ? (
           <Text style={[styles.blockSub, { color: t.subtle }]} numberOfLines={1}>
             {subtitle}
           </Text>
+        ) : null}
+        {confLabel ? (
+          <View style={[styles.confPill, { borderColor: t.subtle }]}>
+            <Text style={[styles.confText, { color: t.subtle }]}>
+              AI · {confLabel}
+            </Text>
+          </View>
         ) : null}
       </View>
     </Pressable>
   );
 }
 
+function capitalize(s: string): string {
+  if (!s) return s;
+  return s[0].toUpperCase() + s.slice(1);
+}
+
 function colorForBlock(b: DayBlock, t: ReturnType<typeof useTokens>): string {
-  if (b.kind === 'soft') return t.subtle;
+  if (b.kind === 'soft') {
+    // Soft blocks color by inferred label. Default lookup; falls back
+    // to subtle for "unknown".
+    const label = (b.label || '').toLowerCase();
+    if (label.includes('focus'))    return t.accent;
+    if (label.includes('meeting'))  return t.accent;
+    if (label.includes('meal'))     return t.cal;
+    if (label.includes('exercise')) return t.fitness;
+    if (label.includes('transit'))  return t.muted;
+    if (label.includes('social'))   return t.fitness;
+    if (label.includes('leisure'))  return t.subtle;
+    if (label.includes('errand'))   return t.muted;
+    if (label.includes('sleep'))    return t.muted;
+    return t.subtle;
+  }
   switch (b.source_type) {
     case 'gcal':    return t.accent;
     case 'outlook': return t.fitness;  // distinct from gcal
@@ -175,4 +247,13 @@ const styles = StyleSheet.create({
   blockTime: { fontSize: 10, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
   blockLabel: { fontSize: 13, fontWeight: '600', lineHeight: 17 },
   blockSub: { fontSize: 11 },
+  confPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 100,
+    borderWidth: 1,
+    marginTop: 2,
+  },
+  confText: { fontSize: 9, fontWeight: '600', letterSpacing: 0.5 },
 });

@@ -1533,3 +1533,66 @@ after adding `GOOGLE_MAPS_API_KEY` to `.env`. Resolved.
   finance.tsx). All JS — no rebuild.
 - **Manual checks (pending):** drafted 2 new items in
   `docs/INBOX.md` under "From Data correctness pass".
+
+### 26:00 — §14.2.2 Day Timeline soft AI labels (MVP shipped — first slice of "go on all except plaid")
+- **Prompt:** "go on all except plaid" — execute every Backlog →
+  Next item except Plaid (which is awaiting Developer Portal
+  setup). Tackling sequentially; this is item #1 of ~6.
+- **Did:**
+  1. **Triaged INBOX** — empty new sections; 21 manual checks
+     pending.
+  2. **Active phase: §14.2.2 Day Timeline soft AI labels (MVP).**
+  3. **Backend shipped:**
+     - New `day_timeline_ai.py`. `label_soft_blocks(user_id,
+       date_iso)` finds gaps between hard blocks (waking-hours
+       06:00–22:00 window, min 25min, max 8 gaps per call),
+       gathers HC + screen-time + location context, batches all
+       gaps into ONE Claude Haiku call asking for strict-JSON
+       `{labels: [{label, confidence}]}`, persists as kind='soft'
+       rows. Wipe-and-replace pattern for idempotency.
+     - Vocabulary fixed in the system prompt: focus / meeting /
+       meal / transit / exercise / social / leisure / errand /
+       sleep / unknown. Per PRD §3.3 the model must describe
+       what likely happened, never prescribe.
+     - `db.py` helper `delete_soft_blocks_for_date` (symmetric
+       to existing hard-block helper).
+     - `app.py` POST `/api/day-timeline/<date_iso>/label-soft`.
+       Returns the merged hard+soft block list.
+  4. **Mobile shipped:**
+     - `lib/api/timeline.ts`: new `labelSoftBlocks(date)` helper.
+     - `DayStrip.tsx`: auto-fires labelSoftBlocks once per 30min
+       per date per app-instance after the initial fetch.
+       Soft blocks render with dashed border, lighter background
+       tint, italic label text, and an "AI · low/med/high"
+       confidence pill. Color comes from the inferred label
+       (focus/meeting → accent, meal → cal, etc).
+- **Files:** `day_timeline_ai.py` (new), `db.py`, `app.py`,
+  `mobile/lib/api/timeline.ts`,
+  `mobile/components/apex/DayStrip.tsx`,
+  `docs/BUILD_PLAN.md`, `docs/INBOX.md`.
+- **Decisions:**
+  - **Single batched Haiku call per labeling pass** instead of
+    one-call-per-gap. Cheaper (~1 call/day/user) + the model
+    can use cross-gap context to rank labels.
+  - **Auto-fire from DayStrip mount, throttled to 30min** per
+    app-instance. Real fix is a cron job; for v1 this is
+    "good enough" — the strip ships hard blocks immediately,
+    soft blocks fill in within ~2-3s of mount.
+  - **Confidence as Low/Med/High pill** — three buckets are
+    glanceable; raw 0.0..1.0 isn't.
+  - **Visual difference: dashed border + italic label** —
+    founder must always be able to tell "this is AI guessing"
+    from "this is on your calendar."
+  - **Prompt vocabulary tightly bounded.** Free-form labels
+    would inflate variance + drift. The 10-word vocab gives
+    deterministic-enough rendering that we can pick colors
+    per-label.
+- **Outcome:** Shipping. TS clean (only pre-existing
+  finance.tsx). Backend boots. JS-only on mobile + Python on
+  backend — no rebuild.
+- **Manual checks (pending):** 3 new items drafted in INBOX
+  under "From §14.2.2 Day Timeline soft AI labels".
+- **Next pickups (per "go on all except plaid" direction):**
+  §14.2.4 Day Timeline mobile UI polish → §14.4 Chatbot three-
+  tier context → 3 new goal types → §14.5.2 HC granular pulls
+  → §14.3 Patterns view. Will continue next response.
