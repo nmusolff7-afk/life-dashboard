@@ -5,7 +5,7 @@
 > history accumulates in [`PHASE_LOG.md`](PHASE_LOG.md); long-term
 > product spec lives in [`migration/APEX_PRD_Final.md`](migration/APEX_PRD_Final.md).
 
-**Last updated:** 2026-04-28 by Claude (post codebase audit — confirmed plan ≈ reality)
+**Last updated:** 2026-04-28 by Claude (manual-check sweep + DayStrip hook-order regression fix — 14 new bugs filed in Backlog → Now)
 
 ---
 
@@ -134,6 +134,11 @@ work?").
   Timeline subtab. Hard blocks include calendar events + time-
   windowed tasks (`task_time` migration shipped 2026-04-28).
   Sleep blocks still deferred until §14.5.2.
+  (2026-04-28 same-day hotfix: §14.2.4 polish phase introduced
+  a hook-order regression — `useRef` declared after early
+  returns crashed every Day Timeline view with "Rendered more
+  hooks than during the previous render". Fixed by lifting
+  the hook above the early returns; re-test pending in INBOX.)
 - 1 missing component set: **Patterns view** (for §14.3) — queued.
 - **Sleep + Recovery subsystem screens** now read real
   `health_daily.sleep_minutes` / `hrv_ms` / `resting_hr` data
@@ -161,13 +166,71 @@ work?").
 
 ## Active phase
 
-**(none — between phases)**
+**HC connect + Sleep diagnostic — JS shipped 2026-04-28; Kotlin sleep-window fix bundled, pending native rebuild + verification.**
 
-When picking up, fill this with:
-- **Phase:** name + linked Backlog item
-- **Scope:** one-paragraph what+why
-- **Todos:** tracked via TodoWrite
-- **Notes:** any decisions / blockers mid-flight
+DayStrip hook-order regression fix from earlier this turn was
+verified working post Metro reload — founder confirmed
+"reloaded no longer crashing" after a fast-refresh cache
+clear. Treating Day Timeline phases as actually shipped now.
+
+- **Phase:** combined "HC connect button does nothing" + "Sleep
+  data not appearing" — both blockers from 2026-04-28 manual-check
+  pass. Triaged together because they shared root cause (HC
+  perms / sync pipeline / sleep window).
+- **Scope:** Diagnose the gap between "HC reports it has data" and
+  "the app shows nothing". Five fixes shipped this turn:
+  1. **`HC_READ_PERMISSIONS` split into core + optional** in
+     `useHealthData.ts` — `permitted` now requires only the 5
+     core perms (steps / sleep / HR / HRV / active calories).
+     `READ_EXERCISE` is requested in the same system sheet but
+     classified optional, so existing 5-of-6-granted users
+     don't silently flip to permitted=false (which was
+     stopping their auto-sync).
+  2. **`AppState.addEventListener('change')` re-checks perms**
+     on every foreground transition. Founder symptom: granted
+     HC perms via the HC app directly, but the app still saw
+     `permitted=false` because `checkPermissions` only ran
+     once on mount. Now re-runs every time the app comes back
+     to active.
+  3. **JS sync prefers `sleepStages.total` over
+     `agg.sleep_minutes`** when present. The Kotlin daily-
+     aggregate filter for SleepSessionRecord uses [today
+     00:00, tomorrow 00:00) as its window, which misses
+     sessions whose start_time is before midnight (almost
+     all of them). `readSleepStages` already uses the right
+     window (yesterday 18:00 → today 18:00); now the JS
+     prefers it.
+  4. **Kotlin `readDailyAggregatesImpl` sleep window fixed**
+     to match `readSleepStagesImpl` — yesterday 18:00 →
+     today 18:00 — so the daily aggregate also returns
+     last night's sleep. Defense in depth alongside fix 3.
+  5. **`HealthConnectCard` "Not connected" state is
+     Pressable** — tap fires `hc.connect()` directly with
+     graceful error fallback (Play Store CTA when SDK
+     missing, route-to-Settings otherwise). Founder symptom:
+     "clicking hc card doesnt do anything".
+  6. **Settings → Connections HC connect path emits a
+     "Connected" success Alert** after the perms-already-
+     granted path returns ok=true — was silent before
+     (matches Gmail / Strava / Outlook flows).
+- **Files:** `mobile/lib/hooks/useHealthData.ts`,
+  `mobile/components/apex/HealthConnectCard.tsx`,
+  `mobile/app/settings/connections.tsx`,
+  `mobile/modules/health-connect/android/.../HealthConnectModule.kt`.
+- **Notes:** Founder needs a native rebuild to pick up the
+  Kotlin sleep-window fix. JS-only fixes 1+2+3+5+6 land on
+  Metro reload alone; they're enough to clear the connect-
+  button + auto-sync regressions even before the rebuild.
+  The Kotlin fix is bundled because founder has to rebuild
+  for §14.5.2 anyway (workout segments).
+
+## Next phase queued
+
+**Runnable-anywhere deploy** — backend to Railway + release
+APK so the app works on cellular. Per founder 2026-04-28:
+"when will this be runnable without being right next to my
+computer on wifi? its slowing me down". See "Runnable-anywhere
+deploy" in Backlog → Now for the concrete steps.
 
 ---
 
@@ -195,6 +258,347 @@ the project will become.
 ```
 
 ### Now — pick the next phase from here
+
+- _(2026-04-28: **HC connect button + sleep data** shipped this_
+  _turn — see Active phase. JS-only changes are live on Metro_
+  _reload; Kotlin sleep-window fix needs rebuild. Re-test_
+  _checks live in INBOX → Manual checks.)_
+
+- **Runnable-anywhere deploy** (~2-3h) — INBOX 2026-04-28
+  - **Founder symptom:** "when will this be runnable without
+    being right next to my computer on wifi? its slowing me
+    down".
+  - **Why this is the next-after-HC pickup:** Right now the
+    app only works when the phone is on the dev box's LAN +
+    Metro is running + the Flask box is on
+    `10.0.0.22:5000`. Three knots to untie:
+    1. **Backend public URL.** Procfile + nixpacks.toml
+       already exist (Railway/Render-ready). Push the repo
+       to a fresh Railway project, set env vars (see list
+       below), persist the SQLite DB on a Railway volume so
+       it survives redeploys.
+    2. **Mobile env points at deployed URL.** Flip
+       `mobile/.env`'s `EXPO_PUBLIC_API_BASE_URL` from
+       `http://10.0.0.22:5000` to e.g.
+       `https://apex.up.railway.app`. (Note: keep the LAN
+       URL handy — useful for hot-reload dev sessions.)
+    3. **Release-build APK.** A debug APK still requires
+       Metro at runtime (the JS bundle is fetched from the
+       dev server). A release APK has the bundle compiled
+       in, so it boots without Metro.
+       `cd mobile/android && ./gradlew :app:assembleRelease`.
+       Tradeoff: no hot reload — JS edits require either
+       another release build (~3min) or an EAS Update push
+       (CDN-fetched JS bundle, no rebuild).
+  - **Scope:**
+    - Verify Procfile + nixpacks.toml run cleanly on Railway
+      (or Fly.io as backup). May need to add a
+      `gunicorn`-installed line to requirements.txt if
+      missing.
+    - Document the env vars Railway needs (ANTHROPIC_API_KEY,
+      SECRET_KEY, JWT_SECRET, GOOGLE_CLIENT_ID/SECRET,
+      CLERK_PUBLISHABLE_KEY/SECRET_KEY, RECOVERY_KEY,
+      APP_URL, CORS_ORIGINS — see `.env.example`).
+    - Set up SQLite volume mount on Railway (DB_PATH should
+      point at `/data/life_dashboard.db` or similar).
+    - Update Google OAuth redirect URI allowlist in Cloud
+      Console to include the deployed Railway URL.
+    - Update Strava callback URL similarly.
+    - Update Microsoft Azure App Registration redirect URI.
+    - Sign the release APK (Android requires a signed APK
+      to install outside dev mode).
+      `mobile/android/app/keystore/*.keystore` already
+      exists if a release was previously built; if not, add
+      `keytool -genkey -v -keystore release.keystore...` to
+      the runbook.
+    - Update mobile/.env's API base URL.
+    - Build + install release APK on phone via
+      `adb install -r ./app/build/outputs/apk/release/app-release.apk`.
+  - **Files:**
+    - `requirements.txt` (verify gunicorn pinned).
+    - `mobile/.env` (API base URL flip).
+    - `mobile/android/app/build.gradle` (signing config —
+      may already exist from prior release attempt).
+    - New: a terse `docs/DEPLOY.md` runbook capturing
+      Railway env vars + first-deploy steps so this doesn't
+      re-encode each time.
+  - **Done when:** Founder can take the phone off the dev-
+    box's LAN, open the app on cellular, and every connected
+    feature still works (Gmail sync, Strava activities load,
+    HC syncs, etc).
+  - **MANUAL CHECKs:** Railway / Fly.io account setup,
+    Google + Strava + Microsoft redirect URI allowlist
+    edits — all founder-side actions.
+  - **Blocked on (founder):** Picking Railway vs Fly.io
+    (Railway recommended for SQLite+volume simplicity);
+    setting up the deploy account.
+
+- **Calorie chart shows flat ~1800 line — actual logged meals don't match** (annoying, ~2h) — INBOX 2026-04-28
+  - **Founder symptom:** "this works but wasnt the problem the
+    actual data shows a flat line at like 1800cals which isnt
+    what i was eating" — the target dashed-line fix shipped,
+    but the underlying "actual" data series is wrong.
+  - **Scope:** The Nutrition Progress calorie chart's daily
+    bars/line should reflect each day's `meal_logs` sum. A
+    flat ~1800 line suggests we're either (a) plotting the
+    *target* on both axes (target color line is correct, but
+    the "actual" series is also reading target instead of
+    `SUM(calories)`), or (b) aggregating from the wrong table
+    (e.g. an old daily-rollup column that's frozen at user's
+    target). Trace from the chart prop back to the API
+    endpoint serving the data.
+  - **Files:** `mobile/app/(tabs)/nutrition.tsx` /
+    `mobile/components/apex/CaloriesConsumedChart.tsx` (or
+    related), `app.py` (the route serving N-day calorie data —
+    likely `/api/nutrition/progress` or similar).
+  - **Done when:** A day with logged meals shows the actual
+    total kcal, not the target. Spot-check three days against
+    `SELECT SUM(calories) FROM meal_logs WHERE date=...`.
+
+- **Gmail "important" star never appears + sync doesn't refresh inbox** (annoying, ~3h) — INBOX 2026-04-28
+  - **Founder symptom:** "0 are marked important its not
+    updating when i hit sync and the newest email is 23hrs old
+    even though i have a bunch of new ones".
+  - **Scope:** Two distinct bugs likely entangled:
+    1. **Sync doesn't refresh** — tapping Sync on the Gmail
+       card or pulling to refresh isn't pulling new messages.
+       Either the route isn't being called, the Gmail token
+       expired and we're failing silently, or the route is
+       only fetching deltas with a stale historyId. Check
+       `gmail_sync.py`.
+    2. **Importance flag not populated** — Gmail's API exposes
+       `messages.list` with `labelIds` including
+       `IMPORTANT`. Verify we're requesting that scope and
+       persisting the flag in `gmail_summaries.is_important`.
+       The yellow-star UI was wired in Tab visual consistency
+       phase but reads from a column that may be 0 for every
+       row.
+  - **Files:** `gmail_sync.py`, `db.py` (gmail_summaries
+    schema check), `mobile/components/apex/TimeSubsystemCards.tsx`
+    (GmailSummaryCard), `app.py` (`/api/gmail/sync` route).
+  - **Done when:** Tap Sync on Gmail card → newest emails
+    from the last hour appear within 30s; emails Gmail
+    classifies as Important render with the yellow star.
+
+- **Onboarding pages overflow on-screen buttons** (annoying, ~2h) — INBOX 2026-04-28
+  - **Founder symptom:** "i ant every onboarding page to fit
+    above my on screen buttons and not have to scroll down to
+    see stuff".
+  - **Scope:** Onboarding wizard screens currently use a flex
+    layout that doesn't reserve space for the device's
+    bottom-nav / gesture bar; primary action buttons get
+    pushed below the safe-area + content tries to fill the
+    rest, forcing a scroll. Audit each step for safe-area
+    insets + a fixed-bottom action bar pattern (like the
+    workout wizard at `mobile/app/fitness/plan/builder.tsx`).
+  - **Files:** `mobile/app/onboarding/*.tsx` step screens (all
+    of them — common layout fix), possibly extract a shared
+    `OnboardingFrame` component if not already present.
+  - **Done when:** Every onboarding step renders title +
+    body + primary button without requiring a scroll on a
+    typical Android device.
+
+- **Time tab: move task input card to the top, like Nutrition + Fitness do** (~1h) — INBOX 2026-04-28
+  - **Founder symptom:** "need to move task card to be top input
+    card in time just like log a meal and log a workout are in
+    the other 2 tabs".
+  - **Scope:** Nutrition tab leads with `LogMealCard`; Fitness
+    tab leads with `LogActivityCard`. Time tab should mirror
+    that — a "Log a task" input card at the top of the Today
+    sub-tab, above the summary row. Folds nicely with the
+    "Task FAB → fast overlay sheet" item below (same component
+    can power both).
+  - **Files:** `mobile/app/(tabs)/time.tsx`, possibly extract
+    `mobile/components/apex/LogTaskCard.tsx` + share with the
+    FAB overlay work.
+  - **Done when:** Time tab Today's first card is a task-input
+    affordance matching the visual weight of LogMealCard /
+    LogActivityCard.
+
+- **Tab top-bar style consistency: Time + Finance to match Fitness + Nutrition** (~1h) — INBOX 2026-04-28
+  - **Founder symptom:** "need to make the tap headers in
+    finacnce and time look the same as the headers in fitness
+    and nutrition".
+  - **Scope:** First pass shipped 2026-04-28 (Tab visual
+    consistency phase) — moved the SubTabs into TabHeader's
+    right slot. Founder reports the headers still don't match.
+    Likely the typography / padding / right-slot composition
+    differs subtly. Audit all four TabHeaders side-by-side and
+    converge to a single component shape.
+  - **Files:** `mobile/components/apex/TabHeader.tsx`,
+    `mobile/components/apex/SubTabs.tsx`, the four tab
+    screens (`(tabs)/{fitness,nutrition,finance,time}.tsx`).
+  - **Done when:** All four tab top-bars look identical
+    structurally — same height, same title typography, same
+    right-slot composition.
+
+- **Time tab signal chips are too compressed — 2x2 grid** (~30m) — INBOX 2026-04-28
+  - **Founder symptom:** "yes but too smal so too compressed.
+    make a 2x2".
+  - **Scope:** `TimeTodaySignals` currently lays four chips
+    (Screen / Places / Focus / Meetings) in a single row.
+    Switch to 2x2 grid so each chip has more horizontal real
+    estate and the values read at a glance.
+  - **Files:** `mobile/components/apex/TimeTodaySignals.tsx`.
+  - **Done when:** Four chips render in two rows of two,
+    each visibly wider with full label + value readable.
+
+- **Voice-to-text in chatbot duplicates partial phrases on save** (annoying, ~1h) — INBOX 2026-04-28
+  - **Founder symptom:** "voice to text problem where as im
+    typing with my keyboards native voice input its typing
+    but then saving partial pharses like 'whatwaswhat was i
+    what was i doing what was i doing today'".
+  - **Scope:** Android keyboards' voice input fires onChange
+    repeatedly with growing partial transcripts; if the
+    chatbot input is committing snapshots (e.g. logging on
+    every change, or appending instead of replacing), the
+    final saved text accumulates intermediate states. Fix is
+    to ensure the input controlled-component pattern is a
+    pure replace (`setValue(e)`) and that the send-action
+    only fires on explicit Send press, not on debounced
+    auto-commit.
+  - **Files:** `mobile/app/chatbot/index.tsx`,
+    `mobile/components/apex/ChatOverlay.tsx` (if input lives
+    there), any text-input wrapper in use.
+  - **Done when:** Voice-typing "what was I doing today"
+    sends exactly that string, not a concatenation of growing
+    partials.
+
+- **Goals accessibility — add Goals row to Settings** (~30m) — INBOX 2026-04-28
+  - **Founder symptom:** "no clear goals accesibility other
+    than from the homepage card maybe add it to settings".
+  - **Scope:** `mobile/app/settings/index.tsx` should have a
+    "Goals" row (probably under a "Tracking" section near
+    Workout Plan + Connections). Tap → routes to
+    `/goals` (the Goals tab/list screen).
+  - **Files:** `mobile/app/settings/index.tsx`.
+  - **Done when:** Settings shows a Goals row that routes to
+    the goals list.
+
+- **Task FAB → fast overlay sheet, not full-screen route** (~2h) — INBOX 2026-04-28
+  - **Founder symptom:** "i want a fast overlay always for
+    logging a task not the full screen view no matter how
+    we're adding a task".
+  - **Scope:** Currently the FAB Task chip routes to the full
+    `/time/new-task` screen. Replace with a centered modal
+    sheet (~half-screen) like the existing
+    `NumberPromptModal` pattern: title input, optional time
+    + duration, Save / Cancel. Save calls the same backend
+    route the full screen used. Same flow from Today tab Time
+    card "+ Add".
+  - **Files:** new `mobile/components/apex/TaskQuickLogSheet.tsx`,
+    `mobile/components/apex/FAB.tsx` (replace route push with
+    sheet open), `mobile/components/apex/TimeCardContent.tsx`
+    (same), keep `mobile/app/time/new-task.tsx` as a route
+    fallback or delete if unused.
+  - **Done when:** Both entry points open the lightweight
+    sheet; full-screen new-task route either gone or only
+    used as a power-user fallback.
+
+- **Strava activity detail elevation still in meters when imperial** (minor, ~30m) — INBOX 2026-04-28
+  - **Founder symptom:** "yes but some like strava elev data
+    are still in m" — units toggle propagated everywhere
+    except Strava activity detail's elevation field.
+  - **Scope:** `mobile/app/fitness/strava-activity/[id].tsx`
+    renders elevation gain in meters. Wire through `useUnits()`
+    + a `formatDistance(m, unitsPref)` helper for "ft" output
+    (1m ≈ 3.28084 ft). Same audit on splits + total elevation
+    if duplicated elsewhere on that screen.
+  - **Files:** `mobile/app/fitness/strava-activity/[id].tsx`,
+    possibly `mobile/lib/units.ts` if a `formatElevation`
+    helper doesn't exist yet.
+  - **Done when:** Toggling Settings → Preferences → Units to
+    Imperial flips Strava activity elevation to feet.
+
+- **Location permission flow: doesn't revoke on disconnect, denial alert hidden, sampling sparse** (annoying, ~3h) — INBOX 2026-04-28
+  - **Founder symptom:** "location works kind of but this
+    specifically i cant see and it gets confused on connect
+    and disconnect bc it doesnt revoke the permission in
+    settings and it only opens the allow once and dosent seem
+    like it samples enough to get useful data."
+  - **Scope:** Three distinct sub-issues:
+    1. **Disconnect doesn't revoke OS permission** — Android
+       doesn't expose programmatic revoke; we should at least
+       open the OS app-info screen for the user to revoke
+       manually, and clearly mark the connector as
+       "Disconnected (still has OS permission)".
+    2. **Denial alert never visible** — the alert chain on
+       deny shows a system dialog that flashes; founder
+       reports they "can't see" it. Possibly a stale OS
+       permission cache that treats deny as "already denied
+       once" and skips the system sheet — need a manual
+       `ACTION_APPLICATION_DETAILS_SETTINGS` intent fallback
+       per Android docs.
+    3. **Sampling cadence too low to be useful** — currently
+       foreground-only sampling on tab open. Either bump
+       sample frequency or adopt a foreground-service
+       background sampler (the §14.5.5.a Later item already
+       scopes this — promote to Now if founder considers
+       this critical).
+  - **Files:** `mobile/lib/hooks/useLocationConnector.ts`,
+    `mobile/app/settings/connections.tsx`,
+    `mobile/components/apex/AttentionCards.tsx` (LocationCard).
+  - **Done when:** Connect → permission sheet appears even
+    after a prior deny; Disconnect routes to Android Settings
+    so user can revoke; LocationCard updates within 60s of
+    moving to a new place.
+
+- **3 new goal types — UI polish: customize forms + active-goal cards feel sloppy** (annoying, ~3h) — INBOX 2026-04-28
+  - **Founder symptom:** "unsure looks like they load but UI
+    is sloppy and no data yet" — across TIME-07
+    (inbox-zero-streak), FIT-07 (sleep regularity),
+    FIT-08 (daily movement / active-kcal).
+  - **Scope:** Walk each of the three new types end to end:
+    1. Library row (icon, copy, default target).
+    2. Customize form (input copy + units + helper text).
+    3. Active goal row (pace label, metric formatting,
+       progress visualization).
+    Apply the same polish bar as the older 16 handlers —
+    rate-style goals (FIT-07 sleep regularity) need a
+    different progress UI than streak-style goals.
+    "No data yet" is expected behavior for the first few
+    days of HC sleep data, but the empty state copy should
+    say so explicitly: "Need 5+ nights of sleep data to
+    compute std-dev — check back ~2026-05-03."
+  - **Files:** `mobile/app/goals/customize.tsx`,
+    `mobile/app/goals/index.tsx`,
+    `mobile/components/apex/GoalRow.tsx`,
+    `goals_engine.py` (pace label copy for the 3 new
+    handlers).
+  - **Done when:** Founder confirms the 3 new goals look
+    visually equivalent to the existing 16; empty-data
+    states are explicit, not silent.
+
+- **Finance tab still uses emojis** (~30m) — INBOX 2026-04-28
+  - **Founder symptom:** "finance tab still uses emojis".
+  - **Scope:** Same sweep as the existing emoji item below,
+    but the Finance tab is the next-most-emoji-heavy surface.
+    Replace category emojis (likely 🍔 / 🚗 / 🏠 / etc on
+    transaction rows) with category-mapped Ionicons. May
+    need a `categoryIcon(name)` helper.
+  - **Files:** `mobile/app/(tabs)/finance.tsx`, possibly a
+    new helper in `mobile/lib/categoryIcons.ts`.
+  - **Done when:** Finance tab has zero emoji characters in
+    the rendered output.
+
+- **Screen Time goal: pace label says "Reconnect source" while connector is connected** (annoying, ~1h) — INBOX 2026-04-28
+  - **Founder symptom:** "screen time target says reconnect
+    source when its connected and showing data elsewhere"
+    — TIME-02 daily-cap goal pace label is showing the
+    reconnect prompt despite Screen Time data flowing on
+    Time tab.
+  - **Scope:** `goals_engine.py` `_progress_screen_time_target`
+    handler must be checking connector status from the wrong
+    place (e.g. `users_connectors` row missing for `screen_time`
+    even though `screen_time_daily` rows exist), or the
+    "data source connected" probe doesn't recognize the local
+    Expo Module path that doesn't OAuth.
+  - **Files:** `goals_engine.py` (TIME-02 handler),
+    `app.py` (goal serializer if pace label is computed
+    there).
+  - **Done when:** With Screen Time data flowing on Time tab,
+    the TIME-02 goal pace label shows the actual usage vs
+    target (e.g. "165 / 180 min"), not "Reconnect source".
 
 - **Emoji → Ionicons sweep — micro-surfaces** (~2h) — partial shipped 2026-04-28
   - **Status (2026-04-28):** Hottest emoji surfaces fixed in
@@ -254,6 +658,9 @@ the project will become.
     ("e.g. 180"), QuickLogHost weight conversion, smattering
     of `lbs over range` style strings. Not user-visible
     enough to bundle now.
+  - **Note:** Strava elevation hit was severed into its own
+    "Now" entry above (founder-flagged 2026-04-28); the rest
+    here remains lower priority.
   - **Trigger:** Founder confirms one of these surfaces still
     shows wrong unit on Settings → Preferences → Units flip.
 
@@ -417,6 +824,49 @@ the project will become.
       dedup heuristic (start_iso ± 60s window).
 
 ### Later — v1.5+, scoped but not urgent
+
+- **Login screen rebuild — match PWA aesthetic + Google OAuth + Apple placeholder** (~5h) — INBOX 2026-04-28
+  - **Founder symptom:** "want to build out better looking
+    login screen very similar to pwa look add google oauth
+    login and placeholder apple login".
+  - **Scope:** Replace the Clerk-default email-password screen
+    with a hero-style page mirroring the Flask PWA's login
+    look. Add a "Sign in with Google" button (we already have
+    GOOGLE_CLIENT_ID via Clerk + the app's OAuth config), plus
+    a placeholder "Sign in with Apple" button (gated until iOS
+    ships and the Apple Developer account is approved — show
+    as disabled with "Coming soon" copy on Android).
+  - **Files:** `mobile/app/login/*.tsx` (Clerk surface),
+    possibly extend `app.json` with the Apple sign-in plugin
+    when it's time to wire it.
+  - **Done when:** Logged-out app boots into the new screen;
+    Google OAuth completes the sign-in; Apple button visible
+    but disabled with platform-aware copy.
+  - **PRD ref:** §3.1 onboarding identity.
+
+- **"Last synced X ago" everywhere + retire most "Sync now" buttons** (~6h) — INBOX 2026-04-28
+  - **Founder symptom:** "need to show time since last sync
+    for everything that regularly syncs next to sync now button
+    and eventually everything should sync oten enough that there
+    are no sync now buttons".
+  - **Scope:** Two-step:
+    1. Surface the existing `users_connectors.last_sync_at`
+       timestamp on every connector-backed card (HC, Gmail
+       calendar, Outlook, Strava, Location, Screen Time) as a
+       tiny "synced 4m ago" caption next to / below the title.
+    2. Auto-sync cadence aggressive enough that "Sync now" is
+       rarely needed — the §14.4 auto-sync-on-focus pass
+       already handles Time tab; widen to Fitness/Nutrition
+       cards too. Keep "Sync now" as a secondary affordance
+       behind a long-press or "..." menu rather than a primary
+       button.
+  - **Files:** `mobile/lib/hooks/useTimeData.ts` (extend),
+    `useHealthData.ts`, all `*Card.tsx` components with sync
+    buttons, possibly a new `<LastSynced timestamp={...} />`
+    util.
+  - **Done when:** Every card with synced data shows freshness;
+    most cards' explicit Sync buttons are demoted or removed;
+    user perception is "the app just stays current".
 
 - **§14.5.5.a Background GPS sampling** (~3h)
   - **Scope:** Foreground-only today; add background sampling via

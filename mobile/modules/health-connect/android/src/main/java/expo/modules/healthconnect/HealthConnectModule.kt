@@ -224,8 +224,18 @@ class HealthConnectModule : Module() {
       }
     }
 
-    // Sleep — sum of session durations in minutes
-    safeRead(client, SleepSessionRecord::class, range)?.let { records ->
+    // Sleep — sum of session durations in minutes. Uses a different
+    // window than the rest of the aggregates: HC's TimeRangeFilter
+    // returns SleepSessionRecord rows whose start_time falls within
+    // the filter, but most sleep sessions begin before midnight
+    // (e.g. 22:30 last night → 06:30 this morning), so a [today
+    // 00:00, tomorrow 00:00) filter misses last night entirely.
+    // Match `readSleepStagesImpl`'s window (yesterday 18:00 →
+    // today 18:00) so dateIso="today" credits last night's sleep.
+    val sleepStart = date.minusDays(1).atTime(18, 0).atZone(zone).toInstant()
+    val sleepEnd = date.atTime(18, 0).atZone(zone).toInstant()
+    val sleepRange = TimeRangeFilter.between(sleepStart, sleepEnd)
+    safeRead(client, SleepSessionRecord::class, sleepRange)?.let { records ->
       if (records.isNotEmpty()) {
         val totalMin = records.sumOf {
           Duration.between(it.startTime, it.endTime).toMinutes()

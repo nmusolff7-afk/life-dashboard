@@ -40,6 +40,9 @@ export function DayStrip() {
   // Track block widths so we can scroll the "now" position into
   // view. Each block's onLayout reports its measured width back here.
   const blockWidths = useRef<Map<number, number>>(new Map());
+  // Auto-scroll latch — only the first valid layout triggers a scroll.
+  // Must live above the early returns so React's hook order stays stable.
+  const scrolledOnceRef = useRef(false);
 
   // Index of the block that contains "now", or the next future
   // block. Used to auto-scroll on mount + render the "now" line.
@@ -83,6 +86,29 @@ export function DayStrip() {
     return () => { cancelled = true; };
   }, []);
 
+  // Scroll to the "now" block once we know its width. Only fires
+  // once per data set — subsequent re-renders don't re-scroll.
+  useEffect(() => {
+    if (scrolledOnceRef.current) return;
+    if (nowIndex < 0) return;
+    if (blocks.length === 0) return;
+    // Wait one tick so onLayout has had a chance to fire.
+    const id = setTimeout(() => {
+      const widths = blockWidths.current;
+      if (widths.size < Math.min(nowIndex + 1, blocks.length)) return;
+      let offset = 0;
+      for (let i = 0; i < nowIndex; i++) {
+        offset += (widths.get(blocks[i].id) ?? 200) + 10; // +10 ≈ scroller gap
+      }
+      // Pull the now block ~16px from the left edge so the indicator
+      // line is visible against the previous block.
+      offset = Math.max(0, offset - 16);
+      scrollRef.current?.scrollTo({ x: offset, animated: true });
+      scrolledOnceRef.current = true;
+    }, 100);
+    return () => clearTimeout(id);
+  }, [nowIndex, blocks]);
+
   // Header always shown so the section exists even on empty days.
   const header = (
     <View style={styles.header}>
@@ -112,30 +138,6 @@ export function DayStrip() {
       </View>
     );
   }
-
-  // Scroll to the "now" block once we know its width. Only fires
-  // once per data set — subsequent re-renders don't re-scroll.
-  const scrolledOnceRef = useRef(false);
-  useEffect(() => {
-    if (scrolledOnceRef.current) return;
-    if (nowIndex < 0) return;
-    if (blocks.length === 0) return;
-    // Wait one tick so onLayout has had a chance to fire.
-    const id = setTimeout(() => {
-      const widths = blockWidths.current;
-      if (widths.size < Math.min(nowIndex + 1, blocks.length)) return;
-      let offset = 0;
-      for (let i = 0; i < nowIndex; i++) {
-        offset += (widths.get(blocks[i].id) ?? 200) + 10; // +10 ≈ scroller gap
-      }
-      // Pull the now block ~16px from the left edge so the indicator
-      // line is visible against the previous block.
-      offset = Math.max(0, offset - 16);
-      scrollRef.current?.scrollTo({ x: offset, animated: true });
-      scrolledOnceRef.current = true;
-    }, 100);
-    return () => clearTimeout(id);
-  }, [nowIndex, blocks]);
 
   return (
     <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>

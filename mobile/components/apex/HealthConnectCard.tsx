@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { apiFetch } from '../../lib/api';
 import { useHealthData } from '../../lib/hooks/useHealthData';
@@ -43,9 +44,11 @@ function useHealthToday() {
  *  is shown front and center. */
 export function HealthConnectCard() {
   const t = useTokens();
+  const router = useRouter();
   const hc = useHealthData();
   const { data, loading, refetch } = useHealthToday();
   const [syncing, setSyncing] = useState(false);
+  const [connecting, setConnecting] = useState(false);
 
   const today = data?.today;
   const hasAnyMetric = today && (
@@ -64,25 +67,81 @@ export function HealthConnectCard() {
     }
   };
 
+  // Tapping the "Not connected" state fires the system permission sheet
+  // directly. Founder 2026-04-28: "clicking hc card doesnt do anything"
+  // — the card was a static View with no onPress, leaving Settings →
+  // Connections as the only entry. Now the card is the entry.
+  const onConnectPress = async () => {
+    if (connecting) return;
+    setConnecting(true);
+    try {
+      const ok = await hc.connect();
+      if (ok) {
+        await refetch();
+        return;
+      }
+      if (hc.needsHcApp) {
+        Alert.alert(
+          'Install Health Connect',
+          hc.error || "Health Connect isn't installed or needs an update. Open the Play Store to install/update.",
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Open Play Store',
+              onPress: () => {
+                Linking.openURL('market://details?id=com.google.android.apps.healthdata').catch(() =>
+                  Linking.openURL('https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata'),
+                );
+              },
+            },
+          ],
+        );
+      } else {
+        Alert.alert(
+          'Permission needed',
+          hc.error || "Some Health Connect permissions weren't granted. Try again or open Settings → Connections to retry.",
+          [
+            { text: 'OK' },
+            { text: 'Open Settings', onPress: () => router.push('/settings/connections') },
+          ],
+        );
+      }
+    } finally {
+      setConnecting(false);
+    }
+  };
+
   // Not on Android / module not loaded — render nothing.
   if (!hc.available) return null;
 
   if (!hc.permitted && !hasAnyMetric) {
     return (
-      <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border, opacity: 0.85 }]}>
+      <Pressable
+        onPress={onConnectPress}
+        disabled={connecting}
+        style={({ pressed }) => [
+          styles.card,
+          {
+            backgroundColor: t.surface,
+            borderColor: t.border,
+            opacity: pressed || connecting ? 0.7 : 0.85,
+          },
+        ]}>
         <View style={styles.header}>
           <View style={styles.titleRow}>
             <Ionicons name="heart-outline" size={16} color={t.danger} />
             <Text style={[styles.title, { color: t.text }]}>Health Connect</Text>
           </View>
           <View style={[styles.pill, { borderColor: t.border }]}>
-            <Text style={[styles.pillText, { color: t.subtle }]}>Not connected</Text>
+            <Text style={[styles.pillText, { color: t.subtle }]}>
+              {connecting ? 'Connecting…' : 'Tap to connect'}
+            </Text>
           </View>
         </View>
         <Text style={[styles.sub, { color: t.muted }]}>
-          Connect Health Connect in Settings → Connections to surface your steps, sleep, heart rate, and HRV here.
+          Tap to grant Steps / Sleep / Heart Rate / HRV / Active Calories. Or wire up in Settings → Connections.
         </Text>
-      </View>
+      </Pressable>
     );
   }
 

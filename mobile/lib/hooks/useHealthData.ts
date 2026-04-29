@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { apiFetch } from '../api';
@@ -146,12 +146,28 @@ const SDK_AVAILABLE = 3;
 const SDK_UNAVAILABLE = 1;
 const SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED = 2;
 
-const HC_READ_PERMISSIONS = [
+// Core perms — `permitted` is gated on having all of these. Auto-sync
+// fires only when permitted=true, so missing any of these silences the
+// app's HC pipeline.
+const HC_CORE_READ_PERMISSIONS = [
   'android.permission.health.READ_STEPS',
   'android.permission.health.READ_SLEEP',
   'android.permission.health.READ_HEART_RATE',
   'android.permission.health.READ_HEART_RATE_VARIABILITY',
   'android.permission.health.READ_ACTIVE_CALORIES_BURNED',
+];
+// Optional — requested in the same system sheet, but `permitted` doesn't
+// require them. Adding new optional perms here can never silently break
+// existing users (their `permitted` stays true even if they never re-
+// grant). 2026-04-28 §14.5.2: READ_EXERCISE added for Garmin /
+// Pixel Watch / Fitbit activity flow-through; without it, workout
+// segments stay empty but core sleep / steps / HRV still flow.
+const HC_OPTIONAL_READ_PERMISSIONS = [
+  'android.permission.health.READ_EXERCISE',
+];
+const HC_READ_PERMISSIONS = [
+  ...HC_CORE_READ_PERMISSIONS,
+  ...HC_OPTIONAL_READ_PERMISSIONS,
 ];
 
 export interface HealthDailyAggregate {
@@ -216,9 +232,12 @@ export function useHealthData(): HealthDataState {
     if (!hc) return false;
     try {
       const granted = await hc.getGrantedPermissions();
-      const haveAll = HC_READ_PERMISSIONS.every((p) => granted.includes(p));
-      setPermitted(haveAll);
-      return haveAll;
+      // Only require core perms — optional perms (READ_EXERCISE) flow
+      // separately. This means a 5-of-6 granted user is still
+      // permitted=true and auto-sync runs.
+      const haveCore = HC_CORE_READ_PERMISSIONS.every((p) => granted.includes(p));
+      setPermitted(haveCore);
+      return haveCore;
     } catch {
       return false;
     }
@@ -226,6 +245,19 @@ export function useHealthData(): HealthDataState {
 
   useEffect(() => {
     if (available) void checkPermissions();
+  }, [available, checkPermissions]);
+
+  // Re-check perms when the app comes back to the foreground. Without
+  // this, a user who grants HC perms in the HC app (instead of via our
+  // in-app Continue button) stays at permitted=false until they tap
+  // Connect again — what founder hit on 2026-04-28. AppState listener
+  // fires on every active-state transition.
+  useEffect(() => {
+    if (!available) return;
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void checkPermissions();
+    });
+    return () => sub.remove();
   }, [available, checkPermissions]);
 
   const sync = useCallback(async () => {
@@ -243,7 +275,7 @@ export function useHealthData(): HealthDataState {
       // older app builds without the new Kotlin module bindings
       // skip these branches and post just the aggregates.
       let workoutSegments: unknown[] = [];
-      let sleepStages: unknown = null;
+      let sleepStages: { total?: number; awake?: number; light?: number; deep?: number; rem?: number } | null = null;
       try {
         if (typeof hc.readWorkoutSegments === 'function') {
           workoutSegments = await hc.readWorkoutSegments(dateIso);
@@ -255,6 +287,18 @@ export function useHealthData(): HealthDataState {
         }
       } catch { /* same */ }
 
+      // Prefer the sleep-stages total when available — `readDailyAggregates`
+      // filters SleepSessionRecord on [today 00:00, tomorrow 00:00), which
+      // misses sessions whose start_time is before midnight (almost all of
+      // them). `readSleepStages` uses [yesterday 18:00, today 18:00) which
+      // catches last night's sleep correctly. Fallback to the daily-
+      // aggregate value only when stages reports nothing. Founder symptom
+      // 2026-04-28: "no sleep data" despite HC being connected.
+      const sleepMinutes =
+        (sleepStages && typeof sleepStages.total === 'number' && sleepStages.total > 0)
+          ? sleepStages.total
+          : agg.sleep_minutes;
+
       await apiFetch('/api/health/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -262,7 +306,7 @@ export function useHealthData(): HealthDataState {
           date:             dateIso,
           platform:         Platform.OS,
           steps:            agg.steps,
-          sleep_minutes:    agg.sleep_minutes,
+          sleep_minutes:    sleepMinutes,
           resting_hr:       agg.resting_hr,
           hrv_ms:           agg.hrv_ms,
           active_kcal:      agg.active_kcal,

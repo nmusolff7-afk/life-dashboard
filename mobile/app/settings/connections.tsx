@@ -394,6 +394,16 @@ export default function Connections() {
                   return;
                 }
                 await refresh(); haptics.fire('success');
+                // Silent-success was the founder's actual symptom 2026-
+                // 04-28: tapping Continue with perms-already-granted ran
+                // sync() and returned true, but no UI feedback fired
+                // because we only confirmed in the connection-failed
+                // branch. Surface a positive ack consistent with Gmail/
+                // Strava/Outlook flows.
+                Alert.alert(
+                  'Connected',
+                  'Health Connect is connected. Your steps, sleep, HRV, heart rate, and active calories will sync automatically when you open the app.',
+                );
               } finally { setBusy(null); }
             },
           },
