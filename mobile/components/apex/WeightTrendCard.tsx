@@ -3,22 +3,29 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { useWeightHistory } from '../../lib/hooks/useHomeData';
 import { useTokens } from '../../lib/theme';
+import { useUnits } from '../../lib/useUnits';
 import { LineChart, type ChartPoint } from './LineChart';
 import { RangePills, type Range } from './RangePills';
 
 export function WeightTrendCard() {
   const t = useTokens();
+  const units = useUnits();
   const [range, setRange] = useState<Range>(30);
   const weight = useWeightHistory(range);
 
+  // Points are kept in canonical lbs (matches DB) so the chart's
+  // y-scale is stable across unit toggles. The hero number + change
+  // delta are formatted via useUnits for display.
   const points: ChartPoint[] = useMemo(
     () => (weight.data ?? []).map((row, i) => ({ x: i, y: row.weight_lbs })),
     [weight.data],
   );
 
-  const latest = points.length > 0 ? points[points.length - 1].y : null;
-  const change = points.length >= 2 ? latest! - points[0].y : 0;
-  const changeColor = change === 0 ? t.muted : change < 0 ? t.green : t.cal;
+  const latestLbs = points.length > 0 ? points[points.length - 1].y : null;
+  const changeLbs = points.length >= 2 ? latestLbs! - points[0].y : 0;
+  const changeColor = changeLbs === 0 ? t.muted : changeLbs < 0 ? t.green : t.cal;
+  // Convert delta to display units. formatWeight handles lb↔kg.
+  const changeDisplay = units.units === 'metric' ? changeLbs * 0.453592 : changeLbs;
 
   return (
     <View style={[styles.card, { backgroundColor: t.surface, shadowColor: '#000' }]}>
@@ -26,13 +33,13 @@ export function WeightTrendCard() {
         <View style={{ flex: 1 }}>
           <Text style={[styles.title, { color: t.muted }]}>Bodyweight</Text>
           <Text style={[styles.latest, { color: t.text }]}>
-            {latest != null ? `${Math.round(latest)} ` : '— '}
-            <Text style={[styles.unit, { color: t.muted }]}>lbs</Text>
+            {latestLbs != null ? `${units.formatWeight(latestLbs, { round: true })} ` : '— '}
+            <Text style={[styles.unit, { color: t.muted }]}>{units.weightUnit}</Text>
           </Text>
           {points.length >= 2 ? (
             <Text style={[styles.change, { color: changeColor }]}>
-              {change > 0 ? '+' : ''}
-              {change.toFixed(1)} lbs over range
+              {changeDisplay > 0 ? '+' : ''}
+              {changeDisplay.toFixed(1)} {units.weightUnit} over range
             </Text>
           ) : null}
         </View>

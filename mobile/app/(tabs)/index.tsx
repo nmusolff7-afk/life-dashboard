@@ -22,6 +22,7 @@ import {
 import { useLiveCalorieBalance } from '../../lib/hooks/useLiveCalorieBalance';
 import { useScores } from '../../lib/hooks/useScores';
 import { useTokens } from '../../lib/theme';
+import { useUnits } from '../../lib/useUnits';
 import { useChatSession } from '../../lib/useChatSession';
 import { useDailyReset } from '../../lib/useDailyReset';
 import { useResetScrollOnFocus } from '../../lib/useResetScrollOnFocus';
@@ -36,6 +37,7 @@ const SODIUM_GOAL_MG = 2300;
 export default function HomeScreen() {
   const t = useTokens();
   const router = useRouter();
+  const units = useUnits();
   // Use user's local timezone for "today" instead of UTC — otherwise
   // anything west of UTC sees the streak-bar highlight jump forward
   // and logs bucket into the wrong day late in the evening.
@@ -183,7 +185,7 @@ export default function HomeScreen() {
             href="/(tabs)/fitness"
             richContent={
               <View style={styles.statGrid}>
-                <MiniStat label="Weight" value={weightLbs != null ? `${Math.round(weightLbs)}` : '—'} unit="lbs" />
+                <MiniStat label="Weight" value={weightLbs != null ? units.formatWeight(weightLbs, { round: true }) : '—'} unit={units.weightUnit} />
                 <MiniStat label="Steps" value={stepsToday > 0 ? stepsToday.toLocaleString() : '—'} />
                 <MiniStat label="Burned" value={totalBurn != null ? `${totalBurn}` : '—'} unit="kcal" />
               </View>

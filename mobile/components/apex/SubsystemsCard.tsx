@@ -13,6 +13,7 @@ import {
 
 import type { ProfileResponse, Workout } from '../../../shared/src/types/home';
 import { useTokens } from '../../lib/theme';
+import { useUnits } from '../../lib/useUnits';
 import { classifyWorkout } from '../../lib/workout';
 
 interface Props {
@@ -157,6 +158,7 @@ function KeyValueRow({ label, value, color }: { label: string; value: string; co
 
 function BodyPanel({ profile, weightLbs }: { profile?: ProfileResponse | null; weightLbs: number | null }) {
   const t = useTokens();
+  const units = useUnits();
   const heightIn = (profile?.height_ft ?? 0) * 12 + (profile?.height_in ?? 0);
   const bmi =
     weightLbs && heightIn > 0
@@ -165,10 +167,10 @@ function BodyPanel({ profile, weightLbs }: { profile?: ProfileResponse | null; w
   return (
     <View>
       <PanelHeader title="Body" />
-      <KeyValueRow label="Current weight" value={weightLbs != null ? `${Math.round(weightLbs)} lbs` : '—'} />
+      <KeyValueRow label="Current weight" value={weightLbs != null ? `${units.formatWeight(weightLbs, { round: true })} ${units.weightUnit}` : '—'} />
       <KeyValueRow
         label="Target weight"
-        value={profile?.target_weight_lbs != null ? `${Math.round(profile.target_weight_lbs)} lbs` : '—'}
+        value={profile?.target_weight_lbs != null ? `${units.formatWeight(profile.target_weight_lbs, { round: true })} ${units.weightUnit}` : '—'}
       />
       <KeyValueRow label="Body fat %" value={profile?.body_fat_pct != null ? `${profile.body_fat_pct}%` : '—'} />
       <KeyValueRow label="BMI" value={bmi != null ? bmi.toFixed(1) : '—'} />

@@ -16,6 +16,7 @@ import { deleteWorkout } from '../../lib/api/fitness';
 import { classifyAsCardio, estimateCardioDuration } from '../../lib/cardioHelpers';
 import { parseDescription as parseStrengthDescription } from '../../lib/strengthHelpers';
 import { useTokens } from '../../lib/theme';
+import { useUnits } from '../../lib/useUnits';
 import { WorkoutEditSheet } from './WorkoutEditSheet';
 
 interface Props {
@@ -76,6 +77,7 @@ function formatDateTime(iso: string | undefined | null): string {
 
 export function WorkoutDetailModal({ workout, onClose, onChanged }: Props) {
   const t = useTokens();
+  const units = useUnits();
   const insets = useSafeAreaInsets();
   const [editing, setEditing] = useState(false);
 
@@ -184,13 +186,13 @@ export function WorkoutDetailModal({ workout, onClose, onChanged }: Props) {
                   />
                   <MetricCell
                     label="Volume"
-                    value={strengthSummary.estimatedVolume.toLocaleString()}
-                    unit="lbs"
+                    value={units.formatWeight(strengthSummary.estimatedVolume, { round: true })}
+                    unit={units.weightUnit}
                   />
                   <MetricCell
                     label="Top weight"
-                    value={strengthSummary.topWeight > 0 ? String(strengthSummary.topWeight) : '—'}
-                    unit="lbs"
+                    value={strengthSummary.topWeight > 0 ? units.formatWeight(strengthSummary.topWeight, { round: true }) : '—'}
+                    unit={units.weightUnit}
                   />
                   <MetricCell
                     label="Avg RPE"
@@ -220,8 +222,8 @@ export function WorkoutDetailModal({ workout, onClose, onChanged }: Props) {
                         </Text>
                         <Text style={[styles.exerciseMeta, { color: t.muted }]}>
                           {rows.length} sets
-                          {top > 0 ? ` · top ${top} lbs` : ''}
-                          {volume > 0 ? ` · ${Math.round(volume).toLocaleString()} lbs volume` : ''}
+                          {top > 0 ? ` · top ${units.formatWeight(top, { round: true })} ${units.weightUnit}` : ''}
+                          {volume > 0 ? ` · ${units.formatWeight(volume, { round: true })} ${units.weightUnit} volume` : ''}
                         </Text>
                       </View>
                       <View style={styles.setRow}>

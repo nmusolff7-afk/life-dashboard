@@ -1468,3 +1468,68 @@ after adding `GOOGLE_MAPS_API_KEY` to `.env`. Resolved.
   finance.tsx). All JS — no rebuild.
 - **Manual checks (pending):** drafted 4 new items in
   `docs/INBOX.md` under "From Tab visual consistency".
+
+### 25:30 — Data correctness pass (calorie chart fix + units enforcement first wave)
+- **Prompt:** "continue" — pick the next phase.
+- **Did:**
+  1. **Triaged INBOX** — empty new sections; 19 manual checks
+     pending (no responses yet).
+  2. **Active phase: Data correctness pass (~3h shipped).**
+  3. **Calorie chart fix** (`CaloriesConsumedChart.tsx`).
+     Founder symptom: "completely wrong, not sure what it's
+     showing." Three issues identified + fixed:
+     - **Target overlay was the live `goalIntake`** —
+       `totalBurn + deficit_surplus - rollover - autoAdjust`,
+       changes with today's workouts / yesterday's intake /
+       7-day average. Wrong reference for a HISTORICAL chart
+       where each past day had its own context. Switched to
+       the user's STABLE `profile.goal_targets.calorie_target`.
+     - **Today's partial-day row was included** in both the
+       chart line and the average. Half-day pulls the average
+       down + makes the last point look anomalous. Now
+       filtered out before plotting.
+     - **Subline was unclear** ("Goal X kcal") with no
+       context for the average. Now reads
+       "X logged days · target Y kcal" so the founder knows
+       exactly what the number is averaged over.
+  4. **Units enforcement audit (first wave shipped):** grep'd
+     `mobile/` for hardcoded `lbs` strings, replaced the most-
+     visible ones with `useUnits()` formatters:
+     - `SubsystemsCard.tsx` BodyPanel — Current weight + Target
+       weight rows.
+     - `WeightTrendCard.tsx` — hero number + delta. Points stay
+       in canonical lbs (matches DB) so the y-scale is stable;
+       only display values convert.
+     - `strength.tsx` — Weekly volume hero + per-row "top X lbs"
+       suffix.
+     - Today tab MiniStat weight cell.
+     - `WorkoutDetailModal.tsx` — Volume + Top weight metric
+       cells + per-exercise summary line.
+  5. **Filed the rest as `Units enforcement — remaining
+     surfaces` (~1h) in Backlog → Later** — BodyStatsForm
+     validation copy, StrengthTrackerModal placeholder, goals
+     customize placeholders, QuickLogHost weight conversion.
+     Lower-visibility surfaces; bundle on a future polish round.
+- **Files:** `mobile/components/apex/CaloriesConsumedChart.tsx`,
+  `mobile/components/apex/SubsystemsCard.tsx`,
+  `mobile/components/apex/WeightTrendCard.tsx`,
+  `mobile/components/apex/WorkoutDetailModal.tsx`,
+  `mobile/app/(tabs)/index.tsx`,
+  `mobile/app/fitness/subsystem/strength.tsx`,
+  `docs/BUILD_PLAN.md`, `docs/INBOX.md`, `docs/PHASE_LOG.md`.
+- **Decisions:**
+  - **Target = stable goal, not live goalIntake** for the
+    historical chart. The live home tab still uses goalIntake
+    which is right for "what should I eat today?".
+  - **Excluded today from the historical chart** rather than
+    fading/marking it. Cleaner mental model: "this chart is
+    history; today is on the home tab."
+  - **Kept y-scale in canonical lbs** in WeightTrendCard so
+    flipping units doesn't redraw the chart shape — only the
+    hero number + delta convert. Same data; different label.
+  - **First-wave units fix only** to keep this phase focused.
+    Bigger units sweep is a separate Later item.
+- **Outcome:** Shipping. TS clean (only pre-existing
+  finance.tsx). All JS — no rebuild.
+- **Manual checks (pending):** drafted 2 new items in
+  `docs/INBOX.md` under "From Data correctness pass".

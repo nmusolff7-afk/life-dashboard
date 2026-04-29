@@ -6,6 +6,7 @@ import { WorkoutDetailModal } from '../../../components/apex';
 import { useWorkoutHistory } from '../../../lib/hooks/useHomeData';
 import { useWorkoutPlan } from '../../../lib/hooks/useWorkoutPlan';
 import { useTokens } from '../../../lib/theme';
+import { useUnits } from '../../../lib/useUnits';
 
 import { classifyAsStrength, parseDescription, strength_weekly_volume_label } from '../../../lib/strengthHelpers';
 
@@ -23,6 +24,7 @@ const DAYS: DayName[] = [
  *  real strength_sets fetch for deeper PR detection. */
 export default function StrengthDetail() {
   const t = useTokens();
+  const units = useUnits();
   const history = useWorkoutHistory(90);
   const planState = useWorkoutPlan();
   const [detailWorkout, setDetailWorkout] = useState<Workout | null>(null);
@@ -79,8 +81,8 @@ export default function StrengthDetail() {
         <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
           <Text style={[styles.cardTitle, { color: t.muted }]}>Weekly volume</Text>
           <Text style={[styles.bigValue, { color: t.text }]}>
-            {weeklyVolume.thisWeek.toLocaleString()}
-            <Text style={[styles.bigUnit, { color: t.muted }]}> lbs this week</Text>
+            {units.formatWeight(weeklyVolume.thisWeek, { round: true })}
+            <Text style={[styles.bigUnit, { color: t.muted }]}> {units.weightUnit} this week</Text>
           </Text>
           <Text style={[styles.hint, { color: t.subtle }]}>
             {strength_weekly_volume_label(weeklyVolume.thisWeek, weeklyVolume.avgWeekly)}
@@ -140,7 +142,7 @@ export default function StrengthDetail() {
                     <Text style={[styles.sessionMeta, { color: t.muted }]}>
                       {w.log_date}
                       {parsed.totalSets > 0 ? ` · ${parsed.totalSets} sets` : ''}
-                      {parsed.topWeight > 0 ? ` · top ${parsed.topWeight} lbs` : ''}
+                      {parsed.topWeight > 0 ? ` · top ${units.formatWeight(parsed.topWeight, { round: true })} ${units.weightUnit}` : ''}
                     </Text>
                   </View>
                   <Text style={[styles.sessionKcal, { color: t.fitness }]}>

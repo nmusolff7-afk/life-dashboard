@@ -242,19 +242,20 @@ the project will become.
   - **Done when:** Time tab shows a single calendar card
     with both providers' events interleaved.
 
-- **Units enforcement audit** (~2h) — INBOX 2026-04-28
-  - **Founder symptom:** "All data should be metric or imperial
-    based on user's settings."
-  - **Scope:** Audit every numeric display in the app for
-    unit-respecting via `useUnits()`. Known callouts inlined
-    distance formatters (Strava detail screen). Likely also
-    raw lbs/kg in some workout displays, raw ft/in in body,
-    raw kcal/kJ choice. Preference reads from `preferences.units`.
-  - **Files:** grep for hardcoded unit strings ("lbs", "kg",
-    "mi", "km", "ft", "in", "kcal"); replace with `useUnits()`
-    callers.
-  - **Done when:** Toggling Settings → Preferences → Units
-    flips every display in the app consistently.
+- **Units enforcement — remaining surfaces** (~1h) — partial shipped 2026-04-28
+  - **Status:** First pass of high-visibility fixes shipped:
+    SubsystemsCard (Body weight + target), WeightTrendCard,
+    strength.tsx (weekly volume + top weight rows), Today tab
+    MiniStat weight, WorkoutDetailModal (volume + top + per-
+    exercise summaries).
+  - **Remaining (this Later item):** BodyStatsForm validation
+    copy ("Weight 30–800 lbs"), StrengthTrackerModal
+    placeholder ("lbs"), goals/customize.tsx placeholders
+    ("e.g. 180"), QuickLogHost weight conversion, smattering
+    of `lbs over range` style strings. Not user-visible
+    enough to bundle now.
+  - **Trigger:** Founder confirms one of these surfaces still
+    shows wrong unit on Settings → Preferences → Units flip.
 
 - **Map full-screen expand + satellite/street toggle** (~3h) — INBOX 2026-04-28
   - **Founder symptom:** "Any map should be clickable to
@@ -273,20 +274,6 @@ the project will become.
   - **Done when:** Tapping any map opens a full-screen view
     with toggle. Decision (a vs b) deferred until the work
     starts; (a) is the cheap path.
-
-- **Calorie chart in Nutrition Progress is wrong** (~2h) — INBOX 2026-04-28
-  - **Founder symptom:** "Calories consumed chart in nutrition
-    progress is wrong completely, not sure what it's showing."
-  - **Scope:** Investigation needed — could be wrong window
-    (showing wrong N days), wrong source (rollup vs raw vs
-    target), wrong unit, or rendering bug. Compare to the meal
-    history truth source.
-  - **Files:** `mobile/components/apex/CaloriesConsumedChart.tsx`,
-    `mobile/components/apex/CalorieBalanceChart.tsx`,
-    `mobile/app/(tabs)/nutrition.tsx`, the API route feeding
-    them.
-  - **Done when:** Founder reports the chart matches their
-    daily meal logs.
 
 - 
   - **Scope:** Alert chain on first-connect is fragile —

@@ -47,6 +47,14 @@ write naturally, Claude figures it out.
 > - `[~]` — partially works; describe what's off
 > - delete the line entirely if you don't care about it anymore
 
+### From Data correctness pass — 2026-04-28
+
+- [ ] **Calorie chart in Nutrition Progress** — target dashed line now uses your stable `user_goals.calorie_target` (not the live one that drifts with workouts/rollover). Today's partial-day row excluded from the chart + avg. Subline shows "X logged days · target Y kcal"
+  → response:
+
+- [ ] **Units toggle propagates** — Settings → Preferences → Units → flip metric ↔ imperial. Confirm: SubsystemsCard Body weight + target, WeightTrendCard hero + delta, strength subsystem "weekly volume" + per-row "top X lbs/kg", Today tab Fitness card weight, WorkoutDetailModal volume + per-exercise summaries — all show the right unit
+  → response:
+
 ### From Tab visual consistency — 2026-04-28
 
 - [ ] **Time + Finance tab top bar** — both now use the same compact `<SubTabs>` chip in the TabHeader's right slot (matching Fitness + Nutrition), instead of a separate full-width segmented row below
