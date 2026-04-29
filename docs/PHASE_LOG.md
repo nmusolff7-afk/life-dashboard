@@ -2412,3 +2412,107 @@ should yield the next round of work.
   founder runs Tier 1 (cellular) on the just-built APK; if
   cellular passes, runs `gradlew assembleRelease` once more
   to pick up the polish batch + does the rest of the tiers.
+
+### 34:00 — Cellular debug + while-build-runs polish batch
+- **Prompt:** Founder hit "Network request failed" across all API
+  calls on the new release APK; even with python app.py running
+  locally it didn't help. Asked "what other work can we do while
+  this build is running" — kicked off `gradlew clean +
+  assembleRelease` to bust caches + sit through ~25min wait.
+- **Did:**
+  1. **Diagnosed the network failure as likely-stale-bundle** —
+     second build had `731 executed, 176 up-to-date` meaning a
+     chunk of tasks were Gradle-cached, possibly the JS bundle.
+     Released `[api] baseUrl = ...` console.log on import (no
+     `__DEV__` guard, so it fires in release builds too) so
+     logcat reveals the bundled URL on next install.
+  2. **Backend-side debug endpoint shipped earlier this session
+     (`/api/debug/config`) confirmed Railway healthy:** all needed
+     env vars set, Clerk JWKS ready, SQLite read/write OK.
+  3. **Adb logcat output showed `useClerkBridge: bridge call
+     threw: [TypeError: Network request failed]`** plus every
+     other API call failing the same way → indicates the bundle
+     CAN'T reach Railway from the mobile network stack.
+  4. **Wired the new logo** — founder dropped
+     `Logo_transparent.png` + `Logo_background.png` at repo root.
+     Copied into all icon slots: `mobile/assets/images/icon.png`,
+     `android-icon-foreground.png`, `android-icon-background.png`,
+     `android-icon-monochrome.png`, `splash-icon.png`,
+     `favicon.png`, `apex-logo.png` (the in-app `ScreenHeader`
+     logo). Native rebuild required to bundle. Source PNGs
+     committed to repo root.
+  5. **Finance tab emoji sweep** — replaced
+     💸/📅/🎯 actions row with Ionicons
+     card-outline/calendar-outline/speedometer-outline. Founder
+     symptom 2026-04-28: "finance tab still uses emojis".
+  6. **TimeSubsystemCards Email/Calendar/Outlook icon cleanup** —
+     prior emoji-sweep phase only touched the not-connected
+     states; the connected-state titles still had emojis
+     (📧/📅/📬). Replaced with Ionicons + text. Added
+     `styles.titleRow` for the icon+text composition.
+  7. **Time tab top-of-tab `LogTaskCard`** — new
+     `mobile/components/apex/LogTaskCard.tsx`. Compact inline
+     input: title field + add button always visible; "Schedule"
+     chip toggles time+duration row; "Priority" chip toggles the
+     flag. Wired into Time tab Today subview as the first card.
+     Founder symptom: "need to move task card to be top input
+     card in time just like log a meal and log a workout are in
+     the other 2 tabs". Existing full-screen task-new route stays
+     as the "+ Task" link fallback in Today's Focus card.
+  8. **Skipped Strava elev unit fix** — investigated, code at
+     `strava-activity/[id].tsx:140-141` IS already unit-aware.
+     Likely a runtime `useUnits()` issue on founder's device, not
+     a code bug. Need a screenshot to debug further; left in
+     Backlog → Now.
+  9. **Skipped voice-to-text dedup** — investigated
+     `ChatInput.tsx`; the React Native `onChangeText` handler is
+     correct (replaces with full text, no append). The
+     concatenation pattern founder reported is keyboard-IME-side
+     (Android dictation firing weird onChangeText sequences). No
+     RN-side fix that doesn't break normal typing. Left in
+     Backlog → Now with a note recommending a different keyboard
+     or manual edit before send.
+- **Files:** `app.py` (debug endpoint),
+  `mobile/lib/api.ts` (baseUrl log),
+  `mobile/assets/images/*.png` (logos),
+  `Logo_transparent.png` + `Logo_background.png` (root sources),
+  `mobile/app/(tabs)/finance.tsx`,
+  `mobile/components/apex/TimeSubsystemCards.tsx`,
+  `mobile/components/apex/LogTaskCard.tsx` (new),
+  `mobile/components/apex/index.ts`,
+  `mobile/app/(tabs)/time.tsx`,
+  `docs/INBOX.md`, `docs/PHASE_LOG.md`.
+- **Decisions:**
+  - **`/api/debug/config` endpoint is intentionally
+    exploit-safe** — booleans + non-secret values only — and
+    will be removed once the deploy is stable. Solo-founder
+    threat model so leaving in for now is fine.
+  - **Logos copied INTO all asset slots even though some slots
+    likely need different sized/cropped versions** (adaptive
+    icon foreground needs the 66dp safe-zone in a 108dp canvas;
+    favicon needs square; etc). If the result looks off after
+    rebuild, founder flags it and we re-crop or generate
+    sized variants.
+  - **`Apex_App_Logo.png` (the legacy logo) committed alongside
+    the new ones for record** — useful if founder ever wants to
+    revert, but not wired into any asset slot.
+  - **Polish batch is queued for the NEXT rebuild after the
+    in-progress one** — current build snapshotted before any
+    of these edits, so they ship in build N+1.
+  - **LogTaskCard integration uses the existing `createTask` API
+    + a parent-supplied `onTaskAdded` callback** that calls
+    `tasksRefetch + focusRefetch`. The legacy "+ Task" link in
+    Today's Focus card stays as-is for users who want the full-
+    screen detail flow (priority + due date).
+- **Manual checks (pending):** All current INBOX testing-plan
+  tiers still apply, plus implicit re-tests for the new card
+  + emoji icons + logo on next install.
+- **Outcome:** While-build polish batch shipped: logo wired,
+  finance + time emoji icons swapped, LogTaskCard added.
+  **Next pickup:** founder's current build finishes →
+  install → run Tier 1. If `[api] baseUrl =` prints the
+  Railway URL but network calls still fail → TLS/cleartext
+  issue (need to inspect network security config). If baseUrl
+  is empty/wrong → bundle still stale, may need
+  `node_modules/.cache` purge before next rebuild. If
+  cellular passes → second rebuild picks up this polish batch.
