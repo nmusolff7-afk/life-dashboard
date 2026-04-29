@@ -3,9 +3,17 @@ import { localToday } from './localTime';
 
 export const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
-if (!baseUrl && typeof __DEV__ !== 'undefined' && __DEV__) {
+// Surface the baked-in baseUrl on every boot so logcat reveals what
+// the release bundle thinks it should call. Founder caught a stale
+// bundle 2026-04-29 where every API call failed with "Network
+// request failed" even though .env said Railway — turned out the
+// JS bundle was Gradle-cached from a prior build. No DEV warning
+// fires in release builds, so we always-log here.
+// eslint-disable-next-line no-console
+console.log('[api] baseUrl =', JSON.stringify(baseUrl));
+if (!baseUrl) {
   // eslint-disable-next-line no-console
-  console.warn('EXPO_PUBLIC_API_BASE_URL is not set in mobile/.env — API calls will fail.');
+  console.warn('EXPO_PUBLIC_API_BASE_URL is not set — API calls will fail.');
 }
 
 /** Structured error codes returned by /api/auth/clerk-verify so the
