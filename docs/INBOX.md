@@ -47,6 +47,17 @@ write naturally, Claude figures it out.
 > - `[~]` — partially works; describe what's off
 > - delete the line entirely if you don't care about it anymore
 
+### From 3 new goal types — 2026-04-28
+
+- [ ] **TIME-07 Inbox-zero streak** — Goals → Library → "Inbox-zero streak". Set target streak length (e.g. 14). Save → goal active. After you've cleared a day's email backlog, the streak should tick up
+  → response:
+
+- [ ] **FIT-07 Sleep regularity** — Goals → Library → "Sleep regularity". Default target rate is 30 (min std-dev over 14 nights). Save → after ~5 nights of sleep data the goal shows your current SD
+  → response:
+
+- [ ] **FIT-08 Daily movement** — Goals → Library → "Daily movement". Form should show "Daily active-calories target" input. Set 300 (or your number) → save → goal lists as active. Streak ticks up daily when HC reports active_kcal ≥ target
+  → response:
+
 ### From §14.4 Chatbot three-tier context — 2026-04-28
 
 - [ ] **Chatbot can read your tasks** — open chat, ask "what tasks do I have left today?" or "what's overdue?". Should list real tasks from your mind_tasks, not generic "I don't have access to that."

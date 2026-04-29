@@ -1705,3 +1705,69 @@ after adding `GOOGLE_MAPS_API_KEY` to `.env`. Resolved.
 - **Manual checks (pending):** 4 new items in INBOX under
   "From §14.4 Chatbot three-tier context".
 - **Next pickup:** 3 new goal types (~4h, item #4 of 6).
+
+### 27:30 — 3 new goal types (item #4 of "go on all except plaid")
+- **Prompt:** "continue" — keep the queue moving.
+- **Did:**
+  1. **Triaged INBOX** — empty new sections; 31 manual checks
+     pending.
+  2. **Active phase: 3 new goal types.** Adds backend
+     library entries + `_PROGRESS_HANDLERS` for inbox-zero
+     streak, sleep regularity, and daily movement (active
+     calories) goals.
+  3. **Library entries (`db.py:_GOAL_LIBRARY_V1`):**
+     - **TIME-07 Inbox-zero streak** — daily streak qualifying
+       when no unread Gmail emails remain from prior days.
+     - **FIT-07 Sleep regularity** — `goal_type='rate'` with
+       `direction='decrease'`. Target = max acceptable
+       std-dev (minutes) of last 14 nights of sleep_minutes.
+     - **FIT-08 Daily movement** — daily streak qualifying
+       when `health_daily.active_kcal >= config.daily_active_kcal_target`
+       (default 300).
+  4. **Progress handlers (`goals_engine.py`):**
+     - `_progress_inbox_zero_streak` — uses
+       `_qualifies_inbox_zero(user, day)` which checks current
+       `gmail_cache` state for unread emails received before
+       (day + 1). Pauses if Gmail isn't connected.
+     - `_progress_sleep_regularity` — pulls last 14 health_daily
+       sleep_minutes rows, computes std-dev. Needs ≥5 nights
+       of data before reporting (else neutral). Completes when
+       SD ≤ target_rate.
+     - `_progress_active_kcal_streak` — wraps
+       `_progress_daily_streak(_qualifies_active_kcal(target))`.
+       Pauses if no health_daily data exists.
+     - All 3 wired into `_PROGRESS_HANDLERS` dispatch table
+       (now 19 entries; was 16).
+  5. **Customize.tsx config UI** — added FIT-08
+     `daily_active_kcal_target` input section + canCreate gate +
+     onSubmit config injection. TIME-07 and FIT-07 don't need
+     extra config (use existing `target_streak_length` /
+     `target_rate` form fields).
+- **Files:** `db.py`, `goals_engine.py`,
+  `mobile/app/goals/customize.tsx`,
+  `docs/BUILD_PLAN.md`, `docs/INBOX.md`, `docs/PHASE_LOG.md`.
+- **Decisions:**
+  - **Movement = active calories, not active minutes.** HC
+    surfaces `active_kcal` directly; "active minutes" would
+    require either a TDEE-based conversion (lossy) or a new
+    HC permission scope. Founder said "movement minutes" but
+    kcal is the honest metric.
+  - **Sleep regularity uses std-dev of `sleep_minutes`** —
+    not bedtime variability. The HC custom Expo Module
+    aggregates sleep duration per night, not session
+    start/end (deferred to §14.5.2). When start/end land, the
+    SD calc switches to bedtime — same goal config, richer
+    signal.
+  - **Inbox-zero qualifies on current state** rather than
+    historical "was zero AT that day's end." We don't track
+    time-of-read in `gmail_cache`. The streak intent —
+    "did you achieve inbox zero" — is preserved; if the
+    user catches up later, prior days do qualify.
+  - **No new mobile screens** — all 3 goals creatable via
+    the existing customize.tsx form. Library picker
+    auto-discovers them via `/api/goal-library`.
+- **Outcome:** Shipping. Backend boots clean. TS clean (only
+  pre-existing finance.tsx). All JS+SQL — no rebuild.
+- **Manual checks (pending):** 3 new items in INBOX under
+  "From 3 new goal types".
+- **Next pickup:** §14.5.2 HC granular pulls (~8h, item #5 of 6).

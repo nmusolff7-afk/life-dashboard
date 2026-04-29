@@ -55,9 +55,11 @@ export default function CustomizeScreen() {
   // Per-library_id config inputs (§14.8 mobile follow-up).
   // TIME-02: daily screen-time cap (minutes).
   // TIME-06: cluster_id + weekly visits target.
+  // FIT-08: daily active-kcal target (2026-04-28 expansion).
   const [dailyCapMinutes, setDailyCapMinutes] = useState('');
   const [clusterId, setClusterId] = useState<number | null>(null);
   const [weeklyVisitsTarget, setWeeklyVisitsTarget] = useState('');
+  const [activeKcalTarget, setActiveKcalTarget] = useState('');
   const [clusters, setClusters] = useState<ClusterRow[] | null>(null);
   const [clustersLoading, setClustersLoading] = useState(false);
 
@@ -99,6 +101,7 @@ export default function CustomizeScreen() {
     // require these or instantiate as paused).
     if (entry.library_id === 'TIME-02' && dailyCapMinutes.length === 0) return false;
     if (entry.library_id === 'TIME-06' && (clusterId == null || weeklyVisitsTarget.length === 0)) return false;
+    if (entry.library_id === 'FIT-08' && activeKcalTarget.length === 0) return false;
 
     if (entry.goal_type === 'cumulative_numeric') return targetValue.length > 0;
     if (entry.goal_type === 'streak') return targetStreak.length > 0;
@@ -142,6 +145,9 @@ export default function CustomizeScreen() {
     if (entry.library_id === 'TIME-06') {
       if (clusterId != null) config.cluster_id = clusterId;
       if (weeklyVisitsTarget) config.weekly_visits_target = parseInt(weeklyVisitsTarget, 10);
+    }
+    if (entry.library_id === 'FIT-08' && activeKcalTarget) {
+      config.daily_active_kcal_target = parseInt(activeKcalTarget, 10);
     }
     if (Object.keys(config).length > 0) input.config = config;
 
@@ -271,6 +277,30 @@ export default function CustomizeScreen() {
             />
             <Text style={[styles.hint, { color: t.subtle }]}>
               A day qualifies for the streak when total screen time is at or below this number.
+            </Text>
+          </>
+        )}
+
+        {/* FIT-08 — daily active-kcal target. Reads
+         *  health_daily.active_kcal; goal qualifies a day when the
+         *  reading meets the target. (2026-04-28 §14.4-followup
+         *  expansion.) */}
+        {entry.library_id === 'FIT-08' && (
+          <>
+            <Text style={[styles.label, { color: t.muted, marginTop: 16 }]}>
+              Daily active-calories target
+            </Text>
+            <TextInput
+              style={[styles.input, { color: t.text, borderColor: t.border, backgroundColor: t.surface }]}
+              value={activeKcalTarget}
+              onChangeText={setActiveKcalTarget}
+              keyboardType="numeric"
+              placeholder="e.g. 300"
+              placeholderTextColor={t.subtle}
+            />
+            <Text style={[styles.hint, { color: t.subtle }]}>
+              Active calories from your wearable via Health Connect.
+              A typical 30-minute brisk walk is ~150–200 kcal.
             </Text>
           </>
         )}

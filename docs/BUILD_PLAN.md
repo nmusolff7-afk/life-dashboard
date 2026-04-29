@@ -356,20 +356,10 @@ the project will become.
   - **Trigger:** founder feedback on chatbot answer quality
     after using the expanded context for a few days.
 
-- **3 new goal types** (~4h) — §14.8 follow-up
-  - **Scope:** Add library entries + `_PROGRESS_HANDLERS` for:
-    - **Inbox-zero-streak** — Gmail unread = 0 by N PM, X days in
-      a row. Reads `gmail_messages` (synced unread count by hour).
-    - **Sleep-regularity** — wake-time stddev < N min over 14 days.
-      Reads `health_daily.sleep_minutes` + a new `wake_time` field.
-    - **Movement-minutes** — daily active minutes from
-      `health_daily.active_kcal` (or convert kcal→minutes via TDEE).
-  - **Files:** `db.py` (`_GOAL_LIBRARY_V1` extension + seed call),
-    `goals_engine.py` (3 new handlers), `mobile/app/goals/customize.tsx`
-    (per-goal config fields).
-  - **Done when:** All 3 goals are creatable from the library
-    picker, instantiate active (not paused), and show real
-    progress.
+- _(2026-04-28: 3 new goal types **shipped** — TIME-07_
+  _inbox-zero-streak, FIT-07 sleep-regularity, FIT-08 daily_
+  _movement / active-kcal. Library entries + handlers +_
+  _customize.tsx config UI for FIT-08. See PHASE_LOG.)_
 
 - **Plaid integration — Finance tab connector** (~30h, was Icebox; promoted 2026-04-28 per founder)
   - **Founder note (2026-04-28):** "Plaid should not be marked

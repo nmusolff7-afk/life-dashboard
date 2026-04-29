@@ -1237,6 +1237,28 @@ _GOAL_LIBRARY_V1 = [
          metric_name="weeks_location_visits_met", data_source="location",
          default_target=4, qualifying_condition="weekly_visits>=target",
          sort_order=22),
+    # ── 2026-04-28 §14.4-followup goal-type expansion ──
+    # Three new types unblocked by C1 connectors. Each takes
+    # per-goal config_json: TIME-07 (cutoff_hour), FIT-07 (target_stddev_minutes),
+    # FIT-08 (daily_active_kcal_target).
+    dict(library_id="TIME-07", category="time", goal_type="streak",
+         display_name="Inbox-zero streak",
+         description="Read every email received before today, N days in a row.",
+         metric_name="days_inbox_zero", data_source="gmail",
+         default_target=14, qualifying_condition="no_unread_older_than_day",
+         sort_order=23),
+    dict(library_id="FIT-07", category="fitness", goal_type="rate",
+         display_name="Sleep regularity",
+         description="Keep sleep-duration std dev (last 14 nights) under a target. Lower is better.",
+         metric_name="sleep_stddev_minutes", data_source="health_connect",
+         default_target=30, default_window_size=14, default_aggregation="stddev",
+         default_direction="decrease", sort_order=24),
+    dict(library_id="FIT-08", category="fitness", goal_type="streak",
+         display_name="Daily movement",
+         description="Hit a daily active-calories target, N days in a row.",
+         metric_name="days_active_kcal_met", data_source="health_connect",
+         default_target=14, qualifying_condition="active_kcal>=target",
+         sort_order=25),
 ]
 
 

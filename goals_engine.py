@@ -644,6 +644,137 @@ def _progress_location_visits_streak(goal: dict, user_id: int) -> dict:
     }
 
 
+# --- TIME-07: Inbox-zero streak (daily) ---
+#
+# A day qualifies if every email received before that day's start
+# is currently marked read. Approximation: we evaluate against
+# current `gmail_cache` state (we don't store time-of-read), so a
+# day stays "qualified" as long as the user eventually catches up.
+# That's fine for the streak's intent — "did you achieve inbox
+# zero" not "were you at inbox zero AT 11:59pm exactly."
+
+def _qualifies_inbox_zero(user_id: int, d: date) -> bool:
+    """Day d qualifies if no unread emails received before
+    (d + 1 day)'s start remain unread now. The boundary is the
+    NEXT day's start so emails received during d ARE counted —
+    you have to read them by D+1 to qualify D."""
+    cutoff_iso = (d + timedelta(days=1)).isoformat()
+    with get_conn() as conn:
+        try:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM gmail_cache "
+                "WHERE user_id = ? AND is_read = 0 AND received_at < ?",
+                (user_id, cutoff_iso),
+            ).fetchone()
+        except Exception:
+            return False
+    return int(row["n"]) == 0
+
+
+def _progress_inbox_zero_streak(goal: dict, user_id: int) -> dict:
+    """Gmail-only for v1; if Gmail isn't connected, paused."""
+    with get_conn() as conn:
+        try:
+            n = conn.execute(
+                "SELECT COUNT(*) AS n FROM gmail_cache WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()["n"]
+        except Exception:
+            n = 0
+    if n == 0:
+        return _paused_handler(goal, user_id)
+    return _progress_daily_streak(_qualifies_inbox_zero)(goal, user_id)
+
+
+# --- FIT-07: Sleep regularity (rate, decrease direction) ---
+#
+# Target: standard deviation of sleep_minutes across the last
+# `window_size` nights (default 14) ≤ `target_rate` minutes. Lower
+# is better — direction='decrease'.
+
+def _progress_sleep_regularity(goal: dict, user_id: int) -> dict:
+    target = goal.get("target_rate")
+    window = goal.get("window_size") or 14
+    if not target:
+        return _paused_handler(goal, user_id)
+    today = date.today()
+    start = (today - timedelta(days=int(window))).isoformat()
+    with get_conn() as conn:
+        try:
+            rows = conn.execute(
+                "SELECT sleep_minutes FROM health_daily "
+                "WHERE user_id = ? AND stat_date >= ? "
+                "AND sleep_minutes IS NOT NULL "
+                "ORDER BY stat_date DESC LIMIT ?",
+                (user_id, start, int(window)),
+            ).fetchall()
+        except Exception:
+            return _paused_handler(goal, user_id)
+    vals = [int(r["sleep_minutes"]) for r in rows if r["sleep_minutes"] is not None]
+    if len(vals) < 5:
+        # Need at least 5 nights of data for a meaningful SD.
+        return {
+            "current_fields": {},
+            "progress_pct": None, "snapshot_value": None,
+            "paused": False, "completed": False,
+        }
+    mean = sum(vals) / len(vals)
+    variance = sum((v - mean) ** 2 for v in vals) / len(vals)
+    sd = variance ** 0.5
+    target_f = float(target)
+    # Progress fraction: 1.0 when SD = 0, 0 when SD >= 2× target.
+    pct = max(0.0, min(1.0, 1 - (sd / (2 * target_f)))) if target_f > 0 else None
+    completed = sd <= target_f
+    return {
+        "current_fields": {"current_rate": round(sd, 1)},
+        "progress_pct": pct,
+        "snapshot_value": round(sd, 1),
+        "paused": False,
+        "completed": completed,
+    }
+
+
+# --- FIT-08: Daily movement (active calories) streak ---
+#
+# Day qualifies if `health_daily.active_kcal` >= per-goal config
+# `daily_active_kcal_target`. Defaults to 300 if not set.
+
+def _qualifies_active_kcal(target_kcal: int):
+    def inner(user_id: int, d: date) -> bool:
+        with get_conn() as conn:
+            try:
+                row = conn.execute(
+                    "SELECT active_kcal FROM health_daily "
+                    "WHERE user_id = ? AND stat_date = ?",
+                    (user_id, d.isoformat()),
+                ).fetchone()
+            except Exception:
+                return False
+        if not row or row["active_kcal"] is None:
+            return False
+        return int(row["active_kcal"]) >= target_kcal
+    return inner
+
+
+def _progress_active_kcal_streak(goal: dict, user_id: int) -> dict:
+    cfg = _goal_config(goal)
+    target = cfg.get("daily_active_kcal_target") or 300
+    if not (isinstance(target, (int, float)) and target > 0):
+        return _paused_handler(goal, user_id)
+    # No HC data → paused.
+    with get_conn() as conn:
+        try:
+            n = conn.execute(
+                "SELECT COUNT(*) AS n FROM health_daily WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()["n"]
+        except Exception:
+            n = 0
+    if n == 0:
+        return _paused_handler(goal, user_id)
+    return _progress_daily_streak(_qualifies_active_kcal(int(target)))(goal, user_id)
+
+
 _PROGRESS_HANDLERS = {
     "FIT-01": _progress_weight,
     "FIT-02": _progress_strength_pr("squat"),
@@ -661,6 +792,10 @@ _PROGRESS_HANDLERS = {
     "TIME-02": _progress_screen_time_cap,
     "TIME-05": _progress_focus_period,
     "TIME-06": _progress_location_visits_streak,
+    # 2026-04-28 §14.4-followup expansion (3 new types).
+    "TIME-07": _progress_inbox_zero_streak,
+    "FIT-07":  _progress_sleep_regularity,
+    "FIT-08":  _progress_active_kcal_streak,
     # Still paused (default _paused_handler):
     #   NUT-05 alcohol-free streak — needs alcohol classification on meal_logs.
     #   FIN-01/02/03 — Plaid not shipped.
