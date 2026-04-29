@@ -48,9 +48,39 @@ export const api = {
   },
 };
 
-const DEFAULT_TIMEOUT_MS = 15000;
+const DEFAULT_TIMEOUT_MS = 15_000;
+// AI-driven endpoints (Claude plan / scan / estimate / synthesize)
+// regularly take 20-60s on the backend. Default 15s timeout aborts
+// them client-side before the response arrives. Founder caught this
+// 2026-04-29: workout-plan/generate aborted twice during onboarding.
+const LONG_TIMEOUT_MS = 90_000;
+// Path fragments that flag a request as AI-driven and need the long
+// timeout. Substring match on the path (case-insensitive).
+const LONG_TIMEOUT_PATTERNS = [
+  '/generate',
+  '/scan',
+  '/estimate',
+  '/synthesize',
+  '/regenerate',
+  '/label-soft',
+  '/comprehensive',
+];
 
-export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+function timeoutFor(path: string, override?: number): number {
+  if (typeof override === 'number' && override > 0) return override;
+  const lower = path.toLowerCase();
+  if (LONG_TIMEOUT_PATTERNS.some((p) => lower.includes(p))) return LONG_TIMEOUT_MS;
+  return DEFAULT_TIMEOUT_MS;
+}
+
+export interface ApiFetchOptions extends RequestInit {
+  /** Override the per-call timeout in milliseconds. Defaults to
+   *  15s for normal endpoints, 90s for AI-driven endpoints (auto-
+   *  detected via path). Pass an explicit number to override. */
+  timeoutMs?: number;
+}
+
+export async function apiFetch(path: string, init?: ApiFetchOptions): Promise<Response> {
   const token = getFlaskToken();
   const headers = new Headers(init?.headers);
   if (token) headers.set('Authorization', `Bearer ${token}`);
@@ -63,8 +93,9 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
     headers.set('X-Client-Date', localToday());
   }
 
+  const ttl = timeoutFor(path, init?.timeoutMs);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), ttl);
   const start = Date.now();
   try {
     const res = await fetch(`${baseUrl}${path}`, {
@@ -80,7 +111,7 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
     const ms = Date.now() - start;
     const aborted = err instanceof Error && err.name === 'AbortError';
     // eslint-disable-next-line no-console
-    console.log(`[api] ${init?.method ?? 'GET'} ${path} → ${aborted ? `TIMEOUT after ${ms}ms` : `FAIL ${(err as Error)?.message}`}`);
+    console.log(`[api] ${init?.method ?? 'GET'} ${path} → ${aborted ? `TIMEOUT after ${ms}ms (limit ${ttl}ms)` : `FAIL ${(err as Error)?.message}`}`);
     throw err;
   } finally {
     clearTimeout(timeout);

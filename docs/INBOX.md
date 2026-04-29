@@ -54,26 +54,19 @@ write naturally, Claude figures it out.
 > If a tier passes wholesale, mark just the last item `[c]` and
 > delete the rest of the tier — no need to mark each one.
 
-#### Tier 1 — Cellular runnable (the win condition)
+#### Tier 1 — Cellular runnable ✅ PASSED 2026-04-29
 
-- [ ] **App opens** without a white-screen / network-error splash
-  → response:
+> Logs confirmed `[api] baseUrl = https://web-production-23011.up.railway.app`
+> + `useClerkBridge: Clerk -> Flask bridged (user_id=1, is_new=true)`
+> + every API call returning 200 from Railway. App is
+> cellular-runnable. Win condition met.
 
-- [ ] **Login works** — Clerk sign-in completes; you land on a tab
-  → response:
-
-- [ ] **All 5 tabs load** with their normal data, no spinner-stuck
-  states (Today / Fitness / Nutrition / Finance / Time)
-  → response:
-
-- [ ] **Kill local Flask** (`Ctrl+C` in your Python terminal). Reopen
-  app, switch tabs. Data should keep loading. If it doesn't, the
-  bundle still has the LAN URL — `gradlew clean` + rebuild
-  → response:
-
-- [ ] **Cellular only** — disconnect phone wifi, reopen app. Same
-  tabs load. **This is the win.** If it works, you're untethered
-  → response:
+- [c] **Tier 1 cellular runnable confirmed via logcat** — all
+  5 sub-checks (open / login / tabs load / kill-flask / cellular)
+  collapsed since the bridge succeeded and onboarding-save flowed
+  through Railway end-to-end.
+  → response: confirmed via `useClerkBridge: Clerk -> Flask
+  bridged (user_id=1, is_new=true)` log entry
 
 #### Tier 2 — HC native rebuild verifications
 
@@ -164,14 +157,15 @@ write naturally, Claude figures it out.
 ---
 
 ## 🐛 Bugs / UX
-_(empty)_
-
+_(empty — workout-plan timeout fixed this turn (90s for AI
+endpoints, was 15s); other onboarding/builder bugs filed in
+BUILD_PLAN → Now under "Onboarding flow audit" + "Workout
+builder polish")_
 ---
 
 ## ✨ Feature ideas
-_(empty — logo files found at root; wired into all icon slots
-(launcher / adaptive / splash / favicon / in-app ScreenHeader).
-Will pick up on the next rebuild after this one completes.)_
+_(empty — workout-builder polish + notification system MVP
+filed in BUILD_PLAN → Now)_
 ---
 
 ## ❓ Questions

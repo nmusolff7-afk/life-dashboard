@@ -242,6 +242,120 @@ the project will become.
   _runbook in `docs/DEPLOY.md`. Bundled with the HC native rebuild_
   _since the release APK build picks up both jobs.)_
 
+- _(2026-04-29: **Workout-plan/generate timeout** — fixed this turn._
+  _`apiFetch` now auto-bumps timeout to 90s for AI endpoints_
+  _(`/generate`, `/scan`, `/estimate`, `/synthesize`, `/regenerate`,_
+  _`/label-soft`, `/comprehensive`). Was 15s default; aborted_
+  _Claude plan generation twice during founder's onboarding._
+  _Will land in next rebuild.)_
+
+- **Onboarding flow audit — multiple founder pain points** (~4h) — INBOX 2026-04-29
+  - **Founder symptoms** (single onboarding pass through release APK):
+    1. "primary goal is redundant during onboarding in workout
+       builder since you already selected it earlier"
+    2. "dont show how we built your plan until after"
+    3. "connect your life in onboarding still showing shells and
+       coming soon for most despite them being built"
+    4. "no option to say yes to notifications"
+    5. "i dont think it gave me an option to sign in when i got to
+       sign in screen then closed app then reoped it went straight
+       to onboarding not sure who i am logged in as rn"
+  - **Scope (5 sub-fixes):**
+    1. **Dedup primary goal:** if user picked one in onboarding's
+       earlier step, skip the workout-builder primary-goal step
+       OR pre-fill it from the earlier value.
+       Files: `mobile/app/(onboarding)/*`,
+       `mobile/app/fitness/plan/builder.tsx`.
+    2. **"How we built your plan" timing:** Currently shown
+       during/after generation; should be hidden until
+       generation completes successfully.
+       Files: `mobile/app/fitness/plan/builder.tsx` (final step
+       layout).
+    3. **Onboarding connections screen stale labels:** lists
+       connectors as "coming soon" / shows shells when most are
+       wired (Gmail, GCal, Outlook, Strava, HC, Location, Screen
+       Time). Pull from `connectors.py` catalog like the Settings
+       version does. Files: `mobile/app/(onboarding)/connections.tsx`
+       — match the logic in `mobile/app/settings/connections.tsx`.
+    4. **Notification opt-in:** Add an onboarding step that
+       requests `expo-notifications` permission. PRD specs full
+       notification system (separately filed below); this is the
+       MVP "ask the user yes/no" affordance.
+       Files: new `mobile/app/(onboarding)/notifications.tsx`.
+    5. **Auth-state-on-cold-restart bug:** Founder hit sign-in
+       screen → closed app → reopened → was in onboarding
+       (skipping sign-in). Either Clerk session persisted (correct
+       behavior — they're logged in already) but onboarding
+       routing was wrong, or the auth-loading splash flickered
+       through sign-in. Need to add a "Signed in as <email>" line
+       on the onboarding hero so it's clear who they are. Plus
+       audit the onboarding-vs-sign-in routing in
+       `mobile/app/_layout.tsx` + `mobile/app/(tabs)/_layout.tsx`
+       + `mobile/app/(onboarding)/_layout.tsx` to ensure the auth
+       flow is deterministic.
+
+- **Workout builder polish — generation UX + generic preferences** (~3h) — INBOX 2026-04-29
+  - **Founder symptoms (feature ideas):**
+    - "make how we built your plan in workout builder actually
+      reflect design choices that were made SPECIFICALLY for
+      your plan"
+    - "make preferred focus input more generic for anything you
+      else want to be included in you plan like push pull legs or
+      make legs days light or 3 excercises per day or literally
+      anything"
+    - "theres a back arrow at the bottom and top which is
+      confusing"
+    - "make a full screen building screen like the pwa after the
+      last screen in workout builder"
+  - **Scope:**
+    - **Personalize the "How we built your plan" copy** — instead
+      of generic boilerplate, render the actual design choices
+      the user made (3 days/wk, hypertrophy focus, no overhead
+      due to shoulder injury, etc). Pull from the wizard's
+      `WorkoutPlanInputs` payload.
+    - **Free-form preferences input** — replace the constrained
+      "Preferred focus" picker with a freeform textarea that
+      gets fed verbatim to the AI plan generator. Backend
+      already accepts string preferences; just widen the UI.
+    - **Dedup back arrows** — remove either the bottom-of-step
+      back arrow or the header back arrow (keep header back to
+      match other wizards).
+    - **Full-screen "Building your plan…" loader** — match PWA's
+      progress UI: full-screen overlay during generation,
+      animated dots, "this can take 30-60 seconds…" copy. Lands
+      with the timeout fix above.
+  - **Files:** `mobile/app/fitness/plan/builder.tsx`,
+    `mobile/app/(onboarding)/workout-builder.tsx` (if separate),
+    backend `claude_workout_plan.py` to confirm preferences-string
+    is consumed.
+
+- **Notification system MVP** (~10h) — INBOX 2026-04-29
+  - **Founder symptom:** "notifications are a mssive thing that
+    needs built per the prd that we dont have yet".
+  - **Scope (PRD §4.x notifications):**
+    - Onboarding opt-in screen (filed above as part of onboarding
+      audit).
+    - Backend cron-style scheduler that fires daily reminders
+      based on user preferences (e.g. "morning weigh-in reminder
+      8:00 AM", "log dinner 19:00", "Sunday weekly review").
+    - `expo-notifications` plumbing: register device push token,
+      handle tap-to-route to the right tab, deep-link tasks /
+      meals / workouts.
+    - Per-user notification preferences in Settings: which
+      reminders to fire, time-of-day, snooze.
+    - Server-driven push: needs Expo Push API integration on
+      `app.py`. Free tier sufficient for solo-user phase.
+  - **Files:** new `notification_engine.py`, extend `db.py` with
+    `notification_preferences` + `device_push_tokens` tables,
+    `mobile/app/(onboarding)/notifications.tsx`,
+    `mobile/app/settings/notifications.tsx` (already exists, may
+    just be a stub),
+    `mobile/lib/usePushTokens.ts` (new).
+  - **Done when:** User opts into reminders during onboarding,
+    receives a daily reminder push, taps it, lands on the right
+    tab to act on it.
+  - **PRD ref:** §4.x notifications + §3.1 onboarding identity.
+
 - **EAS Update channel — OTA JS updates without rebuilds** (~1h) — INBOX 2026-04-29
   - **Founder symptom:** "will we have to do a 30min rebuild
     everytime we change something now?" — current loop is
