@@ -92,11 +92,18 @@ export function TimeTodaySignals({ meetingsToday, focusMinutesToday, onTimelineT
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.chipsRow}>
-        <SignalChip icon="phone-portrait-outline" label="Screen" value={screenLabel} t={t} />
-        <SignalChip icon="location-outline" label="Places" value={visitsLabel} t={t} />
-        <SignalChip icon="hourglass-outline" label="Focus" value={focusLabel} t={t} />
-        <SignalChip icon="briefcase-outline" label="Meetings" value={meetingsLabel} t={t} />
+      {/* 2x2 grid — founder 2026-04-28: single-row was "too smal so
+       *  too compressed". Two rows of two each gives each chip ~2x
+       *  the horizontal real estate so the value reads at a glance. */}
+      <View style={styles.chipsGrid}>
+        <View style={styles.chipsGridRow}>
+          <SignalChip icon="phone-portrait-outline" label="Screen" value={screenLabel} t={t} />
+          <SignalChip icon="location-outline" label="Places" value={visitsLabel} t={t} />
+        </View>
+        <View style={styles.chipsGridRow}>
+          <SignalChip icon="hourglass-outline" label="Focus" value={focusLabel} t={t} />
+          <SignalChip icon="briefcase-outline" label="Meetings" value={meetingsLabel} t={t} />
+        </View>
       </View>
 
       {(inProgress || upNext) ? (
@@ -189,20 +196,21 @@ function formatHM(minutes: number): string {
 
 const styles = StyleSheet.create({
   wrap: { gap: 10 },
-  chipsRow: { flexDirection: 'row', gap: 8 },
+  chipsGrid: { gap: 8 },
+  chipsGridRow: { flexDirection: 'row', gap: 8 },
   chip: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
     borderRadius: 12,
     borderWidth: 1,
     minWidth: 0,
   },
-  chipValue: { fontSize: 13, fontWeight: '700' },
-  chipLabel: { fontSize: 9, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  chipValue: { fontSize: 16, fontWeight: '700' },
+  chipLabel: { fontSize: 10, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
 
   nowStrip: {
     borderRadius: 14,

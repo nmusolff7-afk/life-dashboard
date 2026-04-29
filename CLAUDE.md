@@ -80,9 +80,12 @@ The Manual checks section is the founder's verification log. It works
 like a feedback loop:
 
 **On every response:**
-1. **Read the existing checks** for marks the founder added:
-   - `[x]` — verified working. **Delete the entry** from the file.
-   - `[✗]` — broken. **File as a bug** in `🐛 Bugs / UX` (or directly
+1. **Read the existing checks** for marks the founder added.
+   **Mark convention** (founder-revised 2026-04-28: `c` for
+   confirmed, `x` for broken — capital-`X` was too easy to
+   confuse with lowercase `x`):
+   - `[c]` — confirmed working. **Delete the entry** from the file.
+   - `[x]` — broken. **File as a bug** in `🐛 Bugs / UX` (or directly
      into Backlog → Now if testing-fresh). Then delete the manual-
      check entry. Surface in the end-of-response summary.
    - `[~]` — partial. Read the inline reply, file the rest as a
@@ -91,6 +94,8 @@ like a feedback loop:
      more than ~3 sessions, surface it in the response as a
      reminder.
    - **Removed entirely** — founder dismissed it. Move on.
+   - Legacy `[x]` (working) and `[✗]`/`[X]` (broken) from prior
+     sessions can still appear; treat them per the old meaning.
 
 2. **At the end of every phase, draft new manual checks** for any
    change you can't verify yourself (UI / native / env / external

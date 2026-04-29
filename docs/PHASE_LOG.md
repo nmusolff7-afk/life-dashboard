@@ -2318,3 +2318,97 @@ should yield the next round of work.
   redeploy to pick up `/api/health` (auto-redeploys on push),
   flip mobile/.env, build release APK. **Next pickup:**
   cellular smoke test + the rest of the rebuild verifications.
+
+### 33:00 — While-build-runs polish batch + testing plan + mark convention flip
+- **Prompt:** "ok while it rebuild push a testing plan to inbox and
+  continue to next step" (during the founder's 23m57s release
+  build of the deploy fix). Plus a workflow-rule change in INBOX
+  Other thoughts: "can we change from x and X to x for broken
+  and c for confirmed working?".
+- **Did:**
+  1. **Pushed a 5-tier testing plan to INBOX** for the next
+     install-and-test pass:
+     - Tier 1 cellular runnable (the win condition).
+     - Tier 2 HC native verifications.
+     - Tier 3 quick polish (this batch's additions).
+     - Tier 4 regression sweep.
+     - Tier 5 known-broken bug spot-checks.
+  2. **Knocked out 4 quick wins from Backlog → Now** that ship
+     in the next assembleRelease (founder will rebuild after
+     install + smoke testing the current build):
+     - **App display name `mobile` → `Life Dashboard`** in
+       `mobile/app.json` AND `mobile/android/app/src/main/res/values/strings.xml`
+       (manifest-direct so it picks up without a fresh prebuild).
+     - **Time tab signal chips → 2x2 grid** in
+       `TimeTodaySignals.tsx`. Two rows of two; bumped chip
+       padding + value font size since each chip now has 2x
+       horizontal real estate. Founder symptom: "yes but too
+       smal so too compressed".
+     - **Goals row in Settings** — `mobile/app/settings/index.tsx`.
+       Renamed "Fitness" section → "Tracking" + added Goals
+       row above Workout plan. Founder symptom: "no clear
+       goals accesibility other than from the homepage card".
+     - **READ_EXERCISE permission** added to `app.json` AND
+       `AndroidManifest.xml` directly. Was missing from the
+       manifest (Kotlin module was requesting it but it
+       wasn't declared, so EXERCISE never appeared in the
+       system permission sheet). This pairs with the prior
+       phase's hook-side perm-split fix.
+  3. **Cleaned up `mobile/.env`** — founder had pasted both
+     LAN and Railway URLs (lines 2 + 7). dotenv last-wins
+     would have resolved to Railway, but it was brittle.
+     Now: Railway URL active, LAN commented out as a
+     dev-session swap. Single source of truth.
+  4. **Adopted founder's mark convention flip** — `[c]`
+     confirmed, `[x]` broken (was `[x]` confirmed, `[X]`
+     broken). Felt during a heavy testing session that the
+     case difference was too subtle.
+     - Updated CLAUDE.md per-response workflow Step 2.
+     - Updated INBOX.md mark convention block.
+     - Saved `memory/inbox_mark_convention.md` so future
+       sessions adopt the new convention.
+     - Legacy `[x]`/`[X]` from past PHASE_LOG entries left
+       as historical (not interpreted by future me).
+  5. **Skipped Strava elevation polish item** — investigated,
+     the existing code at `strava-activity/[id].tsx:140-141`
+     IS already unit-aware (`isMetric ? 'm' : 'ft'`). If
+     founder is still seeing meters under imperial units,
+     it's likely a `useUnits()` runtime issue, not a render
+     bug. Left in Backlog → Now for future investigation
+     when we have a screenshot to verify.
+- **Files:** `mobile/app.json`,
+  `mobile/android/app/src/main/res/values/strings.xml`,
+  `mobile/android/app/src/main/AndroidManifest.xml`,
+  `mobile/components/apex/TimeTodaySignals.tsx`,
+  `mobile/app/settings/index.tsx`,
+  `mobile/.env`, `CLAUDE.md`, `docs/INBOX.md`,
+  `docs/PHASE_LOG.md`, plus `memory/inbox_mark_convention.md`
+  (new).
+- **Decisions:**
+  - **Did the polish batch during the founder's 23min build
+    rather than waiting** because they explicitly asked
+    ("continue to next step"). The fixes ship in the NEXT
+    rebuild, not the current one — so founder gets one
+    install for cellular + one rebuild later for the polish.
+  - **Edited AndroidManifest.xml directly** alongside
+    app.json for the EXERCISE perm + app_name. Without a
+    fresh `expo prebuild --clean`, app.json edits don't
+    propagate. Editing both keeps them in sync regardless
+    of whether prebuild runs again.
+  - **Renamed Settings "Fitness" → "Tracking"** instead of
+    adding Goals as a standalone section. Goals is
+    cross-domain; "Fitness" wasn't the right home; one
+    well-named section beats two thin ones.
+  - **Skipped Strava elev fix** because the code is right
+    and a runtime issue needs a screenshot to debug.
+    Founder can flag if they see it again post-rebuild.
+  - **Mark convention flip is workflow-foundational** — saved
+    to memory + CLAUDE.md so it survives future context
+    resets. The kind of thing that's painful if it drifts.
+- **Manual checks (pending):** 21 in INBOX organized into 5
+  tiers. Designed for stop-at-first-failure flow.
+- **Outcome:** Polish batch ready for next rebuild. Testing
+  plan landed. Mark convention adopted. **Next pickup:**
+  founder runs Tier 1 (cellular) on the just-built APK; if
+  cellular passes, runs `gradlew assembleRelease` once more
+  to pick up the polish batch + does the rest of the tiers.

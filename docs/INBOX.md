@@ -36,91 +36,129 @@ write naturally, Claude figures it out.
 > something it can't test itself (mostly UI / native / on-device
 > behavior). You complete them and respond inline.
 >
-> **How to respond:** change `[ ]` to `[x]` and add a one-line
-> reply after the arrow if anything's off. Claude clears
-> verified items at the start of the next response and files
-> any `[✗]` marks as bugs.
->
-> Mark conventions:
-> - `[x]` — verified working
-> - `[✗]` — broken; describe what you saw and Claude files a bug
+> **Mark conventions** (founder-revised 2026-04-28 — `c` for
+> confirmed, `x` for broken; previous capital-`X` was too easy
+> to confuse with lowercase `x`):
+> - `[c]` — confirmed working
+> - `[x]` — broken; describe what you saw and Claude files a bug
 > - `[~]` — partially works; describe what's off
 > - delete the line entirely if you don't care about it anymore
 
-### From Runnable-anywhere deploy + HC rebuild — 2026-04-28 (combined phase)
+### Testing plan — runnable-anywhere release build (2026-04-28)
 
-> **Combined phase:** rebuild = release APK = same step that picks up
-> the Kotlin sleep-window fix AND makes the app cellular-runnable.
-> One release rebuild handles both. Full runbook in
-> [`docs/DEPLOY.md`](DEPLOY.md).
+> **Run these in order.** Each tier gates the next: cellular works
+> → HC verifies → regression sweep. Stop at the first failure and
+> paste the error so I can diagnose without you needing to test
+> downstream.
+>
+> If a tier passes wholesale, mark just the last item `[c]` and
+> delete the rest of the tier — no need to mark each one.
 
-**Founder-side gates first** — these block the rest:
+#### Tier 1 — Cellular runnable (the win condition)
 
-- [ ] **Backend smoke test** — Backend is now up (the "random
-  website" was the legacy Flask PWA homepage at `/` — expected,
-  not a bug). Hit
-  `https://web-production-23011.up.railway.app/api/health` in
-  a browser. After the next Railway redeploy (this turn added
-  the `/api/health` route), it should return:
-  `{"ok": true, "service": "life-dashboard", "db": "up"}`.
+- [ ] **App opens** without a white-screen / network-error splash
   → response:
 
-  Status:
-  - Railway URL: `web-production-23011.up.railway.app` ✓
-  - Volume mounted at `/data` ✓
-  - SECRET_KEY presumably set (boot crash resolved; founder
-    saw the Flask PWA HTML render on `/`, which means Flask
-    booted past the SECRET_KEY check)
-  - JWT_SECRET intentionally skipped (falls back — fine)
-  - CORS_ORIGINS — set to `*` if you want to silence the
-    default warning, not blocking
-
-**App-side, after the backend is up:**
-
-- [ ] **`mobile/.env` `EXPO_PUBLIC_API_BASE_URL` flipped** to the
-  Railway HTTPS URL. Keep the LAN URL noted somewhere — useful
-  for dev sessions
+- [ ] **Login works** — Clerk sign-in completes; you land on a tab
   → response:
 
-- [ ] **Release APK built + installed** — DEPLOY.md Step 7.
-  ~10-15min first time. `adb install -r app-release.apk`
+- [ ] **All 5 tabs load** with their normal data, no spinner-stuck
+  states (Today / Fitness / Nutrition / Finance / Time)
   → response:
 
-- [ ] **Cellular smoke test** — disconnect phone from wifi, open
-  the app, login, browse Today + Fitness + Nutrition + Time tabs.
-  Every tab loads + shows data
+- [ ] **Kill local Flask** (`Ctrl+C` in your Python terminal). Reopen
+  app, switch tabs. Data should keep loading. If it doesn't, the
+  bundle still has the LAN URL — `gradlew clean` + rebuild
   → response:
 
-**HC + sleep verifications (covered by the same rebuild):**
+- [ ] **Cellular only** — disconnect phone wifi, reopen app. Same
+  tabs load. **This is the win.** If it works, you're untethered
+  → response:
+
+#### Tier 2 — HC native rebuild verifications
+
+- [ ] **HC card on Today/Fitness is tappable in Not-Connected
+  state** — tap the card itself; system permission sheet appears
+  → response:
+
+- [ ] **Granting HC perms outside the app is auto-detected** —
+  open HC app, grant a perm, switch back. Within ~1s the card
+  reflects connected state
+  → response:
 
 - [ ] **HC Connect emits a "Connected" alert on success** —
-  Settings → Connections → HC Connect → Continue when perms are
+  Settings → Connections → HC Connect → Continue when perms
   already granted. Should see a green "Connected" alert
   → response:
 
-- [ ] **Daily-aggregate sleep window matches stages window** —
-  Sleep subsystem `last night` value matches what HC's own Sleep
-  view shows (±5min for rounding)
+- [ ] **Sleep + HRV data appears anywhere** — Today tab Fitness
+  card + Sleep / Recovery subsystem screens show last night's
+  values. If still empty, **first open the HC app directly**
+  → Sleep / HRV — does HC have data? If no, upstream wearable
+  isn't pushing (not our bug). If yes, paste any logs
   → response:
 
-- [ ] **READ_EXERCISE no longer breaks `permitted`** — if you
-  previously granted only the 5 core perms (no Exercise), the
-  app still treats HC as connected. New connects request all 6
-  perms in one sheet
+- [ ] **READ_EXERCISE in the perm sheet** — when you tap Connect,
+  the system sheet now lists Exercise alongside the 5 core
+  perms (Steps / Sleep / HR / HRV / Active calories)
   → response:
 
-**Diagnostic (still missing data):**
+#### Tier 3 — Quick polish (this build adds these)
 
-- [ ] **Sleep + HRV data appears anywhere in the app** — founder
-  reported `still havent seen a bit of sleep or hrv data anywhere`
-  on the prior pass. After rebuild, re-test:
-  1. Open Health Connect app directly → Sleep. Is there ANY
-     sleep data there? If no — upstream wearable isn't pushing,
-     check the Garmin/Pixel Watch/Fitbit companion app's
-     Health Connect settings.
-  2. If HC has sleep but the app still shows nothing —
-     this is a real pipeline bug, copy any error logs into the
-     response below
+- [ ] **App display name is "Life Dashboard"** in the launcher,
+  not "mobile" anymore
+  → response:
+
+- [ ] **Time tab → Today subtab signal chips are 2x2** — Screen
+  / Places on row 1, Focus / Meetings on row 2. Each chip is
+  visibly larger than before
+  → response:
+
+- [ ] **Settings → Tracking → Goals row** — exists, taps through
+  to your goals list. (Workout plan moved into the same
+  Tracking section.)
+  → response:
+
+#### Tier 4 — Regression sweep (re-test what was working)
+
+- [ ] **Day Timeline doesn't crash** — Time → Timeline subtab
+  loads, blocks render, tap-block sheet works
+  → response:
+
+- [ ] **Patterns view renders** — Time → Patterns subtab shows
+  the 14-day rollup cards
+  → response:
+
+- [ ] **Chatbot responds** — open chatbot, ask "what tasks do I
+  have today?" — answer references real tasks
+  → response:
+
+- [ ] **Logging meals + workouts + tasks works** — log one of
+  each, see them in their respective tabs
+  → response:
+
+- [ ] **Strava activities load** — Fitness → Cardio → tap a
+  Strava activity. Map + stats + splits render
+  → response:
+
+#### Tier 5 — Known-broken bug spot-checks (re-test from the bug pile)
+
+- [ ] **Calorie chart actual data** — Nutrition → Progress.
+  Compare bars to your meal logs. Still flat at ~1800?
+  → response:
+
+- [ ] **Gmail star + sync** — Time tab Gmail card → tap Sync. New
+  emails appear within ~30s? Important emails get yellow stars?
+  → response:
+
+- [ ] **Onboarding overflow** — Settings → Account → Re-run
+  onboarding. Each page fits above on-screen buttons without
+  scrolling?
+  → response:
+
+- [ ] **Voice-to-text in chatbot** — open chatbot, use your
+  keyboard's voice input to dictate. Sent message matches what
+  you said (not concatenated partials)?
   → response:
 
 ---
@@ -131,9 +169,7 @@ _(empty)_
 ---
 
 ## ✨ Feature ideas
-_(empty — sync-now-everywhere idea folded into existing
-"Last synced X ago + retire Sync Now buttons" item in BUILD_PLAN
-→ Later)_
+_(empty)_
 
 ---
 
@@ -143,4 +179,4 @@ _(empty)_
 ---
 
 ## 💭 Other thoughts
-_(empty)_
+_(empty — `[c]` / `[x]` mark convention adopted, see above)_
