@@ -242,6 +242,35 @@ the project will become.
   _runbook in `docs/DEPLOY.md`. Bundled with the HC native rebuild_
   _since the release APK build picks up both jobs.)_
 
+- **EAS Update channel — OTA JS updates without rebuilds** (~1h) — INBOX 2026-04-29
+  - **Founder symptom:** "will we have to do a 30min rebuild
+    everytime we change something now?" — current loop is
+    edit-rebuild-install for every JS change, ~5min cached but
+    still slow. EAS Update lets us push JS-only changes to
+    Expo's CDN; the release APK fetches them on next open.
+  - **Scope:**
+    - `npx eas update:configure` to enable updates in
+      `app.json` + add the runtime version policy.
+    - Add `EXPO_PUBLIC_UPDATES_URL` and `EXPO_PUBLIC_RUNTIME_VERSION`
+      env vars (or use the auto-derived ones).
+    - In `eas.json`, add a "production" channel.
+    - Wire `expo-updates` into the app boot path so it
+      checks for updates on launch (already imported by
+      default in Expo SDK 54).
+    - Founder runs `eas update --branch production` to push
+      JS changes; phone fetches on next launch. ~30s push,
+      instant client-side.
+  - **Files:** `mobile/app.json` (updates section),
+    `mobile/eas.json` (channel config), `mobile/app/_layout.tsx`
+    or wherever update-on-launch is wired.
+  - **Done when:** Founder edits a `.tsx` file → runs
+    `eas update --branch production` → phone reopens app →
+    new JS bundle loads without rebuild.
+  - **Blocked on:** Successful runnable-anywhere deploy
+    (must work end-to-end before adding OTA layer);
+    founder's EAS account is already configured per
+    `eas.json` projectId.
+
 - **Wire new logo everywhere + APK launcher icon** (~1h) — INBOX 2026-04-28
   - **Founder symptom:** "switch to new logo, everywhere that
     uses the logo. include as logo for .apk also. files are

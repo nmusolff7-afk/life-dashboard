@@ -175,8 +175,9 @@ Will pick up on the next rebuild after this one completes.)_
 ---
 
 ## ❓ Questions
-_(empty)_
-
+_(empty — answered in chat: JS-only edits ~5min cached rebuild,
+native ~10-20min, full clean 25min. EAS Update for OTA JS pushes
+filed in BUILD_PLAN → Now once cellular smoke test passes.)_
 ---
 
 ## 💭 Other thoughts
