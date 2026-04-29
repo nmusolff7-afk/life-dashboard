@@ -362,6 +362,45 @@ def _fitness_context(user_id: int, today: str) -> dict:
         if len(wt) >= 2 else 0
     )
 
+    # Active workout plan + today's scheduled session — INBOX
+    # 2026-04-28: founder said the chatbot "doesn't seem to be able
+    # to read the workout plan." Pulled in here so the chatbot can
+    # answer "what's on my plan today?" and "did I do my scheduled
+    # workout?" questions.
+    plan_summary: dict | None = None
+    today_scheduled: dict | None = None
+    try:
+        from db import get_active_workout_plan
+        from datetime import datetime as _dt2
+        plan = get_active_workout_plan(user_id)
+        if plan and isinstance(plan.get("plan"), dict):
+            weekly = plan["plan"].get("weeklyPlan") or {}
+            day_name = _dt2.fromisoformat(today).strftime("%A")
+            today_block = weekly.get(day_name) or {}
+            today_scheduled = {
+                "day_name":  day_name,
+                "strength":  today_block.get("strength"),
+                "cardio":    today_block.get("cardio"),
+            } if today_block else None
+            # Compact plan summary — names of strength/cardio per day,
+            # not the exercise list (which is large).
+            plan_summary = {
+                "id":          plan.get("id"),
+                "understanding": (plan.get("understanding") or "")[:300],
+                "weekly_overview": {
+                    d: {
+                        "strength": (weekly.get(d, {}).get("strength") or {}).get("type"),
+                        "cardio":   (weekly.get(d, {}).get("cardio") or {}).get("type"),
+                    }
+                    for d in (
+                        "Monday", "Tuesday", "Wednesday", "Thursday",
+                        "Friday", "Saturday", "Sunday",
+                    )
+                },
+            }
+    except Exception:
+        pass
+
     return {
         "today": {
             "workout_logged": tw_count > 0,
@@ -375,7 +414,9 @@ def _fitness_context(user_id: int, today: str) -> dict:
                 for r in tw
             ],
             "current_weight_lbs": latest_weight,
+            "scheduled_workout": today_scheduled,
         },
+        "active_plan": plan_summary,
         "last_7_days": {
             "workout_count": int(weekly_workouts),
             "weekly_volume_lbs": round(weekly_volume, 1),
@@ -386,6 +427,198 @@ def _fitness_context(user_id: int, today: str) -> dict:
 
 def _finance_context() -> dict:
     return {"status": "not_connected", "note": "User has not connected a bank. No finance data available."}
+
+
+def _tasks_context(user_id: int, today: str) -> dict:
+    """Today's mind_tasks state (PRD §4.6.9). Ships incomplete +
+    overdue + recently-completed lists so the chatbot can answer
+    "what do I have left today?" / "did I finish the priority items?"
+    without grepping a giant list.
+
+    Founder INBOX 2026-04-28: "doesn't seem to be able to read
+    specific activities or specific meals or workout plan." This
+    container fixes the tasks half of that.
+    """
+    try:
+        with get_conn() as conn:
+            rows = conn.execute(
+                """SELECT id, description, completed, completed_at, priority,
+                          task_date, due_date, task_time, task_duration_minutes
+                   FROM mind_tasks
+                   WHERE user_id = ?
+                     AND (
+                       (completed = 0 AND task_date <= ?)            -- incomplete due today or earlier
+                       OR (completed = 0 AND due_date <= ? AND due_date IS NOT NULL)
+                       OR (completed = 1 AND task_date = ?)          -- completed today
+                     )
+                   ORDER BY priority DESC, task_date ASC, due_date ASC
+                   LIMIT 25""",
+                (user_id, today, today, today),
+            ).fetchall()
+    except Exception:
+        return {"today_open": [], "overdue": [], "completed_today": [], "total_open": 0}
+
+    tasks = [dict(r) for r in rows]
+    overdue = [
+        t for t in tasks
+        if not t["completed"] and (
+            (t["due_date"] and t["due_date"] < today)
+            or (not t["due_date"] and t["task_date"] < today)
+        )
+    ]
+    today_open = [
+        t for t in tasks
+        if not t["completed"] and t not in overdue
+    ]
+    completed_today = [t for t in tasks if t["completed"]]
+
+    def _shape(t: dict) -> dict:
+        return {
+            "id":          int(t["id"]),
+            "description": (t["description"] or "")[:120],
+            "priority":    bool(t["priority"]),
+            "due_date":    t["due_date"],
+            "time":        t["task_time"],
+        }
+
+    # Total open is a global rollup so the chatbot can say
+    # "you have 12 open tasks total" even when only the top 25 are
+    # surfaced as detail.
+    try:
+        with get_conn() as conn:
+            total_open = int(conn.execute(
+                "SELECT COUNT(*) AS n FROM mind_tasks "
+                "WHERE user_id = ? AND completed = 0",
+                (user_id,),
+            ).fetchone()["n"])
+    except Exception:
+        total_open = len(today_open) + len(overdue)
+
+    return {
+        "today_open":      [_shape(t) for t in today_open[:8]],
+        "overdue":         [_shape(t) for t in overdue[:8]],
+        "completed_today": [_shape(t) for t in completed_today[:8]],
+        "total_open":      total_open,
+    }
+
+
+def _day_timeline_context(user_id: int, today: str) -> dict:
+    """Today's Day Timeline blocks — both deterministic hard blocks
+    (calendar events + time-windowed tasks) and AI-labeled soft
+    blocks (gap inference). The chatbot can use this to answer
+    "what's on my plate this afternoon?" or "where did I spend my
+    morning?" without re-deriving from raw calendar/screen-time/
+    location separately.
+
+    Per PRD §4.6.5 (revised), soft blocks are descriptive AI labels
+    with confidence scores — the chatbot should treat them as
+    inferred-not-authoritative when answering."""
+    try:
+        from db import list_day_blocks
+        rows = list_day_blocks(user_id, today)
+    except Exception:
+        return {"blocks": []}
+
+    def _shape(b: dict) -> dict:
+        return {
+            "start":      b.get("block_start"),
+            "end":        b.get("block_end"),
+            "kind":       b.get("kind"),
+            "label":      b.get("label"),
+            "confidence": b.get("confidence"),
+            "source":     b.get("source_type"),
+        }
+
+    return {
+        "blocks": [_shape(b) for b in rows],
+        "block_count": len(rows),
+    }
+
+
+def _historical_context(user_id: int, today: str) -> dict:
+    """Trailing 14-day rollup for cross-day comparison questions
+    ("how does this week compare to last?"). PRD §4.7.10 override
+    (revised 2026-04-28): we lift the 8K cap to 18K with a
+    historical tier loaded on every query for Pro users; this is
+    the v1 always-loaded version (compact rollups, not raw rows).
+
+    Shape: per-day terse rows for the last 14 days, plus 7d-vs-7d
+    delta summaries for calories, workouts, weight."""
+    week_ago = (_date.fromisoformat(today) - _td(days=6)).isoformat()
+    two_weeks_ago = (_date.fromisoformat(today) - _td(days=13)).isoformat()
+    last_week_start = (_date.fromisoformat(today) - _td(days=13)).isoformat()
+    last_week_end = (_date.fromisoformat(today) - _td(days=7)).isoformat()
+    try:
+        with get_conn() as conn:
+            # Last 14 days of meals + workouts, one row per (date, source)
+            daily_rows = conn.execute(
+                """
+                SELECT log_date,
+                       COALESCE(SUM(calories), 0) AS cal,
+                       COALESCE(SUM(protein_g), 0) AS prot,
+                       COUNT(*) AS meal_count
+                FROM meal_logs
+                WHERE user_id = ? AND log_date BETWEEN ? AND ?
+                GROUP BY log_date
+                ORDER BY log_date
+                """,
+                (user_id, two_weeks_ago, today),
+            ).fetchall()
+            workout_rows = conn.execute(
+                """SELECT log_date, COUNT(*) AS n,
+                          COALESCE(SUM(calories_burned), 0) AS burn
+                   FROM workout_logs
+                   WHERE user_id = ? AND log_date BETWEEN ? AND ?
+                   GROUP BY log_date""",
+                (user_id, two_weeks_ago, today),
+            ).fetchall()
+            weight_rows = conn.execute(
+                """SELECT log_date, weight_lbs FROM daily_activity
+                   WHERE user_id = ? AND weight_lbs IS NOT NULL
+                     AND log_date BETWEEN ? AND ?
+                   ORDER BY log_date""",
+                (user_id, two_weeks_ago, today),
+            ).fetchall()
+
+        def _avg(rows, key):
+            vals = [r[key] for r in rows if r[key] is not None]
+            return round(sum(vals) / len(vals)) if vals else 0
+
+        # 7d vs 7d deltas (last 7 vs prior 7).
+        recent = [r for r in daily_rows if r["log_date"] >= week_ago]
+        prior  = [r for r in daily_rows if last_week_start <= r["log_date"] <= last_week_end]
+        recent_w = [r for r in workout_rows if r["log_date"] >= week_ago]
+        prior_w  = [r for r in workout_rows if last_week_start <= r["log_date"] <= last_week_end]
+
+        weight_first = weight_rows[0]["weight_lbs"] if weight_rows else None
+        weight_last  = weight_rows[-1]["weight_lbs"] if weight_rows else None
+
+        return {
+            "by_day": [
+                {"date": r["log_date"], "cal": int(r["cal"]), "prot": int(r["prot"]),
+                 "meals": int(r["meal_count"])}
+                for r in daily_rows
+            ],
+            "workouts_by_day": [
+                {"date": r["log_date"], "n": int(r["n"]), "burn": int(r["burn"])}
+                for r in workout_rows
+            ],
+            "weight_trend": [
+                {"date": r["log_date"], "weight_lbs": float(r["weight_lbs"])}
+                for r in weight_rows
+            ],
+            "this_week_vs_last": {
+                "cal_avg":     {"this": _avg(recent, "cal"),  "last": _avg(prior, "cal")},
+                "prot_avg":    {"this": _avg(recent, "prot"), "last": _avg(prior, "prot")},
+                "workouts":    {"this": sum(int(r["n"]) for r in recent_w),
+                                "last": sum(int(r["n"]) for r in prior_w)},
+                "weight_change_lbs":
+                    round(weight_last - weight_first, 1) if weight_first and weight_last else 0,
+            },
+        }
+    except Exception:
+        return {"by_day": [], "workouts_by_day": [], "weight_trend": [],
+                "this_week_vs_last": {}}
 
 
 def _life_context(user_id: int | None = None) -> dict:
@@ -716,6 +949,23 @@ def answer_query(
     else:
         containers_loaded.append("LifeContext")
 
+    # 2026-04-28 §14.4 chatbot three-tier context expansion. Founder
+    # INBOX: "doesn't seem to be able to read specific activities or
+    # specific meals or workout plan". Added three new containers:
+    #
+    # - TasksContext: today's open + overdue + completed mind_tasks.
+    # - DayTimelineContext: today's hard + soft blocks (PRD §4.6.5
+    #   revised — the AI labeling work from §14.2.2).
+    # - HistoricalContext: trailing-14-day rollup with this-week-vs-
+    #   last deltas. Always-loaded for v1; PRD §4.7.10 override
+    #   (revised) lifts the previous 8K cap to 18K to make room.
+    containers_json["TasksContext"] = _tasks_context(user_id, today)
+    containers_loaded.append("TasksContext")
+    containers_json["DayTimelineContext"] = _day_timeline_context(user_id, today)
+    containers_loaded.append("DayTimelineContext")
+    containers_json["HistoricalContext"] = _historical_context(user_id, today)
+    containers_loaded.append("HistoricalContext")
+
     # Per-source AI consent filter (PRD §4.8.7). Strips any subtree
     # whose backing source the user has opted out of. In v1 the
     # containers above don't yet carry integration-sourced data, so
@@ -755,10 +1005,15 @@ def answer_query(
 
     try:
         client = get_client()
+        # 2026-04-28: max_tokens raised 600 → 1200 alongside the
+        # §14.4 three-tier context expansion. The new TasksContext +
+        # DayTimelineContext + HistoricalContext containers give the
+        # model materially more to reference; the response cap was
+        # cutting off cross-day comparison answers mid-sentence.
         resp = client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=600,
-            timeout=20.0,
+            max_tokens=1200,
+            timeout=25.0,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_content}],
         )

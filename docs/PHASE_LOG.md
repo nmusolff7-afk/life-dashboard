@@ -1638,3 +1638,70 @@ after adding `GOOGLE_MAPS_API_KEY` to `.env`. Resolved.
   "From §14.2.4 Day Timeline UI polish".
 - **Next pickup:** §14.4 Chatbot three-tier context (~10h, the
   big one). Will continue next response.
+
+### 27:00 — §14.4 Chatbot three-tier context (item #3 of "go on all except plaid")
+- **Prompt:** "continue" — keep the queue moving.
+- **Did:**
+  1. **Triaged INBOX** — 27 manual checks pending; no new
+     bugs/features/questions/thoughts.
+  2. **Active phase: §14.4 Chatbot three-tier context expansion.**
+     Founder symptom (INBOX several phases back): "doesn't seem
+     to be able to read specific activities or specific meals or
+     workout plan." Audit confirmed: chatbot had Profile / Goals
+     (active calorie goal only) / Nutrition / Fitness (today
+     totals) / LifeContext (Gmail + GCal + Outlook + HC + screen
+     time + location) — but was missing tasks, workout plan, Day
+     Timeline blocks, and any cross-day historical rollup.
+  3. **Three new containers added to `chatbot.py`:**
+     - **`TasksContext`** — today's open mind_tasks + overdue
+       + completed-today + total-open count. Shape includes
+       priority flag, due_date, time-of-day. Capped at 8 per
+       bucket; chatbot can ask "show me more" via subsequent
+       turn if needed.
+     - **`DayTimelineContext`** — today's hard + soft blocks
+       from `day_blocks` table (the §14.2.2 AI labeling work).
+       Shape: start, end, kind, label, confidence, source.
+       Lets chatbot answer "what was I doing at 3pm?" / "what's
+       next?".
+     - **`HistoricalContext`** — trailing 14-day rollup of
+       meals (cal/protein/meal_count by day), workouts
+       (n + burn by day), weight (date + lbs by day), plus a
+       `this_week_vs_last` block with 7d-vs-7d deltas for
+       calories, protein, workouts, and weight change.
+  4. **`FitnessContext` extended** with active workout plan
+     summary + today's scheduled session. Plan summary is
+     compact: weekly_overview gives just the strength/cardio
+     `type` per day, NOT the full exercise list (would balloon
+     the JSON). Today's scheduled session ships the full
+     strength + cardio block for "what should I do today?".
+  5. **`max_tokens` raised** 600 → 1200; timeout 20s → 25s.
+     Cross-day comparison answers were getting truncated
+     mid-sentence with the prior cap.
+- **Files:** `chatbot.py` (3 new context functions, fitness
+  extension, container assembly, max_tokens bump),
+  `docs/BUILD_PLAN.md`, `docs/INBOX.md`, `docs/PHASE_LOG.md`.
+- **Decisions:**
+  - **Always-load all three new containers** rather than the
+    PRD §4.7.10-spec lazy-on-intent loading. Lazy is the right
+    long-term answer (cost), but for v1 we want to see how
+    the model uses the data first. Filed lazy-loading as
+    polish in Backlog → Later.
+  - **Compact plan summary, not raw plan JSON.** Full plan
+    can run 3-5KB easily; the chatbot rarely needs every
+    exercise's notes/RPE — it needs to know the SHAPE of
+    the week.
+  - **Token budget unchanged client-side.** PRD §4.7.10
+    override allows 18K; we're well under that even with
+    everything always-loaded. No need to enforce a per-user
+    cap until usage tells us it matters.
+  - **No privacy "what does Claude see?" panel UI in this
+    slice.** Filed as polish — the consent filter
+    (`_apply_consent_filter`) is already wired and stripping
+    subtrees the user opted out of. The panel is just
+    surfacing that to the user.
+- **Outcome:** Shipping. Backend boots clean. No mobile
+  changes — all server-side. JS rebuild not needed; backend
+  hot-reloads on Flask.
+- **Manual checks (pending):** 4 new items in INBOX under
+  "From §14.4 Chatbot three-tier context".
+- **Next pickup:** 3 new goal types (~4h, item #4 of 6).

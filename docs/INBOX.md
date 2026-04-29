@@ -47,6 +47,20 @@ write naturally, Claude figures it out.
 > - `[~]` — partially works; describe what's off
 > - delete the line entirely if you don't care about it anymore
 
+### From §14.4 Chatbot three-tier context — 2026-04-28
+
+- [ ] **Chatbot can read your tasks** — open chat, ask "what tasks do I have left today?" or "what's overdue?". Should list real tasks from your mind_tasks, not generic "I don't have access to that."
+  → response:
+
+- [ ] **Chatbot reads your workout plan** — ask "what's on my workout plan for today?" or "is today a strength or rest day?". Should reference your active plan's weekly schedule and today's scheduled session
+  → response:
+
+- [ ] **Chatbot can compare across days** — ask "how did last week's calories compare to this week?" or "did I work out more this week than last?". Should give numbers from the new HistoricalContext (14-day rollup)
+  → response:
+
+- [ ] **Chatbot reads Day Timeline** — ask "what was I doing this afternoon?" or "what's on my plate later today?". Should reference both your calendar events (hard blocks) and AI-inferred activities (soft blocks)
+  → response:
+
 ### From §14.2.4 Day Timeline UI polish — 2026-04-28
 
 - [ ] **"Now" indicator line** — open Time tab → Timeline. The current/next block has a thin red vertical line on its left edge. The strip auto-scrolls so that block is visible on first mount

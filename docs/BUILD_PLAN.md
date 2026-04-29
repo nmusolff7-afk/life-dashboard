@@ -332,34 +332,29 @@ the project will become.
     button), never auto-generated.
   - **PRD ref:** §4.6 (Patterns surface).
 
-- **§14.4 Chatbot three-tier context** (~10h) — promoted to Next priority by INBOX 2026-04-28
-  - **Founder symptom:** "Is everything currently getting passed
-    to the chatbot as JSON? It doesn't seem to be able to read
-    specific activities or specific meals or workout plan? I
-    think we need a larger audit of all the data being stored
-    and what is being passed to the chatbot bc it doesn't know
-    much rn."
-  - **Scope:** Always-on tier (~2K tokens, profile + today's plan
-    + active goals). Day-stream tier (~6K, today's events / tasks /
-    meal logs / workouts). Historical tier (~10K, lazy on intent —
-    14-day summary + last week's Day Timeline). Cost guardrails
-    (~2h): per-user-per-day token cap. Privacy (~2h): explicit
-    "what does Claude see?" panel.
-  - **Pre-cursor: data audit (~1h, do first).** Audit current
-    `_life_context` containers + log a snapshot of what JSON the
-    chatbot actually receives for a typical query. Compare
-    against what's stored in `meal_logs`, `workout_logs`,
-    `workout_plans`, `gcal_events`, etc. The audit becomes the
-    spec for what the day-stream + historical tiers should
-    add.
-  - **Files:** `chatbot.py` (rewrite `_life_context`),
-    `mobile/app/chatbot/index.tsx` (privacy panel).
-  - **Done when:** Chatbot can answer "what did I eat for lunch
-    yesterday?", "what's on my workout plan for tomorrow?",
-    "how does this week compare to last?"; token usage stays
-    under the daily cap.
-  - **PRD ref:** §4.7 + §4.7.10 (override applied — 18K cap, see
-    Vision).
+- **§14.4 Chatbot context — polish phase** (~3h follow-up)
+  - **Status (2026-04-28):** MVP shipped. Three new containers
+    landed in `chatbot.py`:
+    - **TasksContext** — today's open + overdue + completed
+      mind_tasks. Total open count for global rollup.
+    - **DayTimelineContext** — today's hard + soft blocks
+      (the §14.2.2 AI labeling work surfaced into chatbot).
+    - **HistoricalContext** — trailing 14-day rollup of meals,
+      workouts, weight + this-week-vs-last deltas.
+    - FitnessContext extended with active workout plan summary
+      + today's scheduled session.
+    - max_tokens 600 → 1200, timeout 20s → 25s.
+  - **Polish remaining:**
+    - Privacy "what does Claude see?" panel UI in
+      `mobile/app/chatbot/index.tsx`.
+    - Lazy-loading historical tier (only loaded when intent
+      classifier detects historical questions). Right now
+      always-loaded; v1 fine, but burns tokens on
+      "what should I eat?" type queries.
+    - Per-user-per-day token cap enforcement (the API call
+      logs token usage but doesn't gate). PRD §4.7.10 spec.
+  - **Trigger:** founder feedback on chatbot answer quality
+    after using the expanded context for a few days.
 
 - **3 new goal types** (~4h) — §14.8 follow-up
   - **Scope:** Add library entries + `_PROGRESS_HANDLERS` for:
