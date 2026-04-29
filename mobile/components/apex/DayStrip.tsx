@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, LayoutChangeEvent, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
   fetchDayTimeline,
@@ -34,6 +35,27 @@ export function DayStrip() {
   const [data, setData] = useState<DayTimelineResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<DayBlock | null>(null);
+  const scrollRef = useRef<ScrollView | null>(null);
+  // Track block widths so we can scroll the "now" position into
+  // view. Each block's onLayout reports its measured width back here.
+  const blockWidths = useRef<Map<number, number>>(new Map());
+
+  // Index of the block that contains "now", or the next future
+  // block. Used to auto-scroll on mount + render the "now" line.
+  const blocks = data?.blocks ?? [];
+  const nowIndex = useMemo(() => {
+    const now = new Date();
+    let inProgress = -1;
+    let nextFuture = -1;
+    blocks.forEach((b, i) => {
+      const s = new Date(b.block_start);
+      const e = new Date(b.block_end);
+      if (s <= now && now < e && inProgress === -1) inProgress = i;
+      if (s > now && nextFuture === -1) nextFuture = i;
+    });
+    return inProgress !== -1 ? inProgress : nextFuture;
+  }, [blocks]);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,7 +113,29 @@ export function DayStrip() {
     );
   }
 
-  const blocks = data?.blocks ?? [];
+  // Scroll to the "now" block once we know its width. Only fires
+  // once per data set — subsequent re-renders don't re-scroll.
+  const scrolledOnceRef = useRef(false);
+  useEffect(() => {
+    if (scrolledOnceRef.current) return;
+    if (nowIndex < 0) return;
+    if (blocks.length === 0) return;
+    // Wait one tick so onLayout has had a chance to fire.
+    const id = setTimeout(() => {
+      const widths = blockWidths.current;
+      if (widths.size < Math.min(nowIndex + 1, blocks.length)) return;
+      let offset = 0;
+      for (let i = 0; i < nowIndex; i++) {
+        offset += (widths.get(blocks[i].id) ?? 200) + 10; // +10 ≈ scroller gap
+      }
+      // Pull the now block ~16px from the left edge so the indicator
+      // line is visible against the previous block.
+      offset = Math.max(0, offset - 16);
+      scrollRef.current?.scrollTo({ x: offset, animated: true });
+      scrolledOnceRef.current = true;
+    }, 100);
+    return () => clearTimeout(id);
+  }, [nowIndex, blocks]);
 
   return (
     <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
@@ -103,19 +147,35 @@ export function DayStrip() {
         </Text>
       ) : (
         <ScrollView
+          ref={scrollRef}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.scroller}>
-          {blocks.map((b) => (
-            <BlockCard key={b.id} block={b} />
+          {blocks.map((b, i) => (
+            <View
+              key={b.id}
+              style={styles.blockSlot}
+              onLayout={(e: LayoutChangeEvent) => {
+                blockWidths.current.set(b.id, e.nativeEvent.layout.width);
+              }}>
+              <BlockCard block={b} onPress={() => setSelected(b)} />
+              {i === nowIndex ? (
+                <View
+                  pointerEvents="none"
+                  style={[styles.nowLine, { backgroundColor: t.danger }]}
+                />
+              ) : null}
+            </View>
           ))}
         </ScrollView>
       )}
+
+      <BlockDetailSheet block={selected} onClose={() => setSelected(null)} />
     </View>
   );
 }
 
-function BlockCard({ block }: { block: DayBlock }) {
+function BlockCard({ block, onPress }: { block: DayBlock; onPress: () => void }) {
   const t = useTokens();
   const accent = colorForBlock(block, t);
   const timeRange = `${formatBlockTime(block.block_start)} – ${formatBlockTime(block.block_end)}`;
@@ -135,6 +195,7 @@ function BlockCard({ block }: { block: DayBlock }) {
 
   return (
     <Pressable
+      onPress={onPress}
       style={[
         styles.block,
         {
@@ -180,6 +241,122 @@ function BlockCard({ block }: { block: DayBlock }) {
 function capitalize(s: string): string {
   if (!s) return s;
   return s[0].toUpperCase() + s.slice(1);
+}
+
+/** Tap-a-block detail sheet. Pulled out as a centered modal because
+ *  the full-screen ChatOverlay-style sheet pattern is already
+ *  reserved for the FAB; a smaller modal keeps Day Timeline drilldown
+ *  feeling lightweight. */
+function BlockDetailSheet({ block, onClose }: {
+  block: DayBlock | null;
+  onClose: () => void;
+}) {
+  const t = useTokens();
+  if (!block) return null;
+  const isSoft = block.kind === 'soft';
+  const accent = colorForBlock(block, t);
+  const range = `${formatBlockTime(block.block_start)} – ${formatBlockTime(block.block_end)}`;
+  const durationMin = (() => {
+    const s = new Date(block.block_start);
+    const e = new Date(block.block_end);
+    return Math.max(0, Math.round((e.getTime() - s.getTime()) / 60000));
+  })();
+  const src = block.source ?? {};
+
+  // Detail rows depending on block kind/source.
+  const rows: { label: string; value: string }[] = [];
+  rows.push({ label: 'When', value: range });
+  rows.push({ label: 'Duration', value: `${durationMin} min` });
+  if (block.source_type) {
+    rows.push({ label: 'Source', value: sourceLabel(block.source_type) });
+  }
+  if (src.location) {
+    rows.push({ label: 'Location', value: String(src.location) });
+  }
+  if (typeof src.attendees_count === 'number' && src.attendees_count > 0) {
+    rows.push({ label: 'Attendees', value: String(src.attendees_count) });
+  }
+  if (isSoft && block.confidence != null) {
+    rows.push({
+      label: 'AI confidence',
+      value: `${Math.round(block.confidence * 100)}%`,
+    });
+  }
+
+  return (
+    <Modal
+      visible={!!block}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}>
+      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+        <Pressable
+          style={[styles.modalCard, { backgroundColor: t.surface, borderColor: t.border }]}
+          onPress={(e) => e.stopPropagation()}>
+          <View style={styles.modalHeader}>
+            <View style={[styles.modalIcon, { backgroundColor: accent + '22' }]}>
+              <Ionicons
+                name={iconForBlock(block)}
+                size={18}
+                color={accent}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.modalKicker, { color: t.muted }]}>
+                {isSoft ? 'AI-LABELED' : (block.source_type || '').toUpperCase()}
+              </Text>
+              <Text style={[styles.modalTitle, { color: t.text }]} numberOfLines={2}>
+                {capitalize(block.label || 'Untitled')}
+              </Text>
+            </View>
+            <Pressable onPress={onClose} hitSlop={10}>
+              <Ionicons name="close" size={20} color={t.muted} />
+            </Pressable>
+          </View>
+
+          {rows.map((r) => (
+            <View key={r.label} style={[styles.modalRow, { borderTopColor: t.border }]}>
+              <Text style={[styles.modalRowLabel, { color: t.muted }]}>{r.label}</Text>
+              <Text style={[styles.modalRowValue, { color: t.text }]} numberOfLines={2}>
+                {r.value}
+              </Text>
+            </View>
+          ))}
+
+          {isSoft ? (
+            <Text style={[styles.modalFootnote, { color: t.subtle }]}>
+              AI inferred this block from your day's context. Hard
+              blocks (calendar events, tasks with times) are
+              authoritative.
+            </Text>
+          ) : null}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function iconForBlock(b: DayBlock): React.ComponentProps<typeof Ionicons>['name'] {
+  if (b.kind === 'soft') {
+    const lbl = (b.label || '').toLowerCase();
+    if (lbl.includes('focus'))    return 'hourglass-outline';
+    if (lbl.includes('meeting'))  return 'people-outline';
+    if (lbl.includes('meal'))     return 'restaurant-outline';
+    if (lbl.includes('transit'))  return 'car-outline';
+    if (lbl.includes('exercise')) return 'barbell-outline';
+    if (lbl.includes('social'))   return 'chatbubbles-outline';
+    if (lbl.includes('leisure'))  return 'ice-cream-outline';
+    if (lbl.includes('errand'))   return 'cart-outline';
+    if (lbl.includes('sleep'))    return 'moon-outline';
+    return 'help-circle-outline';
+  }
+  switch (b.source_type) {
+    case 'gcal':    return 'calendar-outline';
+    case 'outlook': return 'mail-open-outline';
+    case 'task':    return 'checkbox-outline';
+    case 'sleep':   return 'moon-outline';
+    default:        return 'time-outline';
+  }
 }
 
 function colorForBlock(b: DayBlock, t: ReturnType<typeof useTokens>): string {
@@ -256,4 +433,59 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   confText: { fontSize: 9, fontWeight: '600', letterSpacing: 0.5 },
+
+  // Wrapper around each block + the "now" indicator overlay.
+  blockSlot: { position: 'relative' },
+  // Vertical red line marking "right now" — overlays on top of the
+  // current/next block via positioned absolute. pointerEvents:'none'
+  // so it doesn't eat taps from the block underneath.
+  nowLine: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: 2,
+    borderRadius: 1,
+  },
+
+  // Block detail sheet — small centered modal, NOT full-screen.
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 16,
+    gap: 4,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingBottom: 12,
+  },
+  modalIcon: {
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  modalKicker: {
+    fontSize: 9, fontWeight: '700', letterSpacing: 0.7,
+    textTransform: 'uppercase',
+  },
+  modalTitle: { fontSize: 16, fontWeight: '700', marginTop: 1 },
+  modalRow: {
+    flexDirection: 'row',
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 12,
+  },
+  modalRowLabel: { fontSize: 12, fontWeight: '600', flex: 1 },
+  modalRowValue: { fontSize: 13, fontWeight: '500', flex: 2, textAlign: 'right' },
+  modalFootnote: { fontSize: 11, marginTop: 12, lineHeight: 16, fontStyle: 'italic' },
 });

@@ -47,6 +47,14 @@ write naturally, Claude figures it out.
 > - `[~]` — partially works; describe what's off
 > - delete the line entirely if you don't care about it anymore
 
+### From §14.2.4 Day Timeline UI polish — 2026-04-28
+
+- [ ] **"Now" indicator line** — open Time tab → Timeline. The current/next block has a thin red vertical line on its left edge. The strip auto-scrolls so that block is visible on first mount
+  → response:
+
+- [ ] **Tap a block → detail sheet** — tap any block (hard or soft). A small modal centers with: kind-aware icon, label, time range, duration, source/location/attendees/AI-confidence depending on block type. Tap-anywhere-outside dismisses
+  → response:
+
 ### From §14.2.2 Day Timeline soft AI labels — 2026-04-28
 
 - [ ] **Soft blocks appear on DayStrip** — open Time tab → Timeline. After ~1-3s, the gaps between calendar events should fill with AI-labeled blocks (focus / meal / transit / leisure / etc) rendered with a dashed border + "AI · low/med/high" confidence pill

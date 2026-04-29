@@ -1596,3 +1596,45 @@ after adding `GOOGLE_MAPS_API_KEY` to `.env`. Resolved.
   §14.2.4 Day Timeline mobile UI polish → §14.4 Chatbot three-
   tier context → 3 new goal types → §14.5.2 HC granular pulls
   → §14.3 Patterns view. Will continue next response.
+
+### 26:30 — §14.2.4 Day Timeline UI polish (item #2 of "go on all except plaid")
+- **Prompt:** "go" — continue the queue.
+- **Did:**
+  1. **"Now" indicator** — red vertical line overlays the current
+     in-progress block (or the next future block if none in
+     progress) on the DayStrip. Implemented via a positioned-
+     absolute View inside a new `blockSlot` wrapper that sits
+     under each block.
+  2. **Auto-scroll into view** — on first data load, the strip
+     scrolls horizontally so the "now" block sits ~16px from the
+     left edge. Uses each block's `onLayout`-measured width
+     (cached in a `useRef<Map<id, number>>`) to compute the
+     offset. Fires once per data load (`scrolledOnceRef`) so a
+     soft-block refresh doesn't yank the scroll back.
+  3. **Tap-a-block → detail sheet** — `BlockCard` now accepts
+     `onPress`. Tapping opens a centered modal with: kind-aware
+     Ionicon, capitalized label, time range, duration, source/
+     location/attendees count, AI confidence percentage for
+     soft blocks. Footnote on soft blocks reminds the founder
+     they're inferred. Tap-outside dismisses.
+- **Files:** `mobile/components/apex/DayStrip.tsx`.
+- **Decisions:**
+  - **"Now" line is per-slot overlay**, not a single chart-wide
+    line. Simpler to position; doesn't fight with horizontal
+    scrolling.
+  - **Auto-scroll fires once** so soft-block re-fetch doesn't
+    re-scroll. Founder may be in the middle of looking at
+    afternoon when the labeling pass completes — scrolling
+    them back to "now" would be jarring.
+  - **Detail sheet is centered modal**, not bottom-sheet. Fits
+    the small payload (5-7 rows) and avoids fighting with the
+    FAB / chat overlay's bottom-sheet real estate.
+  - **Kind-aware icons** in the modal (focus → hourglass, meal
+    → restaurant, transit → car, etc) — small touch but ties
+    the soft-block vocab to a visual.
+- **Outcome:** Shipping. TS clean (only pre-existing
+  finance.tsx). All JS — no rebuild.
+- **Manual checks (pending):** 2 new items in INBOX under
+  "From §14.2.4 Day Timeline UI polish".
+- **Next pickup:** §14.4 Chatbot three-tier context (~10h, the
+  big one). Will continue next response.

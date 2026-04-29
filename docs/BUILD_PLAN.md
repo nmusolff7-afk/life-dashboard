@@ -314,14 +314,10 @@ the project will become.
   - **PRD ref:** §4.6.5 override (AI permitted for labeling only,
     not score computation).
 
-- **§14.2.4 Day Timeline mobile UI polish** (~2h)
-  - **Scope:** DayStrip component refinements: tap-a-block →
-    detail sheet, scroll snapping, "now" indicator line, dark-mode
-    color tokens.
-  - **Files:** `mobile/components/apex/DayStrip.tsx`,
-    `mobile/components/apex/DayStripDetailSheet.tsx` (new).
-  - **Done when:** Tapping a block shows source data; "now" line
-    auto-scrolls into view on tab open.
+- _(removed 2026-04-28: §14.2.4 Day Timeline mobile UI polish_
+  _shipped — "now" red vertical line + auto-scroll into view +_
+  _tap-a-block detail sheet with kind-aware icons + AI-confidence_
+  _percentage on soft-block details.)_
 
 - **§14.3 Patterns view — hybrid** (~14h) — replaces Momentum tab stub
   - **Scope:** Deterministic patterns (~6h) from 14-day rollups:
