@@ -2161,3 +2161,99 @@ should yield the next round of work.
   needed); rebuild for the remaining 2; then either start
   the deploy phase (when their account is ready) or pick
   another Now item from the bug pile.
+
+### 32:00 — Combined runnable-anywhere deploy + HC native rebuild scoped
+- **Prompt:** "ok yes i want to move to this runnable anywhere
+  version it also looks like i need a rebuild from the manual
+  checks due in inbox. combine into one?"
+- **Did:**
+  1. **Triaged INBOX.** Founder marked 2 HC checks `[x]`
+     (HC card tappable, out-of-band perm grant auto-detected)
+     — both deleted. 1 still `[ ]` (Connected alert) — kept
+     pending. Sleep window + READ_EXERCISE checks `[X]` with
+     "doing rebuild next" — kept pending in deploy phase.
+     **Sleep + HRV diagnostic finding:** "still havent seen
+     a bit of sleep or hrv data anywhere" — surfaced as
+     INBOX → Diagnostic check with a guidance step (open HC
+     app first to see if HC even has the data) before
+     treating it as a pipeline bug. Also folded a feature
+     idea about retiring sync-now buttons into the existing
+     "Last synced X ago" Backlog → Later item.
+  2. **Active phase: Runnable-anywhere deploy + HC rebuild.**
+     Combined per founder ask. Single release APK build
+     picks up both jobs (Kotlin sleep window fix + Metro-
+     independent JS bundle).
+  3. **Scoped + wrote `docs/DEPLOY.md` runbook.** Sections:
+     - Pick Railway vs Fly (Railway recommended for SQLite
+       volume simplicity).
+     - Create Railway project + set env vars + mount /data
+       volume.
+     - Verify Procfile + nixpacks.toml work (already in tree,
+       no changes needed).
+     - Flip `mobile/.env` `EXPO_PUBLIC_API_BASE_URL` from
+       LAN to Railway HTTPS.
+     - Release APK build (uses debug.keystore — good enough
+       for side-load; real keystore deferred to pre-launch).
+     - Install + cellular smoke test.
+     - "Future / not-now" — real keystore, EAS Update channel,
+       network security config tightening, Sentry, Plaid env
+       vars.
+     - Rollback plan (revert mobile/.env, dev box keeps
+       working).
+  4. **Confirmed no code changes needed for deploy.**
+     `requirements.txt` already pins `gunicorn`. Procfile
+     correct. `nixpacks.toml` has `python312`. Build.gradle's
+     release signingConfig points at debug.keystore (the
+     standard Expo prebuild template) — fine for personal
+     side-load. OAuth redirect URIs all use deep-link
+     `lifedashboard://` scheme via mobile flow, so no
+     Google/Strava/Microsoft Cloud Console allowlist edits
+     required for v1.
+  5. **Updated BUILD_PLAN:**
+     - Active phase rewritten as "Runnable-anywhere deploy
+       + HC rebuild (combined)" pointing to DEPLOY.md.
+     - Removed the duplicate Backlog → Now Runnable-anywhere
+       entry (now a single-line pointer).
+     - Status snapshot updated.
+     - Folded the connection-popup-sync-now feedback into
+       the existing "Last synced X ago" Later item.
+- **Files:** new `docs/DEPLOY.md`,
+  `docs/BUILD_PLAN.md`, `docs/INBOX.md`,
+  `docs/PHASE_LOG.md`.
+- **Decisions:**
+  - **Bundled rebuild + deploy** because the release APK is
+    the same build that does both. Doing them as separate
+    steps would mean two ~10-15min builds back to back.
+  - **No OAuth allowlist edits this phase.** All connectors
+    use deep-link mobile flow; backend public URL doesn't
+    appear in any Google / Strava / Microsoft callback.
+    Plaid is the only one that would need a public URL but
+    it's not wired yet.
+  - **Sleep + HRV "still missing" stays as a
+    diagnostic-not-bug** until the rebuild is in. The
+    Kotlin sleep-window fix is the most likely culprit;
+    if it doesn't unlock data after rebuild, then the
+    investigation pivots to upstream wearable not pushing
+    to HC at all (Connection wiring guidance backlog item).
+  - **Real keystore deferred.** debug.keystore signs the
+    release APK fine for personal side-load. Generating a
+    real keystore + maintaining it is a pre-Play-Store
+    concern, not a personal-deploy concern.
+  - **EAS Update channel deferred.** Means JS-only edits
+    will require another release build (~5min with cache),
+    not a CDN push. Founder can opt in later when JS
+    iteration speed becomes a complaint.
+- **Manual checks (pending):** 11 in INBOX —
+  4 founder-side gates (Railway account, env vars, volume,
+  backend smoke test), 3 app-side (env flip, APK build,
+  cellular smoke test), 3 HC verifications post-rebuild
+  (Connected alert, Kotlin sleep window match, EXERCISE
+  non-blocking), 1 diagnostic (sleep + HRV showing
+  anywhere).
+- **Outcome:** Phase scoped + runbook written + no code
+  changes needed. **Next pickup:** founder runs the runbook
+  in `docs/DEPLOY.md`. After cellular smoke test passes,
+  pick the next Now item from the bug pile (recommended
+  starts: calorie chart actual-data flat-1800; Gmail
+  sync+star; Time tab task input card to top + 2x2 chips;
+  goals access from Settings).

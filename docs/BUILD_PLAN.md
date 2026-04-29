@@ -5,7 +5,7 @@
 > history accumulates in [`PHASE_LOG.md`](PHASE_LOG.md); long-term
 > product spec lives in [`migration/APEX_PRD_Final.md`](migration/APEX_PRD_Final.md).
 
-**Last updated:** 2026-04-28 by Claude (manual-check sweep + DayStrip hook-order regression fix — 14 new bugs filed in Backlog → Now)
+**Last updated:** 2026-04-28 by Claude (HC connect + sleep diagnostic shipped; runnable-anywhere deploy is now Active phase, runbook in `docs/DEPLOY.md`)
 
 ---
 
@@ -166,71 +166,45 @@ work?").
 
 ## Active phase
 
-**HC connect + Sleep diagnostic — JS shipped 2026-04-28; Kotlin sleep-window fix bundled, pending native rebuild + verification.**
+**Runnable-anywhere deploy + HC rebuild (combined) — runbook 2026-04-28; founder executing.**
+
+Per founder 2026-04-28: "ok yes i want to move to this runnable
+anywhere version it also looks like i need a rebuild from the
+manual checks due in inbox. combine into one?". Yes — release APK
+is the same build that picks up the Kotlin sleep-window fix AND
+removes the Metro dependency for cellular use. One rebuild, both
+jobs.
+
+Runbook: [`docs/DEPLOY.md`](DEPLOY.md). No code changes this
+phase — Procfile + nixpacks.toml already Railway-ready, signing
+config already uses debug.keystore for release builds (good
+enough for side-load), HC + sleep fixes from prior phase already
+in tree.
+
+**Sleep + HRV still missing** per founder ("still havent seen a
+bit of sleep or hrv data anywhere"). Could be:
+1. The Kotlin sleep-window fix unlocks it (rebuild required to
+   verify) — OR
+2. Upstream wearable not pushing data to HC (check the HC app
+   directly first — covered in INBOX manual check).
+
+PRIOR PHASE (HC connect + Sleep diagnostic, JS-only fixes):
+shipped, verified `[x]` by founder for "HC card tappable" and
+"out-of-band perm grant auto-detected". Three remaining checks
+(Connected alert, Kotlin sleep window, READ_EXERCISE
+non-blocking) all rebuild-gated and roll into this phase.
 
 DayStrip hook-order regression fix from earlier this turn was
 verified working post Metro reload — founder confirmed
 "reloaded no longer crashing" after a fast-refresh cache
-clear. Treating Day Timeline phases as actually shipped now.
+clear. Day Timeline phases now actually shipped.
 
-- **Phase:** combined "HC connect button does nothing" + "Sleep
-  data not appearing" — both blockers from 2026-04-28 manual-check
-  pass. Triaged together because they shared root cause (HC
-  perms / sync pipeline / sleep window).
-- **Scope:** Diagnose the gap between "HC reports it has data" and
-  "the app shows nothing". Five fixes shipped this turn:
-  1. **`HC_READ_PERMISSIONS` split into core + optional** in
-     `useHealthData.ts` — `permitted` now requires only the 5
-     core perms (steps / sleep / HR / HRV / active calories).
-     `READ_EXERCISE` is requested in the same system sheet but
-     classified optional, so existing 5-of-6-granted users
-     don't silently flip to permitted=false (which was
-     stopping their auto-sync).
-  2. **`AppState.addEventListener('change')` re-checks perms**
-     on every foreground transition. Founder symptom: granted
-     HC perms via the HC app directly, but the app still saw
-     `permitted=false` because `checkPermissions` only ran
-     once on mount. Now re-runs every time the app comes back
-     to active.
-  3. **JS sync prefers `sleepStages.total` over
-     `agg.sleep_minutes`** when present. The Kotlin daily-
-     aggregate filter for SleepSessionRecord uses [today
-     00:00, tomorrow 00:00) as its window, which misses
-     sessions whose start_time is before midnight (almost
-     all of them). `readSleepStages` already uses the right
-     window (yesterday 18:00 → today 18:00); now the JS
-     prefers it.
-  4. **Kotlin `readDailyAggregatesImpl` sleep window fixed**
-     to match `readSleepStagesImpl` — yesterday 18:00 →
-     today 18:00 — so the daily aggregate also returns
-     last night's sleep. Defense in depth alongside fix 3.
-  5. **`HealthConnectCard` "Not connected" state is
-     Pressable** — tap fires `hc.connect()` directly with
-     graceful error fallback (Play Store CTA when SDK
-     missing, route-to-Settings otherwise). Founder symptom:
-     "clicking hc card doesnt do anything".
-  6. **Settings → Connections HC connect path emits a
-     "Connected" success Alert** after the perms-already-
-     granted path returns ok=true — was silent before
-     (matches Gmail / Strava / Outlook flows).
-- **Files:** `mobile/lib/hooks/useHealthData.ts`,
-  `mobile/components/apex/HealthConnectCard.tsx`,
-  `mobile/app/settings/connections.tsx`,
-  `mobile/modules/health-connect/android/.../HealthConnectModule.kt`.
-- **Notes:** Founder needs a native rebuild to pick up the
-  Kotlin sleep-window fix. JS-only fixes 1+2+3+5+6 land on
-  Metro reload alone; they're enough to clear the connect-
-  button + auto-sync regressions even before the rebuild.
-  The Kotlin fix is bundled because founder has to rebuild
-  for §14.5.2 anyway (workout segments).
-
-## Next phase queued
-
-**Runnable-anywhere deploy** — backend to Railway + release
-APK so the app works on cellular. Per founder 2026-04-28:
-"when will this be runnable without being right next to my
-computer on wifi? its slowing me down". See "Runnable-anywhere
-deploy" in Backlog → Now for the concrete steps.
+**Founder action queue (in `docs/DEPLOY.md`):**
+1. Railway project + env vars + volume mount.
+2. `mobile/.env` flip from `10.0.0.22:5000` → Railway HTTPS.
+3. Release APK: `cd mobile/android && ./gradlew :app:assembleRelease`.
+4. `adb install -r app-release.apk`.
+5. Cellular smoke test (off LAN).
 
 ---
 
@@ -264,74 +238,9 @@ the project will become.
   _reload; Kotlin sleep-window fix needs rebuild. Re-test_
   _checks live in INBOX → Manual checks.)_
 
-- **Runnable-anywhere deploy** (~2-3h) — INBOX 2026-04-28
-  - **Founder symptom:** "when will this be runnable without
-    being right next to my computer on wifi? its slowing me
-    down".
-  - **Why this is the next-after-HC pickup:** Right now the
-    app only works when the phone is on the dev box's LAN +
-    Metro is running + the Flask box is on
-    `10.0.0.22:5000`. Three knots to untie:
-    1. **Backend public URL.** Procfile + nixpacks.toml
-       already exist (Railway/Render-ready). Push the repo
-       to a fresh Railway project, set env vars (see list
-       below), persist the SQLite DB on a Railway volume so
-       it survives redeploys.
-    2. **Mobile env points at deployed URL.** Flip
-       `mobile/.env`'s `EXPO_PUBLIC_API_BASE_URL` from
-       `http://10.0.0.22:5000` to e.g.
-       `https://apex.up.railway.app`. (Note: keep the LAN
-       URL handy — useful for hot-reload dev sessions.)
-    3. **Release-build APK.** A debug APK still requires
-       Metro at runtime (the JS bundle is fetched from the
-       dev server). A release APK has the bundle compiled
-       in, so it boots without Metro.
-       `cd mobile/android && ./gradlew :app:assembleRelease`.
-       Tradeoff: no hot reload — JS edits require either
-       another release build (~3min) or an EAS Update push
-       (CDN-fetched JS bundle, no rebuild).
-  - **Scope:**
-    - Verify Procfile + nixpacks.toml run cleanly on Railway
-      (or Fly.io as backup). May need to add a
-      `gunicorn`-installed line to requirements.txt if
-      missing.
-    - Document the env vars Railway needs (ANTHROPIC_API_KEY,
-      SECRET_KEY, JWT_SECRET, GOOGLE_CLIENT_ID/SECRET,
-      CLERK_PUBLISHABLE_KEY/SECRET_KEY, RECOVERY_KEY,
-      APP_URL, CORS_ORIGINS — see `.env.example`).
-    - Set up SQLite volume mount on Railway (DB_PATH should
-      point at `/data/life_dashboard.db` or similar).
-    - Update Google OAuth redirect URI allowlist in Cloud
-      Console to include the deployed Railway URL.
-    - Update Strava callback URL similarly.
-    - Update Microsoft Azure App Registration redirect URI.
-    - Sign the release APK (Android requires a signed APK
-      to install outside dev mode).
-      `mobile/android/app/keystore/*.keystore` already
-      exists if a release was previously built; if not, add
-      `keytool -genkey -v -keystore release.keystore...` to
-      the runbook.
-    - Update mobile/.env's API base URL.
-    - Build + install release APK on phone via
-      `adb install -r ./app/build/outputs/apk/release/app-release.apk`.
-  - **Files:**
-    - `requirements.txt` (verify gunicorn pinned).
-    - `mobile/.env` (API base URL flip).
-    - `mobile/android/app/build.gradle` (signing config —
-      may already exist from prior release attempt).
-    - New: a terse `docs/DEPLOY.md` runbook capturing
-      Railway env vars + first-deploy steps so this doesn't
-      re-encode each time.
-  - **Done when:** Founder can take the phone off the dev-
-    box's LAN, open the app on cellular, and every connected
-    feature still works (Gmail sync, Strava activities load,
-    HC syncs, etc).
-  - **MANUAL CHECKs:** Railway / Fly.io account setup,
-    Google + Strava + Microsoft redirect URI allowlist
-    edits — all founder-side actions.
-  - **Blocked on (founder):** Picking Railway vs Fly.io
-    (Railway recommended for SQLite+volume simplicity);
-    setting up the deploy account.
+- _(2026-04-28: **Runnable-anywhere deploy** is now Active phase —_
+  _runbook in `docs/DEPLOY.md`. Bundled with the HC native rebuild_
+  _since the release APK build picks up both jobs.)_
 
 - **Calorie chart shows flat ~1800 line — actual logged meals don't match** (annoying, ~2h) — INBOX 2026-04-28
   - **Founder symptom:** "this works but wasnt the problem the
@@ -848,7 +757,11 @@ the project will become.
   - **Founder symptom:** "need to show time since last sync
     for everything that regularly syncs next to sync now button
     and eventually everything should sync oten enough that there
-    are no sync now buttons".
+    are no sync now buttons" + "idk why we have a sync now on
+    the connection popup itself everything in the app should be
+    syncing regularly enough and on page changes and on tab
+    changes and on logging a workout or food or task or anything
+    that changes anything".
   - **Scope:** Two-step:
     1. Surface the existing `users_connectors.last_sync_at`
        timestamp on every connector-backed card (HC, Gmail

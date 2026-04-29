@@ -47,71 +47,92 @@ write naturally, Claude figures it out.
 > - `[~]` — partially works; describe what's off
 > - delete the line entirely if you don't care about it anymore
 
-### From HC connect + Sleep diagnostic — 2026-04-28
+### From Runnable-anywhere deploy + HC rebuild — 2026-04-28 (combined phase)
 
-> **JS-only fixes** (1, 2, 3, 5, 6 below) land on Metro reload alone.
-> Try them first. If the JS fixes resolve the symptom, you can skip
-> the rebuild for now.
->
-> **Kotlin fix** (4 — sleep window in `readDailyAggregatesImpl`)
-> needs a native rebuild:
->
-> ```powershell
-> cd C:\Users\nmuso\Documents\life-dashboard\mobile
-> npx expo prebuild --platform android --clean
-> cd android
-> .\gradlew.bat :app:assembleDebug
-> adb install -r .\app\build\outputs\apk\debug\app-debug.apk
-> ```
+> **Combined phase:** rebuild = release APK = same step that picks up
+> the Kotlin sleep-window fix AND makes the app cellular-runnable.
+> One release rebuild handles both. Full runbook in
+> [`docs/DEPLOY.md`](DEPLOY.md).
 
-- [ ] **(JS) HC card on Today/Fitness is now tappable in Not-Connected
-  state** — open Today/Fitness with HC not connected. Tap the
-  Health Connect card itself (not just "Sync now"). System
-  permission sheet appears; grant → card flips to data view
-  with steps/sleep stats
+**Founder-side gates first** — these block the rest:
+
+- [ ] **Railway account + project created** — sign in at railway.app
+  via GitHub, deploy the `nmusolff7-afk/life-dashboard` repo
+  → response (paste the Railway public URL here):
+
+- [ ] **Env vars set in Railway** — full list in DEPLOY.md Step 3.
+  Most copy from your local `.env`. New values: `DB_PATH=/data/...`,
+  `APP_URL=<railway-url>`, `CORS_ORIGINS=*`
   → response:
 
-- [ ] **(JS) Settings → Connections → HC Connect emits a "Connected"
-  alert on success** — tap Connect → Continue when perms are
-  already granted. Should see a green "Connected" alert (was
-  silent before)
+- [ ] **Volume mounted at `/data`** — DEPLOY.md Step 4. Without
+  this, the SQLite DB resets on every redeploy
   → response:
 
-- [ ] **(JS) Granting HC perms outside the app is auto-detected** —
-  open the HC app from the launcher, grant Life Dashboard's
-  Sleep / Steps / etc, then switch back to Life Dashboard.
-  Within ~1s, the HC card should reflect connected state
-  (was stuck at "Not connected" until you re-tapped Connect)
+- [ ] **Backend smoke test** — hit
+  `https://<your-railway-url>/api/health` in a browser. Returns
+  JSON or a login-redirect. Confirms Flask is up
   → response:
 
-- [ ] **(JS) Sleep data appears even when last night's sleep crosses
-  midnight** — after reload + auto-sync, Today tab Fitness card
-  and Sleep subsystem should show last night's sleep duration.
-  Was being dropped by the old window-bug
+**App-side, after the backend is up:**
+
+- [ ] **`mobile/.env` `EXPO_PUBLIC_API_BASE_URL` flipped** to the
+  Railway HTTPS URL. Keep the LAN URL noted somewhere — useful
+  for dev sessions
   → response:
 
-- [ ] **(REBUILD) Daily-aggregate sleep window matches stages window** —
-  after rebuild + install, Sleep subsystem `last night` value
-  matches what HC's own Sleep view shows (give or take ±5min
-  for rounding)
+- [ ] **Release APK built + installed** — DEPLOY.md Step 7.
+  ~10-15min first time. `adb install -r app-release.apk`
   → response:
 
-- [ ] **(REBUILD) READ_EXERCISE no longer breaks `permitted`** — if
-  you previously granted only the 5 core perms (no Exercise),
-  the app should still treat HC as "connected" and auto-sync
-  runs. New connects request all 6 perms in one sheet so Garmin
-  activities flow when granted
+- [ ] **Cellular smoke test** — disconnect phone from wifi, open
+  the app, login, browse Today + Fitness + Nutrition + Time tabs.
+  Every tab loads + shows data
+  → response:
+
+**HC + sleep verifications (covered by the same rebuild):**
+
+- [ ] **HC Connect emits a "Connected" alert on success** —
+  Settings → Connections → HC Connect → Continue when perms are
+  already granted. Should see a green "Connected" alert
+  → response:
+
+- [ ] **Daily-aggregate sleep window matches stages window** —
+  Sleep subsystem `last night` value matches what HC's own Sleep
+  view shows (±5min for rounding)
+  → response:
+
+- [ ] **READ_EXERCISE no longer breaks `permitted`** — if you
+  previously granted only the 5 core perms (no Exercise), the
+  app still treats HC as connected. New connects request all 6
+  perms in one sheet
+  → response:
+
+**Diagnostic (still missing data):**
+
+- [ ] **Sleep + HRV data appears anywhere in the app** — founder
+  reported `still havent seen a bit of sleep or hrv data anywhere`
+  on the prior pass. After rebuild, re-test:
+  1. Open Health Connect app directly → Sleep. Is there ANY
+     sleep data there? If no — upstream wearable isn't pushing,
+     check the Garmin/Pixel Watch/Fitbit companion app's
+     Health Connect settings.
+  2. If HC has sleep but the app still shows nothing —
+     this is a real pipeline bug, copy any error logs into the
+     response below
   → response:
 
 ---
 
 ## 🐛 Bugs / UX
-_(empty — all triaged into BUILD_PLAN → Now)_
+_(empty)_
 
 ---
 
 ## ✨ Feature ideas
-_(empty — all triaged into BUILD_PLAN → Later)_
+_(empty — sync-now-everywhere idea folded into existing
+"Last synced X ago + retire Sync Now buttons" item in BUILD_PLAN
+→ Later)_
 
 ---
 
