@@ -662,6 +662,58 @@ def api_health():
     })
 
 
+@app.route("/api/debug/config")
+def api_debug_config():
+    """Temp diagnostic — reports which env vars are configured
+    (booleans only; no secret values leaked). Used to debug a
+    stuck 'Checking account…' spinner on first deploy when Clerk
+    env vars are mis-set. Remove this route once the deploy is
+    stable.
+
+    Also tries Clerk JWKS client init + DB write to surface
+    server-config failures that would otherwise hang at
+    /api/auth/clerk-verify."""
+    out = {
+        "service": "life-dashboard",
+        "env_vars": {
+            "SECRET_KEY":               bool(os.environ.get("SECRET_KEY")),
+            "JWT_SECRET":               bool(os.environ.get("JWT_SECRET")),
+            "ANTHROPIC_API_KEY":        bool(os.environ.get("ANTHROPIC_API_KEY")),
+            "CLERK_PUBLISHABLE_KEY":    bool(os.environ.get("CLERK_PUBLISHABLE_KEY")),
+            "CLERK_SECRET_KEY":         bool(os.environ.get("CLERK_SECRET_KEY")),
+            "GOOGLE_CLIENT_ID":         bool(os.environ.get("GOOGLE_CLIENT_ID")),
+            "GOOGLE_CLIENT_SECRET":     bool(os.environ.get("GOOGLE_CLIENT_SECRET")),
+            "RECOVERY_KEY":             bool(os.environ.get("RECOVERY_KEY")),
+            "DB_PATH":                  os.environ.get("DB_PATH", "(default: life_dashboard.db)"),
+            "APP_URL":                  os.environ.get("APP_URL", "(unset)"),
+            "CORS_ORIGINS":             os.environ.get("CORS_ORIGINS", "(default Expo dev ports)"),
+            "RAILWAY_ENVIRONMENT":      os.environ.get("RAILWAY_ENVIRONMENT", "(unset)"),
+            "FLASK_ENV":                os.environ.get("FLASK_ENV", "(unset)"),
+        },
+        "checks": {},
+    }
+
+    # Clerk JWKS init — fastest way to detect a malformed publishable key.
+    try:
+        import clerk_auth
+        client = clerk_auth._ensure_jwks_client()
+        out["checks"]["clerk_jwks_client"] = "ready" if client is not None else "unavailable_check_publishable_key"
+    except Exception as e:
+        out["checks"]["clerk_jwks_client"] = f"error:{type(e).__name__}:{e}"
+
+    # SQLite — read + write probe on whatever DB_PATH points at.
+    try:
+        from db import get_conn
+        with get_conn() as conn:
+            conn.execute("SELECT 1").fetchone()
+            conn.execute("CREATE TABLE IF NOT EXISTS _debug_probe (k TEXT)").fetchall()
+        out["checks"]["sqlite"] = "read_write_ok"
+    except Exception as e:
+        out["checks"]["sqlite"] = f"error:{type(e).__name__}:{e}"
+
+    return jsonify(out)
+
+
 @app.route("/privacy")
 def privacy():
     return render_template("privacy.html")
