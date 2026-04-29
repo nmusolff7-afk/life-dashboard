@@ -160,7 +160,9 @@ needed for Play Store).
 cd C:\Users\nmuso\Documents\life-dashboard\mobile
 npx expo prebuild --platform android --clean
 cd android
-# JAVA_HOME + ANDROID_HOME already set from prior builds
+# JAVA_HOME + ANDROID_HOME already set from prior builds.
+# PowerShell 5.x doesn't support && — run lines one at a time
+# or use `;` if you don't care about failure-stop behavior.
 .\gradlew.bat :app:assembleRelease
 adb install -r .\app\build\outputs\apk\release\app-release.apk
 ```
