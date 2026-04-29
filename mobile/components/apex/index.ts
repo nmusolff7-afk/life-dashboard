@@ -18,6 +18,7 @@ export { OverallScoreHero } from './OverallScoreHero';
 export { DayStrip } from './DayStrip';
 export { TimeCardContent } from './TimeCardContent';
 export { TimeTodaySignals } from './TimeTodaySignals';
+export { PatternsView as PatternsViewCard } from './PatternsView';
 export { LogActivityCard } from './LogActivityCard';
 export { TodayScheduledWorkoutCard } from './TodayScheduledWorkoutCard';
 export type { TodayScheduledWorkout } from './TodayScheduledWorkoutCard';

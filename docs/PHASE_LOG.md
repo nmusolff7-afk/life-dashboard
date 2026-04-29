@@ -1861,3 +1861,85 @@ after adding `GOOGLE_MAPS_API_KEY` to `.env`. Resolved.
   inlined.
 - **Next pickup:** §14.3 Patterns view (~14h, item #6 of 6,
   the biggest one). Will continue next response.
+
+### 28:30 — §14.3 Patterns view MVP (item #6 / final of "go on all except plaid")
+- **Prompt:** "continue then ill rebuild and attack manual
+  testing queue and have a bunch of shit to put in your inbox"
+  — last item in the queue; founder rebuilding after.
+- **Did:**
+  1. **Triaged INBOX** — empty new sections; 37 manual checks
+     pending.
+  2. **Active phase: §14.3 Patterns view MVP.** Replaces the
+     Time tab → Patterns subtab placeholder with real
+     deterministic 14-day rollups + AI synthesis.
+  3. **Backend:**
+     - New `patterns_engine.py`. `compute_patterns(user, today,
+       window_days=14)` returns a dict with 7 sub-sections:
+       sleep / movement / screen / places / calendar / nutrition
+       / workouts. Each section gracefully returns None when no
+       data exists (empty HC, no calendar, etc).
+     - `synthesize_insights(user, patterns)` calls Claude Haiku
+       with the patterns dict + a constrained prompt
+       (descriptive-only per PRD §3.3, vocabulary fixed to
+       sleep/movement/screen/places/calendar/nutrition/workouts/
+       general tags). Returns up to 3 `{headline, detail, tag}`
+       objects. Empty list on Haiku failure.
+     - Routes: `GET /api/patterns` (deterministic, always-load,
+       cheap) and `POST /api/patterns/synthesize` (one Haiku
+       call per tap, user-invoked).
+  4. **Mobile:**
+     - New `mobile/components/apex/PatternsView.tsx`. Renders a
+       stack of small section cards (icon + 3-5 row key/value
+       table per section) for whatever data exists, plus an "AI
+       INSIGHTS" footer with Generate/Refresh button. Insight
+       cards render only after user invocation.
+     - `time.tsx PatternsView` swapped from EmptyState
+       placeholder to `<PatternsViewCard />`.
+- **Files:** `patterns_engine.py` (new), `app.py` (2 new
+  routes), `mobile/components/apex/PatternsView.tsx` (new),
+  `mobile/components/apex/index.ts`,
+  `mobile/app/(tabs)/time.tsx`, `docs/BUILD_PLAN.md`,
+  `docs/INBOX.md`, `docs/PHASE_LOG.md`.
+- **Decisions:**
+  - **Recompute on read** for v1. Patterns are <50ms to
+    compute on a single-user laptop DB; nightly cron + a
+    `patterns_log` table is post-launch optimization once
+    compute time becomes a complaint.
+  - **AI synthesis is user-invoked**, not auto-fired. Founder
+    pays Haiku $$ once per "Generate" tap; auto-firing every
+    Patterns visit would be wasteful.
+  - **Constrained vocabulary on insight tags** (8-word set)
+    so the icon mapping is deterministic. Free-form tags
+    would inflate render edge-cases.
+  - **Section cards hide when section is null** — a user
+    with HC + no calendar shouldn't see an empty Calendar
+    card; the section just isn't there.
+  - **Cross-domain correlations deferred.** Pearson coefs
+    across 14 days produce noisy results without careful
+    handling (NaN when one variable is constant, divide-by-
+    zero, etc). v1 ships single-domain summaries; v1.6 adds
+    correlations once we see the data shape.
+  - **No hover/tap drilldown** in the section cards. v1 is
+    summary-only; tap-to-drill is a polish item.
+- **Outcome:** Shipping. Backend boots clean. TS clean (only
+  pre-existing finance.tsx). All Python + JS — no rebuild
+  needed BUT the founder's rebuilding for §14.5.2 anyway, so
+  this lands together.
+- **Manual checks (pending):** 3 new items in INBOX under
+  "From §14.3 Patterns view".
+
+### 🎯 "Go on all except plaid" queue complete
+
+Six phases shipped in succession:
+1. ✅ §14.2.2 Day Timeline soft AI labels (MVP)
+2. ✅ §14.2.4 Day Timeline UI polish
+3. ✅ §14.4 Chatbot three-tier context (Tasks +
+   DayTimeline + Historical containers)
+4. ✅ 3 new goal types (TIME-07 / FIT-07 / FIT-08)
+5. ✅ §14.5.2 HC granular pulls (backend MVP — Garmin path)
+6. ✅ §14.3 Patterns view (MVP)
+
+Backlog → Now is empty. Backlog → Next has only Plaid (waiting
+on founder's Developer Portal setup) plus the 6 polish-phase
+follow-ups filed above. Founder's rebuild + manual-test pass
+should yield the next round of work.

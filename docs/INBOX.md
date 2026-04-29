@@ -47,6 +47,17 @@ write naturally, Claude figures it out.
 > - `[~]` — partially works; describe what's off
 > - delete the line entirely if you don't care about it anymore
 
+### From §14.3 Patterns view — 2026-04-28
+
+- [ ] **Time tab → Patterns subtab** renders real 14-day rollup cards (was an EmptyState placeholder). Cards appear for each section that has data: Sleep / Movement / Screen / Places / Calendar / Nutrition / Workouts. Sections without data are hidden
+  → response:
+
+- [ ] **AI insights "Generate" button** at the bottom of the Patterns view. Tap → "Thinking…" for ~3-5s → renders 3 short observations from your real data. Each insight has a tag-icon + headline + one-line detail. "Refresh" replaces them with a fresh batch
+  → response:
+
+- [ ] **Insights are descriptive, not prescriptive** — the model should never tell you what to do. If you see anything like "you should…" or "try…" it's broken; flag it
+  → response:
+
 ### From §14.5.2 HC granular pulls — 2026-04-28
 
 **Heads up: this phase touches native Kotlin. You need a fresh local Android build to test.**

@@ -2628,6 +2628,41 @@ def api_day_timeline(date_iso: str):
     })
 
 
+@app.route("/api/patterns", methods=["GET"])
+@login_required
+def api_patterns():
+    """Deterministic 14-day patterns rollup (PRD §4.3, §14.3
+    revised). Sleep / movement / screen / places / calendar /
+    nutrition / workouts. No AI. Cheap on read; safe to call from
+    Patterns view on every focus."""
+    import patterns_engine
+    try:
+        patterns = patterns_engine.compute_patterns(uid())
+    except Exception:
+        _log.exception("patterns: compute failed")
+        return jsonify({"ok": False, "error": "Could not compute patterns",
+                        "error_code": "compute_failed"}), 500
+    return jsonify({"ok": True, "patterns": patterns})
+
+
+@app.route("/api/patterns/synthesize", methods=["POST"])
+@login_required
+def api_patterns_synthesize():
+    """User-invoked AI synthesis. Reads the deterministic patterns +
+    asks Claude Haiku for 3 plain-English insights (descriptive,
+    never prescriptive — per PRD §3.3). One Haiku call per tap.
+    Cost: pennies; fine to invoke on user demand."""
+    import patterns_engine
+    try:
+        patterns = patterns_engine.compute_patterns(uid())
+        insights = patterns_engine.synthesize_insights(uid(), patterns)
+    except Exception:
+        _log.exception("patterns/synthesize: failed")
+        return jsonify({"ok": False, "error": "Could not synthesize insights",
+                        "error_code": "synthesis_failed"}), 500
+    return jsonify({"ok": True, "patterns": patterns, "insights": insights})
+
+
 @app.route("/api/day-timeline/<date_iso>/label-soft", methods=["POST"])
 @login_required
 def api_day_timeline_label_soft(date_iso: str):

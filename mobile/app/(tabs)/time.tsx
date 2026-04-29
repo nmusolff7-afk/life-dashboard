@@ -2,7 +2,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { CalendarTodayCard, DayStrip, EmptyState, GmailSummaryCard, GoalRow, LocationCard, OutlookCard, ScreenTimeCard, SubTabs, TabHeader, TimeTodaySignals } from '../../components/apex';
+import { CalendarTodayCard, DayStrip, EmptyState, GmailSummaryCard, GoalRow, LocationCard, OutlookCard, PatternsViewCard, ScreenTimeCard, SubTabs, TabHeader, TimeTodaySignals } from '../../components/apex';
 import { useGoals } from '../../lib/hooks/useGoals';
 import { deleteTask, toggleTask, useTasks, useTimeFocus } from '../../lib/hooks/useTasks';
 import { useAutoSyncOnFocus, useGcalStatus, useGmailStatus, useOutlookStatus } from '../../lib/hooks/useTimeData';
@@ -513,13 +513,11 @@ function DisconnectedSubsystem({ name, description, note }: {
 // ── Patterns / Timeline ─────────────────────────────────────────────────
 
 function PatternsView() {
-  return (
-    <EmptyState
-      icon="🕸️"
-      title="Patterns"
-      description="Wake time, screen-time peaks, place visits, meeting density — your personal rhythm map. Activates once Screen Time, Calendar, or Location is connected."
-    />
-  );
+  // 2026-04-28 §14.3 ship — was an EmptyState placeholder. Now
+  // backed by patterns_engine 14-day rollups + Claude Haiku
+  // insight synthesis (user-invoked). Card component lives in
+  // components/apex/PatternsView.tsx.
+  return <PatternsViewCard />;
 }
 
 function TimelineView() {

@@ -319,18 +319,27 @@ the project will become.
   _tap-a-block detail sheet with kind-aware icons + AI-confidence_
   _percentage on soft-block details.)_
 
-- **§14.3 Patterns view — hybrid** (~14h) — replaces Momentum tab stub
-  - **Scope:** Deterministic patterns (~6h) from 14-day rollups:
-    avg sleep, avg active mins, avg screen time, top locations,
-    cross-domain correlations. AI synthesis (~6h): Haiku reads
-    patterns + recent LifeContext, surfaces 3 plain-English
-    insights. Storage + UI: ~2h.
-  - **Files:** `patterns_engine.py` (new), `app.py` (route),
-    `mobile/app/(tabs)/momentum.tsx` (rebuild).
-  - **Done when:** Momentum tab renders 14-day pattern cards +
-    3 AI insight bullets; insights are user-invoked (refresh
-    button), never auto-generated.
-  - **PRD ref:** §4.6 (Patterns surface).
+- **§14.3 Patterns view — polish phase** (~6h follow-up)
+  - **Status (2026-04-28):** MVP shipped.
+    `patterns_engine.compute_patterns` rolls up sleep / movement /
+    screen / places / calendar / nutrition / workouts across 14
+    days. Two routes: `/api/patterns` (deterministic, always-load)
+    and `/api/patterns/synthesize` (Claude Haiku surfaces 3
+    plain-English insights, user-invoked via "Generate"/"Refresh").
+    Mobile `time.tsx PatternsView` now uses
+    `<PatternsViewCard />` from
+    `components/apex/PatternsView.tsx`.
+  - **Polish remaining:**
+    - **Cross-domain correlations** — sleep vs active calories,
+      screen time vs steps. Pearson coefs over the 14-day window.
+      Needs careful empty-data handling.
+    - **Patterns cron + storage** — for v1 we recompute on read
+      (cheap). Move to nightly job + `patterns_log` table once
+      compute time becomes a complaint.
+    - **Tap-a-pattern → drilldown** — show the underlying 14-day
+      bar chart for that pattern.
+    - **Insight feedback** — thumbs-up/down on each AI insight
+      so we can A/B prompt variations.
 
 - **§14.4 Chatbot context — polish phase** (~3h follow-up)
   - **Status (2026-04-28):** MVP shipped. Three new containers
