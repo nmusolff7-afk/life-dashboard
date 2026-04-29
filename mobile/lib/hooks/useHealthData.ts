@@ -106,6 +106,23 @@ type HealthConnectModuleType = {
     hrv_ms: number | null;
     active_kcal: number | null;
   }>;
+  // 2026-04-28 §14.5.2 expansion. Optional because older app
+  // builds without these natives still degrade cleanly.
+  readWorkoutSegments?(dateIso: string): Promise<Array<{
+    start_iso: string;
+    end_iso: string;
+    duration_min: number;
+    exercise_type: number;
+    title: string;
+    notes: string;
+  }>>;
+  readSleepStages?(dateIso: string): Promise<{
+    total: number;
+    awake: number;
+    light: number;
+    deep: number;
+    rem: number;
+  }>;
 };
 
 let _hc: HealthConnectModuleType | null | undefined;
@@ -216,19 +233,41 @@ export function useHealthData(): HealthDataState {
     setLoading(true);
     setError(null);
     try {
-      const agg = await hc.readDailyAggregates(localToday());
+      const dateIso = localToday();
+      const agg = await hc.readDailyAggregates(dateIso);
       setToday(agg);
+
+      // 2026-04-28 §14.5.2 expansion. Pull workout segments + sleep
+      // stages alongside the daily aggregates and ship in one
+      // /api/health/sync POST. The native methods are optional —
+      // older app builds without the new Kotlin module bindings
+      // skip these branches and post just the aggregates.
+      let workoutSegments: unknown[] = [];
+      let sleepStages: unknown = null;
+      try {
+        if (typeof hc.readWorkoutSegments === 'function') {
+          workoutSegments = await hc.readWorkoutSegments(dateIso);
+        }
+      } catch { /* permission/API issue — degrade gracefully */ }
+      try {
+        if (typeof hc.readSleepStages === 'function') {
+          sleepStages = await hc.readSleepStages(dateIso);
+        }
+      } catch { /* same */ }
+
       await apiFetch('/api/health/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          date:          localToday(),
-          platform:      Platform.OS,
-          steps:         agg.steps,
-          sleep_minutes: agg.sleep_minutes,
-          resting_hr:    agg.resting_hr,
-          hrv_ms:        agg.hrv_ms,
-          active_kcal:   agg.active_kcal,
+          date:             dateIso,
+          platform:         Platform.OS,
+          steps:            agg.steps,
+          sleep_minutes:    agg.sleep_minutes,
+          resting_hr:       agg.resting_hr,
+          hrv_ms:           agg.hrv_ms,
+          active_kcal:      agg.active_kcal,
+          sleep_stages:     sleepStages,
+          workout_segments: workoutSegments,
         }),
       });
     } catch (e) {

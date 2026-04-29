@@ -385,31 +385,27 @@ the project will become.
   - **Blocked on:** Founder completing Plaid Developer Portal
     setup (Plaid keys + webhook URL).
 
-- **§14.5.2 Health Connect granular pulls** (~8h) — connector depth
-  - **Scope:** Per-day workout segments (start/end + activity
-    type) via `ExerciseSessionRecord` — this is the path to **Garmin
-    activities flowing through HC** (Garmin Connect → Settings →
-    Health Connect → toggle on activity sync). Plus more sleep
-    stages (REM / deep / light / awake via `SleepSessionRecord.stages`),
-    HRV quality flag, HR zones from workouts.
-  - **Files:** `mobile/modules/health-connect/android/.../HealthConnectModule.kt`
-    (new pull functions for `ExerciseSessionRecord` + sleep stages),
-    `mobile/modules/health-connect/index.ts` (TS bindings + new
-    permission scopes: `READ_EXERCISE`, `READ_SLEEP_DATA_DETAILS`),
-    `db.py` (extend `health_daily` or add `health_workout_segments`
-    table), `app.py` (sync route), `chatbot.py` (LifeContext
-    consumer).
-  - **Done when:** Fitness tab shows yesterday's sleep stage
-    breakdown (donut chart); chatbot LifeContext includes HC
-    workout segments; Garmin activities synced through HC appear
-    in workout history; Strava + HC data merge cleanly without
-    double-count.
-  - **Founder note (2026-04-28):** "no sleep/HRV data from HC" is
-    typically a **data-source problem**, not a code problem — the
-    current module pulls all 5 metrics correctly. Check Health
-    Connect → Data → Sleep / HRV. If empty, no source is writing
-    them. Garmin watches write to HC only when the user enables
-    that path in the Garmin Connect mobile app.
+- **§14.5.2 HC granular pulls — UI surfacing follow-up** (~3h)
+  - **Status (2026-04-28):** Backend MVP shipped. Native module
+    + JS bindings + DB schema + sync route all support
+    ExerciseSessionRecord (Garmin / Pixel Watch / Fitbit
+    activities) + sleep-stage breakdown (awake/light/deep/REM).
+    `useHealthData.sync()` ships them whenever HC has data.
+    **Requires native rebuild to test** — Kotlin changes.
+  - **Polish remaining:**
+    - **Sleep stages donut on `subsystem/sleep.tsx`** — show the
+      4-way breakdown when present.
+    - **HC workout segments → `workout_logs` merge** — when a
+      Garmin run flows through HC, currently it lands in
+      `health_workout_segments` table, NOT `workout_logs`. The
+      WorkoutHistoryList won't show it. Need a merge layer or a
+      sync that creates `workout_logs` rows from HC segments.
+    - **Chatbot LifeContext** — surface workout segments + sleep
+      stages in the LifeContext container (currently in
+      health_today subtree only as totals).
+    - **Strava ↔ HC dedup** — if Garmin pushes to both Strava AND
+      HC, we'd see the same activity twice. Need a cross-source
+      dedup heuristic (start_iso ± 60s window).
 
 ### Later — v1.5+, scoped but not urgent
 

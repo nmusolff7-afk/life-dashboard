@@ -8,6 +8,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
+import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
 import androidx.health.connect.client.records.SleepSessionRecord
@@ -99,6 +100,31 @@ class HealthConnectModule : Module() {
           promise.resolve(result)
         } catch (e: Exception) {
           promise.reject("hc_aggregate_failed", e.message ?: "unknown error", e)
+        }
+      }
+    }
+
+    // 2026-04-28 §14.5.2 expansion — exercise sessions (the path
+    // for Garmin / Pixel Watch / Fitbit activities to flow through
+    // HC) + sleep stage breakdown.
+    AsyncFunction("readWorkoutSegments") { dateIso: String, promise: Promise ->
+      moduleScope.launch {
+        try {
+          val result = readWorkoutSegmentsImpl(dateIso)
+          promise.resolve(result)
+        } catch (e: Exception) {
+          promise.reject("hc_workouts_failed", e.message ?: "unknown error", e)
+        }
+      }
+    }
+
+    AsyncFunction("readSleepStages") { dateIso: String, promise: Promise ->
+      moduleScope.launch {
+        try {
+          val result = readSleepStagesImpl(dateIso)
+          promise.resolve(result)
+        } catch (e: Exception) {
+          promise.reject("hc_sleep_stages_failed", e.message ?: "unknown error", e)
         }
       }
     }
@@ -239,6 +265,82 @@ class HealthConnectModule : Module() {
     }
 
     return out
+  }
+
+  // 2026-04-28 §14.5.2 — workout segments. Each entry is one
+  // ExerciseSessionRecord — start/end times, exercise type code,
+  // optional title/notes. This is the path for Garmin / Pixel
+  // Watch / Fitbit activities to flow through HC into the app
+  // (the user toggles their wearable's "share with Health Connect"
+  // setting; their watch app writes ExerciseSessionRecord rows
+  // and we read them here).
+  private suspend fun readWorkoutSegmentsImpl(dateIso: String): List<Map<String, Any?>> {
+    val client = HealthConnectClient.getOrCreate(context)
+    val date = try { LocalDate.parse(dateIso) } catch (_: Exception) { LocalDate.now() }
+    val zone = ZoneId.systemDefault()
+    val start = date.atStartOfDay(zone).toInstant()
+    val end = date.plusDays(1).atStartOfDay(zone).toInstant()
+    val range = TimeRangeFilter.between(start, end)
+
+    val out = mutableListOf<Map<String, Any?>>()
+    safeRead(client, ExerciseSessionRecord::class, range)?.forEach { rec ->
+      val durationMin = Duration.between(rec.startTime, rec.endTime).toMinutes()
+      out.add(mapOf(
+        "start_iso"      to rec.startTime.toString(),
+        "end_iso"        to rec.endTime.toString(),
+        "duration_min"   to durationMin.toInt(),
+        // exerciseType is an Int code — the JS side maps codes to
+        // human labels via a lookup table. Passing the int keeps
+        // this layer dumb.
+        "exercise_type"  to rec.exerciseType,
+        "title"          to (rec.title ?: ""),
+        "notes"          to (rec.notes ?: ""),
+      ))
+    }
+    return out
+  }
+
+  // 2026-04-28 §14.5.2 — sleep stage breakdown. The session.stages
+  // collection inside each SleepSessionRecord lists the time the
+  // person spent in each stage (awake, light, deep, REM). When a
+  // wearable reports stages we sum minutes per stage; when only
+  // total session is reported, only `total` is non-zero.
+  private suspend fun readSleepStagesImpl(dateIso: String): Map<String, Int> {
+    val client = HealthConnectClient.getOrCreate(context)
+    val date = try { LocalDate.parse(dateIso) } catch (_: Exception) { LocalDate.now() }
+    val zone = ZoneId.systemDefault()
+    // Sleep typically spans the prior evening through morning of
+    // dateIso. Pull a window that covers both — yesterday 18:00 to
+    // dateIso 18:00. The session-end-time check decides whether
+    // each session belongs to dateIso's "last night" rollup.
+    val start = date.minusDays(1).atTime(18, 0).atZone(zone).toInstant()
+    val end = date.atTime(18, 0).atZone(zone).toInstant()
+    val range = TimeRangeFilter.between(start, end)
+
+    val totals = mutableMapOf("total" to 0, "awake" to 0, "light" to 0, "deep" to 0, "rem" to 0)
+    safeRead(client, SleepSessionRecord::class, range)?.forEach { session ->
+      // Total session length (regardless of stages reported).
+      val sessionMin = Duration.between(session.startTime, session.endTime).toMinutes().toInt()
+      totals["total"] = totals.getValue("total") + sessionMin
+      // Per-stage minutes when the wearable supplied them.
+      session.stages.forEach { stage ->
+        val mins = Duration.between(stage.startTime, stage.endTime).toMinutes().toInt()
+        // SleepSessionRecord.Stage.STAGE_TYPE_AWAKE / LIGHT / DEEP / REM ints.
+        // Constants live on the SleepSessionRecord companion.
+        val key = when (stage.stage) {
+          SleepSessionRecord.STAGE_TYPE_AWAKE,
+          SleepSessionRecord.STAGE_TYPE_AWAKE_IN_BED -> "awake"
+          SleepSessionRecord.STAGE_TYPE_LIGHT        -> "light"
+          SleepSessionRecord.STAGE_TYPE_DEEP         -> "deep"
+          SleepSessionRecord.STAGE_TYPE_REM          -> "rem"
+          else                                       -> null
+        }
+        if (key != null) {
+          totals[key] = totals.getValue(key) + mins
+        }
+      }
+    }
+    return totals
   }
 
   private suspend fun <T : androidx.health.connect.client.records.Record> safeRead(

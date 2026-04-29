@@ -1771,3 +1771,93 @@ after adding `GOOGLE_MAPS_API_KEY` to `.env`. Resolved.
 - **Manual checks (pending):** 3 new items in INBOX under
   "From 3 new goal types".
 - **Next pickup:** §14.5.2 HC granular pulls (~8h, item #5 of 6).
+
+### 28:00 — §14.5.2 HC granular pulls — backend MVP (item #5 of "go on all except plaid")
+- **Prompt:** "continue" — keep the queue moving.
+- **Did:**
+  1. **Triaged INBOX** — empty new sections; 34 manual checks
+     pending.
+  2. **Active phase: §14.5.2 HC granular pulls.** Native
+     Kotlin work — extends the custom Expo Module to read
+     `ExerciseSessionRecord` (the path for Garmin / Pixel
+     Watch / Fitbit activities to flow through HC into the
+     app) + `SleepSessionRecord.stages` for awake / light /
+     deep / REM breakdown.
+  3. **Native module shipped:**
+     - `HealthConnectModule.kt`: new `readWorkoutSegments(dateIso)`
+       function (returns `[{start_iso, end_iso, duration_min,
+       exercise_type, title, notes}, ...]`) and
+       `readSleepStages(dateIso)` function (returns
+       `{total, awake, light, deep, rem}` minutes for the
+       night ending on dateIso, window 18:00 prior day → 18:00
+       dateIso).
+     - Module exposes both as `AsyncFunction` with promise
+       contracts. Module-level launchers reuse the existing
+       moduleScope coroutine.
+  4. **JS bindings:**
+     - `index.ts`: added `WorkoutSegment` + `SleepStages`
+       types, `EXERCISE_TYPE_LABEL` lookup table (50+ codes
+       from HC's enum), `exerciseTypeLabel(code)` helper.
+     - `HC_READ_PERMISSIONS` extended with
+       `READ_EXERCISE`. `READ_SLEEP` already covers stage
+       detail.
+  5. **Backend schema + helpers:**
+     - `db.py`: `health_daily` ALTER TABLE adds
+       `sleep_awake_min` / `sleep_light_min` / `sleep_deep_min`
+       / `sleep_rem_min` columns (nullable). New table
+       `health_workout_segments` with composite PK
+       `(user_id, start_iso, end_iso, exercise_type)` for
+       idempotent re-sync.
+     - `upsert_health_daily` extended with the 4 sleep-stage
+       params. New `upsert_workout_segments(user_id, segments)`
+       and `list_workout_segments(user_id, start, end)`
+       helpers.
+  6. **Sync route + mobile:**
+     - `app.py /api/health/sync` accepts `sleep_stages: {awake,
+       light, deep, rem}` and `workout_segments: [...]` in
+       the body.
+     - `useHealthData.sync()` now pulls workout segments +
+       sleep stages alongside the daily aggregates and ships
+       them in one POST. Both calls are wrapped in
+       try/catch so older app builds without the new native
+       methods degrade cleanly (post just the aggregates).
+- **Files:** `mobile/modules/health-connect/android/.../HealthConnectModule.kt`,
+  `mobile/modules/health-connect/index.ts`, `db.py`, `app.py`,
+  `mobile/lib/hooks/useHealthData.ts`,
+  `docs/BUILD_PLAN.md`, `docs/INBOX.md`, `docs/PHASE_LOG.md`.
+- **Decisions:**
+  - **Workout segments live in their own table**, not in
+    `health_daily` or `workout_logs`. health_daily is daily
+    aggregates; segments have time bounds. `workout_logs` is
+    the user's manual + Strava log; HC segments could
+    duplicate Strava (Garmin → both HC and Strava on some
+    setups). Storing separately preserves provenance until a
+    dedupe pass is built (filed as polish).
+  - **Sleep stages on `health_daily`** — they're a single
+    row's "last night" rollup. Putting in a separate table
+    would over-engineer.
+  - **EXERCISE_TYPE_LABEL is a hardcoded lookup**, not a
+    database table. The codes are stable per HC SDK version;
+    bundling client-side avoids a backend round-trip every
+    time we render a segment.
+  - **Sleep window = prior 18:00 → today 18:00.** A user who
+    sleeps 23:00–07:00 has the session start day-1 and end
+    day. Bounding to "session ending today" with an 18:00
+    cutoff catches normal sleep without grabbing tomorrow's
+    early-bed naps.
+  - **Optional native methods** (`readWorkoutSegments?`,
+    `readSleepStages?` typed as optional in TS). Lets the
+    JS hook degrade gracefully on builds installed before
+    the new native code.
+  - **No UI surfacing this turn.** Sleep stage donut chart
+    (sleep.tsx) + WorkoutHistoryList ingestion of HC
+    segments + chatbot LifeContext extension all filed as
+    follow-up polish phase.
+- **Outcome:** Shipping. TS clean (only pre-existing
+  finance.tsx). Backend boots. **Native rebuild required to
+  test on-device** — manual checks reflect this.
+- **Manual checks (pending):** 3 new items in INBOX under
+  "From §14.5.2 HC granular pulls", with rebuild instructions
+  inlined.
+- **Next pickup:** §14.3 Patterns view (~14h, item #6 of 6,
+  the biggest one). Will continue next response.

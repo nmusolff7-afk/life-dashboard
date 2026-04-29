@@ -47,6 +47,29 @@ write naturally, Claude figures it out.
 > - `[~]` — partially works; describe what's off
 > - delete the line entirely if you don't care about it anymore
 
+### From §14.5.2 HC granular pulls — 2026-04-28
+
+**Heads up: this phase touches native Kotlin. You need a fresh local Android build to test.**
+
+```powershell
+cd C:\Users\nmuso\Documents\life-dashboard\mobile
+npx expo prebuild --platform android --clean
+cd android
+.\gradlew.bat :app:assembleDebug
+adb install -r .\app\build\outputs\apk\debug\app-debug.apk
+```
+
+After rebuild + reload:
+
+- [ ] **HC permission sheet** — Settings → Connections → Health Connect → Connect. The system permission sheet should now include "Exercise" alongside Steps / Sleep / Heart rate / HRV / Active calories
+  → response:
+
+- [ ] **Garmin activity flows through** — record an activity on your Garmin (or just check Health Connect → Data → Exercise). After the next HC sync from the app, that activity should land in `health_workout_segments` table on the backend (not yet visible in any UI — that's the follow-up phase)
+  → response:
+
+- [ ] **Sleep stage breakdown captured** — if your wearable supplies stage detail, after a sync the backend `health_daily` row should have non-zero `sleep_awake_min` / `sleep_light_min` / `sleep_deep_min` / `sleep_rem_min`. You can verify by querying the DB; UI surfacing is the follow-up
+  → response:
+
 ### From 3 new goal types — 2026-04-28
 
 - [ ] **TIME-07 Inbox-zero streak** — Goals → Library → "Inbox-zero streak". Set target streak length (e.g. 14). Save → goal active. After you've cleared a day's email backlog, the streak should tick up

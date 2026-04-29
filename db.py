@@ -679,6 +679,40 @@ def init_db():
                 PRIMARY KEY (user_id, stat_date)
             )
         """)
+        # Additive 2026-04-28 §14.5.2: per-stage sleep minutes when
+        # the wearable supplied them. Sum = sleep_minutes; zero across
+        # all four when only total duration was reported.
+        hd_cols = {r["name"] for r in conn.execute("PRAGMA table_info(health_daily)").fetchall()}
+        for col in ("sleep_awake_min", "sleep_light_min", "sleep_deep_min", "sleep_rem_min"):
+            if col not in hd_cols:
+                conn.execute(f"ALTER TABLE health_daily ADD COLUMN {col} INTEGER")
+
+        # 2026-04-28 §14.5.2: workout segments from HC ExerciseSessionRecord.
+        # Each row = one wearable-reported activity session (Garmin run,
+        # Pixel Watch HIIT, etc). Backfilled into a separate table rather
+        # than crammed into health_daily because a day can have many
+        # sessions and each has its own start/end + type.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS health_workout_segments (
+                user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                start_iso      TEXT NOT NULL,
+                end_iso        TEXT NOT NULL,
+                duration_min   INTEGER NOT NULL,
+                exercise_type  INTEGER NOT NULL,
+                title          TEXT,
+                notes          TEXT,
+                synced_at      TIMESTAMP NOT NULL,
+                PRIMARY KEY (user_id, start_iso, end_iso, exercise_type)
+            )
+        """)
+        try:
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_health_workout_segments_user_start "
+                "ON health_workout_segments(user_id, start_iso)"
+            )
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
 
         # Location samples — foreground-only for v1. Mobile pushes its
         # current location on app open + every 15min when foregrounded.
@@ -3008,10 +3042,19 @@ def upsert_health_daily(user_id: int, stat_date: str, *,
                         sleep_minutes: int | None = None,
                         resting_hr: int | None = None,
                         hrv_ms: int | None = None,
-                        active_kcal: int | None = None) -> None:
+                        active_kcal: int | None = None,
+                        sleep_awake_min: int | None = None,
+                        sleep_light_min: int | None = None,
+                        sleep_deep_min: int | None = None,
+                        sleep_rem_min: int | None = None) -> None:
     """Upsert a single (user, date) health row. Pass None for any metric
     not available — existing values are preserved (we don't blow away
-    yesterday's HRV just because today's sync didn't have it)."""
+    yesterday's HRV just because today's sync didn't have it).
+
+    2026-04-28 §14.5.2: now also accepts sleep stage breakdowns from
+    the HC ExerciseSessionRecord-adjacent SleepSessionRecord.stages
+    pull. Per-stage minutes are zero when only total session duration
+    was reported by the wearable."""
     now = datetime.now().isoformat()
     with get_conn() as conn:
         existing = conn.execute(
@@ -3025,25 +3068,83 @@ def upsert_health_daily(user_id: int, stat_date: str, *,
                 "resting_hr":    resting_hr if resting_hr is not None else existing["resting_hr"],
                 "hrv_ms":        hrv_ms if hrv_ms is not None else existing["hrv_ms"],
                 "active_kcal":   active_kcal if active_kcal is not None else existing["active_kcal"],
+                "sleep_awake_min": sleep_awake_min if sleep_awake_min is not None else existing["sleep_awake_min"],
+                "sleep_light_min": sleep_light_min if sleep_light_min is not None else existing["sleep_light_min"],
+                "sleep_deep_min":  sleep_deep_min  if sleep_deep_min  is not None else existing["sleep_deep_min"],
+                "sleep_rem_min":   sleep_rem_min   if sleep_rem_min   is not None else existing["sleep_rem_min"],
                 "synced_at":     now,
             }
             conn.execute(
                 "UPDATE health_daily SET steps=?, sleep_minutes=?, resting_hr=?, "
-                "hrv_ms=?, active_kcal=?, synced_at=? WHERE user_id=? AND stat_date=?",
+                "hrv_ms=?, active_kcal=?, sleep_awake_min=?, sleep_light_min=?, "
+                "sleep_deep_min=?, sleep_rem_min=?, synced_at=? "
+                "WHERE user_id=? AND stat_date=?",
                 (
                     updates["steps"], updates["sleep_minutes"], updates["resting_hr"],
-                    updates["hrv_ms"], updates["active_kcal"], now, user_id, stat_date,
+                    updates["hrv_ms"], updates["active_kcal"],
+                    updates["sleep_awake_min"], updates["sleep_light_min"],
+                    updates["sleep_deep_min"], updates["sleep_rem_min"],
+                    now, user_id, stat_date,
                 ),
             )
         else:
             conn.execute(
                 "INSERT INTO health_daily (user_id, stat_date, steps, sleep_minutes, "
-                "resting_hr, hrv_ms, active_kcal, synced_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "resting_hr, hrv_ms, active_kcal, sleep_awake_min, sleep_light_min, "
+                "sleep_deep_min, sleep_rem_min, synced_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (user_id, stat_date, steps, sleep_minutes, resting_hr,
-                 hrv_ms, active_kcal, now),
+                 hrv_ms, active_kcal,
+                 sleep_awake_min, sleep_light_min, sleep_deep_min, sleep_rem_min, now),
             )
         conn.commit()
+
+
+def upsert_workout_segments(user_id: int, segments: list[dict]) -> int:
+    """Insert (or update) HC ExerciseSessionRecord rows. Idempotent on
+    (user_id, start_iso, end_iso, exercise_type) — re-syncing the same
+    session doesn't dup. Returns the count of upserted rows."""
+    if not segments:
+        return 0
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        for s in segments:
+            try:
+                conn.execute(
+                    "INSERT INTO health_workout_segments "
+                    "(user_id, start_iso, end_iso, duration_min, exercise_type, "
+                    " title, notes, synced_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+                    "ON CONFLICT(user_id, start_iso, end_iso, exercise_type) DO UPDATE SET "
+                    "  duration_min = excluded.duration_min, "
+                    "  title        = excluded.title, "
+                    "  notes        = excluded.notes, "
+                    "  synced_at    = excluded.synced_at",
+                    (user_id, s["start_iso"], s["end_iso"],
+                     int(s.get("duration_min") or 0),
+                     int(s.get("exercise_type") or 0),
+                     s.get("title") or "",
+                     s.get("notes") or "",
+                     now),
+                )
+            except Exception:
+                continue
+        conn.commit()
+    return len(segments)
+
+
+def list_workout_segments(user_id: int, start_iso: str, end_iso: str) -> list[dict]:
+    """Pull workout segments in a window. start/end are ISO timestamps
+    bounded by the start_iso column (not end_iso) so partial-overlap
+    filter logic stays simple."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM health_workout_segments "
+            "WHERE user_id = ? AND start_iso >= ? AND start_iso < ? "
+            "ORDER BY start_iso",
+            (user_id, start_iso, end_iso),
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def get_health_daily(user_id: int, stat_date: str) -> dict | None:

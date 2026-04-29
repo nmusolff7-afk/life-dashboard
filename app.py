@@ -2431,6 +2431,9 @@ def api_health_sync():
         except (TypeError, ValueError):
             return None
 
+    # 2026-04-28 §14.5.2: also accepts sleep stage breakdown +
+    # workout segments (HC ExerciseSessionRecord) when present.
+    sleep_stages = data.get("sleep_stages") or {}
     upsert_health_daily(
         uid(), stat_date,
         steps=_to_int(data.get("steps")),
@@ -2438,7 +2441,15 @@ def api_health_sync():
         resting_hr=_to_int(data.get("resting_hr")),
         hrv_ms=_to_int(data.get("hrv_ms")),
         active_kcal=_to_int(data.get("active_kcal")),
+        sleep_awake_min=_to_int(sleep_stages.get("awake")),
+        sleep_light_min=_to_int(sleep_stages.get("light")),
+        sleep_deep_min=_to_int(sleep_stages.get("deep")),
+        sleep_rem_min=_to_int(sleep_stages.get("rem")),
     )
+    workout_segments = data.get("workout_segments") or []
+    if isinstance(workout_segments, list) and workout_segments:
+        from db import upsert_workout_segments
+        upsert_workout_segments(uid(), workout_segments)
     # Mark connector as connected + bump last_sync_at. Both 'healthkit'
     # and 'health_connect' provider rows share this sync since the
     # mobile hook abstracts which platform we're on.
