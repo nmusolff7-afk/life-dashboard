@@ -169,7 +169,9 @@ _(empty)_
 ---
 
 ## ✨ Feature ideas
-_(empty)_
+_(empty — logo swap filed in BUILD_PLAN → Now; blocked on
+placing `logo_transparent.png` + `logo_background.png` in the
+project root. Drop them there + ping and I'll wire the swap)_
 
 ---
 

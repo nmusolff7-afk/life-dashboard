@@ -242,6 +242,37 @@ the project will become.
   _runbook in `docs/DEPLOY.md`. Bundled with the HC native rebuild_
   _since the release APK build picks up both jobs.)_
 
+- **Wire new logo everywhere + APK launcher icon** (~1h) — INBOX 2026-04-28
+  - **Founder symptom:** "switch to new logo, everywhere that
+    uses the logo. include as logo for .apk also. files are
+    in the main life dashboard folder logo_transparent.png
+    and logo_background.png".
+  - **Status:** Files NOT yet present at repo root. Founder
+    needs to drop `logo_transparent.png` + `logo_background.png`
+    in the project root (or specify where they live). Once
+    placed, the wiring is mechanical:
+    - Copy to `mobile/assets/images/icon.png` (full-bleed),
+      `mobile/assets/images/android-icon-foreground.png`,
+      `mobile/assets/images/android-icon-background.png`,
+      `mobile/assets/images/splash-icon.png`,
+      `mobile/assets/images/favicon.png`.
+    - Adaptive icon background color in `app.json` may need
+      a tweak to match the logo's design.
+    - Sweep app for any inline logo references (login screen,
+      onboarding hero, chatbot avatar) — likely none beyond
+      the splash + launcher.
+    - Native rebuild required (icons are bundled into the APK
+      mipmap resources).
+  - **Files:** `mobile/app.json` (icon paths already correct,
+    just replacing the assets), `mobile/assets/images/*.png`
+    (the actual files).
+  - **Done when:** Phone launcher shows the new logo with
+    "Life Dashboard" label; splash screen matches; release
+    APK installs with the new icon. Built into Tier 3
+    re-test on the next rebuild.
+  - **Blocked on (founder):** placing the two source PNGs in
+    the project root or telling me where to find them.
+
 - **Calorie chart shows flat ~1800 line — actual logged meals don't match** (annoying, ~2h) — INBOX 2026-04-28
   - **Founder symptom:** "this works but wasnt the problem the
     actual data shows a flat line at like 1800cals which isnt
