@@ -641,6 +641,27 @@ def home():
     return render_template("home.html")
 
 
+@app.route("/api/health")
+def api_health():
+    """Unauthenticated liveness ping. Returns 200 + a small JSON
+    payload as long as the Flask process is up and SQLite is
+    reachable. Used by deploy smoke tests + future uptime
+    monitors."""
+    db_ok = True
+    try:
+        from db import get_conn
+        with get_conn() as conn:
+            conn.execute("SELECT 1").fetchone()
+    except Exception as e:
+        db_ok = False
+        _log.warning("api_health: SQLite probe failed: %s", e)
+    return jsonify({
+        "ok": True,
+        "service": "life-dashboard",
+        "db": "up" if db_ok else "down",
+    })
+
+
 @app.route("/privacy")
 def privacy():
     return render_template("privacy.html")

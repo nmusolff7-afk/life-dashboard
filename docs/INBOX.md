@@ -56,23 +56,24 @@ write naturally, Claude figures it out.
 
 **Founder-side gates first** — these block the rest:
 
-- [ ] **Railway account + project created** — sign in at railway.app
-  via GitHub, deploy the `nmusolff7-afk/life-dashboard` repo
-  → response (paste the Railway public URL here):
-
-- [ ] **Env vars set in Railway** — full list in DEPLOY.md Step 3.
-  Most copy from your local `.env`. New values: `DB_PATH=/data/...`,
-  `APP_URL=<railway-url>`, `CORS_ORIGINS=*`
+- [ ] **Backend smoke test** — Backend is now up (the "random
+  website" was the legacy Flask PWA homepage at `/` — expected,
+  not a bug). Hit
+  `https://web-production-23011.up.railway.app/api/health` in
+  a browser. After the next Railway redeploy (this turn added
+  the `/api/health` route), it should return:
+  `{"ok": true, "service": "life-dashboard", "db": "up"}`.
   → response:
 
-- [ ] **Volume mounted at `/data`** — DEPLOY.md Step 4. Without
-  this, the SQLite DB resets on every redeploy
-  → response:
-
-- [ ] **Backend smoke test** — hit
-  `https://<your-railway-url>/api/health` in a browser. Returns
-  JSON or a login-redirect. Confirms Flask is up
-  → response:
+  Status:
+  - Railway URL: `web-production-23011.up.railway.app` ✓
+  - Volume mounted at `/data` ✓
+  - SECRET_KEY presumably set (boot crash resolved; founder
+    saw the Flask PWA HTML render on `/`, which means Flask
+    booted past the SECRET_KEY check)
+  - JWT_SECRET intentionally skipped (falls back — fine)
+  - CORS_ORIGINS — set to `*` if you want to silence the
+    default warning, not blocking
 
 **App-side, after the backend is up:**
 

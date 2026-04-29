@@ -2257,3 +2257,64 @@ should yield the next round of work.
   starts: calorie chart actual-data flat-1800; Gmail
   sync+star; Time tab task input card to top + 2x2 chips;
   goals access from Settings).
+
+### 32:30 — Deploy unstuck + /api/health route added
+- **Prompt:** "inbox updated trying probably some wrong api keys
+  or something idk keeps crashing wh at do you need?" → then
+  almost immediately "woah wait it ran but showing random
+  website in my google browser".
+- **Did:**
+  1. **Diagnosed initial crash before founder fixed it.**
+     Most likely cause: `SECRET_KEY` not set, hard-required
+     when `RAILWAY_ENVIRONMENT=production` (which Railway
+     auto-sets). Founder said they were missing JWT_SECRET
+     + CORS_ORIGINS but didn't mention SECRET_KEY — guessed
+     they may have skipped it too.
+  2. **Asked for Railway deploy logs** + clarified that
+     JWT_SECRET (falls back to SECRET_KEY) and CORS_ORIGINS
+     (has default) are both optional.
+  3. **Founder fixed it on their own** before I finished
+     replying — SECRET_KEY was the issue. Backend is now up.
+  4. **"Random website" diagnosis:** the Flask root route
+     `/` renders the legacy Flask PWA homepage
+     (`templates/home.html`). Not a bug — Flask still
+     serves the pre-RN web frontend at `/`. The mobile
+     app talks to `/api/*`, which is a separate concern.
+  5. **Added `/api/health` ping route** to `app.py`. Returns
+     `{"ok": true, "service": "life-dashboard", "db":
+     "up|down"}`. Unauthenticated. Used by the DEPLOY.md
+     smoke test (which previously referenced a route that
+     didn't exist) + future uptime monitors. Probes SQLite
+     with `SELECT 1` so a "down" db result surfaces volume-
+     mount issues.
+  6. **Updated DEPLOY.md** to specify the expected
+     `/api/health` JSON shape + clarified that hitting `/`
+     shows the legacy Flask PWA, not a deploy bug.
+  7. **Updated INBOX** — collapsed the founder-side gates
+     that are now verified into a single status block;
+     re-issued backend smoke test as the next item to verify
+     post-redeploy.
+- **Files:** `app.py` (new `/api/health` route), `docs/DEPLOY.md`,
+  `docs/INBOX.md`, `docs/PHASE_LOG.md`.
+- **Decisions:**
+  - **Built a real `/api/health` instead of removing the
+    reference from DEPLOY.md.** Operations need a public
+    liveness probe that doesn't require auth; cheap to add
+    now and Railway-monitoring-friendly.
+  - **Probed SQLite in the health route.** A green Flask +
+    red DB is a real failure mode (Railway volume not
+    mounted), and surfacing it directly saves the founder
+    a separate diagnostic round.
+  - **Did not break out the founder's "random website"
+    confusion as a bug.** It's correct Flask behavior; the
+    fix is to clarify in DEPLOY.md, not to remove the
+    legacy PWA routes. Those routes aren't load-bearing
+    for v1 but removing them would risk breaking unrelated
+    flows.
+- **Manual checks (pending):** Same INBOX list as 32:00, with
+  the backend-smoke-test entry now pointing at the real
+  `/api/health` route.
+- **Outcome:** Deploy unblocked. Backend up, founder needs to
+  redeploy to pick up `/api/health` (auto-redeploys on push),
+  flip mobile/.env, build release APK. **Next pickup:**
+  cellular smoke test + the rest of the rebuild verifications.

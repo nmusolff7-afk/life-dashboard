@@ -116,8 +116,17 @@ Railway → Deployments → latest → View logs. You want to see:
 ```
 
 Then hit `https://<your-railway-subdomain>.up.railway.app/api/health`
-in a browser. Should return JSON (login-protected route may 401 —
-that's fine, just confirms Flask is up).
+in a browser. Should return:
+
+```json
+{"ok": true, "service": "life-dashboard", "db": "up"}
+```
+
+If `db` reports `"down"`, the volume isn't mounted correctly —
+check Step 4. If you instead see the Flask PWA HTML homepage,
+you hit `/` instead of `/api/health` — that's the legacy web
+frontend, not a bug. The mobile app talks to `/api/*` routes,
+not `/`.
 
 ---
 
